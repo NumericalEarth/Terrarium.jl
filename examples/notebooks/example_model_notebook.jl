@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.21
+# v0.20.23
 
 using Markdown
 using InteractiveUtils
@@ -70,9 +70,6 @@ Boundary conditions are specified by passing Oceananigans `BoundaryCondition` ty
 For our current example, we are defining a simple linear ODE without any spatial dynamics, so we can get away with just a single column with one vertical layer. We can define it like so:
 """
 
-# ╔═╡ 78f268ef-5385-4c63-bc35-2c973de69da5
-grid = ColumnGrid(CPU(), Float64, UniformSpacing(N = 1))
-
 # ╔═╡ 054a8b11-250f-429f-966f-ca3c9a5dc2ef
 md"""
 ## Defining the model
@@ -116,27 +113,65 @@ So, let's define those:
 
 # ╔═╡ 82e45724-ba16-4806-9470-5cb4c43ea734
 Terrarium.variables(::ExpModel) = (
-    Terrarium.prognostic(:u, Terrarium.XY()),
-    Terrarium.auxiliary(:c, Terrarium.XY()),
-    Terrarium.input(:F, Terrarium.XY()),
+    Terrarium.prognostic(:u, Terrarium.XY(), desc = "Exponential growth variable"),
+    Terrarium.auxiliary(:c, Terrarium.XY(), desc = "Constant offset for exponential growth"),
+    Terrarium.input(:F, Terrarium.XY(), desc = "External forcing"),
 )
+
+# ╔═╡ dfc52b4e-a015-4295-b47f-1dd2b10abeb2
+begin
+	using KernelAbstractions # we need this later for the kernels 
+	
+	@kwdef struct SnowModel{NF, Grid <: Terrarium.AbstractLandGrid{NF}, Pro, Init} <: Terrarium.AbstractModel{NF, Grid}
+	    "Spatial grid on which state variables are discretized"
+	    grid::Grid
+	
+	    "Snow melting process"
+	    snow_melt::Pro = DegreeDaySnow()
+	
+	    "Model initializer"
+	    initializer::Init = DefaultInitializer()
+	end
+	
+	Terrarium.variables(model::SnowModel) = (
+	    Terrarium.variables(model.snow_melt)..., 
+	)
+	
+	@kwdef struct DegreeDaySnow{NF} <: Terrarium.AbstractProcess{NF}
+		"Degree-day factor" 
+	    k::NF = 1
+	
+		"Melting point of snow on the ground"
+		T_melt::NF = 0
+	end
+	
+	Terrarium.variables(model::DegreeDaySnow) = (
+		Terrarium.input(:air_temperature, XY(), default = NF(0), units="°C", desc = "Near-surface air temperature in °C"),
+		Terrarium.input(:snow_fall, XY(), default = NF(0), units="m/s", desc = "snow fall rate in m/s"),
+	    Terrarium.prognostic(:snow_depth, XY(), units="m", desc = "Snow depth in m")
+	)
+	
+end
+
+# ╔═╡ 78f268ef-5385-4c63-bc35-2c973de69da5
+grid = ColumnGrid(CPU(), Float64, UniformSpacing(N = 1))
 
 # ╔═╡ d4d19de7-6f77-4873-9182-9832d1ca4381
 md"""
 Here, we defined our three variables with their names as a `Symbol` and whether they are 2D variables (`XY`) on the spatial grid or 3D variables (`XYZ`) that also vary along the vertical z-axis. Here we are considering only a simple scalar model so we choose 2D (`XY`), bearing in mind that all points in the X and Y dimensions of `ColumnGrid` are independent of each other.
 
-We also need to define `compute_auxiliary!` and `compute_tendencies!` as discussed above. We will use here a pattern which is commonly employed within Terrarium: we unpack the process from the model and forward the method calls to more specialzied ones defined for the `LinearDynamics` process.
+We also need to define `compute_auxiliary!` and `compute_tendencies!` as discussed above. We will use here a pattern which is commonly employed within Terrarium: we unpack the process from the model and forward the method calls to more specialzied ones defined for the `LinearDynamics` process. The `compute_auxiliary!` and `compute_tendencies!` of `AbstractProcess`es follow the signatures `(state, grid, processes...)`, as you see here: 
 """
 
 # ╔═╡ 5ea313fc-3fbb-4092-a2cc-e0cd1f2fe641
 function Terrarium.compute_auxiliary!(state, model::ExpModel)
-    compute_auxiliary!(state, model, model.dynamics)
+    compute_auxiliary!(state, model.grid, model.dynamics)
     return nothing
 end
 
 # ╔═╡ 3815424f-6210-470d-aef1-99c60c71072f
 function Terrarium.compute_tendencies!(state, model::ExpModel)
-    compute_tendencies!(state, model, model.dynamics)
+    compute_tendencies!(state, model.grid, model.dynamics)
     return nothing
 end
 
@@ -154,7 +189,7 @@ With that in mind, let's define the methods:
 # ╔═╡ d55aaf4c-3033-45ba-9d64-8fa8ae4b671c
 function Terrarium.compute_auxiliary!(
         state,
-        model::ExpModel,
+        grid,
         dynamics::LinearDynamics
     )
     # set auxiliary variable for offset c
@@ -165,7 +200,7 @@ end
 # du/dt = u + c
 function Terrarium.compute_tendencies!(
         state,
-        model::ExpModel,
+        grid,
         dynamics::LinearDynamics
     )
     # define the dynamics; we'll use some special characters to make the equation nicer to look at :)
@@ -235,9 +270,6 @@ integrator = initialize(model, Heun(Δt = 1.0), input; initializers)
 md"""
 We can advance our model by one step via the `timestep!` method:
 """
-
-# ╔═╡ 879d86d2-6828-4957-9aac-cd43508cbf1a
-timestep!(integrator)
 
 # ╔═╡ 4676ab3b-4f8f-4f47-9538-5f1e4ef257b1
 integrator.state.u
@@ -313,8 +345,123 @@ plot(1:length(fts), [fts[i][1, 1, 1] for i in 1:length(fts)])
 
 # ╔═╡ 25e22154-946f-4c32-a1fa-73d86e935ff3
 md"""
-Well that's it. We defined and ran a simple exponential model with external forcing following the Terrarium `AbstractModel` interface! Stay tuned for more!
+Well, this was a simple way to define and run a simple exponential model with external forcing following the Terrarium `AbstractModel` interface. 
+
+But typically, our computations will be a bit more complicated than that and we can't easily assign them with a broadcastable operation like with done here in `compute_tendencies!`. So what do we have to do in these cases? 
+
+## Writing kernelized-code for Terrarium 
+
+Terrarium is a device-agnostic model that runs across different architectures like x86 CPUs, ARM CPUs, but also GPUs. To achieve this wide compability, we rely on KernelAbstractions to write our compute code in kernels. But don't panic! We provide a lot of utilities and functions that help you with that and ensure that our models are fast and efficient as well. In simple terms, kernels can be thought of as the inner body of a for-loop. The kernel function implements one iteration of that loop, in Terrarium the kernel function implements the computation for a single column / grid point. To execute the computation the kernel is 'launched' on the device we set up when constructing the model (per default your CPU). In this launch we also set the range this kernel should iterate over (usually all columns of the grid), and hand over all arguments the kernel function needs. 
+
+To demonstrate this process and all tools we have availble to help you with that, we will implement a degree day snow model. 
+
+### Degree Day Model 
+
+A degree day model models snow melt by assuming that snow depth decreases linearly  over time with the temperature when it is above its melting point. Following [Kavetski and Kuczera's formulation](https://agupubs.onlinelibrary.wiley.com/doi/10.1029/2006WR005195) we denote the snow mass balance as 
+
+```math 
+\frac{dS}{dt} = P - M
+```
+
+with snow storage $S \in \mathbb{R}^+$, the snow input $P$ and melt rate $M$ modelled as 
+
+```math 
+M = \begin{cases} 0 & \text{if } T \leq T_k, \\ 
+	k(T - T_k) & \text{if } T > T_k \end{cases}
+```
+
+where $k$ is the degree-day factor/parameter and $T_k$ is a parameter for the melting point of snow on the ground. 
+
+For our experiment we will use the degree day model with a prescribed surface temperature $T$, and initialize a global model with snow everywhere to watch the snow melt. 
+
+### Your first kernel model 
+
+First, we need to define our model that holds the snow melting process similar to before: 
 """
+
+# ╔═╡ 52a2bf95-e258-41ab-922e-f0965d0d0ee2
+md"""
+Then, we need to define the dynamics again. Typically, we launch kernels on the level of `AbstractProcess`es in Terrarium. These processes then might have further parametrizations attached to them that need to be computed. We have a few utilities and conventions for this purpose:
+
+* Kernels are typically named `compute_*_kernel!`, and follow a signature `compute_*_kernel!(output_fields, grid, fields, processes..., args...)`.
+* In this function call we don't hand over the full `StateVariables` anymore as this would come with a large computational overhead on GPUs. Instead we only hand over those fields that the process actually needs. You can either assemble these fields manually, or use the convenience function `get_fields(state, processes...)` that returns all the fields that are defined in the `variables` of the respective processes or the model.
+* Kernels are launched with the `launch!` function that defines whether the kernel is launched over all columns / gridpoints `XY` or over all columns and horizontal layers `XYZ` of a `grid`
+* Kernel functions themselves are supposed to be very minimal functions that forward the actual computation to pointwise compute functions that compute the needed quantity for the grid points `i,j`. This increases the reusability and composability of our model code. These compute functions are really the core of the implementation of our model and similar to those you typically find in more traditional land models: They compute the action of a process for a single grid point given inputs and parameters. 
+* The compute functions follow either a mutating pattern `compute_*!(out, i, j, grid, fields, processes..., args...)` or a non-mutating pattern `compute_*(i, j, grid, fields, processes..., args...)`
+
+Let's put all of this in practice now for our example. 
+
+First, we need to define the `compute_tendencies!` for our `Model` as before, then we launch the kernel in the `compute_tendencies!` of our `Process`. For this model we don't actually have auxiliary variables, so we don't have to actually define a `compute_auxiliary!` in this case, as we inherit a default `compute_auxiliary!(args...) = nothing`. 
+"""
+
+# ╔═╡ ab4a216f-3962-4a6f-8f92-2e9a08798e7c
+md"""
+The `@index(Global, NTuple)` is a function from KernelAbstractions that gets us the current index of our iteration, so the column we compute. 
+
+With that, we can also define our `compute_foo_tendency` function that does the actual computation: 
+"""
+
+# ╔═╡ d8b05ae3-ecba-41de-84c7-45cbf31b735d
+function compute_snow_melt_tendency(i, j, grid, fields, snow_melt)
+	# get the variables we need 
+	P = fields.snow_fall[i,j] 
+	T = fields.air_temperature[i,j]
+
+	# get the parameters 
+	T_melt = snow_melt.T_melt 
+	k = snow_melt.k 
+
+	if T > T_melt 
+		return P - k * (T - T_melt)
+	else 
+		return P
+	end 
+end 
+
+# ╔═╡ 72ec62c7-5066-481d-b9c9-84a4851a1e0c
+begin
+	function Terrarium.compute_tendencies!(state, model::SnowModel)
+	    compute_tendencies!(state, model.grid, model.snow_melt)
+	    return nothing
+	end
+	
+	function Terrarium.compute_tendencies!(
+	        state,
+	        grid,
+	        snow_melt::DegreeDaySnow
+	    )
+		fields = get_fields(state, snow_melt)
+	    launch!(grid, XY, compute_snow_melt!, state.tendencies, grid, fields, snow_melt)
+	end
+	
+	@kernel function compute_snow_melt!(tend, grid, fields, snow_melt)
+		i,j = @index(Global, NTuple)
+		tend[i, j] = compute_snow_melt_tendency(i, j, grid, fields, snow_melt)
+	end 
+end
+
+# ╔═╡ e81f4b38-5789-416e-acee-e02b052cb8f4
+md"""
+For a simple process like this, this is of course quite a lot of overhead, but this structure allows us to also compose very complex land models with ease and efficiency. 
+
+There's one additional thing we need to take of: the snow depth is strictly non-negative, but a simple model like ours implemented would quickly reach negative values for $S$. While the aforementioned [Kavetski and Kuczera paper](https://agupubs.onlinelibrary.wiley.com/doi/10.1029/2006WR005195) mitigates this issue by smoothing the model equation, we will in this example do the simplest possible strategy: we simply clip non-negative values during the time stepping of our model. To implement such a clipping we have to extend `timestep!(state::StateVaribales, model::ExpModel, timestepper, Δt)`. This method is applied after each explicit step the time stepper takes (but before any closure relations are applied if they exist). Let's implement the clipping: 
+"""
+
+# ╔═╡ b723c568-c0e1-4d9a-9a74-237d7cfd1ea9
+function Terrarium.timestep!(state::StateVariables, model::ExpModel, timestepper, Δt)
+	state.snow_depth .= max.(state.snow_depth, 0)
+end 
+
+# ╔═╡ 879d86d2-6828-4957-9aac-cd43508cbf1a
+timestep!(integrator)
+
+# ╔═╡ 841c540f-ed63-4d89-9baf-836ccb3aed0d
+md"""
+But, now we really have implemented everything we need for our dynamics and we can finally run the model again. For this we set up our initializers again in a very similar manner as above for the previous example, just this time with inputs from netCDF files and a global grid: 
+"""
+
+# ╔═╡ a55711ae-919c-46b0-a03e-ac4e105e0c4c
+
 
 # ╔═╡ Cell order:
 # ╟─5630efd5-2482-463d-913f-9addb120beec
@@ -328,7 +475,7 @@ Well that's it. We defined and ran a simple exponential model with external forc
 # ╠═ecd92bff-a116-493d-9ce0-a2eb7d161dc6
 # ╟─575d920c-b12e-493f-95a7-5c962c3591fd
 # ╠═82e45724-ba16-4806-9470-5cb4c43ea734
-# ╟─d4d19de7-6f77-4873-9182-9832d1ca4381
+# ╠═d4d19de7-6f77-4873-9182-9832d1ca4381
 # ╠═5ea313fc-3fbb-4092-a2cc-e0cd1f2fe641
 # ╠═3815424f-6210-470d-aef1-99c60c71072f
 # ╟─32373599-768f-4809-acdd-4704acc3f30b
@@ -359,3 +506,12 @@ Well that's it. We defined and ran a simple exponential model with external forc
 # ╠═dbe8d0fa-893f-4c05-9e46-220ab41636f3
 # ╠═c06502ff-c021-488c-a333-36233091d046
 # ╟─25e22154-946f-4c32-a1fa-73d86e935ff3
+# ╠═dfc52b4e-a015-4295-b47f-1dd2b10abeb2
+# ╟─52a2bf95-e258-41ab-922e-f0965d0d0ee2
+# ╠═72ec62c7-5066-481d-b9c9-84a4851a1e0c
+# ╠═ab4a216f-3962-4a6f-8f92-2e9a08798e7c
+# ╠═d8b05ae3-ecba-41de-84c7-45cbf31b735d
+# ╟─e81f4b38-5789-416e-acee-e02b052cb8f4
+# ╠═b723c568-c0e1-4d9a-9a74-237d7cfd1ea9
+# ╟─841c540f-ed63-4d89-9baf-836ccb3aed0d
+# ╠═a55711ae-919c-46b0-a03e-ac4e105e0c4c
