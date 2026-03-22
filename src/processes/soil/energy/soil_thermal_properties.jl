@@ -16,12 +16,6 @@ end
 SoilThermalConductivities(::Type{NF}; kwargs...) where {NF} = SoilThermalConductivities{NF}(; kwargs...)
 
 """
-Base type for bulk weighting/mixing schemes that calculate weighted mixture of material properties
-such as conductivities or densities.
-"""
-abstract type AbstractBulkWeightingScheme end
-
-"""
     $TYPEDEF
 
 Properties:
@@ -62,7 +56,7 @@ end
 SoilThermalProperties(
     ::Type{NF};
     conductivities::SoilThermalConductivities{NF} = SoilThermalConductivities(NF),
-    bulk_conductivity::AbstractBulkWeightingScheme = InverseQuadratic(),
+    bulk_conductivity::AbstractBulkWeighting = InverseQuadratic(),
     heat_capacities::SoilHeatCapacities{NF} = SoilHeatCapacities(NF),
     freezecurve::FreezeCurve = FreeWater()
 ) where {NF} = SoilThermalProperties{NF, typeof(freezecurve), typeof(bulk_conductivity)}(conductivities, bulk_conductivity, heat_capacities, freezecurve)
@@ -108,7 +102,7 @@ conductivity and water content of soils using numerical modelling,
 European Journal of Soil Science, 54, 581–588,
 https://doi.org/10.1046/j.1365-2389.2003.00539.x, 2003.
 """
-struct InverseQuadratic <: AbstractBulkWeightingScheme end
+struct InverseQuadratic <: AbstractBulkWeighting end
 
 (f::InverseQuadratic)(x::Real, weight::Real) = sqrt(x) * weight
 # we use fastmap here so that the ordering of named tuples can be arbitrary

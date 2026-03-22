@@ -1,9 +1,3 @@
-abstract type AbstractSoilMatrix{NF} end
-
-organic_fraction(::AbstractSoilMatrix{NF}) where {NF} = zero(NF)
-
-mineral_texture(solid::AbstractSoilMatrix) = solid.texture
-
 """
     $TYPEDEF
 

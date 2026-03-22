@@ -40,7 +40,7 @@ PALADYNCarbonDynamics(::Type{NF}; kwargs...) where {NF} = PALADYNCarbonDynamics{
 variables(::PALADYNCarbonDynamics) = (
     prognostic(:carbon_vegetation, XY(), units = u"kg/m^2"), # Vegetation carbon pool [kgC/m²]
     auxiliary(:balanced_leaf_area_index, XY()), # Balanced Leaf Area Index [m²/m²]
-    input(:net_primary_production, XY(), units = u"kg/m^2/d"), # Net Primary Production [kgC/m²/day]
+    input(:net_primary_production, XY(), units = u"kg/m^2/s"), # Net Primary Production [kgC/m²/s]
 )
 
 """
@@ -68,7 +68,6 @@ end
 Computes `LAI_b`, the balanced Leaf Area Index based on the vegetation carbon pool `C_veg` (assuming with bwl = 1),
 Eqs. 76-79, PALADYN (Willeit 2016).
 """
-
 @inline function compute_LAI_b(vegcarbon_dynamics::PALADYNCarbonDynamics{NF}, C_veg) where {NF}
     LAI_b = ((NF(2.0) / vegcarbon_dynamics.SLA) + vegcarbon_dynamics.awl) / (C_veg + eps(NF)) # division by zero risk
     return LAI_b
@@ -124,6 +123,11 @@ end
 
 # Kernel functions
 
+"""
+    $TYPEDSIGNATURES
+
+Compute the tendency for the carbon vegetation pool given fields `LAI_b` and `NPP`.
+"""
 @propagate_inbounds function compute_veg_carbon_tendency(i, j, grid, fields, vegcarbon_dynamics::PALADYNCarbonDynamics)
     # Get inputs
     LAI_b = fields.balanced_leaf_area_index[i, j]
@@ -134,14 +138,26 @@ end
     return C_veg_tendency
 end
 
+"""
+    $TYPEDSIGNATURES
+
+Mutating wrapper for [`compute_LAI_b`](@ref) that stores the result in `out.balanced_leaf_area_index`.
+"""
 @propagate_inbounds function compute_veg_carbon_auxiliary!(out, i, j, grid, fields, vegcarbon_dynamics::PALADYNCarbonDynamics)
     # Compute balanced Leaf Area Index
-    return out.balanced_leaf_area_index[i, j, 1] = compute_LAI_b(vegcarbon_dynamics, fields.carbon_vegetation[i, j])
+    out.balanced_leaf_area_index[i, j, 1] = compute_LAI_b(vegcarbon_dynamics, fields.carbon_vegetation[i, j])
+    return nothing
 end
 
+"""
+    $TYPEDSIGNATURES
+
+Calls [`compute_veg_carbon_tendency`](@ref) and stores the result in `out`.
+"""
 @propagate_inbounds function compute_veg_carbon_tendencies!(tend, i, j, grid, fields, vegcarbon_dynamics::PALADYNCarbonDynamics)
     # Compute and store C_veg tendency
-    return tend.carbon_vegetation[i, j, 1] = compute_veg_carbon_tendency(i, j, grid, fields, vegcarbon_dynamics)
+    tend.carbon_vegetation[i, j, 1] = compute_veg_carbon_tendency(i, j, grid, fields, vegcarbon_dynamics)
+    return nothing
 end
 
 # Kernels

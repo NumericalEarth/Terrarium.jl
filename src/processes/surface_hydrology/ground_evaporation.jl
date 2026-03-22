@@ -61,6 +61,11 @@ end
 
 # Ground resistance to evaporation
 
+"""
+    $TYPEDEF
+
+Represents a spatiotemporally constant, prescribed ground evaporation resistance factor.
+"""
 @kwdef struct ConstantEvaporationResistanceFactor{NF} <: AbstractGroundEvaporationResistanceFactor
     "Unit interval factor that determines resistance to evaporation; zero corresponds to no evaporation"
     factor::NF = 1.0
@@ -71,7 +76,7 @@ ConstantEvaporationResistanceFactor(::Type{NF}; kwargs...) where {NF} = Constant
 @inline ground_evaporation_resistance_factor(i, j, grid, fields, res::ConstantEvaporationResistanceFactor, args...) = res.factor
 
 """
-    SoilMoistureResistanceFactor <: AbstractGroundEvaporationResistanceFactor
+    $TYPEDEF
 
 Implements the soil moisture limiting resistance factor of Lee and Pielke (1992),
 

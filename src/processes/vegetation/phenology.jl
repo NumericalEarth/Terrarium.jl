@@ -37,9 +37,9 @@ end
 """
     $SIGNATURES
 
-Computes `phen`, the phenology factor [-].
+Computes the phenology factor `ϕ` [-].
 """
-@inline function compute_phen(phenol::PALADYNPhenology{NF}) where {NF}
+@inline function compute_phenology_factor(phenol::PALADYNPhenology{NF}) where {NF}
     # TODO add phenology implementation from PALADYN
     # For now, set phen to 1.0 (full leaf-out, evergreen PFT)
     phen = NF(1.0)
@@ -57,7 +57,7 @@ Computes `LAI`, based on the balanced Leaf Area Index `LAI_b`:
     f_deciduous = compute_f_deciduous(phenol)
 
     # Compute phen
-    phen = compute_phen(phenol)
+    phen = compute_phenology_factor(phenol)
 
     # Compute LAI
     LAI = (f_deciduous * phen + (NF(1.0) - f_deciduous)) * LAI_b
@@ -76,12 +76,17 @@ end
 
 # Kernel functions
 
+"""
+    $TYPEDSIGNATURES
+
+Compute the phenology factor and instantaneous leaf area index (LAI).
+"""
 @propagate_inbounds function compute_phenology(i, j, grid, fields, phenol::PALADYNPhenology)
     # Get input
     LAI_b = fields.balanced_leaf_area_index[i, j]
 
     # Compute phen
-    phen = compute_phen(phenol)
+    phen = compute_phenology_factor(phenol)
 
     # Compute LAI
     LAI = compute_LAI(phenol, LAI_b)
@@ -89,6 +94,11 @@ end
     return phen, LAI
 end
 
+"""
+    $TYPEDSIGNATURES
+
+Mutating wrapper for [`compute_phenology`](@ref) that stores the result in `out`.
+"""
 @propagate_inbounds function compute_phenology!(out, i, j, grid, fields, phenol::PALADYNPhenology)
     phen, LAI = compute_phenology(i, j, grid, fields, phenol)
     out.phenology_factor[i, j, 1] = phen

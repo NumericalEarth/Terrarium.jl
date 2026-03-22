@@ -26,6 +26,12 @@ variables(::MedlynStomatalConductance) = (
 
 @inline @propagate_inbounds stomatal_conductance(i, j, grid, fields, ::MedlynStomatalConductance) = fields.canopy_water_conductance[i, j]
 
+"""
+    $TYPEDSIGNATURES
+
+Compute canopy-level water conductance [m/s] from the Medlyn et al. (2011) optimal stomatal conductance model.
+Includes minimum conductance and light extinction effects based on LAI, scaled by soil moisture factor β.
+"""
 @inline function compute_gw_can(
         stomcond::MedlynStomatalConductance{NF},
         photo::LUEPhotosynthesis{NF},
@@ -77,6 +83,12 @@ end
 
 # Kernel functions
 
+"""
+    $TYPEDSIGNATURES
+
+Compute stomatal conductance (gw_can) and leaf-to-air CO₂ ratio (λc) at a grid point.
+Returns tuple (gw_can, λc) for use in photosynthesis and transpiration calculations.
+"""
 @propagate_inbounds function compute_stomatal_conductance(i, j, grid, fields, stomcond::MedlynStomatalConductance{NF}, photo::LUEPhotosynthesis{NF}, atmos::AbstractAtmosphere, constants::PhysicalConstants, args...) where {NF}
     # Get inputs
     An = fields.net_assimilation[i, j]
@@ -94,6 +106,11 @@ end
     return gw_can, λc
 end
 
+"""
+    $TYPEDSIGNATURES
+
+Calls [`compute_stomatal_conductance`](@ref) and stores the result in `out`.
+"""
 @propagate_inbounds function compute_stomatal_conductance!(out, i, j, grid, fields, stomcond::MedlynStomatalConductance{NF}, photo::LUEPhotosynthesis{NF}, atmos::AbstractAtmosphere, constants::PhysicalConstants, args...) where {NF}
     gw_can, λc = compute_stomatal_conductance(i, j, grid, fields, stomcond, photo, atmos, constants, args...)
     out.canopy_water_conductance[i, j, 1] = gw_can

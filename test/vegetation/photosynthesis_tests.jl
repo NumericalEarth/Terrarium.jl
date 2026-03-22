@@ -1,11 +1,10 @@
 using Terrarium
 using Terrarium: compute_kinetic_parameters, compute_Γ_star, compute_PAR, compute_APAR, compute_pres_i
-using Terrarium: compute_t_stress, compute_c1_c2, compute_Vc_max, compute_JE_JC
-using Terrarium: compute_Rd, compute_Ag, compute_photosynthesis
+using Terrarium: compute_temperature_stress, compute_assimilation_factors, compute_Vc_max, compute_JE_JC
+using Terrarium: compute_Rd, compute_Ag, compute_respiration_assimilation, compute_photosynthesis
 using Test
 
-
-@testset "Kinetic parameters test" begin
+@testset "Kinetic parameters" begin
     photo = LUEPhotosynthesis()
     # Test kinetic parameters should be positive
     T_air = 20.0 # °C
@@ -22,7 +21,7 @@ using Test
     @test Ko_warm > Ko
 end
 
-@testset "Γ_star test" begin
+@testset "Γ_star" begin
     photo = LUEPhotosynthesis()
     # Test Γ_star should be positive
     τ = 3000.0 # Value for T_air = 20.0 °C
@@ -36,7 +35,7 @@ end
     @test Γ_star_warm > Γ_star
 end
 
-@testset "PAR test" begin
+@testset "PAR" begin
     photo = LUEPhotosynthesis()
     # Test PAR should be positive for a positive swdown
     swdown = 50.0 # W/m²
@@ -56,7 +55,7 @@ end
     @test PAR_100 ≈ 2.0 * PAR_50
 end
 
-@testset "APAR test" begin
+@testset "APAR" begin
     photo = LUEPhotosynthesis()
     swdown = 50.0 # W/m²
     # Test APAR should be positive for a positive LAI
@@ -75,7 +74,7 @@ end
     @test APAR == photo.α_a * compute_PAR(photo, swdown)
 end
 
-@testset "press_i test" begin
+@testset "press_i" begin
     photo = LUEPhotosynthesis()
     # Test λc = 0 (pi should be 0)
     λc = 0.0
@@ -95,36 +94,37 @@ end
     @test 0 < pres_i < pres_a
 end
 
-@testset "t_stress test" begin
+@testset "Temperature stress" begin
     photo = LUEPhotosynthesis()
-    # Test T_air < T_CO2_low (t_stress should be 0)
-    T_air = photo.t_CO2_low * 2 # since photo.t_CO2_low < 0
-    t_stress = compute_t_stress(photo, T_air)
-    @test t_stress == 0.0
+    # Test T_air < T_CO2_low (T_stress should be 0)
+    T_air = photo.T_CO2_low * 2 # since photo.T_CO2_low < 0
+    T_stress = compute_temperature_stress(photo, T_air)
+    @test T_stress == 0.0
 
-    # Test T_air = T_CO2_low (t_stress should be 0)
-    T_air = photo.t_CO2_low
-    t_stress = compute_t_stress(photo, T_air)
-    @test t_stress == 0.0
+    # Test T_air = T_CO2_low (T_stress should be 0)
+    T_air = photo.T_CO2_low
+    T_stress = compute_temperature_stress(photo, T_air)
+    @test T_stress == 0.0
 
-    # Test T_air > T_CO2_high (t_stress should be 0)
-    T_air = photo.t_CO2_high * 2
-    t_stress = compute_t_stress(photo, T_air)
-    @test t_stress == 0.0
+    # Test T_air > T_CO2_high (T_stress should be 0)
+    T_air = photo.T_CO2_high * 2
+    T_stress = compute_temperature_stress(photo, T_air)
+    @test T_stress == 0.0
 
-    # Test T_air = T_CO2_high (t_stress should be 0)
-    T_air = photo.t_CO2_high
-    t_stress = compute_t_stress(photo, T_air)
-    @test t_stress == 0.0
+    # Test T_air = T_CO2_high (T_stress should be 0)
+    T_air = photo.T_CO2_high
+    T_stress = compute_temperature_stress(photo, T_air)
+    @test T_stress == 0.0
 
-    # Test T_CO2_low < T_air < T_CO2_high (t_stress should be between 0 and 1)
-    T_air = (photo.t_CO2_low + photo.t_CO2_high) / 2
-    t_stress = compute_t_stress(photo, T_air)
-    @test 0.0 < t_stress < 1.0
+    # Test T_CO2_low < T_air < T_CO2_high (T_stress should be between 0 and 1)
+    T_air = (photo.T_CO2_low + photo.T_CO2_high) / 2
+    T_stress = compute_temperature_stress(photo, T_air)
+    @test 0.0 < T_stress < 1.0
 end
 
-@testset "c1 and c2 test" begin
+@testset "Assimilation factors c1 and c2" begin
     photo = LUEPhotosynthesis()
+    constants = PhysicalConstants()
     T_air = 20.0 # °C
     Γ_star = 3.0 # Value for T_air = 20.0 °C and pres_O2 = 20.9e3 Pa
     Kc = 20.0 # Value for T_air = 20.0 °C
@@ -133,25 +133,26 @@ end
 
     # Test pi = Γ_star (c1 and c2 should be 0)
     pres_i = Γ_star
-    c_1, c_2 = compute_c1_c2(photo, T_air, Γ_star, Kc, Ko, pres_i, pres_O2)
+    T_stress = compute_temperature_stress(photo, T_air)
+    c_1, c_2 = compute_assimilation_factors(photo, constants, Γ_star, T_stress, Kc, Ko, pres_i, pres_O2)
     @test c_1 == 0
     @test c_2 == 0
 
-    # Test pi < Γ_star (c1 and c2 should be negative, c1 can be 0 if t_stress=0)
+    # Test pi < Γ_star (c1 and c2 should be negative, c1 can be 0 if T_stress=0)
     # TODO can this happen?
     pres_i = Γ_star / 2.0
-    c_1, c_2 = compute_c1_c2(photo, T_air, Γ_star, Kc, Ko, pres_i, pres_O2)
+    c_1, c_2 = compute_assimilation_factors(photo, constants, Γ_star, T_stress, Kc, Ko, pres_i, pres_O2)
     @test isfinite(c_1) && c_1 <= 0
     @test isfinite(c_2) && c_2 < 0
 
-    # Test pi > Γ_star (c1 and c2 should be positive, c1 can be 0 if t_stress=0)
+    # Test pi > Γ_star (c1 and c2 should be positive, c1 can be 0 if T_stress=0)
     pres_i = Γ_star * 2.0
-    c_1, c_2 = compute_c1_c2(photo, T_air, Γ_star, Kc, Ko, pres_i, pres_O2)
+    c_1, c_2 = compute_assimilation_factors(photo, constants, Γ_star, T_stress, Kc, Ko, pres_i, pres_O2)
     @test isfinite(c_1) && c_1 >= 0
     @test isfinite(c_2) && c_2 > 0
 end
 
-@testset "Vc_max test" begin
+@testset "Vc_max" begin
     photo = LUEPhotosynthesis()
     c_1 = 0.5
     Kc = 20.0 # Value for T_air = 20.0 °C
@@ -174,7 +175,7 @@ end
     # TODO Vc_max can be negative?
 end
 
-@testset "JE and JC test" begin
+@testset "JE and JC" begin
     photo = LUEPhotosynthesis()
     # Test c1 = c2 = 0 (JE and JC should be 0)
     c_1 = 0.0
@@ -206,7 +207,7 @@ end
     # TODO JE, JC can be negative?
 end
 
-@testset "Rd test" begin
+@testset "Rd" begin
     photo = LUEPhotosynthesis()
     # Test β=0 (Rd should be 0)
     β = 0.0
@@ -229,7 +230,7 @@ end
     # TODO test for Vc_max<0, Rd can be negative?
 end
 
-@testset "Ag test" begin
+@testset "Ag" begin
     photo = LUEPhotosynthesis()
     c_1 = 0.5 # Mock value
     c_2 = 0.5 # Mock value
@@ -264,8 +265,9 @@ end
 #     # TODO And can be negative?
 # end
 
-@testset "Photosynthesis (GPP and Rd) test" begin
+@testset "Photosynthesis (GPP and Rd)" begin
     photo = LUEPhotosynthesis()
+    constants = PhysicalConstants()
     swdown = 50.0 # W/m²
     pres = 1.0e5 # Pa
     co2 = 400.0 # ppm
@@ -275,21 +277,21 @@ end
     # Test T_air < -3 (GPP and Rd should be 0)
     T_air = -5.0 # °C
     LAI = 5.0 # Mock value
-    GPP, Rd = compute_photosynthesis(photo, T_air, swdown, pres, co2, LAI, λc, β)
+    GPP, Rd = compute_respiration_assimilation(photo, constants, T_air, swdown, pres, co2, LAI, λc, β)
     @test GPP == 0.0
     @test Rd == 0.0
 
     # Test T_air > -3 and LAI=0 (GPP and Rd should be 0)
     T_air = 20.0 # °C
     LAI = 0.0
-    GPP, Rd = compute_photosynthesis(photo, T_air, swdown, pres, co2, LAI, λc, β)
+    GPP, Rd = compute_respiration_assimilation(photo, constants, T_air, swdown, pres, co2, LAI, λc, β)
     @test GPP == 0.0
     @test Rd == 0.0
 
     # Test T_air > -3 and LAI > 0 (GPP and Rd should be finite)
     T_air = 20.0 # °C
     LAI = 5.0 # Mock value
-    GPP, Rd = compute_photosynthesis(photo, T_air, swdown, pres, co2, LAI, λc, β)
+    GPP, Rd = compute_respiration_assimilation(photo, constants, T_air, swdown, pres, co2, LAI, λc, β)
     @test isfinite(GPP)
     @test isfinite(Rd)
 

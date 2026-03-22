@@ -1,5 +1,5 @@
 using Terrarium
-using Terrarium: compute_f_deciduous, compute_phen, compute_LAI
+using Terrarium: compute_f_deciduous, compute_phenology_factor, compute_LAI
 using Test
 
 @testset "f_deciduous test" begin
@@ -12,7 +12,7 @@ end
 @testset "phen test" begin
     phenol = PALADYNPhenology{Float64}()
     # For now, test that phen = 1
-    phen = compute_phen(phenol)
+    phen = compute_phenology_factor(phenol)
     @test phen == 1.0
 end
 

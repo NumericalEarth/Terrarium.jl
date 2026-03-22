@@ -56,12 +56,15 @@ function ground_temperature(energy::SoilEnergyBalance, grid, clock, fields)
     return @view fields.temperature[:, :, fgrid.Nz]
 end
 
+get_thermal_properties(energy::SoilEnergyBalance) = energy.thermal_properties
+
 get_closure(energy::SoilEnergyBalance) = energy.closure
 
+""" $TYPEDSIGNATURES """
 function initialize!(
         state, grid,
         energy::SoilEnergyBalance,
-        ground::AbstractGround,
+        soil::AbstractSoil,
         constants::PhysicalConstants,
         args...
     )
@@ -69,20 +72,22 @@ function initialize!(
     # Note that this assumes the temperature state to have already been initialized!
     # TODO: We may need to generalize this for rare cases where energy is specified as
     # the initial condition.
-    invclosure!(state, grid, energy.closure, energy, ground, constants)
+    invclosure!(state, grid, energy.closure, energy, soil, constants)
     return nothing
 end
 
-compute_auxiliary!(state, grid, energy::SoilEnergyBalance, args...) = nothing
+""" $TYPEDSIGNATURES """
+compute_auxiliary!(state, grid, energy::SoilEnergyBalance, soil::AbstractSoil, args...) = nothing
 
+""" $TYPEDSIGNATURES """
 function compute_tendencies!(
         state, grid,
         energy::SoilEnergyBalance,
-        ground::AbstractGround,
+        soil::AbstractSoil,
         args...
     )
     # Get dependencies
-    procs = (get_hydrology(ground), get_stratigraphy(ground), get_biogeochemistry(ground))
+    procs = (get_hydrology(soil), get_stratigraphy(soil), get_biogeochemistry(soil))
     # Get output (tendency) fields
     tendencies = tendency_fields(state, energy)
     # Get other fields (does not include tendencies)
@@ -93,14 +98,17 @@ end
 
 # Kernel functions
 
+""" $TYPEDSIGNATURES """
 @propagate_inbounds function compute_energy_tendencies!(
         tendencies, i, j, k, grid, fields,
         energy::SoilEnergyBalance,
         args...
     )
-    return tendencies.internal_energy[i, j, k] += compute_energy_tendency(i, j, k, grid, fields, energy, args...)
+    tendencies.internal_energy[i, j, k] += compute_energy_tendency(i, j, k, grid, fields, energy, args...)
+    return nothing
 end
 
+""" $TYPEDSIGNATURES """
 @propagate_inbounds function compute_energy_tendency(
         i, j, k, grid, fields,
         energy::SoilEnergyBalance{NF, <:ExplicitTwoPhaseHeatConduction},
@@ -116,6 +124,7 @@ end
     return ∂U∂t
 end
 
+""" $TYPEDSIGNATURES """
 @propagate_inbounds function compute_thermal_conductivity(
         i, j, k, grid, fields,
         energy::SoilEnergyBalance,
@@ -128,6 +137,7 @@ end
 end
 
 # Diffusive heat flux term passed to ∂z operator
+""" $TYPEDSIGNATURES """
 @propagate_inbounds function diffusive_heat_flux(i, j, k, grid, fields, args...)
     # Get temperature field
     T = fields.temperature

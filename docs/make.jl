@@ -5,8 +5,8 @@ using PlutoStaticHTML
 
 using Terrarium
 
-const NOTEBOOK_DIR = joinpath(dirname(@__DIR__), "examples", "notebooks")
-const EXAMPLE_DIR = joinpath(@__DIR__, "src", "notebooks")
+const EXAMPLE_NOTEBOOK_DIR = joinpath(dirname(@__DIR__), "examples", "notebooks")
+const DOCS_EXAMPLE_DIR = joinpath(@__DIR__, "src", "notebooks")
 const EXAMPLE_DIR_RELATIVE = joinpath("notebooks")
 
 s = ArgParseSettings()
@@ -47,16 +47,16 @@ end
 Run all Pluto notebooks (".jl" files) in `NOTEBOOK_DIR`.
 """
 function build_notebook_doc_pages()
-    println("Building notebooks in $NOTEBOOK_DIR and moving them to $EXAMPLE_DIR")
+    println("Building notebooks in $EXAMPLE_NOTEBOOK_DIR and moving them to $DOCS_EXAMPLE_DIR")
     oopts = OutputOptions(; append_build_context = false)
     output_format = documenter_output
-    bopts = BuildOptions(NOTEBOOK_DIR; output_format)
+    bopts = BuildOptions(EXAMPLE_NOTEBOOK_DIR; output_format)
     build_notebooks(bopts, notebooks_files, oopts)
 
     # move to docs/src/notebooks because for some reason that's needed
-    mkpath(EXAMPLE_DIR)
+    mkpath(DOCS_EXAMPLE_DIR)
     for (_, file_name) in notebook_lookup
-        mv(joinpath(NOTEBOOK_DIR, file_name), joinpath(EXAMPLE_DIR, file_name))
+        mv(joinpath(EXAMPLE_NOTEBOOK_DIR, file_name), joinpath(DOCS_EXAMPLE_DIR, file_name), force = true)
     end
 
     return nothing
@@ -69,7 +69,6 @@ end
 
 # Dict for makedocs for notebooks to be included
 notebook_docpages = Pair{String, String}[]
-push!(notebook_docpages, "Overview" => "notebooks/examples_overview.md")
 for (title, name) in notebook_lookup
     push!(notebook_docpages, title => joinpath(EXAMPLE_DIR_RELATIVE, name))
 end
@@ -90,17 +89,50 @@ makedocs(
     pages = [
         "Home" => "index.md",
         "Overview" => [
-            "Numerical core" => "overview/numerical_core.md",
-            "Software architecture" => "overview/software_architecture.md",
-            "Mathematical formulation" => "overview/mathematical_formulation.md",
+            "Baisc concepts" => "introduction/basic_concepts.md",
+            "Numerical core" => "introduction/numerical_core.md",
+            "Mathematical formulation" => "introduction/mathematical_formulation.md",
         ],
-        "Physics" => [
-            "Soil physics" => [
-                "Energy and water balance" => "physics/soil_energy_water.md",
+        "Extending Terrarium" => [
+            "Core interfaces" => "extending/core_interfaces.md",
+        ],
+        "Processes" => [
+            "Soil" => [
+                "Soil stratigraphy" => "processes/soil/soil_stratigraphy.md",
+                "Soil hydrology" => "processes/soil/soil_hydrology.md",
+                "Soil energy" => "processes/soil/soil_energy.md",
             ],
-            "Vegetation" => "physics/vegetation.md",
+            "Vegetation" => [
+                "Photosynthesis and gas exchange" => "processes/vegetation/photosynthesis.md",
+                "Stomatal conductance" => "processes/vegetation/stomatal_conductance.md",
+                "Plant available water" => "processes/vegetation/plant_available_water.md",
+                "Autotrophic respiration" => "processes/vegetation/autotrophic_respiration.md",
+                "Carbon dynamics" => "processes/vegetation/carbon_dynamics.md",
+                "Vegetation dynamics" => "processes/vegetation/vegetation_dynamics.md",
+                "Vegetation phenology" => "processes/vegetation/vegetation_phenology.md",
+                "Root distribution" => "processes/vegetation/root_distribution.md",
+            ],
+            "Surface hydrology" => [
+                "Surface hydrology" => "processes/surface_hydrology/surface_hydrology.md",
+                "Canopy interception" => "processes/surface_hydrology/canopy_interception.md",
+                "Evapotranspiration" => "processes/surface_hydrology/evapotranspiration.md",
+                "Surface runoff" => "processes/surface_hydrology/surface_runoff.md",
+            ],
+            "Surface energy balance" => [
+                "Surface energy balance" => "processes/surface_energy/surface_energy_balance.md",
+                "Radiative fluxes" => "processes/surface_energy/radiative_fluxes.md",
+                "Turbulent fluxes" => "processes/surface_energy/turbulent_fluxes.md",
+                "Skin temperature and ground heat" => "processes/surface_energy/skin_temperature.md",
+                "Albedo and emissivity" => "processes/surface_energy/albedo.md",
+            ],
         ],
-        "Examples" => notebook_docpages,
+        "Models" => [
+
+        ],
+        "Examples" => [
+            "Overview" => "examples_overview.md",
+            notebook_docpages...,
+        ],
         "Contributing" => "contributing.md",
         "API Reference" => "api_reference.md",
     ],

@@ -97,6 +97,11 @@ end
 
 # Kernel functions
 
+"""
+    $TYPEDSIGNATURES
+
+Compute vegetation area fraction tendency at a single grid point from NPP-productivity and disturbance rates.
+"""
 @propagate_inbounds function compute_ν_tendency(
         i, j, grid, fields,
         veg_dynamics::PALADYNVegetationDynamics,
@@ -114,6 +119,12 @@ end
     return ν_tendency
 end
 
+
+"""
+    $TYPEDSIGNATURES
+
+Mutating wrapper for [`compute_ν_tendency`](@ref) that stores the result in `tend`.
+"""
 @propagate_inbounds function compute_ν_tendencies!(
         tend, i, j, grid, fields,
         veg_dynamics::PALADYNVegetationDynamics,

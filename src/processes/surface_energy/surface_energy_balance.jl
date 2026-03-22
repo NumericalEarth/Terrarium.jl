@@ -138,5 +138,6 @@ Fused kernel function that computes the radiative and turbulent fluxes, as well 
         out.latent_heat_flux[i, j, 1] = compute_latent_heat_flux(i, j, grid, fields, seb.turbulent_fluxes, evtr, constants)
     end
     # Compute ground heat flux
-    return out.ground_heat_flux[i, j, 1] = compute_ground_heat_flux(i, j, grid, fields, seb.skin_temperature, seb.radiative_fluxes, seb.turbulent_fluxes)
+    out.ground_heat_flux[i, j, 1] = compute_ground_heat_flux(i, j, grid, fields, seb.skin_temperature, seb.radiative_fluxes, seb.turbulent_fluxes)
+    return nothing
 end

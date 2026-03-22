@@ -82,7 +82,7 @@ export PALADYNAutotrophicRespiration
 include("vegetation/autotrophic_respiration.jl")
 
 export VegetationCarbon
-include("vegetation/vegetation_coupled.jl")
+include("vegetation/vegetation_carbon.jl")
 
 # Surface Energy Balance
 

@@ -130,7 +130,8 @@ end
     G = fields.ground_heat_flux[i, j]
     # Get ground temperature
     Tg = fields.ground_temperature[i, j]
-    return compute_skin_temperature(skinT, Tg, G, Δz₁)
+    Ts = compute_skin_temperature(skinT, Tg, G, Δz₁)
+    return Ts
 end
 
 @propagate_inbounds function compute_ground_heat_flux(
@@ -143,8 +144,9 @@ end
     R_net = fields.surface_net_radiation[i, j]
     H_s = fields.sensible_heat_flux[i, j]
     H_l = fields.latent_heat_flux[i, j]
-
-    return compute_ground_heat_flux(skinT, R_net, H_s, H_l)
+    # Compute ground heat flux
+    G = compute_ground_heat_flux(skinT, R_net, H_s, H_l)
+    return G
 end
 
 # Kernels

@@ -1,8 +1,8 @@
-# Note: this implementaion assumes a daily timestep but this should be changed later to allow for a more flexible timestep
 """
     $TYPEDEF
-Photosynthesis implementation from PALADYN (Willeit 2016) for C3 PFTs following the general light
-use efficiency model described in Haxeltine and Prentice 1996.
+Photosynthesis implementation from PALADYN (Willeit 2016) for C3 PFTs following the mechanistic
+approach of Haxeltine and Prentice (1996). Computes instantaneous photosynthetic rates as differential
+equations that are integrated over arbitrary timesteps by the timestepper.
 
 Authors: Maha Badri and Matteo Willeit
 
@@ -10,32 +10,32 @@ Properties:
 $TYPEDFIELDS
 """
 @kwdef struct LUEPhotosynthesis{NF} <: AbstractPhotosynthesis{NF}
-    # TODO check physical meaning of this parameter + add unit
-    "Value of τ at 25°C"
+    "Rubisco specificity factor at 25°C [dimensionless]. Ratio of carboxylation to oxygenation rates."
     τ25::NF = 2600.0
 
-    # TODO check physical meaning of this parameter + add unit
-    "Value of Kc at 25°C"
+    "Michaelis-Menten constant for CO₂ at 25°C [Pa]. PALADYN value for needleleaf trees."
     Kc25::NF = 30.0
 
-    # TODO check physical meaning of this parameter + add unit
-    "Value of Ko at 25°C"
+    "Michaelis-Menten constant for O₂ at 25°C [Pa]. PALADYN value for needleleaf trees."
     Ko25::NF = 3.0e4
 
-    # TODO check physical meaning of this parameter + add unit
-    "q10 for temperature-sensitive parameter τ"
+    "Q10 temperature sensitivity for τ [dimensionless]. Controls temperature dependence of specificity."
     q10_τ::NF = 0.57
 
-    # TODO check physical meaning of this parameter + add unit
-    "q10 for temperature-sensitive parameter Kc"
+    "Q10 temperature sensitivity for Kc [dimensionless]. Controls temperature dependence of CO₂ affinity."
     q10_Kc::NF = 2.1
 
-    # TODO check physical meaning of this parameter + add unit
-    "q10 for temperature-sensitive parameter Ko"
+    "Q10 temperature sensitivity for Ko [dimensionless]. Controls temperature dependence of O₂ affinity."
     q10_Ko::NF = 1.2
 
     "Leaf albedo in PAR range [-]"
     α_leaf::NF = 0.17
+
+    "Fraction of PAR assimilated at ecosystem level, relative to leaf level [-]"
+    α_a::NF = 0.5
+
+    "Intrinsic quantum efficiency of CO2 uptake in C3 plants [mol/mol]"
+    α_C3::NF = 0.08
 
     "Conversion factor for solar radiation at 550 nm from J/m² to mol/m² [mol/J]"
     cq::NF = 4.6e-6
@@ -43,54 +43,41 @@ $TYPEDFIELDS
     "Extinction coefficient for radiation through vegetation [-]"
     k_ext::NF = 0.5
 
-    "Fraction of PAR assimilated at ecosystem level, relative to leaf level [-]"
-    α_a::NF = 0.5
+    "Upper temperature threshold for CO₂/O₂ specificity factor [°C]. Above this, photosynthesis rapidly declines. PFT-specific, needleleaf tree value."
+    T_CO2_high::NF = 42.0
 
-    # TODO check physical meaning of this parameter
-    "Parameter, PFT specific [°C]"
-    t_CO2_high::NF = 42.0 # Value for Needleleaf tree PFT
+    "Lower temperature threshold for CO₂/O₂ specificity factor [°C]. Below this, photosynthesis rapidly declines. PFT-specific, needleleaf tree value."
+    T_CO2_low::NF = -4.0
 
-    # TODO check physical meaning of this parameter
-    "Parameter, PFT specific [°C]"
-    t_CO2_low::NF = -4.0 # Value for Needleleaf tree PFT
+    "Upper temperature threshold for light-limited photosynthesis rate [°C]. Peak photosynthesis capacity. PFT-specific, needleleaf tree value."
+    T_photos_high::NF = 30.0
 
-    # TODO check physical meaning of this parameter
-    "Parameter, PFT specific [°C]"
-    t_photos_high::NF = 30.0 # Value for Needleleaf tree PFT
+    "Lower temperature threshold for light-limited photosynthesis rate [°C]. Minimum for photosynthesis. PFT-specific, needleleaf tree value."
+    T_photos_low::NF = 15.0
 
-    # TODO check physical meaning of this parameter
-    "Parameter, PFT specific [°C]"
-    t_photos_low::NF = 15.0 # Value for Needleleaf tree PFT
-
-    "Intrinsic quantum efficiency of CO2 uptake in C3 plants [mol/mol]"
-    α_C3::NF = 0.08
-
-    "Atomic mass of carbon [gC/mol]"
-    C_mass::NF = 12.0
-
-    # TODO check physical meaning of this parameter
-    "Shape parameter [-]"
+    "Root of quadratic mean shape parameter [-]. Controls smoothness of interpolation between light and RuBisCO limitations (0.7 for smooth, 0.5 for arithmetic mean)."
     θ_r::NF = 0.7
 end
 
 LUEPhotosynthesis(::Type{NF}; kwargs...) where {NF} = LUEPhotosynthesis{NF}(; kwargs...)
 
 variables(::LUEPhotosynthesis{NF}) where {NF} = (
-    auxiliary(:net_assimilation, XY(), units = u"g/m^2/d"), # Daily net assimilation (photosynthesis) [gC/m²/day]
-    auxiliary(:daily_leaf_respiration, XY(), units = u"g/m^2/d"), # Daily leaf respiration [gC/m²/day]
-    auxiliary(:gross_primary_production, XY(), units = u"kg/m^2/d"), # Gross Primary Production [kgC/m²/day]
+    auxiliary(:net_assimilation, XY(), units = u"g/m^2/s"), # Net photosynthesis rate [gC/m²/s]
+    auxiliary(:leaf_respiration, XY(), units = u"g/m^2/s"), # Leaf respiration rate [gC/m²/s]
+    auxiliary(:gross_primary_production, XY(), units = u"kg/m^2/s"), # Gross primary production rate [kgC/m²/s]
     input(:soil_moisture_limiting_factor, XY(), default = NF(1)), # soil moisture limiting factor with default value of 1
     input(:leaf_area_index, XY()), # Leaf Area Index [m²/m²]
 )
 
 """
-    $SIGNATURES
-Computes kinetic parameters `τ`, `Kc`, `Ko` based on temperature.
+    $TYPEDSIGNATURES
+Computes kinetic parameters `τ`, `Kc`, `Ko` based on temperature using Q10 temperature response.
+Follows enzyme kinetics from Haxeltine & Prentice (1996), Appendix C.
+- τ: Rubisco specificity factor (CO₂ to O₂ carboxylation ratio), dimensionless
+- Kc: Michaelis-Menten constant for CO₂ [Pa]
+- Ko: Michaelis-Menten constant for O₂ [Pa]
 """
-
 @inline function compute_kinetic_parameters(photo::LUEPhotosynthesis{NF}, T_air::NF) where {NF}
-    # TODO check meaning of these parameters, Appendix C in PALADYN paper
-    # TODO add units
     τ = photo.τ25 * photo.q10_τ^((T_air - NF(25.0)) * NF(0.1))
     Kc = photo.Kc25 * photo.q10_Kc^((T_air - NF(25.0)) * NF(0.1))
     Ko = photo.Ko25 * photo.q10_Ko^((T_air - NF(25.0)) * NF(0.1))
@@ -99,18 +86,18 @@ end
 
 
 """
-    $SIGNATURES
-Computes the CO2 compensation point `Γ_star`,
-Eq. C6, PALADYN (Willeit 2016).
+    $TYPEDSIGNATURES
+Computes the CO₂ compensation point `Γ_star` [Pa].
+The intercellular CO₂ partial pressure at which gross photosynthesis equals respiration.
+Follows Eq. C6, PALADYN (Willeit 2016).
 """
 @inline function compute_Γ_star(photo::LUEPhotosynthesis{NF}, τ::NF, pres_O2::NF) where {NF}
-    # TODO add unit
     Γ_star = pres_O2 / (NF(2.0) * τ)
     return Γ_star
 end
 
 """
-    $SIGNATURES
+    $TYPEDSIGNATURES
 Computes NET Photosynthetically Active Radiation `PAR` [mol/m²/s].
 """
 @inline function compute_PAR(photo::LUEPhotosynthesis{NF}, swdown::NF) where {NF}
@@ -119,7 +106,7 @@ Computes NET Photosynthetically Active Radiation `PAR` [mol/m²/s].
 end
 
 """
-    $SIGNATURES
+    $TYPEDSIGNATURES
 Computes absorbed PAR limited by the fraction of PAR assimilated at ecosystem level `APAR` [mol/m²/s],
 Eq. 62, PALADYN (Willeit 2016).
 """
@@ -130,7 +117,7 @@ Eq. 62, PALADYN (Willeit 2016).
 end
 
 """
-    $SIGNATURES
+    $TYPEDSIGNATURES
 Computes intercellular CO2 partial pressure [Pa],
 Eq. 67, PALADYN (Willeit 2016).
 """
@@ -140,45 +127,61 @@ Eq. 67, PALADYN (Willeit 2016).
 end
 
 """
-    $SIGNATURES
+    $TYPEDSIGNATURES
 
-Computes the temperature stress factor `t_stress` based on the air temperature.
+Computes the temperature stress factor `T_stress` based on the air temperature.
 """
+@inline function compute_temperature_stress(photo::LUEPhotosynthesis{NF}, T_air::NF) where {NF}
+    # Temperature stress function implements a double-sigmoid response to temperature.
+    # T_CO2_low/high: thresholds for Rubisco specificity (τ) optimal activity range
+    # T_photos_low/high: thresholds for light-limited photosynthesis (JE) optimal activity range
+    # k1: slope parameter for lower sigmoid (temperature rise from T_CO2_low to T_photos_low)
+    # Derived from logistic function to transition from 0.01 to 0.99 over the temperature interval.
+    k1 = NF(2.0) * log(NF(1.0) / NF(0.99) - NF(1.0)) / (photo.T_CO2_low - photo.T_photos_low)
 
-@inline function compute_t_stress(photo::LUEPhotosynthesis{NF}, T_air::NF) where {NF}
-    # TODO check physical meaning of these parameters
-    k1 = NF(2.0) * log(NF(1.0) / NF(0.99) - NF(1.0)) / (photo.t_CO2_low - photo.t_photos_low)
-    k2 = NF(0.5) * (photo.t_CO2_low + photo.t_photos_low)
-    k3 = log(NF(0.99) / NF(0.01)) / (photo.t_CO2_high - photo.t_photos_high)
+    # k2: inflection point (midpoint) of the lower sigmoid
+    # Set to the average of the two lower thresholds for symmetric transition.
+    k2 = NF(0.5) * (photo.T_CO2_low + photo.T_photos_low)
 
-    # Compute t_stress
-    if photo.t_CO2_low < T_air < photo.t_CO2_high
+    # k3: slope parameter for upper sigmoid (temperature rise from T_photos_high to T_CO2_high)
+    # Controls how rapidly photosynthesis declines above the optimal temperature range.
+    k3 = log(NF(0.99) / NF(0.01)) / (photo.T_CO2_high - photo.T_photos_high)
+
+    # Compute T_stress as product of lower and upper sigmoid curves
+    # T_stress varies from 0 (outside optimal range) to ~1 (within optimal range [T_photos_low, T_photos_high])
+    if photo.T_CO2_low < T_air < photo.T_CO2_high
         low = NF(1.0) / (NF(1.0) + exp(k1 * (k2 - T_air)))
-        high = NF(1.0) - NF(0.01) * exp(k3 * (T_air - photo.t_photos_high))
-        t_stress = low * high
+        high = NF(1.0) - NF(0.01) * exp(k3 * (T_air - photo.T_photos_high))
+        T_stress = low * high
     else
-        t_stress = zero(NF)
+        T_stress = zero(NF)
     end
 
-    return t_stress
+    return T_stress
 end
 
 """
-    $SIGNATURES
-Computes factor for light-limited assimilation `c_1` and factor for RuBisCO-limited assimilation `c_2`,
-Eqs. C4+C5, PALADYN (Willeit 2016).
+    $TYPEDSIGNATURES
+
+Computes factors for light-limited `c_1` [gC/mol] and RuBisCO-limited `c_2` [dimensionless] assimilation.
+Follows Eq. C4-C5 from PALADYN (Willeit 2016) and Haxeltine & Prentice (1996).
+- c_1: quantum efficiency × temperature factor × carbon mass / denominator, used in JE = c_1 × APAR
+- c_2: dimensionless coefficient relating enzyme capacity to assimilation, used in JC = c_2 × Vc_max
 """
-@inline function compute_c1_c2(photo::LUEPhotosynthesis{NF}, T_air::NF, Γ_star::NF, Kc::NF, Ko::NF, pres_i::NF, pres_O2::NF) where {NF}
-    t_stress = compute_t_stress(photo, T_air)
-    # TODO check factor 2 missing in PALADYN paper
-    # TODO add units
-    c_1 = photo.α_C3 * t_stress * photo.C_mass * (pres_i - Γ_star) / (pres_i + NF(2.0) * Γ_star)
+@inline function compute_assimilation_factors(
+        photo::LUEPhotosynthesis{NF},
+        constants::PhysicalConstants{NF},
+        Γ_star::NF, T_stress::NF, Kc::NF, Ko::NF, pres_i::NF, pres_O2::NF
+    ) where {NF}
+    # The factor of 2 in the c_1 denominator relates to the partial pressure terms in the compensation point.
+    c_1 = photo.α_C3 * T_stress * constants.C_mass * (pres_i - Γ_star) / (pres_i + NF(2.0) * Γ_star)
     c_2 = (pres_i - Γ_star) / (pres_i + Kc * (NF(1.0) + pres_O2 / Ko))
     return c_1, c_2
 end
 
 """
-    $SIGNATURES
+    $TYPEDSIGNATURES
+    
 Computes the maximum rate of net photosynthesis `Vc_max` [gC/m²/s],
 following the coordination hypothesis (acclimation), see Harrison 2021 Box 2.
 Note: this is not the same formula in PALADYN paper, this implementaion is taken from the code
@@ -189,7 +192,8 @@ Note: this is not the same formula in PALADYN paper, this implementaion is taken
 end
 
 """
-    $SIGNATURES
+    $TYPEDSIGNATURES
+
 Computes the PAR-limited and the rubisco-activity-limited photosynthesis rates `JE` and `JC` [gC/m²/s],
 Eqn 3+5, Haxeltine & Prentice 1996.
 """
@@ -200,17 +204,19 @@ Eqn 3+5, Haxeltine & Prentice 1996.
 end
 
 """
-    $SIGNATURES
+    $TYPEDSIGNATURES
+
 Computes the leaf respiration rate `Rd` [gC/m²/s],
 Eqn 10, Haxeltine & Prentice 1996 and Eq. 10 PALADYN (Willeit 2016).
 """
-@inline function compute_Rd(photo::LUEPhotosynthesis, Vc_max, β)
+@inline function compute_Rd(photo::LUEPhotosynthesis, Vc_max::NF, β::NF) where {NF}
     Rd = photo.α_C3 * Vc_max * β
     return Rd
 end
 
 """
-    $SIGNATURES
+    $TYPEDSIGNATURES
+
 Computes the gross photosynthesis rate `Ag` [gC/m²/s],
 Eqn 2, Haxeltine & Prentice 1996
 """
@@ -224,30 +230,29 @@ Eqn 2, Haxeltine & Prentice 1996
 end
 
 """
-    $SIGNATURES
+    $TYPEDSIGNATURES
 
-Computes Gross Primary Production `GPP`in [kgC/m²/day] and leaf respiration `Rd` in [gC/m²/day]
+Compute and return leaf respiration [gC/m²/s] and net assimilation [gC/m²/s] rates.
 """
-function compute_photosynthesis(
+function compute_respiration_assimilation(
         photo::LUEPhotosynthesis{NF},
+        constants::PhysicalConstants{NF},
         T_air::NF, swdown::NF, pres::NF, co2::NF, LAI::NF, λc::NF, β::NF,
     ) where {NF}
     # Compute partial CO2 and O2 pressures in [Pa]
     pres_O2 = partial_pressure_O2(pres)
     pres_a = partial_pressure_CO2(pres, co2)
 
-    # TODO check this conditiong_min
+    # Minimum light and temperature thresholds for photosynthesis
+    # No photosynthesis occurs below -3°C or without incident shortwave radiation
     if swdown > zero(NF) && T_air > NF(-3.0)
-        # Compute kinetic parameters
-        # TODO check physical meaning of these parameters,  Appendix C in PALADYN paper
-        # TODO add units
+        # Compute kinetic parameters: Rubisco specificity τ, and Michaelis-Menten constants Kc, Ko
         τ, Kc, Ko = compute_kinetic_parameters(photo, T_air)
 
-        # Compute Γ_star
-        # TODO add unit
+        # Compute CO₂ compensation point in Pa
         Γ_star = compute_Γ_star(photo, τ, pres_O2)
 
-        # TODO check for bioclimatic limit ignored for now
+        # Only compute photosynthesis if there is leaf area (LAI)
         if LAI > zero(NF)
 
             # Compute absorbed PAR [mol/m²/s]
@@ -256,9 +261,11 @@ function compute_photosynthesis(
             # Compute pres_i, intercellular CO2 partial pressure [Pa]
             pres_i = compute_pres_i(photo, λc, pres_a)
 
-            # Compute c1 and c2 parameters for C3 photosynthesis
-            # TODO add units
-            c_1, c_2 = compute_c1_c2(photo, T_air, Γ_star, Kc, Ko, pres_i, pres_O2)
+            # Compute temperature stress
+            T_stress = compute_temperature_stress(photo, T_air)
+
+            # Compute c1 and c2 parameters for C3 photosynthesis enzyme kinetics
+            c_1, c_2 = compute_assimilation_factors(photo, constants, Γ_star, T_stress, Kc, Ko, pres_i, pres_O2)
 
             # Compute Vc_max, maximum rate of carboxylation [gC/m²/s]
             Vc_max = compute_Vc_max(photo, c_1, APAR, Kc, Ko, Γ_star, pres_i, pres_O2)
@@ -278,9 +285,11 @@ function compute_photosynthesis(
             Rd = zero(NF)
         end
     else
-        # No light, no photosynthesis
+        # No net photosynthesis without sufficient light or warmth
         An = zero(NF)
-        # TODO Rd = 0 here?
+        # Note: Leaf respiration (Rd) could continue in darkness, but without photosynthesis
+        # computation we cannot compute Vc_max and thus Rd. This represents a simplified
+        # assumption that respiration is negligible relative to photosynthesis in lit conditions.
         Rd = zero(NF)
     end
 
@@ -288,16 +297,12 @@ function compute_photosynthesis(
 end
 
 """
-    $SIGNATURES
+    $TYPEDSIGNATURES
 
-Compute the Gross Primary Production [kgC/m²/s].
+Compute the Gross Primary Production rate [kgC/m²/s].
 """
-function compute_GPP(::LUEPhotosynthesis{NF}, An::NF) where {NF}
-    # Compute And, the total daytime net photosynthesis `And` [gC/m²/day],
-    # Eq 19, Haxeltine & Prentice 1996 + Eq. 65, PALADYN (Willeit 2016).
-    # And = (An + (NF(1.0) - day_length / NF(24.0)) * Rd) * seconds_per_day(NF)
-
-    # Compute GPP [kgC/m²/s]
+@inline function compute_GPP(::LUEPhotosynthesis{NF}, An::NF) where {NF}
+    # Convert from gC/m²/s to kgC/m²/s
     GPP = An * NF(1.0e-3)
     return GPP
 end
@@ -309,17 +314,29 @@ function compute_auxiliary!(
         photo::LUEPhotosynthesis,
         stomcond::AbstractStomatalConductance,
         atmos::AbstractAtmosphere,
+        constants::PhysicalConstants,
         args...
     )
     out = auxiliary_fields(state, photo)
     fields = get_fields(state, photo, stomcond, atmos; except = out)
-    launch!(grid, XY, compute_auxiliary_kernel!, out, fields, photo, atmos)
+    launch!(grid, XY, compute_auxiliary_kernel!, out, fields, photo, atmos, constants)
     return nothing
 end
 
 # Kernel functions
 
-@propagate_inbounds function compute_photosynthesis(i, j, grid, fields, photo::LUEPhotosynthesis, atmos::AbstractAtmosphere)
+"""
+    $TYPEDSIGNATURES
+
+Compute photosynthesis, leaf respiration, and gross primary production at a single grid point.
+Returns instantaneous rates in [gC/m²/s] and [kgC/m²/s] for integration by the timestepper.
+"""
+@propagate_inbounds function compute_photosynthesis(
+        i, j, grid, fields,
+        photo::LUEPhotosynthesis,
+        atmos::AbstractAtmosphere,
+        constants::PhysicalConstants
+    )
     # Get inputs from fields/atmosphere
     T_air = air_temperature(i, j, grid, fields, atmos)
     pres = air_pressure(i, j, grid, fields, atmos)
@@ -330,8 +347,8 @@ end
     λc = fields.leaf_to_air_co2_ratio[i, j]
 
     # Compute Rd, leaf respiration rate in [gC/m²/s],
-    # An, daily net photosynthesis [gC/m²/s]
-    Rd, An = compute_photosynthesis(photo, T_air, swdown, pres, co2, LAI, λc, β)
+    # An, net photosynthesis rate in [gC/m²/s]
+    Rd, An = compute_respiration_assimilation(photo, constants, T_air, swdown, pres, co2, LAI, λc, β)
 
     # Compute GPP, Gross Primary Production in [kgC/m²/s]
     GPP = compute_GPP(photo, An)
@@ -339,9 +356,19 @@ end
     return Rd, An, GPP
 end
 
-@propagate_inbounds function compute_photosynthesis!(out, i, j, grid, fields, photo::LUEPhotosynthesis, atmos::AbstractAtmosphere)
-    Rd, An, GPP = compute_photosynthesis(i, j, grid, fields, photo, atmos)
-    out.daily_leaf_respiration[i, j, 1] = Rd
+"""
+    $TYPEDSIGNATURES
+
+Calls [`compute_photosynthesis`](@ref) and stores the results in `out`.
+"""
+@propagate_inbounds function compute_photosynthesis!(
+        out, i, j, grid, fields,
+        photo::LUEPhotosynthesis,
+        atmos::AbstractAtmosphere,
+        constants::PhysicalConstants
+    )
+    Rd, An, GPP = compute_photosynthesis(i, j, grid, fields, photo, atmos, constants)
+    out.leaf_respiration[i, j, 1] = Rd
     out.net_assimilation[i, j, 1] = An
     out.gross_primary_production[i, j, 1] = GPP
     return out

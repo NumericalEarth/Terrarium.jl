@@ -37,12 +37,22 @@ end
 
 ## Kernel functions
 
+"""
+    $TYPEDSIGNATURES
+
+Compute upwelling shortwave and longwave radiation at a grid point.
+"""
 @propagate_inbounds function compute_surface_upwelling_radiation(i, j, grid, fields, rad::PrescribedRadiativeFluxes, args...)
     surface_shortwave_up = fields.surface_shortwave_up[i, j]
     surface_longwave_up = fields.surface_longwave_up[i, j]
     return (; surface_shortwave_up, surface_longwave_up)
 end
 
+"""
+    $TYPEDSIGNATURES
+
+Compute net radiation and store in auxiliary fields at a grid point.
+"""
 @propagate_inbounds function compute_radiative_fluxes!(
         out, i, j, grid, fields,
         rad::PrescribedRadiativeFluxes,

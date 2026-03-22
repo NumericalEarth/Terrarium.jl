@@ -59,6 +59,12 @@ end
 
 # Kernel functions
 
+"""
+    $TYPEDSIGNATURES
+
+Compute the plant avaialble water given the current soil stratigraphy, hydrology, and biogeochemistry
+state in `fields`.
+"""
 @propagate_inbounds function compute_plant_available_water(
         i, j, k, grid, fields,
         paw::FieldCapacityLimitedPAW{NF},
@@ -74,9 +80,15 @@ end
     fracs = volumetric_fractions(vol)
     θw = fracs.water
     # Compute PAW
-    return max(min(NF(1), (θw - θwp) / (θfc - θwp)), NF(0))
+    PAW = max(min(NF(1), (θw - θwp) / (θfc - θwp)), NF(0))
+    return PAW
 end
 
+"""
+    $TYPEDSIGNATURES
+
+Mutating wrapper for [`compute_plant_available_water`](@ref) that stores the result in `out`.
+"""
 @propagate_inbounds function compute_plant_available_water!(
         out, i, j, k, grid, fields,
         paw::FieldCapacityLimitedPAW{NF},

@@ -35,6 +35,7 @@ variables(hydrology::SoilHydrology{NF, RichardsEq}) where {NF} = (
 
 # Process methods
 
+""" $TYPEDSIGNATURES """
 function initialize!(
         state, grid,
         hydrology::SoilHydrology{NF, RichardsEq},
@@ -51,6 +52,7 @@ function initialize!(
     return nothing
 end
 
+""" $TYPEDSIGNATURES """
 function compute_auxiliary!(
         state, grid,
         hydrology::SoilHydrology{NF, RichardsEq},
@@ -65,6 +67,7 @@ function compute_auxiliary!(
     return nothing
 end
 
+""" $TYPEDSIGNATURES """
 function compute_tendencies!(
         state, grid,
         hydrology::SoilHydrology{NF, RichardsEq},

@@ -29,6 +29,16 @@ end
 
 ConstantAlbedo(::Type{NF}; kwargs...) where {NF} = ConstantAlbedo{NF}(; kwargs...)
 
+"""
+    $TYPEDSIGNATURES
+
+Return the surface albedo at grid point `i, j`.
+"""
 @inline albedo(i, j, grid, fields, albedo::ConstantAlbedo) = albedo.albedo
 
+"""
+    $TYPEDSIGNATURES
+
+Return the surface emissivity at grid point `i, j`.
+"""
 @inline emissivity(i, j, grid, fields, albedo::ConstantAlbedo) = albedo.emissivity

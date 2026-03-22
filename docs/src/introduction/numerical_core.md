@@ -1,5 +1,9 @@
 # Numerical core
 
+```@meta
+CurrentModule = Terrarium
+```
+
 Terrarium is based on the numerics and finite-volume method (FVM) operators provided by [Oceananigans.jl](https://github.com/CliMA/Oceananigans.jl). All state variables are realized as Oceananigans [`Field`s](https://clima.github.io/OceananigansDocumentation/stable/fields/) defined over a particular choice of [grid](https://clima.github.io/OceananigansDocumentation/stable/grids/) which discretizes physical space into a finite number of *volumes* or "cells". This page gives a brief overview of the basic concepts behind the numerical building blocks of Oceanangians and Terrarium.
 
 ## Grids

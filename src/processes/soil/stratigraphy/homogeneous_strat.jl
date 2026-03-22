@@ -16,7 +16,7 @@ end
 
 function HomogeneousStratigraphy(
         ::Type{NF};
-        texture::AbstractSoilTexture{NF} = SoilTexture(NF),
+        texture::SoilTexture{NF} = SoilTexture(NF),
         porosity::AbstractSoilPorosity{NF} = ConstantSoilPorosity(NF)
     ) where {NF}
     return HomogeneousStratigraphy(texture, porosity)
@@ -26,6 +26,11 @@ end
 
 soil_texture(i, j, k, grid, fields, strat::HomogeneousStratigraphy) = strat.texture
 
+"""
+    $TYPEDSIGNATURES
+
+Compute the organic fraction of solid material in the soil volume at index `i, j, k`.
+"""
 @inline function organic_fraction(
         i, j, k, grid, fields,
         strat::HomogeneousStratigraphy,

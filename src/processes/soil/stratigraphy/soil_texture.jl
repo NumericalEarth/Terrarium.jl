@@ -3,7 +3,7 @@
 
 Represents soil texture as a fractional mixture of sand, silt, and clay. Accepts values 
 """
-@kwdef struct SoilTexture{NF} <: AbstractSoilTexture{NF}
+@kwdef struct SoilTexture{NF}
     sand::NF = 1.0
     clay::NF = 0.0
     silt::NF = 1 - sand - clay

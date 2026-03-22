@@ -25,10 +25,10 @@ end
 PALADYNAutotrophicRespiration(::Type{NF}; kwargs...) where {NF} = PALADYNAutotrophicRespiration{NF}(; kwargs...)
 
 variables(::PALADYNAutotrophicRespiration) = (
-    auxiliary(:autotrophic_respiration, XY(), units = u"kg/m^2/d"), # Autotrophic respiration [kgC/m²/day]
-    auxiliary(:net_primary_production, XY(), units = u"kg/m^2/d"), # Net Primary Production [kgC/m²/day]
-    input(:gross_primary_production, XY(), units = u"kg/m^2/d"), # Gross Primary Production [kgC/m²/day]
-    input(:daily_leaf_respiration, XY(), units = u"g/m^2/d"), # Daily leaf respiration [gC/m²/day]
+    auxiliary(:autotrophic_respiration, XY(), units = u"kg/m^2/s"), # Autotrophic respiration [kgC/m²/s]
+    auxiliary(:net_primary_production, XY(), units = u"kg/m^2/s"), # Net Primary Production [kgC/m²/s]
+    input(:gross_primary_production, XY(), units = u"kg/m^2/s"), # Gross Primary Production [kgC/m²/s]
+    input(:daily_leaf_respiration, XY(), units = u"g/m^2/s"), # Daily leaf respiration [gC/m²/s]
     input(:phenology_factor, XY()), # Phenology factor [-]
     input(:ground_temperature, XY(), default = 10.0, units = u"°C"), # Ground surface temperature [°C]
 )
@@ -113,7 +113,7 @@ end
 """
 $SIGNATURES
 
-Computes growth respiration `Rg` in [kgC/m²/day].
+Computes growth respiration `Rg` in [kgC/m²/s].
 """
 @inline function compute_Rg(autoresp::PALADYNAutotrophicRespiration{NF}, GPP, Rm) where {NF}
     Rg = NF(0.25) * (GPP - Rm)
@@ -123,7 +123,7 @@ end
 """
 $SIGNATURES
 
-Computes autotrophic respiration `Ra` as the sum of maintenance respiration `Rm` and growth respiration `Rg` in [kgC/m²/day].
+Computes autotrophic respiration `Ra` as the sum of maintenance respiration `Rm` and growth respiration `Rg` in [kgC/m²/s].
 """
 @inline function compute_Ra(autoresp::PALADYNAutotrophicRespiration, vegcarbon_dynamics::PALADYNCarbonDynamics, T_air, T_soil, Rd, phen, C_veg, GPP)
     # Compute Rm, maintenance respiration
@@ -141,7 +141,7 @@ end
 $SIGNATURES
 
 Computes Net Primary Productivity `NPP` as the difference between Gross Primary Production `GPP` and autotrophic respiration `Ra`
-in [kgC/m²/day].
+in [kgC/m²/s].
 """
 @inline function compute_NPP(autoresp::PALADYNAutotrophicRespiration, GPP, Ra)
     NPP = GPP - Ra
@@ -193,6 +193,11 @@ Compute autotrophic respiration following the scheme of PALADYN (Willeit 2016).
     return Ra, NPP
 end
 
+"""
+    $TYPEDSIGNATURES
+
+Mutating wrapper for [`compute_autotrophic_respiration`](@ref) that stores the results in `out`.
+"""
 @propagate_inbounds function compute_autotrophic_respiration!(out, i, j, grid, fields, autoresp::AbstractAutotrophicRespiration, args...)
     # Compute and store results
     Ra, NPP = compute_autotrophic_respiration(i, j, grid, fields, autoresp, args...)

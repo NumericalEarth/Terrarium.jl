@@ -33,7 +33,7 @@ There is one thing however, that is crucial for Enzyme to work: [type stability]
 
 Enzyme does, however, have some disadvantages; it is still not fully mature and bugs do occur. As of the time of writing (August 2025), this is especially the case for Julia 1.11. We currently recommend staying on Julia 1.10.10 (LTS) for the time being. Other cryptic Enzyme error messages have become rarer with time, but they do still occasionally happen. In these cases, we, along with our AD team led by Valentin in the DELTA-ESM project, are happy to offer support to the best of our abilities.
 
-### Code style
+### Code formatting
 
 We use [Runic.jl](https://github.com/fredrikekre/Runic.jl) for automatted code formatting. If you submit a PR you probably have seen a comment from our CI that the code is not formatted according to the Runic style. To use runic, you have to run the install Runic install script and then you can choose to either format directly from the command line with `runic --inplace .` (don't forget the `.` at the end!), or configure it in your editor of choice or use a Git hook. All details are described in [Runic's readme](https://github.com/fredrikekre/Runic.jl). We recommend setting up Runic as a Git hook to automatically format your code on commit. For that purpose, we provide the Git hook in the `.githooks` directory of the repository. You can copy the hook from there to your local git hooks directory and make it executable to use like so: 
 ```

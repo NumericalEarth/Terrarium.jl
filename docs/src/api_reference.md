@@ -2,5 +2,5 @@
 
 ```@autodocs
 Modules = [Terrarium]
-Order   = [:type, :function, :macro, :constant]
+Order   = [:function, :type, :macro, :constant]
 ```

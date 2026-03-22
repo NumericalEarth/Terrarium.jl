@@ -1,11 +1,21 @@
-# Soil hydrothermal dynamics
+# Soil energy balance
+
+```@meta
+CurrentModule = Terrarium
+```
+
+```@setup default
+using Terrarium
+```
 
 !!! warning
     This page is a work in progress. If you have any questions or notice any errors, please [raise an issue](https://github.com/NumericalEarth/Terrarium.jl/issues).
 
-## Heat transfer
+## Theory
 
-Heat transfer along the vertical axis perpendicular to the land surface can be represented according to the heat equation, with the upper boundary set to surface temperature and the lower boundary set to a constant positive heat flux representing heat produced by the inner earth (Lachenbruch 1986, Jaeger 1965). If both the upper and lower boundaries are assumed to be constant over time, the steady-state temperature profile takes the form of a continuous piecewise linear function increasing over depth with the slope determined by the thermal properties of the ground material. The instantaneous temperature field can then be generally represented as
+### Heat conduction
+
+Heat transport along the vertical axis perpendicular to the land surface can be represented according to the heat equation, with the upper boundary set to surface temperature and the lower boundary set to a constant positive heat flux representing heat produced by the inner earth (Lachenbruch 1986, Jaeger 1965). If both the upper and lower boundaries are assumed to be constant over time, the steady-state temperature profile takes the form of a continuous piecewise linear function increasing over depth with the slope determined by the thermal properties of the ground material. The instantaneous temperature field can then be generally represented as
 ```math
 \begin{equation}
 T(z,t) = T_0 + \frac{Q_{\text{geo}}}{\kappa_{\text{h}}(z)}z + \Delta T(z,t)
@@ -37,9 +47,9 @@ The advective heat flux $j_{\text{h}}^{\text{w}}$ can be represented as,
 ```
 where $L_{\text{sl}}$ and $c_{\text{w}}$ (J/kg) represent the specific latent heat of fusion and heat capacity of liquid water respectively. This flux term accounts for the energy transferred by the movement of water within the soil matrix. In model configurations that neglect subsurface water flow, this flux term is implicitly assumed to be zero.
 
-## Energy-temperature closure
+### Energy-temperature closure
 
-The constitutive relationship between energy and temperature plays a key role in characterizing the subsurface energy balance. This relation can be defined in integral form as
+The constitutive relationship between energy and temperature plays a crticial role in characterizing the subsurface energy balance. This relation can be defined in integral form as
 ```math
 \begin{equation}
     U(T,\theta) = \int_{T_{\text{ref}}}^T \tilde{C}(x,\theta) \, \mathrm{d}x\,,
@@ -80,18 +90,67 @@ with temperature then determined by
 ```
 where $C = C(\theta_{\text{w}},\theta)$ is the volumetric heat capacity (J/K/m³) as a function of the unfrozen and total water content.
 
-## Vertical water transport in variably saturated soil
+## Abstract types
 
-The vertical flow of water in porous media, such as soils, can be formulated as following the conservation law
-```math
-    \phi\frac{\partial\vartheta(\psi)}{\partial t} - \boldsymbol{\nabla} \cdot \textbf{j}_{\text{w}} - F_{\text{w}}(z,t) = 0,
+```@docs; canonical = false
+AbstractSoilEnergyBalance
 ```
-where $\phi$ is the natural porosity (or saturated water content) of the soil volume and $F_{\text{w}}(z,t)$ (m/s) is an inhomogeneous source/sink (forcing) term.
 
-Vertical fluxes in the soil column be represented by combining gravity-driven advection with Darcy's law
-```math
-\begin{equation}
-\textbf{j}_{\text{w}} \cdot \mathbf{n} = -\kappa_{\text{w}}\frac{\partial \left(\psi + z\right)}{\partial z},
-\end{equation}
+```@docs; canonical = false
+AbstractHeatOperator
 ```
-where $\psi$ (m) is the matric potential. Substituting this equation into the aforementioned conservation law yields the widely known Richardson-Richards equation for variably saturated flow in porous media (Richards 1931).
+
+```@docs; canonical = false
+AbstractSoilEnergyClosure
+```
+
+## Concrete types
+
+```@docs; canonical = false
+SoilEnergyBalance
+```
+
+### [State variables](@id soilenergy.vars)
+```@example default
+variables(SoilEnergyBalance(Float32))
+```
+
+### [Process method dispatches](@id soilenergy.dispatches)
+
+```@docs; canonical = false
+initialize!(state, grid, energy::SoilEnergyBalance, soil::AbstractSoil, constants::PhysicalConstants, args...)
+```
+
+```@docs; canonical = false
+compute_auxiliary!(state, grid, energy::SoilEnergyBalance, soil::AbstractSoil, args...)
+```
+
+```@docs; canonical = false
+compute_tendencies!(state, grid, energy::SoilEnergyBalance, soil::AbstractSoil, args...)
+```
+
+## Closures
+
+```@docs; canonical = false
+SoilEnergyTemperatureClosure
+```
+
+## Methods
+
+```@docs; canonical = false
+get_thermal_properties
+```
+
+## Kernel functions
+
+```@docs; canonical = false
+compute_energy_tendency
+```
+
+```@docs; canonical = false
+compute_energy_tendencies!
+```
+
+```@docs; canonical = false
+compute_thermal_conductivity
+```
