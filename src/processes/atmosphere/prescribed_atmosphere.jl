@@ -180,7 +180,7 @@ Retrieve or compute the specific_humidity at the current time step.
 
 Computes the vapor pressure deficit (VPD) at atmospheric reference level given the current atmospheric fields
 """
-@propagate_inbounds function compute_vapor_pressure_deficit(i, j, grid, fields, atmos::AbstractAtmosphere, c::PhysicalConstants, Ts = nothing)
+@propagate_inbounds function compute_vapor_pressure_deficit(i, j, grid, fields, atmos::AbstractAtmosphere, c::PhysicalConstants)
     T_air = air_temperature(i, j, grid, fields, atmos)
     q_air = specific_humidity(i, j, grid, fields, atmos)
     p = air_pressure(i, j, grid, fields, atmos)
