@@ -140,27 +140,9 @@ end
 """
     $TYPEDSIGNATURES
 
-Kernel function that computes soil hydraulics and unsaturated hydraulic conductivity.
+Kernel function that computes dynamic soil hydraulic properties.
 """
-@propagate_inbounds function compute_hydraulics!(
-        out, i, j, k, grid, fields,
-        hydrology::SoilHydrology,
-        strat::AbstractStratigraphy,
-        bgc::AbstractSoilBiogeochemistry
-    )
-    # Get underlying grid
-    fgrid = get_field_grid(grid)
-    # compute hydraulic conductivity
-    @inbounds if k <= 1
-        out.hydraulic_conductivity[i, j, k] = hydraulic_conductivity(i, j, 1, fgrid, fields, hydrology, strat, bgc)
-    elseif k >= fgrid.Nz
-        out.hydraulic_conductivity[i, j, k] = hydraulic_conductivity(i, j, fgrid.Nz, fgrid, fields, hydrology, strat, bgc)
-        out.hydraulic_conductivity[i, j, k + 1] = out.hydraulic_conductivity[i, j, k]
-    else
-        out.hydraulic_conductivity[i, j, k] = min_zᵃᵃᶠ(i, j, k, fgrid, hydraulic_conductivity, fields, hydrology, strat, bgc)
-    end
-    return nothing
-end
+compute_hydraulics!(out, i, j, k, grid, hydrology::SoilHydrology, args...) = nothing
 
 """
     $TYPEDSIGNATURES

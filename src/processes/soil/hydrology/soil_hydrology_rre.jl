@@ -145,6 +145,31 @@ Compute the hydraulic conductivity at the center of the grid cell `i, j, k`.
     return hydraulic_conductivity(hydrology.hydraulic_properties, soil)
 end
 
+"""
+    $TYPEDSIGNATURES
+
+Computes the unsaturated hydraulic conductivity for `RichardsEq` configurations of `SoilHydrology`.
+"""
+@propagate_inbounds function compute_hydraulics!(
+        out, i, j, k, grid, fields,
+        hydrology::SoilHydrology{NF, RichardsEq},
+        strat::AbstractStratigraphy,
+        bgc::AbstractSoilBiogeochemistry
+    )
+    # Get underlying grid
+    fgrid = get_field_grid(grid)
+    # compute hydraulic conductivity
+    @inbounds if k <= 1
+        out.hydraulic_conductivity[i, j, k] = hydraulic_conductivity(i, j, 1, fgrid, fields, hydrology, strat, bgc)
+    elseif k >= fgrid.Nz
+        out.hydraulic_conductivity[i, j, k] = hydraulic_conductivity(i, j, fgrid.Nz, fgrid, fields, hydrology, strat, bgc)
+        out.hydraulic_conductivity[i, j, k + 1] = out.hydraulic_conductivity[i, j, k]
+    else
+        out.hydraulic_conductivity[i, j, k] = min_zᵃᵃᶠ(i, j, k, fgrid, hydraulic_conductivity, fields, hydrology, strat, bgc)
+    end
+    return nothing
+end
+
 # Kernels
 
 @kernel inbounds = true function compute_tendencies_kernel!(
