@@ -168,7 +168,7 @@ Compute the aerodynamic resistance between the ground and canopy as a function o
         ::AbstractVegetation # included just to make explicit the dependence on vegetation fields
     ) where {NF}
     @inbounds let LAI = max(fields.leaf_area_index[i, j], zero(NF)),
-            SAI = max(fields.SAI[i, j], zero(NF)),
+            SAI = max(fields.stem_area_index[i, j], zero(NF)),
             Vₐ = windspeed(i, j, grid, fields, atmos),
             C = evapotranspiration.C_can  # drag coefficient for the canopy
         rₙ = (1 - exp(-LAI - SAI)) / (C * Vₐ)

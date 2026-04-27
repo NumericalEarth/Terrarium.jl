@@ -61,7 +61,7 @@ variables(::PALADYNCanopyInterception) = (
     auxiliary(:saturation_canopy_water, XY(); desc = "Fraction of the canopy saturated with water"),
     auxiliary(:rainfall_ground, XY(); desc = "Rainfall rate reaching the ground", units = u"m/s"),
     input(:leaf_area_index, XY(); desc = "Leaf Area Index", units = u"m^2/m^2"),
-    input(:SAI, XY(); desc = "Stem Area Index", units = u"m^2/m^2"),
+    input(:stem_area_index, XY(); desc = "Stem Area Index", units = u"m^2/m^2"),
 )
 
 @propagate_inbounds canopy_water(i, j, grid, fields, ::PALADYNCanopyInterception) = fields.canopy_water[i, j]
@@ -181,7 +181,7 @@ end
     # Get inputs
     rain = rainfall(i, j, grid, fields, atmos)
     LAI = fields.leaf_area_index[i, j]
-    SAI = fields.SAI[i, j]
+    SAI = fields.stem_area_index[i, j]
     w_can = fields.canopy_water[i, j]
 
     # Compute canopy saturation faction
