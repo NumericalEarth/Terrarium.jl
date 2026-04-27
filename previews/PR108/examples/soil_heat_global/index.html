@@ -12,7 +12,7 @@ import RingGrids
 
 </code></pre><pre><code class="nohighlight hljs">[ Info: Current working directory: /home/runner/work/Terrarium.jl/Terrarium.jl/docs/src/examples
 </code></pre><p>First we check if GPU is available and choose the architecture correspondingly.</p><pre><code class="language-julia hljs">arch = CUDA.functional() ? GPU() : CPU()</code></pre><pre><code class="nohighlight hljs">[ Info: Setting up simulation on CPU()
-</code></pre><p>Next, we load a land-sea mask at ~1° resolution. The mask is a full Gaussian grid, as defined by the <a href="https://speedyweather.github.io/SpeedyWeatherDocumentation/stable/ringgrids/#RingGrids.FullGaussianGrid">FullGaussianGrid</a> from RingGrids.jl. Irrespective of the architecture used for simulation, the land-sea mask is kept on the CPU for easy scalar indexing, which is by default not allowed for GPU arrays (see <a href="https://cuda.juliagpu.org/stable/usage/workflow/#UsageWorkflowScalar">here</a>).</p><pre><code class="language-julia hljs">NF = Float32
+</code></pre><p>Next, we load a land-sea mask at ~1° resolution. The mask is a full Gaussian grid, as defined by the <a href="https://speedyweather.github.io/SpeedyWeatherDocumentation/stable/ringgrids#RingGrids.FullGaussianGrid">FullGaussianGrid</a> from RingGrids.jl. Irrespective of the architecture used for simulation, the land-sea mask is kept on the CPU for easy scalar indexing, which is by default not allowed for GPU arrays (see <a href="https://cuda.juliagpu.org/stable/usage/workflow/#UsageWorkflowScalar">here</a>).</p><pre><code class="language-julia hljs">NF = Float32
 land_sea_frac = convert.(NF, dropdims(Raster(joinpath(input_dir, &quot;era5-land_land_sea_mask_N72.nc&quot;)), dims = Ti))
 land_sea_frac_field = RingGrids.FullGaussianGrid(Matrix(land_sea_frac), input_as = Matrix)
 fig = heatmap(land_sea_frac_field)</code></pre><p><img src="../soil_heat_global-7.png" alt/></p><p>Then we set up a masked <a href="../../api_index/#Terrarium.ColumnRingGrid"><code>ColumnRingGrid</code></a>, selecting only grid points with &gt;50% land cover:</p><pre><code class="language-julia hljs">land_mask = land_sea_frac_field .&gt; 0.5
@@ -57,7 +57,7 @@ inits = (temperature = initial_soil_temperature,)</code></pre><pre><code class="
 ├── StateVariables{Float32}(clock = Clock{Float32, Float64}(time=0 seconds, iteration=0, last_Δt=Inf days), prognostic = (:internal_energy,), auxiliary = (:temperature, :liquid_water_fraction, :ground_temperature, :saturation_water_ice, :water_table, :hydraulic_conductivity), inputs = (), namespaces = ())
 </code></pre><p>Let&#39;s already plot the initial surface temperature state to see what it looks like:</p><pre><code class="language-julia hljs">T_surface_initial = RingGrids.Field(arch, interior(integrator.state.ground_temperature), grid)
 fig = heatmap(T_surface_initial[:, 1, 1], title = &quot;Temperature of uppermost soil layer&quot;, colorrange = (-20, 20))</code></pre><p><img src="../soil_heat_global-22.png" alt/></p><p>We will do a quick check, advancing the simulation by one timestep with Δt = 15 minutes (900 seconds)</p><pre><code class="language-julia hljs">timestep!(integrator)
-@time timestep!(integrator)</code></pre><pre><code class="nohighlight hljs">  1.101625 seconds (6.73 M allocations: 246.152 MiB, 73.00% gc time)
+@time timestep!(integrator)</code></pre><pre><code class="nohighlight hljs">  0.402520 seconds (6.73 M allocations: 246.151 MiB, 23.20% gc time)
 </code></pre><p>...then run the simulation for 12 hours to see the temperature change!</p><pre><code class="language-julia hljs">@time run!(integrator, period = Hour(12), Δt = 600.0)</code></pre><pre><code class="nohighlight hljs">Integrator of SoilModel{Float32, ColumnRingGrid{Float32, CPU, RingGrids.FullGaussianGrid{SpeedyWeatherInternals.Architectures.CPU{KernelAbstractions.CPU}, Vector{UnitRange{Int64}}, Vector{Int64}}, Oceananigans.Grids.RectilinearGrid{Float32, Oceananigans.Grids.Periodic, Oceananigans.Grids.Flat, Oceananigans.Grids.Bounded, Oceananigans.Grids.StaticVerticalDiscretization{OffsetArrays.OffsetVector{Float32, Vector{Float32}}, OffsetArrays.OffsetVector{Float32, Vector{Float32}}, OffsetArrays.OffsetVector{Float32, Vector{Float32}}, OffsetArrays.OffsetVector{Float32, Vector{Float32}}}, Float32, Float32, OffsetArrays.OffsetVector{Float32, StepRangeLen{Float32, Float64, Float64, Int64}}, Nothing, CPU}, RingGrids.Field{Bool, 1, Vector{Bool}, RingGrids.FullGaussianGrid{SpeedyWeatherInternals.Architectures.CPU{KernelAbstractions.CPU}, Vector{UnitRange{Int64}}, Vector{Int64}}}}, SoilEnergyWaterCarbon{Float32, HomogeneousStratigraphy{Float32, ConstantSoilPorosity{Float32}}, SoilEnergyBalance{Float32, Terrarium.ExplicitTwoPhaseHeatConduction, SoilEnergyTemperatureClosure, SoilThermalProperties{Float32, FreeWater, InverseQuadratic}}, SoilHydrology{Float32, NoFlow, SoilSaturationPressureClosure, SoilHydraulicsSURFEX{Float32, BrooksCorey{FreezeCurves.SoilWaterVolume{Float32, Float32, Float32}, Float32, Float32}, UnsatKLinear{Float32}}, Nothing}, ConstantSoilCarbonDensity{Float32}}, PhysicalConstants{Float32}, DefaultInitializer{Float32}} with ForwardEuler{Float32}
 ├── Current time: 43800.0
 ├── StateVariables{Float32}(clock = Clock{Float32, Float64}(time=12.167 hours, iteration=74, last_Δt=10 minutes), prognostic = (:internal_energy,), auxiliary = (:temperature, :liquid_water_fraction, :ground_temperature, :saturation_water_ice, :water_table, :hydraulic_conductivity), inputs = (), namespaces = ())
@@ -67,10 +67,10 @@ using Oceananigans.Units: days
 
 sim = Simulation(integrator; Δt = 600.0, stop_time = 2days)
 run!(sim)</code></pre><pre><code class="nohighlight hljs">[ Info: Initializing simulation...
-[ Info:     ... simulation initialization complete (275.919 ms)
+[ Info:     ... simulation initialization complete (182.743 ms)
 [ Info: Executing initial time step...
-[ Info:     ... initial time step complete (559.593 ms).
-[ Info: Simulation is stopping after running for 1.169 minutes.
+[ Info:     ... initial time step complete (669.178 ms).
+[ Info: Simulation is stopping after running for 1.239 minutes.
 [ Info: Simulation time 2 days equals or exceeds stop time 2 days.
 </code></pre><hr/><h3 id="Julia-version-and-environment-information"><a class="docs-heading-anchor" href="#Julia-version-and-environment-information">Julia version and environment information</a><a id="Julia-version-and-environment-information-1"></a><a class="docs-heading-anchor-permalink" href="#Julia-version-and-environment-information" title="Permalink"></a></h3><p>This example was executed with the following version of Julia:</p><pre><code class="language-julia hljs">using InteractiveUtils: versioninfo
 versioninfo()</code></pre><pre><code class="nohighlight hljs">Julia Version 1.12.6
@@ -79,9 +79,9 @@ Build Info:
   Official https://julialang.org release
 Platform Info:
   OS: Linux (x86_64-linux-gnu)
-  CPU: 4 × AMD EPYC 7763 64-Core Processor
+  CPU: 4 × AMD EPYC 9V74 80-Core Processor
   WORD_SIZE: 64
-  LLVM: libLLVM-18.1.7 (ORCJIT, znver3)
+  LLVM: libLLVM-18.1.7 (ORCJIT, znver4)
   GC: Built with stock GC
 Threads: 1 default, 1 interactive, 1 GC (on 4 virtual cores)
 Environment:
@@ -89,8 +89,8 @@ Environment:
 </code></pre><p>These were the top-level packages installed in the environment:</p><pre><code class="language-julia hljs">import Pkg
 Pkg.status()</code></pre><pre><code class="nohighlight hljs">Status `~/work/Terrarium.jl/Terrarium.jl/docs/Project.toml`
   [c7e460c6] ArgParse v1.2.0
-⌃ [052768ef] CUDA v5.11.0
-  [13f3f980] CairoMakie v0.15.9
+⌃ [052768ef] CUDA v5.11.2
+  [13f3f980] CairoMakie v0.15.10
   [0b91fe84] DisplayAs v0.1.6
   [e30172f5] Documenter v1.17.0
   [daee34ce] DocumenterCitations v1.4.1
@@ -102,9 +102,9 @@ Pkg.status()</code></pre><pre><code class="nohighlight hljs">Status `~/work/Terr
   [85f8d34a] NCDatasets v0.14.15
 ⌅ [9e8cae18] Oceananigans v0.106.6
   [a3a2b9e3] Rasters v0.14.7
-  [d1845624] RingGrids v0.1.3
+⌃ [d1845624] RingGrids v0.1.3
   [80418d68] Terrarium v0.1.0 `~/work/Terrarium.jl/Terrarium.jl`
   [b77e0a4c] InteractiveUtils v1.11.0
   [d6f4376e] Markdown v1.11.0
 Info Packages marked with ⌃ and ⌅ have new versions available. Those with ⌃ may be upgradable, but those with ⌅ are restricted by compatibility constraints from upgrading. To see why use `status --outdated`
-</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../soil_heat_column/">« Example: Soil column heat conduction</a><a class="docs-footer-nextpage" href="../../extending/core_interfaces/">Core interfaces »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Tuesday 21 April 2026 10:11">Tuesday 21 April 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../soil_heat_column/">« Example: Soil column heat conduction</a><a class="docs-footer-nextpage" href="../../extending/core_interfaces/">Core interfaces »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Monday 27 April 2026 14:42">Monday 27 April 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
