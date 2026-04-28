@@ -56,8 +56,8 @@ Computes the difference in vapor pressure between a saturated surface at tempera
 and the atmosphere, defined by its specific humidity `q_air`.
 """
 function vapor_pressure_difference(c::PhysicalConstants, p, q_air, T)
-    e_air = specific_humidity_to_vapor_pressure(q_air, p, c.ε)
-    e_sat_s = saturation_vapor_pressure(T)
+    e_air = partial_pressure_vapor(c, p, q_air)
+    e_sat_s = saturation_vapor_pressure(c, T)
     Δe = e_sat_s - e_air
     return Δe
 end
@@ -69,9 +69,11 @@ Computes the difference in specific humidity between a saturated surface at temp
 and the atmosphere, defined by its specific humidity `q_air`.
 """
 function specific_humidity_difference(c::PhysicalConstants, p, q_air, T)
-    e_sat_s = saturation_vapor_pressure(T)
-    q_sat_s = vapor_pressure_to_specific_humidity(e_sat_s, p, c.ε)
-    Δq = q_sat_s - q_air
+    T_K = celsius_to_kelvin(c, T)
+    # TODO: should use surface air density for better accuracy
+    ρₐ = air_density(c, T_K, p, q_air)
+    q_sat = q_vap_saturation(c, T_K, ρₐ)
+    Δq = q_sat - q_air
     return Δq
 end
 
@@ -139,11 +141,14 @@ Compute the sensible heat flux at `i, j` based on the current skin temperature a
         constants::PhysicalConstants,
         atmos::AbstractAtmosphere
     )
-    let ρₐ = constants.ρₐ, # density of air
-            cₐ = constants.cₐ, # specific heat capacity of air
+    let cₐ = cp_d(constants), # specific heat capacity of air
             rₐ = aerodynamic_resistance(i, j, grid, fields, atmos), # aerodynamic resistance
             Tₛ = skin_temperature(i, j, grid, fields, skinT), # skin temperature
             Tₐ = air_temperature(i, j, grid, fields, atmos), # air temperature
+            pres = air_pressure(i, j, grid, fields, atmos),
+            q_air = specific_humidity(i, j, grid, fields, atmos),
+            # TODO: should be evaluated at surface temperature for better accuracy
+            ρₐ = air_density(constants, celsius_to_kelvin(constants, Tₐ), pres, q_air),
             Q_T = (Tₛ - Tₐ) / rₐ  # bulk aerodynamic temperature-gradient
         # Calculate sensible heat flux (positive upwards)
         Hₛ = compute_sensible_heat_flux(tur, Q_T, ρₐ, cₐ)
@@ -166,8 +171,12 @@ to the latent heat flux.
         atmos::AbstractAtmosphere
     )
     let L = constants.Llg, # specific latent heat of vaporization of water
-            ρₐ = constants.ρₐ, # density of air
             Tₛ = skin_temperature(i, j, grid, fields, skinT),
+            Tₐ = air_temperature(i, j, grid, fields, atmos), # air temperature
+            pres = air_pressure(i, j, grid, fields, atmos),
+            q_air = specific_humidity(i, j, grid, fields, atmos),
+            # TODO: should be evaluated at surface temperature for better accuracy
+            ρₐ = air_density(constants, celsius_to_kelvin(constants, Tₐ), pres, q_air),
             rₐ = aerodynamic_resistance(i, j, grid, fields, atmos), # aerodynamic resistance
             Δq = compute_specific_humidity_difference(i, j, grid, fields, atmos, constants, Tₛ),
             Q_h = Δq / rₐ  # humidity flux
@@ -188,10 +197,15 @@ defined by `evtr` which is assumed to be already computed.
         i, j, grid, fields,
         tur::DiagnosedTurbulentFluxes,
         evtr::AbstractEvapotranspiration,
-        constants::PhysicalConstants
+        constants::PhysicalConstants,
+        atmos::AbstractAtmosphere
     )
     let L = constants.Llg, # specific latent heat of vaporization of water
-            ρₐ = constants.ρₐ, # density of air
+            Tₐ = air_temperature(i, j, grid, fields, atmos), # air temperature
+            pres = air_pressure(i, j, grid, fields, atmos),
+            q_air = specific_humidity(i, j, grid, fields, atmos),
+            # TODO: should be evaluated at surface temperature for better accuracy
+            ρₐ = air_density(constants, celsius_to_kelvin(constants, Tₐ), pres, q_air),
             Q_h = surface_humidity_flux(i, j, grid, fields, evtr)   # humidity flux
         # Calculate latent heat flux (positive upwards)
         Hₗ = compute_latent_heat_flux(tur, Q_h, ρₐ, L)
@@ -228,5 +242,5 @@ end
     # compute sensible heat flux
     out.sensible_heat_flux[i, j, 1] = compute_sensible_heat_flux(i, j, grid, fields, tur, skinT, constants, atmos)
     # compute latent heat flux
-    out.latent_heat_flux[i, j, 1] = compute_latent_heat_flux(i, j, grid, fields, tur, evtr, constants)
+    out.latent_heat_flux[i, j, 1] = compute_latent_heat_flux(i, j, grid, fields, tur, evtr, constants, atmos)
 end
