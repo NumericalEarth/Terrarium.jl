@@ -2,6 +2,7 @@ import Thermodynamics.Parameters:
     AbstractThermodynamicsParameters,
     R_d,
     R_v,
+    Rv_over_Rd,
     cp_d,
     cp_i,
     cp_l,
@@ -100,6 +101,9 @@ PhysicalConstants(::Type{NF}; kwargs...) where {NF} = PhysicalConstants{NF}(; kw
 @inline T_freeze(c::PhysicalConstants) = c.T_freeze
 @inline T_triple(c::PhysicalConstants) = c.T_triple
 @inline press_triple(c::PhysicalConstants) = c.press_triple
+
+# Derived parameters
+@inline Rv_over_Rd(c::PhysicalConstants) = R_v(c) / R_d(c)
 
 """
     celsius_to_kelvin(c::PhysicalConstants, T)
