@@ -114,7 +114,7 @@ Returns tuple (gw_can, λc) for use in photosynthesis and transpiration calculat
     β = fields.soil_moisture_limiting_factor[i, j]
 
     # Compute vpd [Pa]
-    vpd = compute_vpd(i, j, grid, fields, atmos, constants)
+    vpd = compute_vapor_pressure_deficit(i, j, grid, fields, atmos, constants)
 
     # Compute conductance gw_can and internal CO2 ratio λc
     gw_can = compute_gw_can(stomcond, photo, vpd, An, CO2, LAI, β)

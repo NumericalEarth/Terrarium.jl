@@ -38,11 +38,22 @@ molecular weight ratio ε.
 @inline vapor_pressure_to_specific_humidity(e, p, ε) = ε * e / p
 
 """
-    relative_to_specific_humidity(r_h, pr, Tair)
+    specific_humidity_to_vapor_pressure(q, p, ε)
 
-Derives specific humidity from measured relative humidity, air pressure, and air temperature.
+Convert the specific humidity `q` to vapor pressure at the given pressure `p` based on the
+molecular weight ratio ε.
 """
-@inline relative_to_specific_humidity(r_h, pr, T) = 0.622 * (r_h / 100) * saturation_vapor_pressure(Tair) / pr
+@inline function specific_humidity_to_vapor_pressure(q, p, ε)
+    e = q * p / (ε + (1 - ε) * q)
+    return e
+end
+
+"""
+    relative_to_specific_humidity(r_h, pr, T, ε)
+
+Derives specific humidity from measured relative humidity, air pressure, air temperature, and molecular weight ratio.
+"""
+@inline relative_to_specific_humidity(r_h, pr, T, ε) = ε * (r_h / 100) * saturation_vapor_pressure(T) / pr
 
 # saturation vapor pressure
 """
@@ -54,12 +65,11 @@ coefficients a₁, a₂, and a₃.
 @inline saturation_vapor_pressure(T, a₁, a₂, a₃) = a₁ * exp(a₂ * T / (T + a₃))
 
 """
-    saturation_vapor_pressure(T, Ts=T)
+    saturation_vapor_pressure(T)
 
-Saturation vapor pressure at the given temperature `T`, accounting for both frozen (`T < 0°C`)
-and unfrozen conditions.
-
-Coefficients taken from [alduchovImprovedMagnusForm1996](@cite).
+Saturation vapor pressure of an air parcel at the given temperature `T`. By default, the saturation vapor
+pressure is computed over ice for `T <= 0°C` and over water for `T > 0°C`
+Coefficients of August-Roche-Magnus equation taken from [alduchovImprovedMagnusForm1996](@cite).
 
 # References
 * [alduchovImprovedMagnusForm1996](@cite) Alduchov and Eskridge, Journal of Applied Meteorology and Climatology (1996)

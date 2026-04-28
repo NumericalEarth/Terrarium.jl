@@ -49,6 +49,32 @@ function compute_latent_heat_flux(::DiagnosedTurbulentFluxes, Q_h, ρₐ, Lsl)
     return Hₗ
 end
 
+"""
+    $TYPEDSIGNATURES
+    
+Computes the difference in vapor pressure between a saturated surface at temperature `T`
+and the atmosphere, defined by its specific humidity `q_air`.
+"""
+function vapor_pressure_difference(c::PhysicalConstants, p, q_air, T)
+    e_air = specific_humidity_to_vapor_pressure(q_air, p, c.ε)
+    e_sat_s = saturation_vapor_pressure(T)
+    Δe = e_sat_s - e_air
+    return Δe
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Computes the difference in specific humidity between a saturated surface at temperature `T`
+and the atmosphere, defined by its specific humidity `q_air`.
+"""
+function specific_humidity_difference(c::PhysicalConstants, p, q_air, T)
+    e_sat_s = saturation_vapor_pressure(T)
+    q_sat_s = vapor_pressure_to_specific_humidity(e_sat_s, p, c.ε)
+    Δq = q_sat_s - q_air
+    return Δq
+end
+
 ## Top-level interface methods
 
 variables(::DiagnosedTurbulentFluxes) = (
@@ -76,6 +102,30 @@ function compute_auxiliary!(
 end
 
 ## Kernel functions
+
+"""
+    $TYPEDSIGNATURES
+
+Computes the specific humidity difference between a saturated surface at temperature `T` and the current atmospheric fields.
+"""
+@propagate_inbounds function compute_specific_humidity_difference(i, j, grid, fields, atmos::AbstractAtmosphere, c::PhysicalConstants, T)
+    q_air = specific_humidity(i, j, grid, fields, atmos)
+    pres = air_pressure(i, j, grid, fields, atmos)
+    Δq = specific_humidity_difference(c, pres, q_air, T)
+    return Δq
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Computes the vapor pressure difference between a saturated surface at temperature `T` and the current atmospheric fields.
+"""
+@propagate_inbounds function compute_vapor_pressure_difference(i, j, grid, fields, atmos::AbstractAtmosphere, c::PhysicalConstants, T)
+    q_air = specific_humidity(i, j, grid, fields, atmos)
+    pres = air_pressure(i, j, grid, fields, atmos)
+    Δe = vapor_pressure_difference(c, pres, q_air, T)
+    return Δe
+end
 
 """
     $TYPEDSIGNATURES
@@ -119,7 +169,7 @@ to the latent heat flux.
             ρₐ = constants.ρₐ, # density of air
             Tₛ = skin_temperature(i, j, grid, fields, skinT),
             rₐ = aerodynamic_resistance(i, j, grid, fields, atmos), # aerodynamic resistance
-            Δq = compute_humidity_vpd(i, j, grid, fields, atmos, constants, Tₛ),
+            Δq = compute_specific_humidity_difference(i, j, grid, fields, atmos, constants, Tₛ),
             Q_h = Δq / rₐ  # humidity flux
         # Calculate latent heat flux (positive upwards)
         Hₗ = compute_latent_heat_flux(tur, Q_h, ρₐ, L)
