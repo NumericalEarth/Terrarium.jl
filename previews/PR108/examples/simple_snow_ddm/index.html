@@ -88,18 +88,18 @@ snow_sim.output_writers[:snapshots] = JLD2Writer(
 run!(snow_sim)
 @assert isfile(output_file_snow) &quot;Output file does not exist!&quot;
 println(&quot;Simulation data saved to $(output_file_snow)&quot;)</code></pre><pre><code class="nohighlight hljs">[ Info: Initializing simulation...
-[ Info:     ... simulation initialization complete (4.515 seconds)
+[ Info:     ... simulation initialization complete (4.664 seconds)
 [ Info: Executing initial time step...
-[ Info:     ... initial time step complete (1.721 seconds).
-[ Info: Simulation is stopping after running for 15.685 seconds.
+[ Info:     ... initial time step complete (1.703 seconds).
+[ Info: Simulation is stopping after running for 16.323 seconds.
 [ Info: Simulation time 80 days equals or exceeds stop time 80 days.
-Simulation data saved to /tmp/jl_exaBEDElkZ/ddsnow-simulation.jld2
-</code></pre><p>And now, we plot that data. First we load the JLD2 file.</p><pre><code class="language-julia hljs">fts_result = FieldTimeSeries(output_file_snow, &quot;snow_storage&quot;)</code></pre><pre><code class="nohighlight hljs">1410×1×1×1921 FieldTimeSeries{Oceananigans.OutputReaders.InMemory} located at (Center, Center, ⋅) of snow_storage at /tmp/jl_exaBEDElkZ/ddsnow-simulation.jld2
+Simulation data saved to /tmp/jl_GXgzerE5q7/ddsnow-simulation.jld2
+</code></pre><p>And now, we plot that data. First we load the JLD2 file.</p><pre><code class="language-julia hljs">fts_result = FieldTimeSeries(output_file_snow, &quot;snow_storage&quot;)</code></pre><pre><code class="nohighlight hljs">1410×1×1×1921 FieldTimeSeries{Oceananigans.OutputReaders.InMemory} located at (Center, Center, ⋅) of snow_storage at /tmp/jl_GXgzerE5q7/ddsnow-simulation.jld2
 ├── grid: 1410×1×1 RectilinearGrid{Float32, Periodic, Flat, Bounded} on CPU with 3×0×1 halo
 ├── indices: (:, :, :)
 ├── time_indexing: Linear()
 ├── backend: InMemory()
-├── path: /tmp/jl_exaBEDElkZ/ddsnow-simulation.jld2
+├── path: /tmp/jl_GXgzerE5q7/ddsnow-simulation.jld2
 ├── name: snow_storage
 └── data: 1416×1×1×1921 OffsetArray(::Array{Float32, 4}, -2:1413, 1:1, 1:1, 1:1921) with eltype Float32 with indices -2:1413×1:1×1:1×1:1921
     └── max=27.1672, min=0.0, mean=4.50698</code></pre><p>Then, we plot it using <code>CairoMakie</code>. For this purpose we first convert to a <code>RingGrids.Field</code> and then plot it via <code>heatmap</code> like so</p><pre><code class="language-julia hljs">tsteps = 1
@@ -135,9 +135,9 @@ Build Info:
   Official https://julialang.org release
 Platform Info:
   OS: Linux (x86_64-linux-gnu)
-  CPU: 4 × AMD EPYC 9V74 80-Core Processor
+  CPU: 4 × AMD EPYC 7763 64-Core Processor
   WORD_SIZE: 64
-  LLVM: libLLVM-18.1.7 (ORCJIT, znver4)
+  LLVM: libLLVM-18.1.7 (ORCJIT, znver3)
   GC: Built with stock GC
 Threads: 1 default, 1 interactive, 1 GC (on 4 virtual cores)
 Environment:
@@ -163,4 +163,4 @@ Pkg.status()</code></pre><pre><code class="nohighlight hljs">Status `~/work/Terr
   [b77e0a4c] InteractiveUtils v1.11.0
   [d6f4376e] Markdown v1.11.0
 Info Packages marked with ⌃ and ⌅ have new versions available. Those with ⌃ may be upgradable, but those with ⌅ are restricted by compatibility constraints from upgrading. To see why use `status --outdated`
-</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../linear_ode_exp_growth/">« Example: Simple exponential growth model</a><a class="docs-footer-nextpage" href="../linear_heat_conduction/">Example: Linear heat conduction »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Monday 27 April 2026 14:42">Monday 27 April 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../linear_ode_exp_growth/">« Example: Simple exponential growth model</a><a class="docs-footer-nextpage" href="../linear_heat_conduction/">Example: Linear heat conduction »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Tuesday 28 April 2026 08:06">Tuesday 28 April 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
