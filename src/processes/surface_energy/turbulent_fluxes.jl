@@ -52,12 +52,12 @@ end
 """
     $TYPEDSIGNATURES
     
-Computes the difference in vapor pressure between the (saturated) surface at temperature `Ts`
+Computes the difference in vapor pressure between a saturated surface at temperature `T`
 and the atmosphere, defined by its specific humidity `q_air`.
 """
-function vapor_pressure_difference(c::PhysicalConstants, p, q_air, Ts)
+function vapor_pressure_difference(c::PhysicalConstants, p, q_air, T)
     e_air = specific_humidity_to_vapor_pressure(q_air, p, c.ε)
-    e_sat_s = saturation_vapor_pressure(Ts)
+    e_sat_s = saturation_vapor_pressure(T)
     Δe = e_sat_s - e_air
     return Δe
 end
@@ -65,11 +65,11 @@ end
 """
     $TYPEDSIGNATURES
 
-Computes the difference in specific humidity between the (saturated) surface at temperature `Ts`
+Computes the difference in specific humidity between a saturated surface at temperature `T`
 and the atmosphere, defined by its specific humidity `q_air`.
 """
-function specific_humidity_difference(c::PhysicalConstants, p, q_air, Ts)
-    e_sat_s = saturation_vapor_pressure(Ts)
+function specific_humidity_difference(c::PhysicalConstants, p, q_air, T)
+    e_sat_s = saturation_vapor_pressure(T)
     q_sat_s = vapor_pressure_to_specific_humidity(e_sat_s, p, c.ε)
     Δq = q_sat_s - q_air
     return Δq
@@ -106,24 +106,24 @@ end
 """
     $TYPEDSIGNATURES
 
-Computes the specific humidity difference between the surface at temperature `Ts` and the current atmospheric fields.
+Computes the specific humidity difference between a saturated surface at temperature `T` and the current atmospheric fields.
 """
-@propagate_inbounds function compute_specific_humidity_difference(i, j, grid, fields, atmos::AbstractAtmosphere, c::PhysicalConstants, Ts)
+@propagate_inbounds function compute_specific_humidity_difference(i, j, grid, fields, atmos::AbstractAtmosphere, c::PhysicalConstants, T)
     q_air = specific_humidity(i, j, grid, fields, atmos)
     pres = air_pressure(i, j, grid, fields, atmos)
-    Δq = specific_humidity_difference(c, pres, q_air, Ts)
+    Δq = specific_humidity_difference(c, pres, q_air, T)
     return Δq
 end
 
 """
     $TYPEDSIGNATURES
 
-Computes the vapor pressure difference between a surface at temperature `Ts` and the current atmospheric fields.
+Computes the vapor pressure difference between a saturated surface at temperature `T` and the current atmospheric fields.
 """
-@propagate_inbounds function compute_vapor_pressure_difference(i, j, grid, fields, atmos::AbstractAtmosphere, c::PhysicalConstants, Ts)
+@propagate_inbounds function compute_vapor_pressure_difference(i, j, grid, fields, atmos::AbstractAtmosphere, c::PhysicalConstants, T)
     q_air = specific_humidity(i, j, grid, fields, atmos)
     pres = air_pressure(i, j, grid, fields, atmos)
-    Δe = vapor_pressure_difference(c, pres, q_air, Ts)
+    Δe = vapor_pressure_difference(c, pres, q_air, T)
     return Δe
 end
 
