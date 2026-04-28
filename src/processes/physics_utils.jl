@@ -1,3 +1,9 @@
+import Thermodynamics:
+    partial_pressure_vapor,
+    saturation_vapor_pressure,
+    q_vap_from_RH,
+    q_vap_saturation
+
 """
 Return the number of seconds per day in the given number format.
 """
@@ -36,6 +42,7 @@ Convert the vapor pressure `e` to specific humidity at the given pressure `p` ba
 molecular weight ratio ε.
 """
 @inline vapor_pressure_to_specific_humidity(e, p, ε) = ε * e / p
+# TODO: Replace by q_vap_from_p_vap
 
 """
     specific_humidity_to_vapor_pressure(q, p, ε)
@@ -47,7 +54,7 @@ molecular weight ratio ε.
     e = q * p / (ε + (1 - ε) * q)
     return e
 end
-
+# TODO: replace by partial_pressure_vapor
 """
     relative_to_specific_humidity(r_h, pr, T, ε)
 
@@ -74,10 +81,10 @@ Coefficients of August-Roche-Magnus equation taken from [alduchovImprovedMagnusF
 # References
 * [alduchovImprovedMagnusForm1996](@cite) Alduchov and Eskridge, Journal of Applied Meteorology and Climatology (1996)
 """
-@inline function saturation_vapor_pressure(T::NF) where {NF}
+@inline function saturation_vapor_pressure(c::PhysicalConstants, T::NF) where {NF}
     return if T <= zero(T)
-        saturation_vapor_pressure(T, NF(611.0), NF(22.46), NF(272.62))
+        saturation_vapor_pressure(c, T, Ice())
     else
-        saturation_vapor_pressure(T, NF(611.0), NF(17.62), NF(243.12))
+        saturation_vapor_pressure(c, T, Liquid())
     end
 end
