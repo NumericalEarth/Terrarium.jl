@@ -72,7 +72,7 @@ function specific_humidity_difference(c::PhysicalConstants, p, q_air, T)
     T_K = celsius_to_kelvin(c, T)
     # TODO: should use surface air density for better accuracy
     ρₐ = air_density(c, T_K, p, q_air)
-    q_sat = q_vap_saturation(c, T_K, ρₐ)
+    q_sat = q_vap_saturation(c, T, ρₐ)
     Δq = q_sat - q_air
     return Δq
 end

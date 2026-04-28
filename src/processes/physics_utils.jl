@@ -69,3 +69,18 @@ Coefficients of August-Roche-Magnus equation taken from [alduchovImprovedMagnusF
         saturation_vapor_pressure(c, T_K, Liquid())
     end
 end
+
+"""
+    q_vap_saturation(c::PhysicalConstants, T, ρ)
+
+Saturation specific humidity at temperature `T` [°C] and density `ρ` [kg/m³]. Dispatches
+over ice for `T <= 0°C` and over liquid water otherwise.
+"""
+@inline function q_vap_saturation(c::PhysicalConstants, T, ρ)
+    T_K = celsius_to_kelvin(c, T)
+    return if T <= zero(T)
+        q_vap_saturation(c, T_K, ρ, Ice())
+    else
+        q_vap_saturation(c, T_K, ρ, Liquid())
+    end
+end

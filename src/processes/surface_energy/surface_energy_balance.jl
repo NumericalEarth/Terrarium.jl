@@ -136,7 +136,7 @@ Fused kernel function that computes the radiative and turbulent fluxes, as well 
         out.latent_heat_flux[i, j, 1] = compute_latent_heat_flux(i, j, grid, fields, seb.turbulent_fluxes, seb.skin_temperature, constants, atmos)
     else
         # Coupling with surface hydrology ET scheme
-        out.latent_heat_flux[i, j, 1] = compute_latent_heat_flux(i, j, grid, fields, seb.turbulent_fluxes, evtr, constants)
+        out.latent_heat_flux[i, j, 1] = compute_latent_heat_flux(i, j, grid, fields, seb.turbulent_fluxes, evtr, constants, atmos)
     end
     # Compute ground heat flux
     out.ground_heat_flux[i, j, 1] = compute_ground_heat_flux(i, j, grid, fields, seb.skin_temperature, seb.radiative_fluxes, seb.turbulent_fluxes)
