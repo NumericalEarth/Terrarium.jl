@@ -13,6 +13,7 @@ import Thermodynamics.Parameters:
     T_freeze,
     T_triple,
     press_triple
+import Thermodynamics: air_density
 
 """
     $TYPEDEF
@@ -28,9 +29,6 @@ $FIELDS
 
     "Density of ice in kg/m^3"
     ρi::NF = 916.7
-
-    "Density of air at standard pressure and 0°C in kg/m^3"
-    ρₐ::NF = 1.293
 
     "Isobaric specific heat capacity of dry air at standard pressure and 0°C in J/(m^3*K)"
     cp_d::NF = 1004.5
