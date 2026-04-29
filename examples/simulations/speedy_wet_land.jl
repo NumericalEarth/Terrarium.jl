@@ -158,7 +158,7 @@ sim_coupled = Speedy.initialize!(primitive_wet_coupled)
 period = Day(1)
 @info "Running simulation for $period"
 @time Speedy.run!(sim_coupled, period = period)
-Terrarium.checkfinite!(integrator.state)
+Terrarium.checkfinite!(integrator.state.prognostic)
 
 # Land variables
 Tsoil_fig = heatmap(RingGrids.Field(interior(integrator.state.temperature)[:, 1, end - 2], grid), title = "", size = (800, 400))
