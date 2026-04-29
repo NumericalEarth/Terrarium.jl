@@ -42,7 +42,23 @@ where $c_a$ is the specific heat capacity of air (J/kg/K), $\rho_a$ is the air d
 
 ### Latent heat flux
 
-Evaporation and sublimation remove heat from the surface through the latent heat pathway:
+Evaporation and sublimation remove heat from the surface through the latent heat pathway. It is driven by the specific humidity difference $\Delta q$ (kg/kg), equivalent with the vapor pressure difference $\Delta e$ (Pa), between the surface and atmosphere.  Under the typical assumption that the land surface is saturated (see e.g. [zhouPhysicalBasisEp2024](@cite)), the vapor pressure difference is computed as:
+
+```math
+\begin{equation}
+\Delta e = e_s - e_a = e_{\text{sat}}(T_s) - e_a(q_a, p)
+\end{equation}
+```
+
+with $T_s$ the skin temperature. The corresponding specific humidity difference is
+
+```math
+\begin{equation}
+\Delta q = \frac{\varepsilon \Delta e}{p}.
+\end{equation}
+```
+
+The latent heat flux is then computed as:
 
 ```math
 \begin{equation}
@@ -50,7 +66,7 @@ H_l = L \rho_a \frac{\Delta q}{r_a}
 \end{equation}
 ```
 
-where $L$ is the latent heat of vaporization or sublimation (J/kg) and $\Delta q = q_{\text{sat}}(T_s) - q_a$ is the specific humidity gradient (kg/kg) derived from the vapor pressure deficit. $H_l$ is **always non-negative** (≥ 0) and represents energy lost due to evaporation, transpiration, or sublimation. Currently, condensation (dew formation) is neglected so $\Delta q \geq 0$ and negative latent heat fluxes cannot occur.
+where $L$ is the latent heat of vaporization or sublimation (J/kg). $H_l$ is **always non-negative** (≥ 0) and represents energy lost due to evaporation, transpiration, or sublimation. Currently, condensation (dew formation) is neglected so $\Delta q \geq 0$ and negative latent heat fluxes cannot occur.
 
 The latent heat flux is directly tied to:
 - **Vegetation**: Transpiration through stomata (see [Photosynthesis](@ref))
@@ -83,4 +99,19 @@ compute_sensible_heat_flux
 
 ```@docs; canonical = false
 compute_latent_heat_flux
+```
+
+```@docs; canonical = false
+compute_vapor_pressure_difference(i, j, grid, fields, atmos::AbstractAtmosphere, c::PhysicalConstants, Ts)
+```
+
+```@docs; canonical = false
+compute_specific_humidity_difference(i, j, grid, fields, atmos::AbstractAtmosphere, c::PhysicalConstants, Ts)
+```
+
+## References
+
+```@bibliography
+Pages = ["turbulent_fluxes.md"]
+Canonical = false
 ```

@@ -53,7 +53,3 @@ stefan_boltzmann
 ```@docs; canonical = false
 psychrometric_constant
 ```
-
-```@docs; canonical = false
-compute_vpd(c::PhysicalConstants, pres, q_air, T)
-```

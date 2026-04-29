@@ -142,8 +142,8 @@ for the given scheme `evapotranspiration` and process dependencies.
     gw_can = fields.canopy_water_conductance[i, j] # stomatal conductance (assumed to be defined by vegetation)
 
     # Compute VPD and resistance terms
-    Δqs = compute_humidity_vpd(i, j, grid, fields, atmos, constants, Ts) # humidity gradient between canopy and atmosphere
-    Δqg = compute_humidity_vpd(i, j, grid, fields, atmos, constants, Tg) # humidity gradient between ground and canopy
+    Δqs = compute_specific_humidity_difference(i, j, grid, fields, atmos, constants, Ts) # humidity difference between canopy and atmosphere
+    Δqg = compute_specific_humidity_difference(i, j, grid, fields, atmos, constants, Tg) # humidity difference between ground and canopy
     rₐ = aerodynamic_resistance(i, j, grid, fields, atmos) # aerodynamic resistance
     rₑ = aerodynamic_resistance(i, j, grid, fields, atmos, evapotranspiration, vegetation) # aerodynamic resistance between ground and canopy
     f_can = saturation_canopy_water(i, j, grid, fields, canopy_interception)

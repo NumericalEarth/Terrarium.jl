@@ -6,7 +6,7 @@ Evaporation scheme for bare ground that calculates the humidity flux as
 ```math
 E = \\beta \\frac{\\Delta q}{r_a}
 ```
-where `Δq` is the vapor pressure gradient in terms of specific humidity, `rₐ` is aerodynamic resistance,
+where `Δq` is the specific humidity difference, `rₐ` is aerodynamic resistance,
 and `β` is an evaporation limiting factor.
 """
 struct BareGroundEvaporation{NF, GR <: AbstractGroundEvaporationResistanceFactor} <: AbstractEvapotranspiration{NF}
@@ -56,7 +56,7 @@ end
     Ts = fields.skin_temperature[i, j]
     rₐ = aerodynamic_resistance(i, j, grid, fields, atmos) # aerodynamic resistance
     β = ground_evaporation_resistance_factor(i, j, grid, fields, evaporation.ground_resistance, soil)
-    Δq = compute_humidity_vpd(i, j, grid, fields, atmos, constants, Ts)
+    Δq = compute_specific_humidity_difference(i, j, grid, fields, atmos, constants, Ts)
     # Calculate water evaporation flux in m/s (positive upwards)
     E_g = β * Δq / rₐ
     return out.evaporation_ground[i, j, 1] = E_g

@@ -104,6 +104,26 @@ variables(atmos::PrescribedAtmosphere{NF}) where {NF} = (
 @inline compute_tendencies!(state, grid, atmos::PrescribedAtmosphere) = nothing
 
 """
+    $SIGNATURES
+
+Computes the vapor pressure deficit for an air parcel at temperature `T` with surface pressure `pres`
+and specific humidity of air `q_air`. Assumes that air parcel is over water when `T > 0°C` and over 
+ice when `T < 0°C`.
+"""
+@inline function vapor_pressure_deficit(c::PhysicalConstants{NF}, pres, q_air, T) where {NF}
+    # Compute saturation vapor pressure of air parcel at temperature T
+    e_sat = saturation_vapor_pressure(T)
+
+    # Convert air specific humidity to vapor pressure [Pa]
+    e_air = specific_humidity_to_vapor_pressure(q_air, pres, c.ε)
+
+    # Compute vapor pressure deficit [Pa]
+    vpd = max(e_sat - e_air, NF(0.1))
+
+    return vpd
+end
+
+"""
     aerodynamic_resistance(i, j, grid, fields, atmos::PrescribedAtmosphere)
 
 Compute the aerodynamic resistance (inverse conductance) at grid cell `i, j`.
@@ -159,27 +179,14 @@ Retrieve or compute the specific_humidity at the current time step.
 """
     $TYPEDSIGNATURES
 
-Computes the specific humidity (vapor pressure) deficit over a surface at temperature `Ts` from the current atmospheric fields.
+Computes the vapor pressure deficit (VPD) at atmospheric reference level given the current atmospheric fields
 """
-@propagate_inbounds function compute_humidity_vpd(i, j, grid, fields, atmos::AbstractAtmosphere, c::PhysicalConstants, Ts = nothing)
-    let Δe = compute_vpd(i, j, grid, fields, atmos, c, Ts)
-        p = air_pressure(i, j, grid, fields, atmos)
-        Δq = vapor_pressure_to_specific_humidity(Δe, p, c.ε)
-        return Δq
-    end
-end
-
-"""
-    $TYPEDSIGNATURES
-
-Computes the vapor pressure deficit over a surface at temperature `Ts` from the current atmospheric fields.
-"""
-@propagate_inbounds function compute_vpd(i, j, grid, fields, atmos::AbstractAtmosphere, c::PhysicalConstants, Ts = nothing)
-    Tair = air_temperature(i, j, grid, fields, atmos)
+@propagate_inbounds function compute_vapor_pressure_deficit(i, j, grid, fields, atmos::AbstractAtmosphere, c::PhysicalConstants)
+    T_air = air_temperature(i, j, grid, fields, atmos)
     q_air = specific_humidity(i, j, grid, fields, atmos)
-    pres = air_pressure(i, j, grid, fields, atmos)
-    Ts = isnothing(Ts) ? Tair : Ts
-    return compute_vpd(c, pres, q_air, Ts)
+    p = air_pressure(i, j, grid, fields, atmos)
+    vpd = vapor_pressure_deficit(c, p, q_air, T_air)
+    return vpd
 end
 
 """
