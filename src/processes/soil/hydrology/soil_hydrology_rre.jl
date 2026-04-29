@@ -155,7 +155,7 @@ Computes the unsaturated hydraulic conductivity for `RichardsEq` configurations 
         hydrology::SoilHydrology{NF, RichardsEq},
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry
-    )
+    ) where {NF}
     # Get underlying grid
     fgrid = get_field_grid(grid)
     # compute hydraulic conductivity

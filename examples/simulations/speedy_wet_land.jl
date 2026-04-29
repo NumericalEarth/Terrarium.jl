@@ -10,6 +10,9 @@ using CairoMakie, GeoMakie
 import RingGrids
 import SpeedyWeather as Speedy
 
+# Choose architecture based on available hardware
+arch = CUDA.functional() ? GPU() : CPU()
+
 """
 Naive implementation of a SpeedyWeather "wet" land model based on Terrarium.
 """
@@ -38,6 +41,7 @@ end
 
 Speedy.variables(land::TerrariumWetLand) = (
     Speedy.PrognosticVariable(name = :soil_temperature, dims = Speedy.Grid3D(), namespace = :land),
+    Speedy.PrognosticVariable(name = :soil_moisture, dims = Speedy.Grid3D(), namespace = :land),
 )
 
 function Speedy.initialize!(
@@ -49,7 +53,9 @@ function Speedy.initialize!(
     ) where {NF}
     Terrarium.initialize!(land.integrator)
     Tsoil = interior(land.integrator.state.temperature)[:, 1, end] .+ 273.15
+    sat = interior(land.integrator.state.saturation_water_ice)[:, 1, end]
     progn.land.soil_temperature .= Tsoil
+    progn.land.soil_moisture .= sat
     return nothing
 end
 
@@ -96,6 +102,7 @@ function speedy_timestep!(
     Terrarium.run!(land.integrator, period = progn.clock.Δt, Δt = 300.0)
     # Update speedy variables
     progn.land.soil_temperature .= state.skin_temperature .+ NF(273.15)
+    progn.land.soil_moisture .= interior(state.saturation_water_ice)[:, 1, end]
     progn.land.sensible_heat_flux .= state.sensible_heat_flux
     progn.land.surface_humidity_flux .= state.latent_heat_flux ./ consts.Llg
     diagn.physics.surface_longwave_up .= state.surface_longwave_up

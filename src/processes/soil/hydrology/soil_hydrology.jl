@@ -142,7 +142,7 @@ end
 
 Kernel function that computes dynamic soil hydraulic properties.
 """
-compute_hydraulics!(out, i, j, k, grid, hydrology::SoilHydrology, args...) = nothing
+compute_hydraulics!(out, i, j, k, grid, fields, hydrology::SoilHydrology, args...) = nothing
 
 """
     $TYPEDSIGNATURES
