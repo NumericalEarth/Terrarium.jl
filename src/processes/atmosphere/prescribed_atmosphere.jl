@@ -1,3 +1,5 @@
+import Thermodynamics
+
 """
 Generic type representing the concentration of a particular tracer gas in the atmosphere.
 """
@@ -102,6 +104,17 @@ variables(atmos::PrescribedAtmosphere{NF}) where {NF} = (
 
 @inline compute_tendencies!(state, grid, atmos::PrescribedAtmosphere) = nothing
 
+"""
+    $SIGNATURES
+Computes the vapor pressure deficit for an air parcel at temperature `T` [°C] with 
+surface pressure `pres` [Pa] and specific humidity of air `q_air` [kg/kg].
+Assumes that air parcel is over water when `T > 0°C` and over ice when `T < 0°C`.
+"""
+@inline function vapor_pressure_deficit(c::PhysicalConstants, T, pres, q_air)
+    T_K = celsius_to_kelvin(c, T)
+    vpd = Thermodynamics.vapor_pressure_deficit(c, T_K, pres, q_air)
+    return vpd
+end
 """
     aerodynamic_resistance(i, j, grid, fields, atmos::PrescribedAtmosphere)
 

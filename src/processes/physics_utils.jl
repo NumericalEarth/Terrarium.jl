@@ -3,7 +3,6 @@ import Thermodynamics:
     saturation_vapor_pressure,
     q_vap_from_RH,
     q_vap_saturation,
-    vapor_pressure_deficit,
     Ice,
     Liquid
 
