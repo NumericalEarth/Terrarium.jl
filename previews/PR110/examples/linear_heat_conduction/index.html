@@ -89,10 +89,10 @@ T_init = copy(vec(interior(integrator.state.temperature)))</code></pre><pre><cod
 
 sim = Simulation(integrator; stop_time = 2days, Δt = 600.0)
 run!(sim)</code></pre><pre><code class="nohighlight hljs">[ Info: Initializing simulation...
-[ Info:     ... simulation initialization complete (373.577 ms)
+[ Info:     ... simulation initialization complete (405.280 ms)
 [ Info: Executing initial time step...
-[ Info:     ... initial time step complete (591.427 ms).
-[ Info: Simulation is stopping after running for 973.253 ms.
+[ Info:     ... initial time step complete (525.114 ms).
+[ Info: Simulation is stopping after running for 938.849 ms.
 [ Info: Simulation time 2 days equals or exceeds stop time 2 days.
 </code></pre><p>Extract the temperature profile and compare with the initial condition:</p><pre><code class="language-julia hljs">using CairoMakie
 
@@ -123,7 +123,7 @@ Environment:
 Pkg.status()</code></pre><pre><code class="nohighlight hljs">Status `~/work/Terrarium.jl/Terrarium.jl/docs/Project.toml`
   [c7e460c6] ArgParse v1.2.0
 ⌃ [052768ef] CUDA v5.11.2
-  [13f3f980] CairoMakie v0.15.9
+  [13f3f980] CairoMakie v0.15.10
   [0b91fe84] DisplayAs v0.1.6
   [e30172f5] Documenter v1.17.0
   [daee34ce] DocumenterCitations v1.4.1
@@ -140,4 +140,4 @@ Pkg.status()</code></pre><pre><code class="nohighlight hljs">Status `~/work/Terr
   [b77e0a4c] InteractiveUtils v1.11.0
   [d6f4376e] Markdown v1.11.0
 Info Packages marked with ⌃ and ⌅ have new versions available. Those with ⌃ may be upgradable, but those with ⌅ are restricted by compatibility constraints from upgrading. To see why use `status --outdated`
-</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../simple_snow_ddm/">« Example: Degree-day snow melt model</a><a class="docs-footer-nextpage" href="../../models/land_model/">Land model »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Monday 27 April 2026 13:45">Monday 27 April 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../simple_snow_ddm/">« Example: Degree-day snow melt model</a><a class="docs-footer-nextpage" href="../../models/land_model/">Land model »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Wednesday 29 April 2026 15:27">Wednesday 29 April 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
