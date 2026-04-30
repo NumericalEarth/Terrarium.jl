@@ -13,8 +13,7 @@ import Thermodynamics.Parameters:
     T_freeze,
     T_triple,
     press_triple
-import Thermodynamics: air_density
-
+import Thermodynamics: air_density, cp_m
 """
     $TYPEDEF
 
@@ -101,6 +100,13 @@ PhysicalConstants(::Type{NF}; kwargs...) where {NF} = PhysicalConstants{NF}(; kw
 @inline Rv_over_Rd(c::PhysicalConstants) = R_v(c) / R_d(c)
 @inline ε(c::PhysicalConstants) = R_d(c) / R_v(c)
 
+"""
+    specific_heat_capacity_moist_air(c::PhysicalConstants, q)
+
+Compute the isobaric specific heat capacity [J/(kg*K)] of moist air as a function 
+of the total specific humidity `q` [kg/kg]
+"""
+@inline specific_heat_capacity_moist_air(c::PhysicalConstants, q) = cp_m(c, q)
 """
     celsius_to_kelvin(c::PhysicalConstants, T)
 
