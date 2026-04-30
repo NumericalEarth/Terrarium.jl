@@ -147,7 +147,7 @@ Compute the sensible heat flux at `i, j` based on the current skin temperature a
             Tₐ = air_temperature(i, j, grid, fields, atmos), # air temperature
             pres = air_pressure(i, j, grid, fields, atmos),
             q_air = specific_humidity(i, j, grid, fields, atmos),
-            # TODO: should be evaluated at surface temperature for better accuracy
+            # TODO: density should be evaluated at surface temperature for better accuracy
             ρₐ = air_density(constants, celsius_to_kelvin(constants, Tₐ), pres, q_air),
             Q_T = (Tₛ - Tₐ) / rₐ  # bulk aerodynamic temperature-gradient
         # Calculate sensible heat flux (positive upwards)
@@ -175,7 +175,7 @@ to the latent heat flux.
             Tₐ = air_temperature(i, j, grid, fields, atmos), # air temperature
             pres = air_pressure(i, j, grid, fields, atmos),
             q_air = specific_humidity(i, j, grid, fields, atmos),
-            # TODO: should be evaluated at surface temperature for better accuracy
+            # TODO: density should be evaluated at surface temperature for better accuracy
             ρₐ = air_density(constants, celsius_to_kelvin(constants, Tₐ), pres, q_air),
             rₐ = aerodynamic_resistance(i, j, grid, fields, atmos), # aerodynamic resistance
             Δq = compute_specific_humidity_difference(i, j, grid, fields, atmos, constants, Tₛ),
@@ -204,7 +204,7 @@ defined by `evtr` which is assumed to be already computed.
             Tₐ = air_temperature(i, j, grid, fields, atmos), # air temperature
             pres = air_pressure(i, j, grid, fields, atmos),
             q_air = specific_humidity(i, j, grid, fields, atmos),
-            # TODO: should be evaluated at surface temperature for better accuracy
+            # TODO: density should be evaluated at surface temperature for better accuracy
             ρₐ = air_density(constants, celsius_to_kelvin(constants, Tₐ), pres, q_air),
             Q_h = surface_humidity_flux(i, j, grid, fields, evtr)   # humidity flux
         # Calculate latent heat flux (positive upwards)
