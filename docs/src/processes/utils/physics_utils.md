@@ -14,42 +14,25 @@ using InteractiveUtils
 
 ## Overview
 
-This module provides small, self-contained thermodynamic and atmospheric utility functions that are shared across multiple process implementations. All functions are `@inline`d and scalar-valued; they are intended to be called from within kernel functions.
+This module provides small, self-contained thermodynamic and atmospheric utility functions that are shared across multiple process implementations. All functions are `@inline`d and scalar-valued; they are intended to be called from within kernel functions. Note that these functions are mostly intended for internal use within the `Terrarium.jl` codebase, and are therefore not exported as part of the public API. However, once can still access them via `Terrarium.function_name` if needed.
+
+Some of the functionality here builds upon [Thermodynamics.jl](@extref `Thermodynamics.jl`), which provides the basic thermodynamic building blocks, based on Rankine-Kirchhoff approximations. For a mathematical overview of these approximations, see [here](@extref Thermodynamics `Formulation`).
 
 ### Saturation vapor pressure
 
-The saturation vapor pressure $e_{\text{sat}}$ is computed using the August-Roche-Magnus empirical formula [alduchovImprovedMagnusForm1996](@cite):
-
-```math
-\begin{equation}
-e_{\text{sat}}(T) = a_1 \exp\!\left(\frac{a_2 T}{T + a_3}\right)
-\end{equation}
-```
-
-where $T$ is temperature in °C and the coefficients differ for liquid water ($T \geq 0$°C) and ice ($T < 0$°C):
-
-| Phase | $a_1$ (Pa) | $a_2$ | $a_3$ (°C) |
-|---|---|---|---|
-| Liquid water ($T \geq 0$°C) | 611.0 | 17.62 | 243.12 |
-| Ice ($T < 0$°C) | 611.0 | 22.46 | 272.62 |
+The saturation vapor pressure $e_{\text{sat}}$ is computed using a wrapper around [`saturation_vapor_pressure`](@extref Thermodynamics.saturation_vapor_pressure) from `Thermodynamics.jl` and is based on the integration of the Clausius-Clapeyron relation (see [here](@extref Thermodynamics 9.-Saturation-Vapor-Pressure) for details). 
 
 ### Vapor pressure and humidity conversions
 
-Specific humidity $q$ and vapor pressure $e$ are related through the molecular weight ratio $\varepsilon = M_v / M_d \approx 0.622$ and the total atmospheric pressure $p$:
-
+Specific humidity $q$ and vapor pressure $e$ conversions (including related variables like relative humidity) are handled by `Thermodynamics.jl` functions (or wrappers around these functions). Specifically:
+- Transform $q$ to $e$ via [`partial_pressure_vapor`](@extref Thermodynamics.partial_pressure_vapor).
+- Transform $e$ to $q$ via [`vapor_pressure_to_specific_humidity`](@ref). With $\varepsilon = R_d / R_v$, the conversion is given by [shuttleworthTerrestrialHydrometWaterVapor2012; Eq. (2.8)](@cite) using the total air pressure $p$:
 ```math
 \begin{equation}
-q = \frac{\varepsilon \, e}{p}
+q = \frac{\varepsilon e}{p - e (1 - \varepsilon)} .
 \end{equation}
 ```
 
-The inverse conversion (vapor pressure from specific humidity) accounts for the partial pressure of dry air:
-
-```math
-\begin{equation}
-e = \frac{q \, p}{\varepsilon + (1 - \varepsilon) q}
-\end{equation}
-```
 
 ### Partial pressures of trace gases
 
@@ -77,7 +60,7 @@ saturation_vapor_pressure
 ```
 
 ```@docs; canonical = false
-vapor_pressure_deficit
+saturation_specific_humidity_vapor
 ```
 
 ```@docs; canonical = false

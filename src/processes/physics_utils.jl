@@ -1,5 +1,5 @@
 import Thermodynamics:
-    partial_pressure_vapor,
+    partial_pressure_vapor, # used as if for conversion from specific humidity to vapor pressure
     saturation_vapor_pressure,
     q_vap_from_RH,
     q_vap_saturation,
