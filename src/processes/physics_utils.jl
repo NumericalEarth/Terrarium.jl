@@ -68,13 +68,13 @@ pressure is computed over ice for `T <= 0°C` and over water for `T > 0°C`. Wra
 end
 
 """
-    q_vap_saturation(c::PhysicalConstants, T, ρ)
+    saturation_specific_humidity_vapor(c::PhysicalConstants, T, ρ)
 
 Saturation specific humidity at temperature `T` [°C] and density `ρ` [kg/m³]. Dispatches
 over ice for `T <= 0°C` and over liquid water otherwise. Wrapper around
 [`q_vap_saturation`](@extref Thermodynamics.q_vap_saturation).
 """
-@inline function q_vap_saturation(c::PhysicalConstants, T, ρ)
+@inline function saturation_specific_humidity_vapor(c::PhysicalConstants, T, ρ)
     T_K = celsius_to_kelvin(c, T)
     return if T <= zero(T)
         q_vap_saturation(c, T_K, ρ, Ice())
