@@ -104,7 +104,8 @@ PhysicalConstants(::Type{NF}; kwargs...) where {NF} = PhysicalConstants{NF}(; kw
     specific_heat_capacity_moist_air(c::PhysicalConstants, q)
 
 Compute the isobaric specific heat capacity [J/(kg*K)] of moist air as a function 
-of the total specific humidity `q` [kg/kg]
+of the total specific humidity `q` [kg/kg]. Wrapper around 
+[`cp_m`](@extref Thermodynamics.cp_m). 
 """
 @inline specific_heat_capacity_moist_air(c::PhysicalConstants, q) = cp_m(c, q)
 """

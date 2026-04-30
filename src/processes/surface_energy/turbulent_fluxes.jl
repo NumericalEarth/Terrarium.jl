@@ -30,7 +30,7 @@ DiagnosedTurbulentFluxes(::Type{NF}) where {NF} = DiagnosedTurbulentFluxes{NF}()
 """
     $TYPEDSIGNATURES
 
-Compute the sensible heat flux as a function of the bulk aerodynamic temperature gradient `Q_T` [K m/s]
+Compute the sensible heat flux [W/m²] as a function of the bulk aerodynamic temperature gradient `Q_T` [K m/s]
 and the density `ρₐ` [kg/m³] and specific heat capacity `cₐ` [J/kg K] of air.
 """
 function compute_sensible_heat_flux(::DiagnosedTurbulentFluxes, Q_T, ρₐ, cₐ)
@@ -41,7 +41,7 @@ end
 """
     $TYPEDSIGNATURES
 
-Compute the latent heat flux as a function of the humidity flux `Q_h` [m/s], the density `ρₐ` [kg/m³] of air,
+Compute the latent heat flux [W/m²] as a function of the humidity flux `Q_h` [m/s], the density `ρₐ` [kg/m³] of air,
 and the specific latent heat of fusion `Lsl` [J/kg].
 """
 function compute_latent_heat_flux(::DiagnosedTurbulentFluxes, Q_h, ρₐ, Lsl)
@@ -52,8 +52,11 @@ end
 """
     $TYPEDSIGNATURES
     
-Computes the difference in vapor pressure between a saturated surface at temperature `T`
-and the atmosphere, defined by its specific humidity `q_air`.
+Computes the difference in vapor pressure between a saturated surface at temperature `T` [°C]
+and the atmosphere, defined by its specific humidity `q_air` [kg/kg] and pressure `p` [Pa]. 
+Relies on [Thermodynamics.jl](https://github.com/CliMA/Thermodynamics.jl) via
+[`partial_pressure_vapor`](@extref Thermodynamics.partial_pressure_vapor) and
+[`saturation_vapor_pressure`](@ref saturation_vapor_pressure).
 """
 function vapor_pressure_difference(c::PhysicalConstants, p, q_air, T)
     e_air = partial_pressure_vapor(c, p, q_air)
@@ -65,8 +68,8 @@ end
 """
     $TYPEDSIGNATURES
 
-Computes the difference in specific humidity between a saturated surface at temperature `T`
-and the atmosphere, defined by its specific humidity `q_air`.
+Computes the difference in specific humidity between a saturated surface at temperature `T` [°C]
+and the atmosphere, defined by its specific humidity `q_air` [kg/kg] and pressure `p` [Pa].
 """
 function specific_humidity_difference(c::PhysicalConstants, p, q_air, T)
     T_K = celsius_to_kelvin(c, T)
@@ -108,7 +111,7 @@ end
 """
     $TYPEDSIGNATURES
 
-Computes the specific humidity difference between a saturated surface at temperature `T` and the current atmospheric fields.
+Computes the specific humidity difference [kg/kg] between a saturated surface at temperature `T` [°C] and the current atmospheric fields.
 """
 @propagate_inbounds function compute_specific_humidity_difference(i, j, grid, fields, atmos::AbstractAtmosphere, c::PhysicalConstants, T)
     q_air = specific_humidity(i, j, grid, fields, atmos)
@@ -120,7 +123,7 @@ end
 """
     $TYPEDSIGNATURES
 
-Computes the vapor pressure difference between a saturated surface at temperature `T` and the current atmospheric fields.
+Computes the vapor pressure difference [Pa] between a saturated surface at temperature `T` [°C] and the current atmospheric fields.
 """
 @propagate_inbounds function compute_vapor_pressure_difference(i, j, grid, fields, atmos::AbstractAtmosphere, c::PhysicalConstants, T)
     q_air = specific_humidity(i, j, grid, fields, atmos)
@@ -160,7 +163,7 @@ end
     $TYPEDSIGNATURES
 
 Compute the bare ground latent heat flux at `i, j` based on the current skin temperature
-and atmospheric conditions. This imlementation assumes that evaporation is the only contributor
+and atmospheric conditions. This implementation assumes that evaporation is the only contributor
 to the latent heat flux.
 """
 @inline function compute_latent_heat_flux(

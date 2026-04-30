@@ -42,7 +42,8 @@ end
 
 Derives specific humidity from measured relative humidity `r_h` [%], air pressure `pr` [Pa],
 air temperature `T` [°C], and physical constants `c`. Assumes saturation over ice for
-`T <= 0°C` and over liquid water otherwise.
+`T <= 0°C` and over liquid water otherwise. Wrapper around
+[`q_vap_from_RH`](@extref Thermodynamics.q_vap_from_RH).
 """
 @inline function relative_to_specific_humidity(r_h, pr, T, c::PhysicalConstants)
     T_K = celsius_to_kelvin(c, T)
@@ -54,11 +55,8 @@ end
     saturation_vapor_pressure(T)
 
 Saturation vapor pressure of an air parcel at the given temperature `T` in °C. By default, the saturation vapor
-pressure is computed over ice for `T <= 0°C` and over water for `T > 0°C`
-Coefficients of August-Roche-Magnus equation taken from [alduchovImprovedMagnusForm1996](@cite).
-
-# References
-* [alduchovImprovedMagnusForm1996](@cite) Alduchov and Eskridge, Journal of Applied Meteorology and Climatology (1996)
+pressure is computed over ice for `T <= 0°C` and over water for `T > 0°C`. Wrapper around
+[`saturation_vapor_pressure`](@extref Thermodynamics.saturation_vapor_pressure).
 """
 @inline function saturation_vapor_pressure(c::PhysicalConstants, T::NF) where {NF}
     T_K = celsius_to_kelvin(c, T)
@@ -73,7 +71,8 @@ end
     q_vap_saturation(c::PhysicalConstants, T, ρ)
 
 Saturation specific humidity at temperature `T` [°C] and density `ρ` [kg/m³]. Dispatches
-over ice for `T <= 0°C` and over liquid water otherwise.
+over ice for `T <= 0°C` and over liquid water otherwise. Wrapper around
+[`q_vap_saturation`](@extref Thermodynamics.q_vap_saturation).
 """
 @inline function q_vap_saturation(c::PhysicalConstants, T, ρ)
     T_K = celsius_to_kelvin(c, T)
