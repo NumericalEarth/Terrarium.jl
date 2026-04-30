@@ -34,6 +34,7 @@ end
     set!(state.surface_longwave_down, surface_longwave_down)
     compute_auxiliary!(state, grid, radiative_fluxes, seb, model.constants, model.atmosphere)
     @test all(state.surface_shortwave_up .≈ 0.5 * surface_shortwave_down)
-    @test all(state.surface_longwave_up .≈ (1 - 0.9) * surface_longwave_down + Terrarium.stefan_boltzmann(model.constants, 273.15, 0.9))
+    T_skin_K = Terrarium.celsius_to_kelvin(model.constants, 0.0)
+    @test all(state.surface_longwave_up .≈ (1 - 0.9) * surface_longwave_down + Terrarium.stefan_boltzmann(model.constants, T_skin_K, 0.9))
     @test all(state.surface_net_radiation .≈ state.surface_shortwave_up - surface_shortwave_down + state.surface_longwave_up - surface_longwave_down)
 end

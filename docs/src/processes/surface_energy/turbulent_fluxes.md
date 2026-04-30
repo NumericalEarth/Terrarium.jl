@@ -37,7 +37,7 @@ H_s = c_a \rho_a \frac{\Delta T}{r_a}
 \end{equation}
 ```
 
-where $c_a$ is the specific heat capacity of air (J/kg/K), $\rho_a$ is the air density (kg/m³), $\Delta T = T_s - T_a$ is the temperature difference (K) (positive if surface warmer than air), and $r_a$ is the aerodynamic resistance (s/m). $H_s$ is **positive when surface is warmer than air** (heat flows upward), and **negative when surface is cooler** (heat flows downward).
+where $c_a$ is the specific heat capacity of moist air (J/kg/K) and $\rho_a$ is the moist air density (kg/m³), both computed dynamically based on the local atmosphere state using `Thermodynamics.jl`. $\Delta T = T_s - T_a$ is the temperature difference (K) (positive if surface warmer than air), and $r_a$ is the aerodynamic resistance (s/m). $H_s$ is **positive when surface is warmer than air** (heat flows upward), and **negative when surface is cooler** (heat flows downward).
 
 
 ### Latent heat flux
@@ -50,13 +50,14 @@ Evaporation and sublimation remove heat from the surface through the latent heat
 \end{equation}
 ```
 
-with $T_s$ the skin temperature. The corresponding specific humidity difference is
+with $T_s$ the skin temperature. The specific humidity difference $\Delta q$ is 
 
 ```math
 \begin{equation}
-\Delta q = \frac{\varepsilon \Delta e}{p}.
+\Delta q = q_s - q_a = q_{\text{sat}}(T_s) - q_a
 \end{equation}
 ```
+with $q_{\text{sat}}$ the saturation specific humidity at the surface temperature and $q_a$ the specific humidity of the atmosphere. 
 
 The latent heat flux is then computed as:
 
