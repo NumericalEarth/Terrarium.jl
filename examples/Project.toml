@@ -19,8 +19,5 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 Terrarium = "80418d68-07fa-499d-ae2b-c12e531f5cd8"
 
-[compat]
-SpeedyWeather = "0.18.1"
-
 [sources.Terrarium]
 path = ".."
