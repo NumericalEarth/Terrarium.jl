@@ -52,6 +52,15 @@ air temperature `T` [°C], and physical constants `c`. Assumes saturation over i
 end
 
 """
+    vapor_pressure_to_specific_humidity(c::PhysicalConstants, e, pr)
+
+Derives specific humidity from measured vapor pressure `e` [Pa] and air pressure `pr` [Pa]. 
+"""
+@inline function vapor_pressure_to_specific_humidity(c::PhysicalConstants, e, pr)
+    return ε(c) * e / (pr - e * (1 - ε(c)))
+end
+
+"""
     saturation_vapor_pressure(T)
 
 Saturation vapor pressure of an air parcel at the given temperature `T` in °C. By default, the saturation vapor
