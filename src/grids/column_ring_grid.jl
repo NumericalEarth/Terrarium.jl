@@ -100,17 +100,17 @@ get_field_grid(grid::ColumnRingGrid) = grid.grid
 Converts the given Oceananigans `Field` to a `RingGrids.Field` with a ring grid matching that of the given `ColumnRingGrid`.
 """
 RingGrids.Field(field::Field{LX, LY, LZ}, grid::ColumnRingGrid; fill_value = NaN) where {LX, LY, LZ} = RingGrids.Field(architecture(field), dropdims(interior(field), dims = 2), grid; fill_value)
+RingGrids.Field(arch::AbstractArchitecture, field::Field{LX, LY, LZ}, grid::ColumnRingGrid; fill_value = NaN) where {LX, LY, LZ} = RingGrids.Field(arch, dropdims(interior(field), dims = 2), grid; fill_value)
 RingGrids.Field(field::AbstractArray, grid::ColumnRingGrid; fill_value = NaN) = RingGrids.Field(architecture(grid), field, grid; fill_value)
 function RingGrids.Field(arch::AbstractArchitecture, field::AbstractArray, grid::ColumnRingGrid; fill_value = NaN)
     # need to be on CPU to do the copying
     grid = on_architecture(arch, grid)
     field = on_architecture(arch, field)
     # create new RingGrids field initialized with fill_value
-    ring_field = RingGrids.Field(grid.rings, size(field)[2:end]...)
+    ring_field = RingGrids.Field(grid.rings, size(field, 2))
     fill!(ring_field, fill_value)
     # need to access underlying data arrays directly to avoid scalar indexing
-    colons = (Colon() for d in size(field)[2:end])
-    ring_field.data[grid.mask.data, colons...] .= field
+    ring_field.data[grid.mask.data, :] .= field
     return ring_field
 end
 
