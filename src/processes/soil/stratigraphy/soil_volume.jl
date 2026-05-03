@@ -30,17 +30,19 @@ $FIELDS
     end
 end
 
-porosity(soil::SoilVolume) = soil.porosity
+@inline porosity(soil::SoilVolume) = soil.porosity
 
-saturation(soil::SoilVolume) = soil.saturation
+@inline saturation(soil::SoilVolume) = soil.saturation
 
-liquid_fraction(soil::SoilVolume) = soil.liquid
+@inline liquid_fraction(soil::SoilVolume) = soil.liquid
 
-water_ice(soil::SoilVolume) = soil.porosity * soil.saturation
+@inline water_ice(soil::SoilVolume) = soil.porosity * soil.saturation
 
-organic_fraction(soil::SoilVolume) = organic_fraction(soil.solid)
+@inline water(soil::SoilVolume) = soil.liquid * soil.porosity * soil.saturation
 
-mineral_texture(soil::SoilVolume) = mineral_texture(soil.solid)
+@inline organic_fraction(soil::SoilVolume) = organic_fraction(soil.solid)
+
+@inline mineral_texture(soil::SoilVolume) = mineral_texture(soil.solid)
 
 """
     $TYPEDSIGNATURES
@@ -91,6 +93,8 @@ end
 Alias for `SoilVolume{T, MineralOrganic{T}}`
 """
 const MineralOrganicSoil{NF} = SoilVolume{NF, MineralOrganic{NF}}
+
+@inline mineral_texture(solid::MineralOrganic) = solid.texture
 
 @inline organic_fraction(solid::MineralOrganic) = solid.organic
 

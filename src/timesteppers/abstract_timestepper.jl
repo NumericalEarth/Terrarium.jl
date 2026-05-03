@@ -67,8 +67,12 @@ function explicit_step!(state, grid::AbstractLandGrid, timestepper::AbstractTime
     fastiterate(keys(state.prognostic)) do name
         # apply flux BCs, if present
         compute_z_bcs!(state.tendencies[name], state.prognostic[name], grid, state)
+        # debug site post-BC
+        debugsite!(explicit_step!, state.tendencies[name], name)
         # update prognostic state variable
         explicit_step!(state.prognostic[name], state.tendencies[name], grid, timestepper, Δt)
+        # debug site post-step
+        debugsite!(explicit_step!, state.prognostic[name], name)
     end
     fastiterate(state.namespaces) do ns
         explicit_step!(ns, grid, timestepper, Δt)
@@ -139,3 +143,6 @@ end
         u[i, j, 1] += ∂u∂t[i, j] * Δt
     end
 end
+
+# Default debug hooks
+@inline debughook!(::typeof(explicit_step!), field, name) = checkfinite!(field, name)

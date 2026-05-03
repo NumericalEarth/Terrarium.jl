@@ -83,23 +83,54 @@ exit()
 # Interactive plotting
 
 using DataFrames, CSV
-using GLMakie, GeoMakie
+using CairoMakie, GeoMakie
+using CairoMakie.GeometryBasics
+using RingGrids
 
-GLMakie.activate!(inline = true)
+# GLMakie.activate!(inline = true)
 
 cpu_data = DataFrame(CSV.File("outputs/benchmarks/soil_heat_hydrology_benchmark_cpu_nthreads=32.csv"))
 gpu_data = DataFrame(CSV.File("outputs/benchmarks/soil_heat_hydrology_benchmark_gpu_nthreads=32.csv"))
 
-let fig = Figure(size = (800, 400)),
-        ax = Axis(fig[1, 1], title = "Terrarium.jl GPU vs. CPU scaling", ylabel = "log simulated years per day (SYPD)", xlabel = "log number of grid cells (Nₕ)", xscale = log10, yscale = log10)
-    # data is in ms / sim hr x 1 d / (1000*24*3600 ms) x 24 sim hr / sim day ->
-    cpu_sypd = 1000 * 24 * 3600 ./ (24 * cpu_data.mid_time)
-    gpu_sypd = 1000 * 24 * 3600 ./ (24 * gpu_data.mid_time)
-    scatterlines!(ax, cpu_data.npoints, cpu_sypd, label = "CPU")
-    scatterlines!(ax, gpu_data.npoints, gpu_sypd, label = "GPU")
-    axislegend(ax)
-    Makie.save("plots/terrarium_cpu_vs_gpu_scaling.svg", fig)
-    fig
+ring_grid_5deg = FullGaussianGrid(14)
+ring_grid_3deg = FullGaussianGrid(24)
+ring_grid_1deg = FullGaussianGrid(72)
+ring_grid_halfdeg = FullGaussianGrid(72 * 2)
+ring_grid_qtrdeg = FullGaussianGrid(72 * 4)
+ring_grid_10km = FullGaussianGrid(72 * 10)
+ring_grid_1km = FullGaussianGrid(72 * 100)
+ref_grids = [ring_grid_5deg, ring_grid_1deg, ring_grid_halfdeg, ring_grid_qtrdeg, ring_grid_10km]
+ref_npoints = [get_npoints(rg) for rg in ref_grids]
+
+Makie.with_theme(fontsize = 18) do
+    let fig = Figure(size = (800, 400))
+        ax = Axis(
+            fig[1, 1],
+            title = "Terrarium.jl GPU vs. CPU scaling",
+            ylabel = "Simulated years per day (SYPD)",
+            xlabel = "Number of grid cells",
+            xscale = log10,
+            yscale = log10
+        )
+        # data is in ms / sim hr x 1 d / (1000*24*3600 ms) x 24 sim hr / sim day ->
+        cpu_sypd = 1000 * 24 * 3600 ./ (24 * cpu_data.mid_time)
+        gpu_sypd = 1000 * 24 * 3600 ./ (24 * gpu_data.mid_time)
+        scatterlines!(ax, cpu_data.npoints, cpu_sypd, label = "CPU")
+        scatterlines!(ax, gpu_data.npoints, gpu_sypd, label = "GPU")
+        # Draw vertical reference lines and place a short annotation next to each one.
+        # Choose human-friendly labels for the reference grids.
+        ref_labels = ["5°", "1°", "0.5°", "0.25°", "0.1°"]
+        ys_max = maximum(vcat(cpu_sypd, gpu_sypd))
+        for (x, lbl) in zip(ref_npoints, ref_labels)
+            vlines!(ax, [x], linestyle = :dash, color = :black)
+            # place label slightly to the right of the line at the top of the plotted range
+            text!(ax, GeometryBasics.Point2(x * 1.2, 200); text = lbl, align = (:left, :top), fontsize = 18)
+        end
+        axislegend(ax)
+        Makie.save("plots/terrarium_cpu_vs_gpu_scaling.svg", fig)
+        Makie.save("plots/terrarium_cpu_vs_gpu_scaling.pdf", fig)
+        fig
+    end
 end
 
 using SpeedyWeather, CUDA

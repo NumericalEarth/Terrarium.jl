@@ -16,10 +16,10 @@ The surface energy balance (SEB) describes how solar radiation, thermal radiatio
 
 ```math
 \begin{equation}
-R_{\text{net}} = H_s + H_l + G\,.
+R_{\text{net}} + H_s + H_l - G = 0\,.
 \end{equation}
 ```
-Following the standard convention of Terrarium and Oceananigans, all surface energy fluxes are defined **positive upward** (away from surface).
+Following the standard convention of Terrarium and Oceananigans, all surface energy fluxes are defined **positive upward**. The negative sign in front of $G$ reflects that heat flows *towards* the surface from the uppermost ground layer.
 
 The [`SurfaceEnergyBalance`](@ref) process is responsible for computing all of the above flux terms and thus closing the energy balance between the atmosphere and land surface. Implementations of [`AbstractSurfaceEnergyBalance`](@ref) should generally include, at minimum, representations of each of the four SEB components:
 - An implementation of [`AbstractSkinTemperature`](@ref) that defines and updates both the skin temperature $T_s$ and the ground heat flux $G$. The skin temperature $T_s$ is the effective radiative temperature of the land surface. For an implicit approach, $T_s$ self-consistently satisfies the energy balance at each time step. For a prescribed approach, $T_s$ is given as input. The ground heat flux at the surface is derived either directly or as a residual from the energy balance. See [Skin temperature and ground heat flux](@ref) for further details.

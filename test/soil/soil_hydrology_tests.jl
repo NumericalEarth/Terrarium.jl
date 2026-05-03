@@ -6,7 +6,7 @@ using FreezeCurves
 using Oceananigans
 
 @testset "Hydraulic properties (constant)" begin
-    # For prescribed hyraulic properties, just check that the returned values
+    # For prescribed hydraulic properties, just check that the returned values
     # match what was set.
     hydraulic_props = ConstantSoilHydraulics(
         Float64;
@@ -113,13 +113,13 @@ end
     compute!(∫sat_deficit)
     Terrarium.adjust_saturation_profile!(state, grid, hydrology)
     ∫sat₁ = compute!(∫sat)[1, 1, 1]
-    @test all(state.saturation_water_ice .>= 0)
-    @test all(∫sat₁ - ∫sat₀ .≈ 0)
+    @test all(state.saturation_water_ice .>= hydraulic_properties.residual)
+    @test ∫sat₁ ≈ ∫sat₀
 
     # Case 3: Completely dry with negative saturation near surface
     set!(state.saturation_water_ice, (x, z) -> min(-0.1 - z, 0.0))
     Terrarium.adjust_saturation_profile!(state, grid, hydrology)
-    @test all(state.saturation_water_ice .≈ 0)
+    @test all(state.saturation_water_ice .≈ hydraulic_properties.residual)
 end
 
 @testset "SoilHydrology: Richardson-Richards' equation" begin

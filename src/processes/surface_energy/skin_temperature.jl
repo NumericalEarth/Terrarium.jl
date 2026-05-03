@@ -75,7 +75,7 @@ sensible `H_s` and latent `H_l` heat flux.
 """
 @inline function compute_ground_heat_flux(::AbstractSkinTemperature, R_net, H_s, H_l)
     # Compute ground heat flux as the residual of R_net and turbulent fluxes
-    G = R_net - H_s - H_l
+    G = R_net + H_s + H_l
     return G
 end
 

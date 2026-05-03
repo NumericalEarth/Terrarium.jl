@@ -14,25 +14,25 @@ end
 """
     $SIGNATURES
 
-Check whether the given `field` has any `NaN` values using `Diagnostics.hasnan` and raise an error if `NaN`s are detected.
+Check whether the given `field` has any `NaN` or `Inf` values and raise an error if `NaN`s are detected.
 """
-nancheck!(field::AbstractField, name = nothing) = Diagnostics.hasnan(field) && error("Found NaNs in Field $name: $field")
-function nancheck!(nt::NamedTuple)
+checkfinite!(field::AbstractField, name = nothing) = any(!isfinite, parent(field)) && error("Found NaN/Inf values in Field $name: $field")
+function checkfinite!(nt::NamedTuple)
     for key in keys(nt)
-        nancheck!(nt[key], key)
+        checkfinite!(nt[key], key)
     end
-    return
+    return nothing
 end
 
 """
     $SIGNATURES
 
 Provides a "hook" for handling debug calls from relevant callsites. Default implementations for
-`Field` and `NamedTuple` (assumed to be of `Field`s) simply forward to [`nancheck!`](@ref).
+`Field` and `NamedTuple` (assumed to be of `Field`s) simply forward to [`checkfinite!`](@ref).
 """
 @inline debughook!(args...) = nothing
-@inline debughook!(field::AbstractField) = nancheck!(field)
-@inline debughook!(nt::NamedTuple) = nancheck!(nt)
+@inline debughook!(field::AbstractField) = checkfinite!(field)
+@inline debughook!(nt::NamedTuple) = checkfinite!(nt)
 
 """
     $SIGNATURES

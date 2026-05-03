@@ -1,23 +1,24 @@
 """
 Generic type representing the concentration of a particular tracer gas in the atmosphere.
 """
-@kwdef struct TracerGas{name}
-    TracerGas(name::Symbol) = new{name}()
+@kwdef struct TracerGas{NF, name}
+    "Default concentration of the gas"
+    concentration::NF
+
+    TracerGas(name::Symbol, concentration::NF) where {NF} = new{NF, name}(concentration)
 end
 
-Base.nameof(::TracerGas{name}) where {name} = name
+Base.nameof(::TracerGas{NF, name}) where {NF, name} = name
 
-variables(::TracerGas{name}) where {name} = (
-    input(name, XY(), default = default_tracer_conc(Val(name)), units = u"ppm", desc = "Ambient atmospheric $(name) concentration in ppm"),
+variables(gas::TracerGas{NF, name}) where {NF, name} = (
+    input(name, XY(), default = gas.concentration, units = u"ppm", desc = "Ambient atmospheric $(name) concentration in ppm"),
 )
-
-default_tracer_conc(::Val{:CO2}) = 380 # in ppm
 
 """
 Creates a `TracerGas` for ambient CO2 with concentration prescribed by an input variable with
 the given name.
 """
-AmbientCO2(name = :CO2) = TracerGas(name)
+AmbientCO2(::Type{NF}, name = :CO2) where {NF} = TracerGas(name, NF(380))
 
 """
 Creates a `NamedTuple` from the given tracer gas types.
@@ -49,7 +50,7 @@ struct PrescribedAtmosphere{
         IncomingRad <: AbstractIncomingRadiation,
         Humidity <: AbstractHumidity,
         Aerodynamics <: AbstractAerodynamics,
-        Tracers <: NamedTuple{tracernames, <:Tuple{Vararg{TracerGas}}},
+        Gases <: Tuple{Vararg{TracerGas{NF}}},
     } <: AbstractAtmosphere{NF, Precip, IncomingRad, Humidity, Aerodynamics}
     "Surface-relative altitude in meters at which the atmospheric forcings are assumed to be applied"
     altitude::NF
@@ -70,7 +71,7 @@ struct PrescribedAtmosphere{
     aerodynamics::Aerodynamics
 
     "Atmospheric tracer gases"
-    tracers::Tracers
+    tracers::NamedTuple{tracernames, Gases}
 end
 
 function PrescribedAtmosphere(
@@ -81,7 +82,7 @@ function PrescribedAtmosphere(
         radiation::AbstractIncomingRadiation = LongShortWaveRadiation(),
         humidity::AbstractHumidity = SpecificHumidity(),
         aerodynamics::AbstractAerodynamics = ConstantAerodynamics(NF),
-        tracers::NamedTuple = TracerGases(AmbientCO2()),
+        tracers::NamedTuple = TracerGases(AmbientCO2(NF)),
     ) where {NF}
     return PrescribedAtmosphere(altitude, min_windspeed, precip, radiation, humidity, aerodynamics, tracers)
 end
@@ -225,8 +226,8 @@ length [hr].
 struct LongShortWaveRadiation <: AbstractIncomingRadiation end
 
 variables(::LongShortWaveRadiation) = (
-    input(:surface_shortwave_down, XY(), default = 300, units = u"W/m^2", desc = "Incoming (downwelling) shortwave solar radiation"),
-    input(:surface_longwave_down, XY(), default = 50, units = u"W/m^2", desc = "Incoming (downwelling) longwave thermal radiation"),
+    input(:surface_shortwave_down, XY(), default = 341, units = u"W/m^2", desc = "Incoming (downwelling) shortwave solar radiation"),
+    input(:surface_longwave_down, XY(), default = 333, units = u"W/m^2", desc = "Incoming (downwelling) longwave thermal radiation"),
     input(:daytime_length, XY(), default = 12, units = u"hr", desc = "Number of daytime hours varying with the season and orbital parameters"),
 )
 
