@@ -224,14 +224,19 @@ Speedy.add!(primitive_wet_coupled.output, Speedy.SoilTemperatureOutput())
 # initialize coupled simulation
 sim_coupled = Speedy.initialize!(primitive_wet_coupled)
 # run it (kept for reference) — we'll also run a stepwise loop below to build an animation
-period = Month(1)
+period = Day(10)
 @info "Running simulation for $period"
 @time Speedy.run!(sim_coupled; period)
 Terrarium.checkfinite!(integrator.state.prognostic)
 
+heatmap(sim_coupled.variables.grid.temperature[:, 1])
+
 # --- 2×2 Animation: land and atmosphere state evolution during the coupled run ---
 # Re-initialize the simulation to start from the beginning for the animation.
-Speedy.initialize!(sim_coupled; steps = 240, output = false)
+Nt = 240
+Speedy.initialize!(sim_coupled; steps = Nt, output = false)
+# Spin-up
+Speedy.run!(sim_coupled; period = Day(10))
 
 # Coordinate axes for terrarium (high-res) and Speedy (low-res) grids, computed once.
 # We replicate what RingGridsMakieExt does internally for heatmap (no mutating variant exists)
@@ -265,7 +270,7 @@ end
 mat_tsoil = terrarium_frame(land.integrator.state.temperature, Nz)
 mat_evap = terrarium_frame(land.integrator.state.evaporation_ground, 1)
 mat_tair = speedy_frame(sim_coupled.variables.grid.temperature[:, end]; transform = x -> x .- 273.15f0)
-mat_prec = speedy_frame(sim_coupled.variables.parameterizations.rain_rate)
+mat_humid = speedy_frame(sim_coupled.variables.grid.humidity[:, end])
 
 # Build the 2×2 Figure layout.
 # Axes occupy columns 1 and 3; their matching Colorbars occupy columns 2 and 4.
@@ -283,10 +288,10 @@ end
 
 # Fixed colorbar ranges — standardised so colors are consistent across all frames.
 # Adjust these if your simulation uses very different conditions.
-crange_tsoil = (-30.0f0, 30.0f0)    # °C  — typical land surface temperature range
+crange_tsoil = (-20.0f0, 20.0f0)    # °C  — typical land surface temperature range
 crange_evap = (0.0f0, 1.0f-5)     # m s⁻¹ — bare-soil evaporation
-crange_tair = (-30.0f0, 30.0f0)    # °C  — tropospheric temperature at lowest model level
-crange_prec = (0.0f0, 2.0f-7)     # m s⁻¹ — rain rate
+crange_tair = (-20.0f0, 20.0f0)    # °C  — tropospheric temperature at lowest model level
+crange_humid = (0.0f0, 0.01)     # [-] — specificy humidity
 
 Makie.with_theme(fontsize = 16) do
     fig_anim = Figure(size = (1400, 700))
@@ -294,34 +299,34 @@ Makie.with_theme(fontsize = 16) do
     ax_tsoil = heatmap_axis(fig_anim, 1, 1, "Soil temperature (°C)")
     ax_evap = heatmap_axis(fig_anim, 1, 3, "Evaporation (m s⁻¹)")
     ax_tair = heatmap_axis(fig_anim, 2, 1, "Air temperature (°C)")
-    ax_prec = heatmap_axis(fig_anim, 2, 3, "Precipitation (m s⁻¹)")
+    ax_humid = heatmap_axis(fig_anim, 2, 3, "Specific humidity")
 
     obs_tsoil = Observable(mat_tsoil)
     obs_evap = Observable(mat_evap)
     obs_tair = Observable(mat_tair)
-    obs_prec = Observable(mat_prec)
+    obs_humid = Observable(mat_humid)
 
     hm_tsoil = heatmap!(ax_tsoil, lond_hi, latd_hi, obs_tsoil; colormap = :temperaturemap, colorrange = crange_tsoil)
     hm_evap = heatmap!(ax_evap, lond_hi, latd_hi, obs_evap; colormap = :viridis, colorrange = crange_evap)
     hm_tair = heatmap!(ax_tair, lond_lo, latd_lo, obs_tair; colormap = :temperaturemap, colorrange = crange_tair)
-    hm_prec = heatmap!(ax_prec, lond_lo, latd_lo, obs_prec; colormap = :Blues, colorrange = crange_prec)
+    hm_humid = heatmap!(ax_humid, lond_lo, latd_lo, obs_humid; colormap = :Blues, colorrange = crange_humid)
 
     Colorbar(fig_anim[1, 2], hm_tsoil; label = "°C", ticklabelsize = 8)
     Colorbar(fig_anim[1, 4], hm_evap; label = "m s⁻¹", ticklabelsize = 8)
     Colorbar(fig_anim[2, 2], hm_tair; label = "°C", ticklabelsize = 8)
-    Colorbar(fig_anim[2, 4], hm_prec; label = "m s⁻¹", ticklabelsize = 8)
+    Colorbar(fig_anim[2, 4], hm_humid; label = "", ticklabelsize = 8)
 
     clock_anim = sim_coupled.variables.prognostic.clock
     time_label = Observable(string(clock_anim.time))
     Label(fig_anim[0, :], time_label; fontsize = 14)
 
     mkpath("plots")
-    Makie.record(fig_anim, "plots/speedy_terrarium_bare_soil_atmosphere_10days.mp4", 1:240; framerate = 12) do _
+    Makie.record(fig_anim, "plots/speedy_terrarium_bare_soil_atmosphere_10days.mp4", 1:Nt; framerate = 12) do _
         Speedy.run!(sim_coupled, period = Hour(1))
         obs_tsoil[] = terrarium_frame(land.integrator.state.temperature, Nz)
         obs_evap[] = terrarium_frame(land.integrator.state.evaporation_ground, 1)
         obs_tair[] = speedy_frame(sim_coupled.variables.grid.temperature[:, end]; transform = x -> x .- 273.15f0)
-        obs_prec[] = speedy_frame(sim_coupled.variables.parameterizations.rain_rate)
+        obs_humid[] = speedy_frame(sim_coupled.variables.grid.humidity[:, end])
         time_label[] = string(clock_anim.time)
     end
 end
