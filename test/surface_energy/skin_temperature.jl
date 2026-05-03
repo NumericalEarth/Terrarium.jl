@@ -36,7 +36,7 @@ end
     Tskin_old = deepcopy(state.skin_temperature)
     resid = nothing
     balance = nothing
-    for i in 1:10
+    for i in 1:20
         # compute fluxes
         Terrarium.compute_surface_energy_fluxes!(state, grid, seb, model.constants, model.atmosphere)
         # diagnose skin temperature
@@ -62,7 +62,7 @@ end
     @test all(state.sensible_heat_flux .> 0)
     # check that skin temperature converges for a large number of iterations
     Tskin_old = deepcopy(state.skin_temperature)
-    for i in 1:10
+    for i in 1:20
         # compute fluxes
         Terrarium.compute_surface_energy_fluxes!(state, grid, seb, model.constants, model.atmosphere)
         # diagnose skin temperature
