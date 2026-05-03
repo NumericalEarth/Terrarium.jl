@@ -140,13 +140,13 @@ Properties:
 $TYPEDFIELDS
 """
 @kwdef struct SaturationWaterTable{NF} <: AbstractInitializer{NF}
-    vadose_zone_saturation::NF = 0.5
+    vadose_zone_saturation::NF = 0.75
     water_table_depth::NF = 5.0
 end
 
 SaturationWaterTable(::Type{NF}; kwargs...) where {NF} = SaturationWaterTable{NF}(; kwargs...)
 
 function initialize!(state, ::AbstractModel, init::SaturationWaterTable{NF}) where {NF}
-    set!(state.saturation_water_ice, (x, z) -> z <= init.water_table_depth ? one(NF) : init.vadose_zone_saturation)
+    set!(state.saturation_water_ice, (x, z) -> z <= -init.water_table_depth ? one(NF) : init.vadose_zone_saturation)
     return nothing
 end

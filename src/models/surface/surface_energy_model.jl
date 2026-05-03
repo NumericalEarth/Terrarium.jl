@@ -41,12 +41,11 @@ function SurfaceEnergyModel(
 end
 
 function compute_auxiliary!(state, model::SurfaceEnergyModel)
-    compute_auxiliary!(state, model, model.atmosphere)
-    compute_auxiliary!(state, model, model.surface_energy_balance)
+    compute_auxiliary!(state, model.grid, model.atmosphere)
+    compute_auxiliary!(state, model.grid, model.surface_energy_balance, model.constants, model.atmosphere)
     return nothing
 end
 
 function compute_tendencies!(state, ::SurfaceEnergyModel)
-    compute_tendencies!(state, model, model.surface_energy_balance)
     return nothing
 end

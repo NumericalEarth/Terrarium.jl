@@ -21,7 +21,7 @@ ImplicitSkinTemperature
 
 The implicit approach requires solving a nonlinear equation at each grid point and time step. In order to avoid iteration, the current approach implementation of [`ImplicitSkinTemperature`](@ref) in Terrarium approximately solves for the skin temperature using a fixed point iteration where the ground heat flux is computed as the residual energy flux given the current prognostic state of the `skin_temperature` $T_s$,
 ```math
-G^\star = R_{\text{net}}(T_s) - H_s(T_s) - H_l(T_s)
+G^\star = R_{\text{net}}(T_s) + H_s(T_s) + H_l(T_s)
 ```
 and the new skin temperature $T_s^\star$ is determined by setting this heat flux equal to gradient between the skin and the ground surface temperature (uppermost soil layer) $T_g$,
 ```math

@@ -114,8 +114,10 @@ end
     # get inverse of SWRC
     inv_swrc = inv(get_swrc(hydrology))
     por = porosity(i, j, k, grid, fields, strat, bgc)
+    sat_res = residual_saturation(get_hydraulic_properties(hydrology))
     # compute matric pressure head
-    ψm = inv_swrc(sat * por; θsat = por)
+    ψm = inv_swrc(max(sat * por, sat_res); θsat = por)
+    @assert isfinite(ψm) "NaN/infinite matric potential ψm = $ψm with sat=$sat por=$por resid=$sat_res"
     # compute elevation pressure head
     ψz = z - z_ref
     # compute hydrostatic pressure head assuming impermeable lower boundary
@@ -147,3 +149,7 @@ end
     i, j, k = @index(Global, NTuple)
     saturation_to_pressure!(out.pressure_head, i, j, k, grid, fields, closure, args...)
 end
+
+# Default debug hooks
+@inline debughook!(::typeof(pressure_to_saturation_kernel!), out, args...) = checkfinite!(out)
+@inline debughook!(::typeof(saturation_to_pressure_kernel!), out, args...) = checkfinite!(out)

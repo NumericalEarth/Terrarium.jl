@@ -138,7 +138,7 @@ for the given scheme `evapotranspiration` and process dependencies.
     )
     # Get inputs
     Ts = fields.skin_temperature[i, j] # skin temperature (top of canopy)
-    Tg = fields.ground_temperature[i, j] # ground temeprature (top snow/soil layer)
+    Tg = fields.ground_temperature[i, j] # ground temperature (top snow/soil layer)
     gw_can = fields.canopy_water_conductance[i, j] # stomatal conductance (assumed to be defined by vegetation)
 
     # Compute VPD and resistance terms
@@ -164,11 +164,11 @@ Compute the aerodynamic resistance between the ground and canopy as a function o
 @inline function aerodynamic_resistance(
         i, j, grid, fields,
         atmos::AbstractAtmosphere,
-        evapotranspiration::PALADYNCanopyEvapotranspiration,
+        evapotranspiration::PALADYNCanopyEvapotranspiration{NF},
         ::AbstractVegetation # included just to make explicit the dependence on vegetation fields
-    )
-    @inbounds let LAI = fields.leaf_area_index[i, j],
-            SAI = fields.SAI[i, j],
+    ) where {NF}
+    @inbounds let LAI = max(fields.leaf_area_index[i, j], zero(NF)),
+            SAI = max(fields.stem_area_index[i, j], zero(NF)),
             Vₐ = windspeed(i, j, grid, fields, atmos),
             C = evapotranspiration.C_can  # drag coefficient for the canopy
         rₙ = (1 - exp(-LAI - SAI)) / (C * Vₐ)

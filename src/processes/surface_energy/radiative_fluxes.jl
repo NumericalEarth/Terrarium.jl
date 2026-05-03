@@ -78,26 +78,45 @@ struct DiagnosedRadiativeFluxes{NF} <: AbstractRadiativeFluxes{NF} end
 DiagnosedRadiativeFluxes(::Type{NF}) where {NF} = DiagnosedRadiativeFluxes{NF}()
 
 """
-    compute_shortwave_up(::DiagnosedRadiativeFluxes, surface_shortwave_down, α)
+    compute_shortwave_up(::DiagnosedRadiativeFluxes, S_down, α)
 
-Compute outgoing shortwave radiation from the incoming `surface_shortwave_down` and albedo `α`.
+Compute outgoing shortwave radiation from the incoming shortwave radiation `S_down` and albedo `α`.
 """
-@inline function compute_shortwave_up(::DiagnosedRadiativeFluxes, surface_shortwave_down, α)
-    surface_shortwave_up = α * surface_shortwave_down
-    return surface_shortwave_up
+@inline function compute_shortwave_up(::DiagnosedRadiativeFluxes, S_down, α)
+    S_up = α * S_down
+    return S_up
 end
 
 """
-    compute_longwave_up(::DiagnosedRadiativeFluxes, constants::PhysicalConstants, surface_longwave_down, Ts, ϵ)
+    compute_longwave_up(::DiagnosedRadiativeFluxes, constants::PhysicalConstants, L_down, Ts, ϵ)
 
-Compute outgoing longwave radiation from incoming `surface_longwave_down`, surface temperature `Ts`, and emissivity `ϵ`.
+Compute outgoing longwave radiation from incoming longwave radiation `L_down`, surface temperature `Ts`, and emissivity `ϵ`.
 """
-@inline function compute_longwave_up(::DiagnosedRadiativeFluxes, constants::PhysicalConstants, surface_longwave_down, Ts, ϵ)
+@inline function compute_longwave_up(::DiagnosedRadiativeFluxes, constants::PhysicalConstants, L_down, Ts, ϵ)
     T = celsius_to_kelvin(constants, Ts)
+    L_emit = stefan_boltzmann(constants, T, ϵ)
     # outgoing LW radiation is the sum of the radiant emittance and the residual incoming radiation
-    surface_longwave_up = stefan_boltzmann(constants, T, ϵ) + (1 - ϵ) * surface_longwave_down
+    surface_longwave_up = L_emit + (1 - ϵ) * L_down
     return surface_longwave_up
 end
+
+"""
+    $TYPEDEF
+
+Compute the net radiation budget given incoming and outgoing shortwave and longwave radiation.
+"""
+@inline function compute_surface_net_radiation(
+        ::AbstractRadiativeFluxes,
+        SW_up,
+        SW_down,
+        LW_up,
+        LW_down
+    )
+    # Sum up radiation fluxes; note that by convention fluxes are positive upward
+    rad_net = SW_up - SW_down + LW_up - LW_down
+    return rad_net
+end
+
 
 ## Top-level interface methods
 
@@ -187,25 +206,6 @@ end
     # Compute and return net radiation
     surface_net_radiation = compute_surface_net_radiation(rad, SW_up, SW_down, LW_up, LW_down)
     return surface_net_radiation
-end
-
-# Common implementations
-
-"""
-    $TYPEDEF
-
-Compute the net radiation budget given incoming and outgoing shortwave and longwave radiation.
-"""
-@inline function compute_surface_net_radiation(
-        ::AbstractRadiativeFluxes,
-        SW_up,
-        SW_down,
-        LW_up,
-        LW_down
-    )
-    # Sum up radiation fluxes; note that by convention fluxes are positive upward
-    rad_net = SW_up - SW_down + LW_up - LW_down
-    return rad_net
 end
 
 ## Kernels

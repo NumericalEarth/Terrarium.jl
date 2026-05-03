@@ -51,6 +51,13 @@ Compute the empirical field capacity of the soil.
 """
 function field_capacity end
 
+"""
+    $SIGNATURES
+
+Compute the (numerical) residual saturation level of the soil.
+"""
+function residual_saturation end
+
 # Hydraulics parameterizations
 
 """
@@ -73,11 +80,14 @@ $TYPEDFIELDS
     "Hydraulic conductivity at saturation [m/s]"
     sat_hydraulic_cond::NF = 1.0e-5
 
-    "Prescribed field capacity [-]"
+    "Constant field capacity [-]"
     field_capacity::NF = 0.25
 
-    "Prescribed wilting point [-]"
+    "Constant wilting point [-]"
     wilting_point::NF = 0.05
+
+    "Residual (minimum) saturation level [-]"
+    residual::NF = 0.01
 end
 
 function ConstantSoilHydraulics(
@@ -95,6 +105,8 @@ end
 @inline wilting_point(hydraulics::ConstantSoilHydraulics, args...) = hydraulics.wilting_point
 
 @inline field_capacity(hydraulics::ConstantSoilHydraulics, args...) = hydraulics.field_capacity
+
+@inline residual_saturation(hydraulics::ConstantSoilHydraulics, args...) = hydraulics.residual
 
 """
     $TYPEDEF
@@ -127,6 +139,9 @@ $TYPEDFIELDS
 
     "Exponent of field capacity adjustment due to clay content [-]"
     field_capacity_exp::NF = 0.35
+
+    "Residual (minimum) saturation level [-]"
+    residual::NF = 0.01
 end
 
 function SoilHydraulicsSURFEX(
@@ -141,6 +156,8 @@ end
 
 # TODO: this is not quite correct, SURFEX uses a hydraulic conductivity function that decreases exponentially with depth
 @inline saturated_hydraulic_conductivity(hydraulics::SoilHydraulicsSURFEX, args...) = hydraulics.sat_hydraulic_cond
+
+@inline residual_saturation(hydraulics::SoilHydraulicsSURFEX, args...) = hydraulics.residual
 
 @inline function wilting_point(hydraulics::SoilHydraulicsSURFEX, texture::SoilTexture)
     β_w = hydraulics.wilting_point_coef
@@ -171,10 +188,10 @@ function hydraulic_conductivity(
         hydraulics::AbstractSoilHydraulics{NF, RC, UnsatKLinear{NF}},
         soil::SoilVolume
     ) where {NF, RC}
-    let fracs = volumetric_fractions(soil),
-            θw = fracs.water, # unfrozen water content
-            θsat = fracs.water + fracs.ice + fracs.air, # water + ice content at saturation (porosity)
-            K_sat = saturated_hydraulic_conductivity(hydraulics, soil.solid.texture)
+    let fracs = volumetric_fractions(soil)
+        θw = fracs.water # unfrozen water content
+        θsat = fracs.water + fracs.ice + fracs.air # water + ice content at saturation (porosity)
+        K_sat = saturated_hydraulic_conductivity(hydraulics, soil.solid.texture)
         K = K_sat * θw / θsat
         return K
     end
@@ -205,15 +222,13 @@ function hydraulic_conductivity(
         soil::SoilVolume
     ) where {NF}
     # TODO: The SWRC parameters will need to also be spatially varying at some point
-    let n = hydraulics.swrc.n, # van Genuchten parameter `n`
-            fracs = volumetric_fractions(soil),
-            θw = fracs.water, # unfrozen water content
-            θwi = fracs.water + fracs.ice, # total water + ice content
-            θsat = porosity(soil), # porosity
-            f = liquid_fraction(soil),
-            Ω = hydraulics.unsat_hydraulic_cond.impedance, # scaling parameter for ice impedance
-            I_ice = 10^(-Ω * (1 - f)), # ice impedance factor
-            K_sat = saturated_hydraulic_conductivity(hydraulics, soil.solid.texture)
+    let n = hydraulics.swrc.n # van Genuchten parameter `n`
+        θw = water(soil) # volumetric content of unfrozen water
+        θsat = porosity(soil) # porosity
+        f = liquid_fraction(soil) # fraction of pore water that is unfrozen (equiv. θw / θwi)
+        Ω = hydraulics.unsat_hydraulic_cond.impedance # scaling parameter for ice impedance
+        I_ice = 10^(-Ω * (1 - f)) # ice impedance factor
+        K_sat = saturated_hydraulic_conductivity(hydraulics, soil.solid.texture)
         # We use `complex` types here to permit illegal state values which may occur when using adaptive time steppers.
         K = abs(K_sat * I_ice * sqrt(complex(θw / θsat)) * (1 - complex(1 - complex(θw / θsat)^(n / (n + 1)))^((n - 1) / n))^2)
         return K
