@@ -16,3 +16,7 @@ end
 @testset "Soil hydrology" begin
     include("soil_hydrology_tests.jl")
 end
+
+@testset "Soil fused kernels" begin
+    include("soil_fused_kernel_tests.jl")
+end

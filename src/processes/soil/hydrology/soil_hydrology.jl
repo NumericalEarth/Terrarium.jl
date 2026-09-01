@@ -130,6 +130,13 @@ end
 """ $TYPEDSIGNATURES """
 @inline compute_tendencies!(state, grid, hydrology::SoilHydrology, soil::AbstractSoil, args...) = nothing
 
+"""
+    $TYPEDSIGNATURES
+
+No-op per-cell water tendency for immobile soil water (`NoFlow`).
+"""
+@inline compute_water_tendencies!(tendencies, i, j, k, grid, clock, fields, hydrology::SoilHydrology{NF, NoFlow}, args...) where {NF} = nothing
+
 # Kernel functions
 
 @propagate_inbounds saturation_water_ice(i, j, k, grid, fields, ::SoilHydrology) = fields.saturation_water_ice[i, j, k]
