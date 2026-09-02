@@ -8,6 +8,13 @@ on:
       - main
 jobs:
   test:
+    # don't run if any of these labels are present
+    if: >
+      !(
+      contains(github.event.pull_request.labels.*.name, 'skip-ci') ||
+      contains(github.event.pull_request.labels.*.name, 'skip-enzyme-ci') ||
+      contains(github.event.pull_request.labels.*.name, 'skip-examples-ci')
+      )
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
