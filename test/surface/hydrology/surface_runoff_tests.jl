@@ -56,3 +56,32 @@ end
     R = compute_surface_runoff(runoff, precip, surface_drainage, infil)
     @test R ≈ precip + surface_drainage - infil
 end
+
+@testset "surface_excess_water tendency" begin
+    grid = ColumnGrid(UniformSpacing(Δz = 0.1, N = 10))
+
+    # The runoff scheme owns the `surface_excess_water` pool and drains it at the surface
+    # drainage rate, capped so a single step cannot remove more than is present.
+    runoff = DirectSurfaceRunoff(Float64)
+    state = StateVariables(runoff, grid)
+    S = 0.1
+    set!(state.surface_excess_water, S)
+    Terrarium.compute_tendencies!(state, grid, runoff)
+    ∂S∂t = Array(state.tendencies.surface_excess_water)[1, 1, 1]
+    # The tendency is a negative removal rate, -min(D, S), so the pool is drawn down
+    @test ∂S∂t ≈ -min(S / runoff.τ_r, S)
+    @test ∂S∂t < 0
+
+    # When the drainage rate exceeds the pool (short timescale), the cap min(D, S) = S binds
+    runoff = DirectSurfaceRunoff(Float64; τ_r = 0.5)
+    state = StateVariables(runoff, grid)
+    set!(state.surface_excess_water, S)
+    Terrarium.compute_tendencies!(state, grid, runoff)
+    ∂S∂t = Array(state.tendencies.surface_excess_water)[1, 1, 1]
+    @test ∂S∂t ≈ -S
+
+    # An empty pool has no tendency
+    state = StateVariables(DirectSurfaceRunoff(Float64), grid)
+    Terrarium.compute_tendencies!(state, grid, runoff)
+    @test all(iszero.(state.tendencies.surface_excess_water))
+end

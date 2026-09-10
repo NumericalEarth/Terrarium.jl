@@ -143,7 +143,7 @@ abstract type AbstractSurfaceHydrology{NF} <: AbstractCoupledProcesses{NF} end
 
 @inline get_evapotranspiration(hydrology::AbstractSurfaceHydrology) = hydrology.evapotranspiration
 
-@inline get_runoff(hydrology::AbstractSurfaceHydrology) = hydrology.runoff
+@inline get_surface_runoff(hydrology::AbstractSurfaceHydrology) = hydrology.surface_runoff
 
 include("canopy_interception/abstract_types.jl")
 include("evapotranspiration/abstract_types.jl")

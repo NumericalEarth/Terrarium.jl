@@ -89,23 +89,61 @@ using Test
         @test all(state.snow_energy .< 0)
     end
 
-    @testset "basal heat flux: thin-snow depth flooring" begin
-        # Q_base = 2·κ·(T_soil − T_snow)/max(d_snow, d_min): the denominator is floored at d_min so the
-        # flux stays bounded as the snowpack vanishes (an eps offset would let it diverge and destabilize
-        # explicit stepping over frozen soil).
-        κ = NF(0.16)
-        T_soil = NF(-10)   # frozen soil below
-        T_snow = NF(0)
-        d_min = snow.min_conduction_thickness
-        # thick snow (d_snow ≫ d_min): floor inactive, recovers the plain conduction formula
-        d_thick = NF(0.5)
-        @test Terrarium.compute_snow_basal_heat_flux(κ, T_soil, T_snow, d_thick, d_min) ≈ 2κ * (T_soil - T_snow) / d_thick
-        # vanishing snow: flux is finite and set by the d_min floor, not the near-zero depth
-        Q_floor = 2κ * (T_soil - T_snow) / d_min
-        for d_thin in (NF(0), NF(1.0e-9), NF(1.0e-6))
-            Q = Terrarium.compute_snow_basal_heat_flux(κ, T_soil, T_snow, d_thin, d_min)
-            @test isfinite(Q)
-            @test Q ≈ Q_floor
+    @testset "basal heat flux: soil series resistance and thin-snow depth flooring" begin
+        # Q_base = (T_soil − T_snow) / (Δz_soil/(2κ_soil) + max(d_snow, d_min)/(2κ_snow)): the snow-side
+        # conduction thickness is floored at d_min (half the uppermost soil cell thickness) so the flux
+        # stays bounded as the snowpack vanishes, and the soil's own half-cell resistance is included in
+        # series rather than assumed negligible.
+        landgrid = ColumnGrid(CPU(), NF, ExponentialSpacing(N = 5))
+        soil = SoilEnergyWaterCarbon(NF)
+        land = LandModel(landgrid; soil, snow, vegetation = nothing)
+
+        function basal_flux_state(W_snow)
+            initializers = (
+                temperature = (x, z) -> NF(-10) - NF(0.01) * z,
+                saturation_water_ice = (x, z) -> NF(0.8),
+                snow_water_equivalent = W_snow,
+                snow_temperature = NF(0),
+            )
+            integrator = initialize(land; initializers)
+            Terrarium.closure!(integrator.state, land)
+            compute_auxiliary!(integrator.state, land)
+            return integrator.state
+        end
+
+        function expected_flux(state, W_snow)
+            field_grid = Terrarium.get_field_grid(landgrid)
+            k = field_grid.Nz
+            strat = Terrarium.get_stratigraphy(soil)
+            hydrology = Terrarium.get_hydrology(soil)
+            bgc = Terrarium.get_biogeochemistry(soil)
+            energy = Terrarium.get_energy_balance(soil)
+            composition = Terrarium.soil_composition(1, 1, k, landgrid, state, strat, hydrology, bgc)
+            κ_soil = Terrarium.compute_thermal_conductivity(energy.thermal_properties, composition)
+            Δz_soil = Terrarium.Δzᵃᵃᶜ(1, 1, k, field_grid)
+            d_min = Terrarium.min_snow_conduction_thickness(1, 1, landgrid, state, snow)
+            ρ_snow = Terrarium.compute_snow_density(1, 1, landgrid, state, snow.density)
+            κ_snow = Terrarium.compute_thermal_conductivity(snow, constants.material, ρ_snow)
+            d_snow = max(W_snow * ρ_w / ρ_snow, d_min)
+            T_soil = only(Array(interior(state.ground_temperature)))
+            T_snow = only(Array(interior(state.snow_temperature)))
+            R_soil = Δz_soil / (2κ_soil)
+            R_snow = d_snow / (2κ_snow)
+            return (T_soil - T_snow) / (R_soil + R_snow)
+        end
+
+        # thick snow: still finite and matches the series-resistance formula
+        state_thick = basal_flux_state(NF(0.5))
+        Q_thick = Terrarium.compute_snow_basal_heat_flux(1, 1, landgrid, state_thick, snow, soil, constants)
+        @test isfinite(Q_thick)
+        @test Q_thick ≈ expected_flux(state_thick, NF(0.5))
+
+        # vanishing snow: flux stays finite (bounded by the floor) and still matches the formula
+        for W_thin in (NF(0), NF(1.0e-9), NF(1.0e-6))
+            state_thin = basal_flux_state(W_thin)
+            Q_thin = Terrarium.compute_snow_basal_heat_flux(1, 1, landgrid, state_thin, snow, soil, constants)
+            @test isfinite(Q_thin)
+            @test Q_thin ≈ expected_flux(state_thin, W_thin)
         end
     end
 end

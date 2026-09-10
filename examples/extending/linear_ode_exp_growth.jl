@@ -188,7 +188,8 @@ println("Simulation data saved to $(output_file)")
 # Then load the output data and plot the results:
 
 using CairoMakie
+import DisplayAs
 
 fts = FieldTimeSeries(output_file, "u")
 
-plot(1:length(fts), [fts[i][1, 1, 1] for i in 1:length(fts)])
+DisplayAs.PNG(plot(1:length(fts), [fts[i][1, 1, 1] for i in 1:length(fts)]))

@@ -9,6 +9,7 @@
 using Terrarium
 ## For plotting
 import CairoMakie as Makie
+import DisplayAs
 
 # We start by creating a single column grid with 10 exponentially spaced vertical soil layers:
 grid = ColumnGrid(CPU(), Float32, ExponentialSpacing(N = 10))
@@ -60,7 +61,7 @@ let fig = Makie.Figure()
 
     Makie.scatterlines!(ax1, T, zs)
     Makie.scatterlines!(ax2, f, zs)
-    fig
+    DisplayAs.PNG(fig)
 end
 
 # ## Part II: Validation against analytical solution
@@ -195,5 +196,5 @@ let fig = Makie.Figure()
     Makie.lines!(ax, T_numeric[:, end], z, label = "Numerical")
     Makie.lines!(ax, T_target[:, end], z, linestyle = :dash, label = "Analytical")
     Makie.axislegend(ax, position = :lb)
-    fig
+    DisplayAs.PNG(fig)
 end

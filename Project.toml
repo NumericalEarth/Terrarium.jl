@@ -1,7 +1,7 @@
 name = "Terrarium"
 uuid = "80418d68-07fa-499d-ae2b-c12e531f5cd8"
 authors = ["Brian Groenke <brian.groenke@pik-potsdam.de>", "Maximillian Gelbrecht <gelbrecht@pik-potsdam.de>", "Maha Badri <maha.badri@pik-potsdam.de>", "Terrarium Contributors"]
-version = "0.1.6"
+version = "0.1.7"
 
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
@@ -54,7 +54,7 @@ Interpolations = "0.16"
 IntervalSets = "0.7"
 KernelAbstractions = "0.9"
 ModelParameters = "0.4"
-Oceananigans = "0.110.15"
+Oceananigans = "0.110.15, 0.111"
 Pkg = "1"
 ProgressMeter = "1.11"
 Reactant = "0.2"

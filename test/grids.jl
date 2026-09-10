@@ -1,9 +1,77 @@
 using Terrarium
 using Test
 
-import Oceananigans.Grids: RectilinearGrid, z_domain
+import Oceananigans
+import Oceananigans: CenterField, Center, set!, interior
+import Oceananigans.Grids: RectilinearGrid, z_domain, halo_size, total_size, nodes, xnodes, znodes, isrectilinear
 import Terrarium.RingGrids
 import Terrarium.RingGrids: FullHEALPixGrid, get_npoints
+
+@testset "AbstractGrid interface" begin
+    grid = ColumnGrid(UniformSpacing(Δz = 0.1f0, N = 5), 2)
+    @test grid isa Oceananigans.AbstractGrid
+    @test eltype(grid) == Float32
+    @test size(grid) == (2, 1, 5)
+    @test Oceananigans.Grids.topology(grid) == (Oceananigans.Grids.Periodic, Oceananigans.Grids.Flat, Oceananigans.Grids.Bounded)
+    @test halo_size(grid) == halo_size(get_field_grid(grid))
+    @test isrectilinear(grid)
+    @test znodes(grid, Oceananigans.Center()) ≈ znodes(get_field_grid(grid), Oceananigans.Center())
+
+    ring_grid = FullHEALPixGrid(4)
+    col_ring_grid = ColumnRingGrid(UniformSpacing(Δz = 0.5f0, N = 3), ring_grid)
+    @test col_ring_grid isa Oceananigans.AbstractGrid
+    @test eltype(col_ring_grid) == Float32
+    @test halo_size(col_ring_grid) == halo_size(get_field_grid(col_ring_grid))
+    @test isrectilinear(col_ring_grid)
+end
+
+@testset "Grid property forwarding" begin
+    grid = ColumnGrid(UniformSpacing(Δz = 0.1f0, N = 5), 3)
+    field_grid = get_field_grid(grid)
+
+    # Dimension/halo fields Oceananigans accesses directly (e.g. grid.Nx) forward to the
+    # underlying field grid rather than throwing a missing-field error.
+    for name in (:Nx, :Ny, :Nz, :Hx, :Hy, :Hz)
+        @test getproperty(grid, name) === getproperty(field_grid, name)
+    end
+    @test grid.Nx == 3
+    @test grid.Ny == 1
+    @test grid.Nz == 5
+
+    # Coordinate arrays are forwarded generically as well.
+    @test grid.z === field_grid.z
+
+    # The wrapper's own struct field still resolves via getfield (not shadowed by forwarding).
+    @test grid.grid === field_grid
+
+    # propertynames advertises both the wrapper's own fields and the forwarded ones.
+    @test :grid in propertynames(grid)
+    @test :Nx in propertynames(grid)
+    @test :Nz in propertynames(grid)
+
+    # ColumnRingGrid's extra own fields (rings, mask) are not shadowed by the forwarding.
+    col_ring_grid = ColumnRingGrid(UniformSpacing(Δz = 0.5f0, N = 3), FullHEALPixGrid(4))
+    @test col_ring_grid.grid === get_field_grid(col_ring_grid)
+    @test col_ring_grid.rings isa RingGrids.AbstractGrid
+    @test col_ring_grid.Nx == get_field_grid(col_ring_grid).Nx
+    @test :rings in propertynames(col_ring_grid)
+    @test :mask in propertynames(col_ring_grid)
+end
+
+@testset "Oceananigans operations on land grids" begin
+    # Exercise real Oceananigans code paths that consume grid fields directly (grid.Nx/Ny/Nz,
+    # halos): total_size and Field construction/reduction must work on the land grid itself.
+    grid = ColumnGrid(UniformSpacing(Δz = 0.1f0, N = 5), 3)
+
+    @test total_size(grid) == total_size(get_field_grid(grid))
+
+    # `CenterField(grid)` dispatches into Oceananigans' generic AbstractGrid constructor, which
+    # allocates data from the grid's dimensions/halos — only possible if the fields forward.
+    field = CenterField(grid)
+    @test size(field) == size(grid)
+    set!(field, 2)
+    @test sum(interior(field)) ≈ 2 * prod(size(grid))
+end
 
 @testset "Vertical discretizations" begin
     # Uniform spacing

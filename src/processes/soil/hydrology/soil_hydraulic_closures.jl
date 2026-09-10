@@ -19,16 +19,20 @@ variables(::SoilSaturationPressureClosure) = (
     $TYPEDSIGNATURES
 
 Computes `pressure_head` ``Ψ = ψm + ψz + ψh`` from the current `saturation_water_ice` state.
+
+An optional `runoff` process routes excess water removed from an oversaturated soil surface into the
+runoff-owned `surface_excess_water` pool; without it the excess is discarded.
 """
 function closure!(
         state, grid,
         closure::SoilSaturationPressureClosure,
         hydrology::SoilHydrology{NF, RichardsEq},
         soil::AbstractSoil,
+        runoff::Optional{AbstractSurfaceRunoff} = nothing,
         args...
     ) where {NF}
     # apply saturation correction
-    adjust_saturation_profile!(state, grid, hydrology)
+    adjust_saturation_profile!(state, grid, hydrology, runoff)
     # update water table
     compute_water_table!(state, grid, hydrology)
     # determine pressure head from saturation
@@ -47,12 +51,15 @@ end
     $TYPEDSIGNATURES
 
 Computes `saturation_water_ice` from the current `pressure_head` state.
+
+See [`closure!`](@ref) for the role of the optional `runoff` process.
 """
 function invclosure!(
         state, grid,
         closure::SoilSaturationPressureClosure,
         hydrology::SoilHydrology{NF, RichardsEq},
         soil::AbstractSoil,
+        runoff::Optional{AbstractSurfaceRunoff} = nothing,
         args...
     ) where {NF}
     strat = get_stratigraphy(soil)
@@ -65,7 +72,7 @@ function invclosure!(
         out, fields, closure, hydrology, strat, bgc
     )
     # apply saturation correctionh
-    adjust_saturation_profile!(state, grid, hydrology)
+    adjust_saturation_profile!(state, grid, hydrology, runoff)
     # update water table
     compute_water_table!(state, grid, hydrology)
     return nothing

@@ -232,6 +232,7 @@ run!(sim)
 # Extract the temperature profile and compare with the initial condition:
 
 using CairoMakie
+import DisplayAs
 
 z = znodes(get_field_grid(grid), Center())
 T_final = vec(interior(integrator.state.temperature))
@@ -241,5 +242,5 @@ let fig = Figure(),
     lines!(ax, T_init, z; color = :gray, linestyle = :dash, label = "Initial (t = 0)")
     lines!(ax, T_final, z; label = "Final (t = 2 days)")
     axislegend(ax, position = :rb)
-    fig
+    DisplayAs.PNG(fig)
 end

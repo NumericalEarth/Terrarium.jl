@@ -79,20 +79,26 @@ include("soil/soil_diffusion_timescales.jl")
 
 export ConstantSnowHydraulics
 include("snow/snow_hydraulic_properties.jl")
+
 export SingleLayerSnow
 include("snow/snow_single_layer.jl")
 include("snow/snow_interfaces.jl")
 include("snow/snow_albedo.jl")
+
 export FractionalSnowCover
 include("snow/mass/snow_cover.jl")
+
 export ConstantSnowDensity
 include("snow/mass/snow_density.jl")
 include("snow/mass/snow_mass.jl")
+
 export PowerLawSnowThermalConductivity, LogarithmicSnowThermalConductivity, QuadraticSnowThermalConductivity
 include("snow/energy/snow_thermal_conductivity.jl")
+
 export SnowEnergyTemperatureClosure
 include("snow/energy/snow_energy_closures.jl")
 include("snow/energy/snow_energy.jl")
+include("snow/snow_diffusion_timescales.jl")
 
 # Vegetation
 

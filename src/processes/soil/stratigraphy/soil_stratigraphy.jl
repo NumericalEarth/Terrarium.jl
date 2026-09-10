@@ -188,6 +188,16 @@ Compute the porosity of the soil volume at the given indices.
 end
 
 """
+    $TYPEDSIGNATURES
+
+Porosity of the topmost soil layer at column `i, j`, i.e. `porosity(i, j, Nz, grid, fields, strat, bgc)`
+where `Nz` is the number of grid cells in the z-dimension. Intended for use as a 2D (XY) diagnostic or
+boundary condition term, e.g. via `KernelFunctionOperation{Center, Center, Nothing}`.
+"""
+@propagate_inbounds porosity_top(i, j, grid, fields, strat::AbstractStratigraphy, bgc::AbstractSoilBiogeochemistry) =
+    porosity(i, j, grid.Nz, grid, fields, strat, bgc)
+
+"""
     $SIGNATURES
 
 Construct a `SoilComposition` object summarizing the material composition of the soil volume

@@ -42,6 +42,7 @@ using JLD2
 
 ## plotting
 using CairoMakie, GeoMakie
+import DisplayAs
 
 # ## Your first kernel-accelerated model
 #
@@ -148,15 +149,15 @@ land_sea_mask = isfinite.(snow_climatology[:, 1])
 
 # The snow and land surface temperatures are monthly climatologies. For this simple example, we'll just pick the January value. Let's quickly look at our input data. First the land sea mask:
 
-heatmap(land_sea_mask, title = "Land Sea Mask")
+DisplayAs.PNG(heatmap(land_sea_mask, title = "Land Sea Mask"))
 
 # Then, the land surface temperature:
 
-heatmap(lst_climatology[:, 1], title = "Land Surface Temperature (°C)")
+DisplayAs.PNG(heatmap(lst_climatology[:, 1], title = "Land Surface Temperature (°C)"))
 
 # And finally, the snowfall:
 
-heatmap(snow_climatology[:, 1], title = "Snowfall (m/s)")
+DisplayAs.PNG(heatmap(snow_climatology[:, 1], title = "Snowfall (m/s)"))
 
 # ## Running a simulation
 # Ok, so now let's put everything together!
@@ -203,7 +204,7 @@ fts_result = FieldTimeSeries(output_file_snow, "snow_storage")
 # Then, we plot it using `CairoMakie`. For this purpose we first convert to a `RingGrids.Field` and then plot it via `heatmap` like so
 tsteps = 1
 ring_field = RingGrids.Field(fts_result[tsteps], snow_grid)[:, 1]
-heatmap(ring_field)
+DisplayAs.PNG(heatmap(ring_field))
 
 # Now we just wrap that into a Makie animation in the following to create a movie of our results
 fig = Figure(size = (1200, 660))

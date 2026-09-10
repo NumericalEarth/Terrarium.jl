@@ -127,7 +127,7 @@ skin temperature and humidity fluxes.
     compute_turbulent_fluxes!(out, i, j, grid, fields, seb.turbulent_fluxes, seb.skin_temperature, constants, atmos, hydrology, snow)
     # Ground heat flux closes the balance: G = R_net + H_s + H_l.
     compute_ground_heat_flux!(out, i, j, grid, fields, seb.skin_temperature, seb)
-    return nothing
+    return out
 end
 
 # Kernels (fused)

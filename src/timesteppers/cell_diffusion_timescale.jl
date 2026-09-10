@@ -36,4 +36,7 @@ cell_diffusion_timescale(state, model::SoilModel) =
     cell_diffusion_timescale(state, model.grid, model.soil, model.constants)
 
 cell_diffusion_timescale(state, model::LandModel) =
-    cell_diffusion_timescale(state, model.grid, model.soil, model.constants)
+    min(
+    cell_diffusion_timescale(state, model.grid, model.soil, model.constants),
+    cell_diffusion_timescale(state, model.grid, model.snow, model.constants)
+)

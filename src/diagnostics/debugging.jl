@@ -36,16 +36,3 @@ the global variable `DEBUG` which can be toggled by the user facing API [`debug!
     end
     return nothing
 end
-
-function kernel_operation(func, state, grid, args...; location = (Center, Center, Nothing), with_clock = false)
-    fields = get_fields(state, args...)
-    fgrid = get_field_grid(grid)
-    if with_clock
-        return KernelFunctionOperation{location...}(func, fgrid, state.clock, fields, args...)
-    else
-        return KernelFunctionOperation{location...}(func, fgrid, fields, args...)
-    end
-end
-
-kernel_operation2D(func, state, grid, args...; X = Center, Y = Center, with_clock = false) = kernel_operation(func, state, grid, args...; location = (X, Y, Nothing), with_clock)
-kernel_operation3D(func, state, grid, args...; X = Center, Y = Center, Z = Center, with_clock = false) = kernel_operation(func, state, grid, args...; location = (X, Y, Z), with_clock)

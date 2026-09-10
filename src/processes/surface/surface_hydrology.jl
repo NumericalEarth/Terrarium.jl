@@ -59,5 +59,7 @@ function compute_tendencies!(
     )
     # Compute tendencies for canopy interception
     compute_tendencies!(state, grid, hydrology.canopy_interception, hydrology.evapotranspiration)
+    # Compute tendencies for the surface excess water pool owned by the runoff scheme
+    compute_tendencies!(state, grid, hydrology.surface_runoff)
     return nothing
 end

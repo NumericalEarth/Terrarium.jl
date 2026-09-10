@@ -90,11 +90,16 @@ function compute_water_table!(state, grid, hydrology::SoilHydrology)
     return nothing
 end
 
-function adjust_saturation_profile!(state, grid, hydrology::SoilHydrology)
+function adjust_saturation_profile!(state, grid, hydrology::SoilHydrology, runoff::Optional{AbstractSurfaceRunoff} = nothing)
     saturation_water_ice = state.saturation_water_ice
-    surface_excess_water = state.surface_excess_water
-    out = (; saturation_water_ice, surface_excess_water)
-    launch!(grid, XY, adjust_saturation_profile_kernel!, out, hydrology)
+    # When a surface runoff process is present, excess water is routed into the runoff-owned
+    # `surface_excess_water` pool; standalone (no runoff) the excess is discarded.
+    out = if isnothing(runoff)
+        (; saturation_water_ice)
+    else
+        (; saturation_water_ice, surface_excess_water = state.surface_excess_water)
+    end
+    launch!(grid, XY, adjust_saturation_profile_kernel!, out, hydrology, runoff)
     return nothing
 end
 
@@ -140,6 +145,22 @@ end
 """
     $TYPEDSIGNATURES
 
+Discrete-form boundary-condition function (see [`InfiltrationFlux`](@ref)) computing `-infiltration
+/ por` at column `i, j`, where `infiltration` is the physical infiltration flux (m/s of water depth,
+positive downward) and `por` is the porosity of the topmost soil layer ([`porosity_top`](@ref)).
+`saturation_water_ice` is the dimensionless saturation (VWC / porosity) so the flux crossing the top
+boundary must be normalized by porosity to be dimensionally consistent with the interior Richards tendency,
+which divides by porosity for the same reason (see `compute_saturation_tendency!`). Note that the hydrology
+,odule computes infiltration as positive downward, so it is negated here since fluxes are by convention positive upward.
+"""
+@propagate_inbounds function saturation_infiltration_bc(i, j, grid, clock, fields, parameters)
+    por = porosity_top(i, j, grid, fields, parameters.strat, parameters.bgc)
+    return -fields.infiltration[i, j] / por
+end
+
+"""
+    $TYPEDSIGNATURES
+
 Kernel function that computes dynamic soil hydraulic properties.
 """
 compute_hydraulics!(out, i, j, k, grid, fields, hydrology::SoilHydrology, args...) = nothing
@@ -161,16 +182,15 @@ end
 
 Kernel function that adjusts saturation profiles to account for oversaturation and undersaturation
 arising due to numerical error. This implementation scans over the saturation profiles at each lateral
-grid cell and redistributes excess water upward layer-by-layer until reaching the topmost layer, where
-any remaining excess water is added to the `surface_excess_water` pool.
+grid cell and redistributes excess water upward layer-by-layer until reaching the topmost layer. The
+remaining surface excess (as a water depth in m³/m²) is returned so that the caller can either route it
+into a surface water pool or discard it.
 """
-@propagate_inbounds function adjust_saturation_profile!(out, i, j, grid, hydrology::SoilHydrology{NF}) where {NF}
+@propagate_inbounds function redistribute_saturation_profile!(sat, i, j, grid, hydrology::SoilHydrology{NF}) where {NF}
     props = get_hydraulic_properties(hydrology)
     sat_min = residual_saturation(props)
     field_grid = get_field_grid(grid)
     N = field_grid.Nz
-    sat = out.saturation_water_ice
-    surface_excess_water = out.surface_excess_water
 
     # First iterate over soil layers from bottom to top, transferring water from
     # overfilled layers to the layer above
@@ -192,14 +212,41 @@ any remaining excess water is added to the `surface_excess_water` pool.
         sat[i, j, k - 1] -= deficit_sat * Δzᵃᵃᶜ(i, j, k, field_grid) / Δzᵃᵃᶜ(i, j, k - 1, field_grid)
     end
 
-    # If the uppermost (surface) layer is oversaturated, add to excess water pool
+    # If the uppermost (surface) layer is oversaturated, remove the excess and return it as a water depth
     excess_sat = max(sat[i, j, N] - one(NF), zero(NF))
     sat[i, j, N] -= excess_sat
-    surface_excess_water[i, j, 1] += excess_sat * Δzᵃᵃᶜ(i, j, N, field_grid)
+    surface_excess = excess_sat * Δzᵃᵃᶜ(i, j, N, field_grid)
 
     # If the lowermost (bottom) layer has a deficit, just set to the residual saturation level.
     # This constitutes a mass balance violation but should not happen under realistic conditions.
     sat[i, j, 1] = max(sat[i, j, 1], sat_min)
+
+    return surface_excess
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Kernel function that adjusts the saturation profile at `i, j` and discards any excess water reaching the
+surface. Used for standalone soil hydrology, where no surface runoff process owns a water pool.
+"""
+@propagate_inbounds function adjust_saturation_profile!(out, i, j, grid, hydrology::SoilHydrology{NF}, ::Nothing) where {NF}
+    redistribute_saturation_profile!(out.saturation_water_ice, i, j, grid, hydrology)
+    return nothing
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Kernel function that adjusts the saturation profile at `i, j` and routes any excess water reaching the
+surface into the `surface_excess_water` pool owned by the given surface `runoff` process.
+"""
+@propagate_inbounds function adjust_saturation_profile!(
+        out, i, j, grid, hydrology::SoilHydrology{NF},
+        runoff::AbstractSurfaceRunoff
+    ) where {NF}
+    surface_excess = redistribute_saturation_profile!(out.saturation_water_ice, i, j, grid, hydrology)
+    out.surface_excess_water[i, j, 1] += surface_excess
     return nothing
 end
 
@@ -240,32 +287,6 @@ the porosity and is thus not the same as the saturation tendency.
     return ∂θ∂t
 end
 
-""" $TYPEDSIGNATURES """
-@propagate_inbounds function compute_surface_excess_water_tendency!(
-        surface_excess_water_tendency, i, j, k, grid, clock, fields,
-        hydrology::SoilHydrology,
-        runoff::Optional{AbstractSurfaceRunoff}
-    )
-    surface_excess_water_tendency[i, j, k] += compute_surface_excess_water_tendency(i, j, k, grid, clock, fields, hydrology, runoff)
-    return surface_excess_water_tendency
-end
-
-"""
-    $TYPEDSIGNATURES
-
-Kernel function for computing the tendency of the prognostic `surface_excess_water` variable in all grid cells.
-"""
-@propagate_inbounds function compute_surface_excess_water_tendency(
-        i, j, k, grid, clock, fields,
-        hydrology::SoilHydrology,
-        runoff::Optional{AbstractSurfaceRunoff}
-    )
-    # Compute surface excess water tendency
-    S = fields.surface_excess_water[i, j, k]
-    ∂S∂t = isnothing(runoff) ? zero(S) : compute_surface_drainage(runoff, S)
-    return min(∂S∂t, S)
-end
-
 # Kernels
 
 @kernel inbounds = true function compute_water_table_kernel!(water_table, grid, sat, hydrology::SoilHydrology{NF}) where {NF}
@@ -273,9 +294,11 @@ end
     compute_water_table!(water_table, i, j, grid, sat, hydrology)
 end
 
-@kernel inbounds = true function adjust_saturation_profile_kernel!(out, grid, hydrology::SoilHydrology{NF}) where {NF}
+@kernel inbounds = true function adjust_saturation_profile_kernel!(
+        out, grid, hydrology::SoilHydrology{NF}, runoff::Optional{AbstractSurfaceRunoff}
+    ) where {NF}
     i, j = @index(Global, NTuple)
-    adjust_saturation_profile!(out, i, j, grid, hydrology)
+    adjust_saturation_profile!(out, i, j, grid, hydrology, runoff)
 end
 
 @kernel inbounds = true function compute_hydraulics_kernel!(out, grid, fields, hydrology::SoilHydrology, args...)

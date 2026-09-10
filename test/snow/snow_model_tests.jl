@@ -58,6 +58,24 @@ using Test
         @test all(state.tendencies.snow_energy .≈ ρ_w * P_s * (c_i * NF(-2) - L_f))
     end
 
+    @testset "snowfall onto bare ground (W=0) advects cold, not zero" begin
+        # Regression test: the conductive-term gate in `compute_snow_energy_tendency` must not also
+        # gate `Q_prcp`, or the very first step of accumulation onto bare ground (W read as 0 before
+        # this step's mass increment) gets zero recorded energy input despite the snow being cold.
+        state = fresh_state()
+        set!(state.snow_water_equivalent, zero(NF))
+        set!(state.snow_temperature, NF(-8))
+        Terrarium.initialize!(state, model.grid, snow, constants)
+        P_s = NF(1.0e-6)
+        set!(state.snowfall, P_s)
+        set!(state.air_temperature, NF(-8))
+        step_tendencies!(state)
+        @test all(state.tendencies.snow_water_equivalent .≈ P_s)
+        # Same advected-cold formula as the W0 > 0 case above: gating must not silently zero this out.
+        @test all(state.tendencies.snow_energy .≈ ρ_w * P_s * (c_i * NF(-8) - L_f))
+        @test all(state.tendencies.snow_energy .< 0)  # cold snow carries negative enthalpy in, not zero
+    end
+
     @testset "fully melted pack drains (SWE + energy decrease)" begin
         state = fresh_state()
         set!(state.snow_water_equivalent, W0)

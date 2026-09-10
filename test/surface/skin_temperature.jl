@@ -84,32 +84,35 @@ function test_skin_temperature_solve!(
     # Check that the skin temperature is finite and within plausible range
     @test all(isfinite.(state.skin_temperature)) && all(state.skin_temperature .> -100) && all(state.skin_temperature .< 100)
 
-    # Check if ground heat flux converged to gradient flux, using the same blended
-    # thermal interface (Tg, κ, Δz) that the implicit residual function employs.
+    # Check convergence in temperature space, mirroring exactly what `compute_skin_temperature_residual!`
+    # computes: the atmosphere-side demand (R_net + H_s + H_l) inverted through the (unblended) ground and
+    # snow-top conduction targets should reproduce the current skin temperature. Also check that the
+    # *stored* `ground_heat_flux` is the explicit bare-ground conductive flux at that Ts (see the
+    # `ImplicitSkinTemperature`-specific `compute_ground_heat_flux` in skin_temperature.jl).
     skinT = model.surface_energy_balance.skin_temperature
-    if hasproperty(model, :snow)
-        Tg, κ, Δz = Terrarium.ground_thermal_interface(1, 1, grid, state, skinT, model.snow, model.constants)
-    else
-        Tg, κ, Δz = Terrarium.ground_thermal_interface(1, 1, grid, state, skinT)
-    end
+    snow = hasproperty(model, :snow) ? model.snow : nothing
+    Tg, κg, Δzg = Terrarium.ground_thermal_interface(1, 1, grid, state, skinT)
     Ts = state.skin_temperature[1, 1]
     G = state.ground_heat_flux[1, 1]
-    G_gradient = -κ * (Ts - Tg) / (Δz / 2)
-    Ts_implicit = Tg - G * Δz / (2 * κ)
+    G_gradient = 2 * κg * (Tg - Ts) / Δzg
+    R_net = state.surface_net_radiation[1, 1]
+    H_s = state.sensible_heat_flux[1, 1]
+    H_l = state.latent_heat_flux[1, 1]
+    Ts_implicit = Terrarium.compute_skin_temperature(1, 1, grid, state, skinT, model.constants, snow)
     Ts_residual = Ts - Ts_implicit
     G_residual = G - G_gradient
 
     results = (
-        skin_temperature = state.skin_temperature[1, 1],
+        skin_temperature = Ts,
         residual = Ts_residual,
-        surface_net_radiation = state.surface_net_radiation[1, 1],
-        latent_heat_flux = state.latent_heat_flux[1, 1],
-        sensible_heat_flux = state.sensible_heat_flux[1, 1],
-        ground_heat_flux = state.ground_heat_flux[1, 1],
+        surface_net_radiation = R_net,
+        latent_heat_flux = H_l,
+        sensible_heat_flux = H_s,
+        ground_heat_flux = G,
         ground_heat_flux_residual = G_residual,
     )
 
-    G_check = abs(G - G_gradient) < tolerance
+    G_check = abs(G_residual) < tolerance
     resid_check = abs(Ts_residual) < tolerance
     Ts_check = Ts_min < results.skin_temperature < Ts_max
 

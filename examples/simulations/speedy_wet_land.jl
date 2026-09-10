@@ -135,6 +135,11 @@ Speedy.add!(primitive_wet_coupled.output, Speedy.PrecipitationOutput())
 Speedy.add!(primitive_wet_coupled.output, Speedy.SurfaceSensibleHeatFluxOutput())
 Speedy.add!(primitive_wet_coupled.output, Speedy.SurfaceHumidityFluxOutput())
 Speedy.add!(primitive_wet_coupled.output, Speedy.AlbedoOutput())
+Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :evaporation_ground))
+Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :evaporation_canopy))
+Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :transpiration))
+Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :sublimation))
+Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :gross_primary_production))
 
 # Initialize the coupled simulation
 @info "Initializing coupled simulation"
@@ -154,7 +159,7 @@ plot_land_field(land_state.horizon1.sand_fraction)
 plot_land_field(land_state.leaf_area_index)
 
 # Looks good! Let's run it!
-period = Month(3)
+period = Year(1)
 @info "Running simulation for $period"
 @time Speedy.run!(sim_coupled; period, output = true)
 
@@ -193,12 +198,3 @@ zs = on_architecture(CPU(), znodes(land_state.temperature))
 Makie.scatterlines(T, zs)
 Makie.scatterlines(sat, zs)
 Makie.scatterlines(f, zs)
-
-# Make some animations!
-sim_coupled_cpu = on_architecture(CPU(), sim_coupled)
-Speedy.animate(sim_coupled_cpu, output_file = "plots/speedy_terrarium_sd_animation.mp4", variable = "sd", framerate = 20, transient_timesteps = 1)
-Speedy.animate(sim_coupled_cpu, output_file = "plots/speedy_terrarium_tsoil_animation.mp4", variable = "st", framerate = 20, layer = 1, transient_timesteps = 1)
-Speedy.animate(sim_coupled_cpu, output_file = "plots/speedy_terrarium_tair_animation.mp4", variable = "temp", framerate = 20, layer = spectral_grid.nlayers, transient_timesteps = 1)
-Speedy.animate(sim_coupled_cpu, output_file = "plots/speedy_terrarium_shf_animation.mp4", variable = "shf", framerate = 20, transient_timesteps = 1)
-Speedy.animate(sim_coupled_cpu, output_file = "plots/speedy_terrarium_shuf_animation.mp4", variable = "shuf", framerate = 20, transient_timesteps = 1)
-Speedy.animate(sim_coupled_cpu, output_file = "plots/speedy_terrarium_snow_cond_animation.mp4", variable = "snow_cond", framerate = 20, transient_timesteps = 1)

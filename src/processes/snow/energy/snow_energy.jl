@@ -75,6 +75,17 @@ carried by the departing vapor.
 Note that no explicit *meltwater* energy term appears because meltwater drains as liquid water at 0 °C,
 which is the zero-enthalpy reference (`U = 0`) of the `FreeWater` closure, so it carries no enthalpy
 out of the snowpack.
+
+The conductive/sublimation terms `Q_base - Q_top + Q_subl` are gated to zero when the pack is empty at
+the *start* of the step (`W == 0`), since they are otherwise evaluated against a degenerate zero-depth
+layer (`Q_top`/`Q_base` conduction targets floored at `min_conduction_thickness`, giving an arbitrarily
+large flux relative to a genuinely-thin pack's tiny heat capacity). `Q_prcp` is *not* gated: it is a pure
+source term from the precipitation rate alone, well-defined regardless of the existing pack depth. Gating
+it too — as a previous implementation did, multiplying the whole `dUdt` including `Q_prcp` by `W > 0` —
+zeroed the energy input on the very first step any snow accumulates onto bare ground (`W` is read before
+that step's mass increment), leaving the freshly-fallen, physically cold snow with zero recorded
+enthalpy. Under the `FreeWater` closure (`U = 0` ≡ liquid water at 0 °C) that reads as instantaneously
+fully melted, triggering spurious immediate Darcy drainage regardless of how cold the air actually was.
 """
 @propagate_inbounds function compute_snow_energy_tendency(
         i, j, grid, fields,
@@ -95,8 +106,8 @@ out of the snowpack.
     R_snow = f_snow * R
     Q_prcp = compute_snow_precip_heat_flux(snow, constants, P_s, R_snow, T_air)
     Q_subl = ρ_w * L_sl * E_subl # correction to account for enthalpy of lost ice
-    dUdt = Q_base - Q_top + Q_prcp + Q_subl
-    return dUdt * (W > 0) # the W > 0 gate *should* be unnecessary but is included just in case
+    dUdt = (Q_base - Q_top + Q_subl) * (W > 0) + Q_prcp
+    return dUdt
 end
 
 # Helper functions
@@ -106,27 +117,12 @@ end
 
 Volumetric snow internal energy `U_snow = Ū_snow/max(d_snow, d_min)` [J/m³] from the depth-integrated
 energy `Ū_snow` [J/m²] and the snow depth `d_snow` [m]. The depth is floored at the minimum thermal
-thickness `d_min` (see [`SingleLayerSnow`](@ref)'s `min_conduction_thickness`) rather than a machine-`eps`
-offset. This bounds the snow temperature recovered downstream: with only an `eps` offset, any residual
-`Ū_snow` over a vanishing `d_snow` gives a huge `U_snow` and hence a snow temperature far below physical
-bounds, which then corrupts the (cover-fraction-blended) skin temperature and basal heat flux. Flooring
-at `d_min` gives a thin snowpack a bounded effective heat capacity `C_snow·d_min`, so it stores
-negligible energy and is thermally transient — the ground heat flux passes essentially unmediated to the
-soil (`f_snow → 0` in the blend) while the pack still stores mass and modifies the surface albedo.
+thickness `d_min` (see [`min_snow_conduction_thickness`](@ref)) rather than a machine-`eps` offset. This
+bounds the snow temperature recovered downstream: with only an `eps` offset, any residual `Ū_snow` over
+a vanishing `d_snow` gives a huge `U_snow` and hence a snow temperature far below physical bounds, which
+then corrupts the (cover-fraction-blended) skin temperature and basal heat flux. Flooring at `d_min`
+gives a thin snowpack a bounded effective heat capacity `C_snow·d_min`, so it stores negligible energy
+and is thermally transient — the ground heat flux passes essentially unmediated to the soil
+(`f_snow → 0` in the blend) while the pack still stores mass and modifies the surface albedo.
 """
 @inline compute_snow_volumetric_energy(Ū_snow::NF, d_snow::NF, d_min::NF) where {NF} = Ū_snow / max(d_snow, d_min)
-
-"""
-    $TYPEDSIGNATURES
-
-Snow→soil basal conductive heat flux `Q_base` [W/m²], positive upward (soil → snow). The snowpack is a
-strong insulator, so only its resistance is retained (snow-resistance-only closure):
-`Q_base = 2·κ_snow·(T_soil − T_snow)/max(d_snow, d_min)`. The conduction thickness is floored at the
-minimum thickness `d_min` (see [`SingleLayerSnow`](@ref)'s `min_conduction_thickness`) rather than a
-machine-`eps` offset: as `d_snow → 0` the snow→soil conduction time constant `τ ∝ d_snow` collapses,
-so an `eps` floor still permits an unbounded (relative to the vanishing snow heat capacity) basal flux
-that destabilizes explicit time-stepping and can drive the snow temperature far below physical bounds.
-Flooring at a physically meaningful `d_min` bounds `τ` from below and keeps the flux finite.
-"""
-@inline compute_snow_basal_heat_flux(κ_snow::NF, T_soil::NF, T_snow::NF, d_snow::NF, d_min::NF) where {NF} =
-    2 * κ_snow * (T_soil - T_snow) / max(d_snow, d_min)

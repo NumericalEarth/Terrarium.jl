@@ -7,10 +7,13 @@ of the Richardson-Richards equation.
 State variables defined by the Richards' formulation of `SoilHydrology`:
 
 - `saturation_water_ice`: saturation level of water and ice in the pore space.
-- `surface_excess_water`: excess water at the soil surface (m^3/m^2).
 - `hydraulic_conductivity`: hydraulic conductivity at cell centers (m/s).
 - `water_table``: elevation of the water table (m).
 - `liquid_water_fraction`: fraction of unfrozen liquid water in the pore space (dimensionless).
+
+Excess water that reaches the soil surface is routed to the `surface_excess_water` pool defined by
+[`AbstractSurfaceRunoff`](@ref) process (see [`adjust_saturation_profile!`](@ref)), if passed as a dependency.
+For standalone soil hydrology with no surface runoff, surface excess water is discarded.
 
 See also [`SoilSaturationPressureClosure`](@ref) and [`AbstractSoilHydraulics`](@ref) for details regarding the
 closure relating saturation and pressure head.
@@ -19,13 +22,10 @@ closure relating saturation and pressure head.
 
 variables(hydrology::SoilHydrology{NF, RichardsEq}) where {NF} = (
     prognostic(:saturation_water_ice, XYZ(); closure = get_closure(hydrology), bounds = UnitInterval, desc = "Saturation level of water and ice in the pore space"),
-    prognostic(:surface_excess_water, XY(), units = u"m", desc = "Excess water at the soil surface in m³/m²"),
     auxiliary(:hydraulic_conductivity, XYZ(z = Face()), units = u"m/s", desc = "Hydraulic conductivity of soil volumes in m/s"),
     auxiliary(:water_table, XY(), units = u"m", desc = "Elevation of the water table in meters"),
     input(:liquid_water_fraction, XYZ(), default = NF(1), bounds = UnitInterval, desc = "Fraction of unfrozen water in the pore space"),
 )
-
-@propagate_inbounds surface_excess_water(i, j, grid, fields, ::SoilHydrology{NF, RichardsEq}) where {NF} = fields.surface_excess_water[i, j]
 
 # Top-level interface methods
 
@@ -61,10 +61,27 @@ function compute_auxiliary!(
     return nothing
 end
 
-""" $TYPEDSIGNATURES """
-function compute_boundary_conditions!(state, grid, ::SoilHydrology{NF, RichardsEq}) where {NF}
+"""
+    $TYPEDSIGNATURES
+
+Fill the `pressure_head` halo and apply the top/bottom flux boundary conditions for
+`saturation_water_ice`. The `fields` passed to those boundary conditions are built explicitly here
+(rather than using `state.inputs`, which only carries declared `input` variables) so that a
+discrete-form condition like [`saturation_infiltration_bc`](@ref) can read auxiliary fields
+(`infiltration`) and per-horizon namespaces (via `strat`/`bgc`) that only exist once the full
+`state` does. `infiltration` is only merged in when present, since standalone (non-`LandModel`)
+configurations may not declare it at all.
+"""
+function compute_boundary_conditions!(
+        state, grid,
+        hydrology::SoilHydrology{NF, RichardsEq},
+        strat::AbstractStratigraphy,
+        bgc::AbstractSoilBiogeochemistry
+    ) where {NF}
     fill_halo_regions!(state.pressure_head, state)
-    compute_z_bcs!(state.tendencies.saturation_water_ice, state.saturation_water_ice, grid, state)
+    infiltration_field = hasproperty(state, :infiltration) ? (; infiltration = state.infiltration) : (;)
+    fields = merge(get_fields(state, hydrology, strat, bgc), infiltration_field)
+    compute_z_bcs!(state.tendencies.saturation_water_ice, state.saturation_water_ice, grid, state.clock, fields)
     return nothing
 end
 
@@ -75,7 +92,6 @@ function compute_tendencies!(
         soil::AbstractSoil,
         constants::PhysicalConstants,
         evtr::Optional{AbstractEvapotranspiration} = nothing,
-        runoff::Optional{AbstractSurfaceRunoff} = nothing,
         args...
     ) where {NF}
     strat = get_stratigraphy(soil)
@@ -85,7 +101,7 @@ function compute_tendencies!(
     clock = state.clock
     launch!(
         grid, XYZ, compute_tendencies_kernel!,
-        tendencies, clock, fields, hydrology, strat, bgc, constants, evtr, runoff
+        tendencies, clock, fields, hydrology, strat, bgc, constants, evtr
     )
     return nothing
 end
@@ -187,10 +203,8 @@ end
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry,
         constants::PhysicalConstants,
-        evtr::Optional{AbstractEvapotranspiration},
-        runoff::Optional{AbstractSurfaceRunoff}
+        evtr::Optional{AbstractEvapotranspiration}
     ) where {NF}
     i, j, k = @index(Global, NTuple)
     compute_saturation_tendency!(tend.saturation_water_ice, i, j, k, grid, clock, fields, hydrology, strat, bgc, constants, evtr)
-    compute_surface_excess_water_tendency!(tend.surface_excess_water, i, j, k, grid, clock, fields, hydrology, runoff)
 end

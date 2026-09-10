@@ -1,0 +1,41 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Terrarium.jl
+message: >
+  If you use Terrarium.jl in your research, teaching, or for
+  fun, please cite it using the metadata below.
+type: software
+authors:
+  - family-names: Groenke
+    given-names: Brian R.
+    orcid: 'https://orcid.org/0000-0003-2570-9342'
+    affiliation: 'Potsdam Institute for Climate Impact Research (PIK)'
+  - family-names: Gelbrecht
+    given-names: Maximilian
+    orcid: 'https://orcid.org/0000-0002-0729-6671'
+    affiliation: 'Potsdam Institute for Climate Impact Research (PIK), Technical University of Munich'
+  - family-names: Badri
+    given-names: Maha
+    orcid: 'https://orcid.org/0009-0005-0122-0827'
+    affiliation: 'Potsdam Institute for Climate Impact Research (PIK), Technical University of Munich'
+  - family-names: Bonte
+    given-names: Olivier
+    orcid: 'https://orcid.org/0000-0003-1806-7572'
+    affiliation: 'Ghent University'
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.22082749
+    description: The concept DOI of the work
+repository-code: 'https://github.com/NumericalEarth/Terrarium.jl'
+url: 'https://github.com/NumericalEarth/Terrarium.jl'
+keywords:
+  - land surface modeling
+  - terrestrial ecosystem modeling
+  - hydrological modeling
+  - climate modeling
+  - physics-based simulation
+  - GPU computing
+  - Julia
+license: EUPL-1.2

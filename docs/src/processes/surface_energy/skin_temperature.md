@@ -25,23 +25,27 @@ where $R_{\text{net}}$ is the net radiation budget, $H_s$ is the sensible heat f
 ImplicitSkinTemperature
 ```
 
-Skin temperature can be determined instantaneously at each time step by finding the roots of the above nonlinear energy balance equation at each grid point. Given a trial skin temperature $T_s$, the **residual energy flux** required to close the energy balance is
+Skin temperature can be determined instantaneously at each time step by finding the roots of the above nonlinear energy balance equation at each grid point. Given a trial skin temperature $T_s$, the **demanded flux** required to close the energy balance is
 ```math
 G^\star = R_{\text{net}}(T_s) + H_s(T_s) + H_l(T_s)
 ```
-Correspondingly, the implied **conductive flux** between the skin and the ground surface (uppermost soil layer) at temperature $T_g$, across the half-cell of thickness $\Delta z_1 / 2$, is
+This demanded flux is equated to the area-weighted sum of two *unblended* conductive targets: the flux $G$ between the skin and the snow-free ground surface (uppermost soil layer) at temperature $T_g$, across the half-cell of thickness $\Delta z_1 / 2$,
 ```math
-G = \frac{2 \kappa_s}{\Delta z_1} (T_g - T_s)
+G(T_s, T_g) = \frac{2 \kappa_s}{\Delta z_1} (T_g - T_s)
 ```
-Setting the conductive flux equal to the residual energy flux and rearranging terms yields the skin temperature,
+and, over the snow-covered fraction $f_{\text{snow}}$, the flux $S$ between the skin and the top of the snowpack at temperature $T_{\text{snow}}$, across its (floored) depth $d_{\text{snow}}$,
 ```math
-T_s^\star = T_g - G^\star \frac{\Delta z_1}{2 \kappa_s}
+S(T_s, T_{\text{snow}}) = \frac{2 \kappa_{\text{snow}}}{d_{\text{snow}}} (T_{\text{snow}} - T_s)
 ```
-and the residual driving the nonlinear solve is the difference between the current and implied skin temperatures,
+Keeping $G$ and $S$ unblended (rather than averaging the ground and snow conduction targets into a single cell-wide target) prevents the flux delivered to a thin or patchy snowpack from being diluted by the bare-ground share. Setting the demanded flux equal to the area-weighted conductive fluxes and solving for $T_s$ (both conductive terms are affine in $T_s$, so this is an exact linear solve) yields
+```math
+T_s^\star = \frac{(1 - f_{\text{snow}}) \frac{2\kappa_s}{\Delta z_1} T_g + f_{\text{snow}} \frac{2\kappa_{\text{snow}}}{d_{\text{snow}}} T_{\text{snow}} - G^\star}{(1 - f_{\text{snow}}) \frac{2\kappa_s}{\Delta z_1} + f_{\text{snow}} \frac{2\kappa_{\text{snow}}}{d_{\text{snow}}}}
+```
+which reduces to $T_s^\star = T_g - G^\star \Delta z_1 / (2\kappa_s)$ without snow ($f_{\text{snow}} = 0$). The residual driving the nonlinear solve is the difference between the current and implied skin temperatures,
 ```math
 r(T_s) = T_s - T_s^\star
 ```
-The root $r(T_s) = 0$ is the skin temperature at which the conductive flux balances the radiative and turbulent fluxes, i.e. the solution of the surface energy balance.
+The root $r(T_s) = 0$ is the skin temperature at which the conductive fluxes balance the radiative and turbulent fluxes, i.e. the solution of the surface energy balance. Note that the *stored* `ground_heat_flux` field is not $G^\star$ but the explicit conductive flux $G(T_s, T_g)$ evaluated at the converged $T_s$ — the two coincide only at convergence (see [`compute_ground_heat_flux`](@ref)).
 
 The solve is performed by [`solve_skin_temperature!`](@ref), which wraps [`compute_skin_temperature_residual!`](@ref) in an [`ObjectiveFunction`](@ref) targeting the `skin_temperature` field and hands it to the configured solver. The default solver, [`default_skin_temperature_solver`](@ref), is a Newton-Raphson ([`RootSolver`](@ref) provided by [RootSolvers.jl](https://github.com/CliMA/RootSolvers.jl)) with a fixed iteration budget of $n = 5$ to balance accuracy with GPU efficiency. The prognostic `skin_temperature` is seeded with the current `ground_temperature` by [`initialize!`](@ref) so that the iteration starts from a physically sensible guess close to the root. After the solve converges, the surface energy fluxes are recomputed from the final skin temperature.
 
@@ -67,9 +71,7 @@ compute_auxiliary!(state, grid, skinT::ImplicitSkinTemperature, seb::AbstractSur
 ## Methods
 
 ```@docs; canonical = false
-compute_skin_temperature(::ImplicitSkinTemperature, Tg, G, Δz, κ)
-compute_ground_heat_flux(::AbstractSkinTemperature, R_net, H_s, H_l)
-compute_skin_temperature!(state, grid, skinT::ImplicitSkinTemperature, constants::PhysicalConstants, snow::Optional{AbstractSnow})
+compute_ground_heat_flux_demand(::AbstractSkinTemperature, R_net, H_s, H_l)
 compute_ground_heat_flux!(state, grid, skinT::AbstractSkinTemperature, seb::AbstractSurfaceEnergyBalance)
 default_skin_temperature_solver
 ```
@@ -77,10 +79,12 @@ default_skin_temperature_solver
 ## Kernel functions
 
 ```@docs; canonical = false
-compute_skin_temperature(i, j, grid, fields, skinT::ImplicitSkinTemperature, constants::PhysicalConstants, snow::Optional{AbstractSnow})
-compute_ground_heat_flux(i, j, grid, fields, skinT::AbstractSkinTemperature, ::AbstractSurfaceEnergyBalance)
+compute_ground_heat_flux_demand(i, j, grid, fields, skinT::AbstractSkinTemperature, ::AbstractSurfaceEnergyBalance)
+compute_ground_heat_flux(i, j, grid, fields, skinT::PrescribedSkinTemperature, seb::AbstractSurfaceEnergyBalance)
+compute_ground_heat_flux(i, j, grid, fields, skinT::ImplicitSkinTemperature, ::AbstractSurfaceEnergyBalance)
 compute_ground_heat_flux!(out, i, j, grid, fields, skinT::AbstractSkinTemperature, seb::AbstractSurfaceEnergyBalance)
-compute_skin_temperature!(out, i, j, grid, fields, skinT::ImplicitSkinTemperature, seb::AbstractSurfaceEnergyBalance, constants::PhysicalConstants, snow::Optional{AbstractSnow}, seb_args...)
+compute_skin_temperature(i, j, grid, fields, skinT::ImplicitSkinTemperature{NF}, args...) where {NF}
+compute_skin_temperature(i, j, grid, fields, skinT::ImplicitSkinTemperature{NF}, constants::PhysicalConstants, snow::AbstractSnow) where {NF}
 compute_skin_temperature_residual!
 solve_skin_temperature!
 ```

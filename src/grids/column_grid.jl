@@ -1,7 +1,7 @@
-abstract type AbstractColumnGrid{NF, Arch} <: AbstractLandGrid{NF, Arch} end
+abstract type AbstractColumnGrid{NF, Arch} <: AbstractLandGrid{NF, Periodic, Flat, Bounded, Arch} end
 
 """
-    ColumnGrid{NF, Arch<:AbstractArchitecture, RectGrid<:Oceananigans.Grids.RectilinearGrid} <: AbstractLandGrid
+    $TYPEDEF
 
 Represents a set of laterally independent vertical columns with dimensions (x, y, z)
 where `x` is the column dimension, `y=1` is constant, and `z` is the vertical axis.
@@ -45,7 +45,7 @@ end
 
 Return the underlying Oceananigans `grid` stored in `ColumnGrid`.
 """
-@inline get_field_grid(grid::ColumnGrid) = grid.grid
+@inline get_field_grid(grid::ColumnGrid) = getfield(grid, :grid)
 
 Architectures.architecture(grid::ColumnGrid) = architecture(grid.grid)
 

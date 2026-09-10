@@ -32,9 +32,6 @@ $FIELDS
 
     "Snow energy-temperature closure"
     @component closure::Closure
-
-    "Minimum snow thickness (m) used to regularize the thermodynamics for thin snowpacks"
-    @param min_conduction_thickness::NF (units = u"m", bounds = Positive)
 end
 
 function SingleLayerSnow(
@@ -45,13 +42,25 @@ function SingleLayerSnow(
         hydraulic_properties = ConstantSnowHydraulics(NF),
         albedo = ConstantSnowAlbedo(NF),
         closure = SnowEnergyTemperatureClosure(NF),
-        min_conduction_thickness::NF = NF(5.0e-3),
     ) where {NF}
-    # `NF` is only carried by the `min_conduction_thickness` scalar, so the remaining type parameters
-    # are supplied explicitly from the component types
+    # No field is directly typed `NF` (the minimum conduction thickness is now derived from the grid
+    # rather than stored, see `min_snow_conduction_thickness`), so `NF` is supplied explicitly here and
+    # carried only via the `AbstractSnow{NF}` supertype bound, mirroring `LandModel`/`SnowModel`.
     return SingleLayerSnow{NF, typeof(cover), typeof(density), typeof(thermal_conductivity), typeof(hydraulic_properties), typeof(albedo), typeof(closure)}(
-        cover, density, thermal_conductivity, hydraulic_properties, albedo, closure, min_conduction_thickness
+        cover, density, thermal_conductivity, hydraulic_properties, albedo, closure
     )
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Minimum snow thickness (m) used to regularize the snow thermodynamics (conductive fluxes and the
+volumetric energy/temperature closure) as the pack thins toward zero: half the thickness of the
+uppermost soil grid cell, so the floor scales with the grid resolution rather than a fixed constant.
+"""
+@propagate_inbounds function min_snow_conduction_thickness(i, j, grid, fields, ::SingleLayerSnow)
+    field_grid = get_field_grid(grid)
+    return Δzᵃᵃᶜ(i, j, field_grid.Nz, field_grid) / 2
 end
 
 # Top-level interface

@@ -55,12 +55,45 @@ end
 end
 
 @testset "Snow basal heat flux: differentiability" begin
-    # Q_base = 2·κ·(T_soil − T_snow)/max(d_snow, d_min); gradient w.r.t. the soil temperature is 2·κ/d_snow for d_snow > d_min
-    κ = 0.3
-    d_snow = 0.5
-    d_min = 1.0e-3
-    grad, = Enzyme.autodiff(Reverse, Terrarium.compute_snow_basal_heat_flux, Active, Const(κ), Active(1.0), Const(-2.0), Const(d_snow), Const(d_min))
-    @test grad[2] ≈ 2κ / d_snow
+    # Q_base = (T_soil − T_snow) / (Δz_soil/(2κ_soil) + d_snow/(2κ_snow)), computed by
+    # compute_snow_basal_heat_flux(i, j, grid, fields, snow, soil, constants) from soil/snow state
+    # (κ_soil from soil_composition, κ_snow from the snow density closure). This now depends on the soil
+    # component's state, so differentiate the field-based kernel function directly via Duplicated(state,
+    # dstate), mirroring the closure! pattern in soil_hydrology_diff.jl, rather than a standalone scalar
+    # closure (which no longer exists — the real function reads composition-dependent conductivities).
+    grid = ColumnGrid(CPU(), Float64, ExponentialSpacing(N = 5))
+    soil = SoilEnergyWaterCarbon(Float64)
+    snow = SingleLayerSnow(Float64)
+    land = LandModel(grid; soil, snow, vegetation = nothing)
+    integrator = initialize(
+        land;
+        initializers = (
+            temperature = (x, z) -> -10.0 - 0.01 * z,
+            saturation_water_ice = (x, z) -> 0.8,
+            snow_water_equivalent = 0.05,
+            snow_temperature = -5.0,
+        )
+    )
+    state = integrator.state
+    Terrarium.closure!(state, land)
+    compute_auxiliary!(state, land)
+
+    dstate = make_zero(state)
+    Enzyme.autodiff(
+        set_runtime_activity(Reverse),
+        Terrarium.compute_snow_basal_heat_flux,
+        Active,
+        Const(1), Const(1), Const(grid),
+        Duplicated(state, dstate),
+        Const(snow), Const(soil), Const(land.constants)
+    )
+    dQ_dTsoil = only(Array(interior(dstate.ground_temperature)))
+    dQ_dTsnow = only(Array(interior(dstate.snow_temperature)))
+    @test isfinite(dQ_dTsoil)
+    @test isfinite(dQ_dTsnow)
+    # Q_base is linear in both temperatures with equal and opposite slopes: 1/(R_soil+R_snow)
+    @test dQ_dTsoil > 0
+    @test dQ_dTsoil ≈ -dQ_dTsnow
 end
 
 @testset "Snow model: timestep!" begin

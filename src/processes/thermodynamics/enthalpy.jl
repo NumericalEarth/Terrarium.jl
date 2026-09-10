@@ -11,9 +11,9 @@ Calculate the unfrozen water content from the given internal energy `U` (J/m³) 
 volumetric latent heat content `ρLθ` (J/m³).
 """
 @inline function liquid_water_fraction(::FreeWater, U::NF, ρLθ::NF) where {NF}
-    # Case 1: U ≥ 0 -> thawed (liq = 1)
-    # Case 2a: -ρLθ ≤ U < 0 -> phase change (liq = 1 - U/(-ρLθ))
-    # Case 2b: U < -ρLθ -> frozen (liq = 0), enforced by the (U ≥ -ρLθ) factor.
+    # Case 1: U ≥ 0          → thawed (liq = 1)
+    # Case 2a: -ρLθ ≤ U < 0  → phase change (liq = 1 - U/(-ρLθ))
+    # Case 2b: U < -ρLθ      → frozen (liq = 0), enforced by the (U ≥ -ρLθ) factor.
     return ifelse(
         U >= zero(U),
         NF(1),
@@ -29,8 +29,8 @@ volumetric latent heat content `ρLθ` (J/m³), and volumetric heat capacity `C`
 under the free water freezing characteristic.
 """
 @inline function energy_to_temperature(::FreeWater, U::NF, ρLθ::NF, C::NF) where {NF}
-    # Case 1:  U < -ρLθ      → frozen      (T = (U + ρLθ)/C)
-    # Case 2a: U ≥ 0        → thawed      (T = U/C)
+    # Case 1:  U < -ρLθ      → frozen       (T = (U + ρLθ)/C)
+    # Case 2a: U ≥ 0         → thawed       (T = U/C)
     # Case 2b: -ρLθ ≤ U < 0  → phase change (T = 0)
     return ifelse(
         U < -ρLθ,
