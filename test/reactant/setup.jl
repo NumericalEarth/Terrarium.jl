@@ -111,3 +111,18 @@ function build_model(::Val{:land_soil_snow}, arch, NF)
     )
     return (; model, boundary_conditions = (;), initializers = inits, Δt = NF(600))
 end
+
+# --- :vegetation_column — standalone VegetationModel with PrescribedVegetation -----------
+# Static (constant) prescribed LAI: the time-varying LAI climatology goes through
+# `InputSource` temporal interpolation, which does not trace under Reactant yet.
+
+function build_model(::Val{:vegetation_column}, arch, NF)
+    grid = ColumnGrid(arch, NF, ExponentialSpacing(Δz_min = NF(0.05), Δz_max = NF(1), N = 10))
+    vegetation = PrescribedVegetation(NF)
+    model = VegetationModel(grid; vegetation)
+    inits = (
+        leaf_area_index = NF(3),
+        air_temperature = NF(20),
+    )
+    return (; model, boundary_conditions = (;), initializers = inits, Δt = NF(600))
+end

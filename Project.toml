@@ -36,6 +36,9 @@ TerrariumCheckpointingExt = "Checkpointing"
 TerrariumRastersExt = "Rasters"
 TerrariumReactantExt = "Reactant"
 
+[sources]
+Oceananigans = { url = "https://github.com/maximilian-gelbrecht/Oceananigans.jl.git", rev = "mg/fix-compute-field-stretch" }
+
 [compat]
 Adapt = "4"
 Checkpointing = "0.11"

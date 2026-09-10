@@ -39,6 +39,7 @@ include("setup.jl")
     test_model(:soil_heat_global)
     test_model(:snow_column)                  # standalone single-layer snow (closure + tendencies)
     test_model(:land_soil_snow)
+    test_model(:vegetation_column)            # standalone PrescribedVegetation, constant LAI
 end
 
 include("autodiff.jl")

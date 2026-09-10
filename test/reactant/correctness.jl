@@ -10,6 +10,7 @@ using Statistics: mean
 import Oceananigans
 using Oceananigans: interior, architecture, on_architecture
 using Oceananigans.Architectures: CPU
+using Oceananigans.AbstractOperations: AbstractOperation
 using Oceananigans.Fields: AbstractField
 
 const ReactantExt = Base.get_extension(Terrarium, :TerrariumReactantExt)
@@ -70,8 +71,10 @@ function _sync_group!(dst_nt::NamedTuple, src_nt::NamedTuple)
     for name in keys(dst_nt)
         dst = dst_nt[name]
         # Only mutable Fields are synced directly; views (e.g. ground_temperature) track their
-        # parent field and update automatically once the parent is synced.
-        dst isa AbstractField || continue
+        # parent field and update automatically once the parent is synced, and lazy
+        # `AbstractOperation`s (e.g. `kernel(...)`-backed auxiliaries such as `phenology_factor`)
+        # recompute from their inputs, so they follow once those are synced.
+        dst isa AbstractField && !(dst isa AbstractOperation) || continue
         # Move the source field onto the destination's architecture via `on_architecture`, then
         # copy interiors. `dst` is always a CPU field here (we sync Reactant → CPU).
         copyto!(interior(dst), interior(on_architecture(CPU(), src_nt[name])))
