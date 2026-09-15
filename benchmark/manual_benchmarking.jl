@@ -47,11 +47,17 @@ settings = ArgParseSettings(;
     arg_type = String
     default = "default"
     range_tester = valid_mode
+    "--suites"
+    help = "Comma-separated suite keys to run (e.g. `bench200,bench202`). Default: all suites. " *
+        "A partial run replaces this architecture's stored results with just these suites."
+    arg_type = String
+    default = ""
 end
 const PARSED_ARGS = parse_args(ARGS, settings)
 
 const ARCH_ARG = lowercase(PARSED_ARGS["arch"])
 const MODE_ARG = PARSED_ARGS["mode"]
+const SUITES_ARG = PARSED_ARGS["suites"]
 
 # Backend packages must be loaded BEFORE `using Terrarium` so its extensions register.
 if ARCH_ARG == "gpu" || ARCH_ARG == "reactant-cpu" || ARCH_ARG == "reactant-gpu"
@@ -101,8 +107,20 @@ for suite in values(benchmarks)
     suite.mode = MODE
 end
 
-# Deterministic suite order, so README sections are stable across runs.
-const SUITE_KEYS = sort!(collect(keys(benchmarks)))
+# Deterministic suite order, so README sections are stable across runs. `--suites` narrows the run to
+# a subset; because each run replaces this architecture's whole stored record, a partial run drops the
+# suites it did not run — warn when that is the case.
+const ALL_SUITE_KEYS = sort!(collect(keys(benchmarks)))
+const SUITE_KEYS = if isempty(strip(SUITES_ARG))
+    ALL_SUITE_KEYS
+else
+    requested = [Symbol(strip(s)) for s in split(SUITES_ARG, ',') if !isempty(strip(s))]
+    unknown = setdiff(requested, collect(keys(benchmarks)))
+    isempty(unknown) || error("Unknown suite(s): $(join(unknown, ", ")). Known suites: $(join(ALL_SUITE_KEYS, ", ")).")
+    requested
+end
+SUITE_KEYS == ALL_SUITE_KEYS ||
+    @warn "Running only $(join(SUITE_KEYS, ", ")): this replaces $ARCH_LABEL's stored results with just these suites."
 
 for key in SUITE_KEYS
     @info "→ Suite $key: $(benchmarks[key].title)"
@@ -142,9 +160,29 @@ function machine_info()
     return String(take!(io))
 end
 
+"""
+    git_revision()
+
+Short HEAD SHA of the Terrarium checkout the benchmark runs from, suffixed `-dirty` when the working
+tree has uncommitted changes. Returns `"unknown"` if git is unavailable or the directory is not a
+repository, so a missing revision never aborts a benchmark run.
+"""
+function git_revision()
+    repo = normpath(joinpath(@__DIR__, ".."))
+    try
+        sha = strip(read(`git -C $repo rev-parse --short HEAD`, String))
+        dirty = !isempty(strip(read(`git -C $repo status --porcelain`, String)))
+        return dirty ? sha * "-dirty" : sha
+    catch err
+        @warn "Could not determine the git revision of $repo" exception = err
+        return "unknown"
+    end
+end
+
 arch_record = Dict(
     "meta" => Dict(
         "terrarium_version" => string(pkgversion(Terrarium)),
+        "git_revision" => git_revision(),
         "timestamp" => Dates.format(Dates.now(), Dates.RFC1123Format),
         "arch_type" => string(typeof(ARCH)),
         "mode" => MODE.name,
@@ -153,7 +191,7 @@ arch_record = Dict(
         "machine_info" => machine_info(),
     ),
     "markdown" => arch_markdown(),
-    "overview" => Dict(string(key) => overview_data(benchmarks[key]) for key in OVERVIEW_SUITES),
+    "overview" => Dict(string(key) => overview_data(benchmarks[key]) for key in OVERVIEW_SUITES if key in SUITE_KEYS),
 )
 
 # --- merge into the JSON store -----------------------------------------------------------
@@ -228,6 +266,9 @@ function write_preamble(md)
     write(md, "```\n\n")
     write(md, "A second argument controls the duration: `quick` (0.25x steps, sweeps capped at 8192 columns), ")
     write(md, "`long` (10x steps), or a numeric timestep multiplier. ")
+    write(md, "A third, optional `--suites bench200,bench202` restricts the run to specific suites (default: all); ")
+    write(md, "a partial run replaces that architecture's stored results with just the suites it ran. ")
+    write(md, "Each run records the Terrarium git revision it was produced at, shown in the section header below. ")
     write(md, "Each run updates only its own architecture's section here; the other architectures are preserved ")
     write(md, "in `assets/benchmark_results.json`.\n\n")
     return
@@ -287,7 +328,8 @@ function write_arch_section(md, label, record)
     meta = record["meta"]
     write(md, "## Architecture: `$label`\n\n")
     write(md, "Created for Terrarium.jl v$(meta["terrarium_version"]) on $(meta["timestamp"]) ")
-    write(md, "in `$(meta["mode"])` mode ($(meta["timestep_multiplier"])x time steps, $(meta["threads"]) thread(s)).\n\n")
+    write(md, "in `$(meta["mode"])` mode ($(meta["timestep_multiplier"])x time steps, $(meta["threads"]) thread(s)), ")
+    write(md, "at git revision `$(get(meta, "git_revision", "unknown"))`.\n\n")
     write(md, "### Machine details\n\n")
     write(md, meta["machine_info"])
     write(md, "\n")
