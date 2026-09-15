@@ -122,8 +122,10 @@ function map_panel!(fig, panel, cb, data; title, units = nothing, colormap, colo
     # `tellwidth/tellheight = false` keeps the aspect-driven size suggestion out of
     # the layout solver, which otherwise collapses the cells to wildly unequal
     # sizes; the aspect then just letterboxes the map inside its (even) cell.
-    ax = GeoAxis(fig[panel...]; dest = "+proj=longlat +datum=WGS84", title, aspect = 2,
-                 tellwidth = false, tellheight = false, titlesize = 14, titlegap = 2)
+    ax = GeoAxis(
+        fig[panel...]; dest = "+proj=longlat +datum=WGS84", title, aspect = 2,
+        tellwidth = false, tellheight = false, titlesize = 14, titlegap = 2
+    )
     hm = heatmap!(ax, lon, lat, data; colormap, colorrange)
     lines!(ax, GeoMakie.coastlines(); color = :white, linewidth = 1.2)
     hidedecorations!(ax)
@@ -131,8 +133,10 @@ function map_panel!(fig, panel, cb, data; title, units = nothing, colormap, colo
     # occupies `ax.scene.viewport`, so size the colorbar to that rectangle. The
     # colorbar tells its width (so its column shrinks to fit) but not its height.
     map_height = map(r -> r.widths[2], ax.scene.viewport)
-    Colorbar(fig[cb...], hm; label = units, tellwidth = true, tellheight = false,
-             width = width, height = map_height)
+    Colorbar(
+        fig[cb...], hm; label = units, tellwidth = true, tellheight = false,
+        width = width, height = map_height
+    )
     return ax, hm
 end
 
@@ -151,18 +155,22 @@ const BENCHMARK_SOIL_SUITE = "bench202" # the :soil_heat SoilModel resolution sw
 
 # Store label => (legend name, color, annotation offset). Both CPU labels share one
 # curve; the first present wins (see the `plotted_names` guard below).
-const BENCHMARK_ARCH_STYLES = ("cpu-x86" => ("CPU", :navy, (6, 6)),
-                               "cpu-arm" => ("CPU", :navy, (6, 6)),
-                               "gpu-nvidia" => ("GPU", :forestgreen, (6, -16)),
-                               "reactant-cpu" => ("Reactant (CPU)", :darkorange, (-38, 8)),
-                               "reactant-gpu" => ("Reactant (GPU)", :crimson, (6, 20)))
+const BENCHMARK_ARCH_STYLES = (
+    "cpu-x86" => ("CPU", :navy, (6, 6)),
+    "cpu-arm" => ("CPU", :navy, (6, 6)),
+    "gpu-nvidia" => ("GPU", :forestgreen, (6, -16)),
+    "reactant-cpu" => ("Reactant (CPU)", :darkorange, (-38, 8)),
+    "reactant-gpu" => ("Reactant (GPU)", :crimson, (6, 20)),
+)
 
 fig2 = Figure(size = (640, 460))
-ax2 = Axis(fig2[1, 1],
-           xlabel = "Number of land columns",
-           ylabel = "Simulated years per wallclock day (SYPD)",
-           xscale = log10, yscale = log10,
-           title = "Terrarium SoilModel performance")
+ax2 = Axis(
+    fig2[1, 1],
+    xlabel = "Number of land columns",
+    ylabel = "Simulated years per wallclock day (SYPD)",
+    xscale = log10, yscale = log10,
+    title = "Terrarium SoilModel performance"
+)
 
 plotted_names = String[]
 if isfile(BENCHMARK_RESULTS_JSON)
@@ -187,8 +195,10 @@ if isfile(BENCHMARK_RESULTS_JSON)
         # Makie >= 0.25; this environment has 0.24, where text plots take a single
         # `align` attribute rather than halign/valign.)
         for (nc, sy, res) in zip(ncolumns[ok], sypd[ok], resolution[ok])
-            text!(ax2, nc, sy; text = string(round(Int, res), "°"),
-                  align = (:left, :bottom), offset, fontsize = 9, color)
+            text!(
+                ax2, nc, sy; text = string(round(Int, res), "°"),
+                align = (:left, :bottom), offset, fontsize = 9, color
+            )
         end
         push!(plotted_names, name)
     end
@@ -254,23 +264,35 @@ albedo[.!land_mask] .= NaN32
 # Height chosen so each row's cell ≈ map height (width/2) + title, minimizing the
 # vertical letterboxing that the fixed 2:1 aspect leaves inside each cell.
 fig3 = Figure(size = (1400, 440), padding = (5, 5, 5, 5), colgap = 4, rowgap = 8)
-map_panel!(fig3, (1, 1), (1, 2), skin_temperature;
-          title = "Mean skin temperature", units = "°C",
-          colormap = :balance, colorrange = (-30, 30), width = 10)
-map_panel!(fig3, (1, 3), (1, 4), gpp;
-          title = "Gross primary production", units = "g C m⁻² day⁻¹",
-          colormap = :YlGn, colorrange = robust_colorrange(gpp; bounds = (0, 0.99)), width = 10)
-map_panel!(fig3, (1, 5), (1, 6), snow_depth;
-          title = "Max annual snow depth", units = "m",
-          colormap = :Blues, colorrange = robust_colorrange(snow_depth; bounds = (0, 0.99)), width = 10)
-map_panel!(fig3, (2, 1), (2, 2), sensible_heat_flux;
-          title = "Mean sensible heat flux", units = "W m⁻²",
-          colormap = :balance, colorrange = diverging_colorrange(sensible_heat_flux), width = 10)
-map_panel!(fig3, (2, 3), (2, 4), ef;
-          title = "Evaporative fraction", units = "-",
-          colormap = :viridis, colorrange = (0, 1), width = 10)
-map_panel!(fig3, (2, 5), (2, 6), albedo;
-          title = "Mean surface albedo", units = "-",
-          colormap = :viridis, colorrange = robust_colorrange(albedo), width = 10)
+map_panel!(
+    fig3, (1, 1), (1, 2), skin_temperature;
+    title = "Mean skin temperature", units = "°C",
+    colormap = :balance, colorrange = (-30, 30), width = 10
+)
+map_panel!(
+    fig3, (1, 3), (1, 4), gpp;
+    title = "Gross primary production", units = "g C m⁻² day⁻¹",
+    colormap = :YlGn, colorrange = robust_colorrange(gpp; bounds = (0, 0.99)), width = 10
+)
+map_panel!(
+    fig3, (1, 5), (1, 6), snow_depth;
+    title = "Max annual snow depth", units = "m",
+    colormap = :Blues, colorrange = robust_colorrange(snow_depth; bounds = (0, 0.99)), width = 10
+)
+map_panel!(
+    fig3, (2, 1), (2, 2), sensible_heat_flux;
+    title = "Mean sensible heat flux", units = "W m⁻²",
+    colormap = :balance, colorrange = diverging_colorrange(sensible_heat_flux), width = 10
+)
+map_panel!(
+    fig3, (2, 3), (2, 4), ef;
+    title = "Evaporative fraction", units = "-",
+    colormap = :viridis, colorrange = (0, 1), width = 10
+)
+map_panel!(
+    fig3, (2, 5), (2, 6), albedo;
+    title = "Mean surface albedo", units = "-",
+    colormap = :viridis, colorrange = robust_colorrange(albedo), width = 10
+)
 save(joinpath(output_dir, "figure3.png"), fig3)
 @info "Saved figure3.png"
