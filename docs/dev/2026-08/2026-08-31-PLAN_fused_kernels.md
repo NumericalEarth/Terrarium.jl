@@ -1,6 +1,6 @@
 # Fused kernel launches for coupled soil, surface, and vegetation processes
 
-> Status: **in progress** (approved; Phase 1 implemented, Phases 2–4 planned). Replace the per-process
+> Status: **in progress** (approved; Phases 1–2 implemented, Phases 3–4 planned). Replace the per-process
 > `compute_auxiliary!` / `compute_tendencies!` kernel launches inside the coupled process types
 > (`SoilEnergyWaterCarbon`, `SurfaceHydrology`, `VegetationCarbonCycle`) with a single fused kernel
 > each, following the pattern established for `SurfaceEnergyBalance` (commit `2fc7af72a`). Per-process
@@ -102,6 +102,33 @@ Base revision: b005a836aa2c26b305cc0faa304ba7748e1e4476
 >   runoff routes the excess into the pool (Case 1b), while the standalone call still discards.
 >   Plus standalone runoff-tendency tests (`-min(D, S)`, cap binding, empty pool) and the coupled
 >   `LandModel` `timestep!` regression test (pool decays as `S₀(1 − Δt/τ)ⁿ`).
+>
+> 2026-09-01 (rev 6) — **Phase 2 implemented** (fuse `SoilEnergyWaterCarbon`). Deviations from the
+> plan text, all confirmed during implementation/review:
+> - **`auxiliary_fields` over a bespoke getter.** The plan sketched a `soil_auxiliary_outputs` helper
+>   that returned only `hydraulic_conductivity` (and `(;)` for `NoFlow`). Review rejected this: the
+>   whole point of `auxiliary_fields` is to be the generic field getter, and the reference
+>   `SurfaceEnergyBalance` uses it directly. The fused `compute_auxiliary!` now passes
+>   `out = auxiliary_fields(state, soil)` unconditionally (no `NoFlow` skip), matching the reference.
+>   The `checkfinite!` debug hook consequently checks all soil auxiliaries — verified not to trip
+>   spuriously (energy auxiliaries are always finite after `initialize!`), same as the standalone
+>   hydrology path already does for `water_table`.
+> - **`evtr` threading in the fused tendencies kernel.** `compute_saturation_tendency!` requires an
+>   `evtr` argument; the fused kernel accepts `evtr::Optional{AbstractEvapotranspiration} = nothing` as a
+>   defaulted positional and threads it through, so a future coupled model that supplies ET can pass it.
+>   The host `compute_tendencies!` omits it (→ `nothing`), matching the pre-fusion per-process path
+>   (standalone `compute_tendencies!` defaults `evtr = nothing`; neither `SoilModel` nor `LandModel`
+>   threads ET into soil tendencies).
+> - **`compute_water_tendencies!` variants.** Added a `RichardsEq` variant (in `soil_hydrology_rre.jl`,
+>   calling `compute_saturation_tendency!`) and a `NoFlow` no-op (in `soil_hydrology.jl`); the
+>   standalone rre `compute_tendencies_kernel!` was refactored to call the new variant so both paths
+>   share one kernel function.
+> - **`@kernel` forbids `return`.** The fused kernels omit `return nothing` (KernelAbstractions rejects
+>   return statements in kernels); Runic accepts this, consistent with the existing soil/runoff kernels.
+> - **Test.** New `test/soil/soil_fused_kernel_tests.jl` (wired into `soil_model_tests.jl`) checks the
+>   fused path reproduces the per-process path **bit-for-bit** (exact `==`, not `≈`) for every auxiliary
+>   and tendency, for both `RichardsEq` and `NoFlow`. Uses `collect` (not `Array`) since `ground_temperature`
+>   is a `ZReducedField`. Verified: soil suite 266 pass (17 new), coupled suite 45 pass. Enzyme left to CI.
 
 ## Problem description
 

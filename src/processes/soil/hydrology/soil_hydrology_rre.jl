@@ -195,6 +195,16 @@ Computes the unsaturated hydraulic conductivity for `RichardsEq` configurations 
     return nothing
 end
 
+"""
+    $TYPEDSIGNATURES
+
+Per-cell mutating variant that computes and stores tendencies for all `SoilHydrology` prognostic variables.
+"""
+@propagate_inbounds function compute_water_tendencies!(tendencies, i, j, k, grid, clock, fields, hydrology::SoilHydrology{NF, RichardsEq}, args...) where {NF}
+    compute_saturation_tendency!(tendencies.saturation_water_ice, i, j, k, grid, clock, fields, hydrology, args...)
+    return nothing
+end
+
 # Kernels
 
 @kernel inbounds = true function compute_tendencies_kernel!(
@@ -206,5 +216,5 @@ end
         evtr::Optional{AbstractEvapotranspiration}
     ) where {NF}
     i, j, k = @index(Global, NTuple)
-    compute_saturation_tendency!(tend.saturation_water_ice, i, j, k, grid, clock, fields, hydrology, strat, bgc, constants, evtr)
+    compute_water_tendencies!(tend, i, j, k, grid, clock, fields, hydrology, strat, bgc, constants, evtr)
 end

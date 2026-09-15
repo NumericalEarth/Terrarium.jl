@@ -58,16 +58,18 @@ end
 
 Compute auxiliary variables for soil energy, water, and carbon state variables
 on `grid` based on the given values in `constants`.
+
+A single fused kernel diagnoses the soil auxiliaries; the per-process `compute_auxiliary!` methods
+remain for standalone use and testing.
 """
 function compute_auxiliary!(
         state, grid,
         soil::SoilEnergyWaterCarbon,
         constants::PhysicalConstants
     )
-    # TODO: consider implementing fused kernel here?
-    compute_auxiliary!(state, grid, soil.hydrology, soil, constants)
-    compute_auxiliary!(state, grid, soil.biogeochem, soil, constants)
-    compute_auxiliary!(state, grid, soil.energy, soil, constants)
+    out = auxiliary_fields(state, soil)
+    fields = get_fields(state, soil)    # full fields, no `except` (see fused-kernel convention)
+    launch!(grid, XYZ, compute_auxiliary_kernel!, out, fields, soil)
     return nothing
 end
 
@@ -87,16 +89,19 @@ end
 
 Compute tendencies for soil energy, water, and carbon state variables on `grid`
 based on the given values in `constants`.
+
+A single fused kernel advances both the soil water (saturation) and energy tendencies; the per-process
+`compute_tendencies!` methods remain for standalone use, testing, and Enzyme differentiability.
 """
 function compute_tendencies!(
         state, grid,
         soil::SoilEnergyWaterCarbon,
-        constants::PhysicalConstants
+        constants::PhysicalConstants,
+        evtr::Optional{AbstractEvapotranspiration} = nothing,
     )
-    # TODO: consider implementing fused kernel here?
-    compute_tendencies!(state, grid, soil.hydrology, soil, constants)
-    compute_tendencies!(state, grid, soil.biogeochem, soil, constants)
-    compute_tendencies!(state, grid, soil.energy, soil, constants)
+    tendencies = tendency_fields(state, soil)
+    fields = get_fields(state, soil, evtr)
+    launch!(grid, XYZ, compute_tendencies_kernel!, tendencies, state.clock, fields, soil, constants, evtr)
     return nothing
 end
 
@@ -141,4 +146,39 @@ function invclosure!(
     invclosure!(state, grid, get_closure(soil.hydrology), soil.hydrology, soil, runoff)
     invclosure!(state, grid, get_closure(soil.energy), soil.energy, soil, constants)
     return nothing
+end
+
+# Fused kernels
+
+"""
+    $TYPEDSIGNATURES
+
+Fused kernel that advances the coupled soil water and energy tendencies in a single launch. Each
+sub-process contributes through its per-cell mutating variant (`compute_water_tendencies!`,
+`compute_energy_tendencies!`), which is a no-op for processes with nothing to compute (e.g. `NoFlow`).
+"""
+@kernel inbounds = true function compute_tendencies_kernel!(
+        tendencies, grid, clock, fields,
+        soil::SoilEnergyWaterCarbon,
+        constants::PhysicalConstants,
+        evtr::Optional{AbstractEvapotranspiration},
+    )
+    i, j, k = @index(Global, NTuple)
+    compute_water_tendencies!(tendencies, i, j, k, grid, clock, fields, soil.hydrology, soil.strat, soil.biogeochem, constants, evtr)
+    compute_energy_tendencies!(tendencies, i, j, k, grid, fields, soil.energy, soil.hydrology, soil.strat, soil.biogeochem)
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Fused kernel that diagnoses the coupled soil auxiliaries in a single launch. Each sub-process
+contributes through its per-cell mutating variant (`compute_hydraulics!`), which is a no-op for
+processes with nothing to diagnose (e.g. `NoFlow`).
+"""
+@kernel inbounds = true function compute_auxiliary_kernel!(
+        out, grid, fields,
+        soil::SoilEnergyWaterCarbon
+    )
+    i, j, k = @index(Global, NTuple)
+    compute_hydraulics!(out, i, j, k, grid, fields, soil.hydrology, soil.strat, soil.biogeochem)
 end
