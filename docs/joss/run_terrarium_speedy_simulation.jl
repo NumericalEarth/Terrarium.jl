@@ -124,6 +124,8 @@ Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model
 Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :transpiration))
 Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :sublimation))
 Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :gross_primary_production))
+Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :surface_runoff))
+Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :temperature))
 
 # Initialize the coupled simulation
 @info "Initializing coupled simulation"
