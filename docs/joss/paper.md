@@ -9,7 +9,7 @@ tags:
   - differentiable
   - GPU-accelerated
 authors:
-  - name: Brian Robert Groenke
+  - name: Brian Groenke
     orcid: 0000-0003-2570-9342
     corresponding: true
     equal-contrib: true
@@ -23,6 +23,15 @@ authors:
   - name: Olivier Bonte
     orcid: 0000-0003-1806-7572
     affiliation: 3
+  - name: Kieran Hunt
+    orcid: 0000-0003-1480-3755
+    affiliation: 4
+  - name: Pierre Luigi Vidale
+    orcid: 0000-0002-1800-8460
+    affiliation: 4
+  - name: Niklas Boers
+    orcid: 0000-0002-1239-9034
+    affiliation: "1, 2"
 affiliations:
  - name: Potsdam Institute for Climate Impact Research (PIK), Germany
    index: 1
@@ -32,7 +41,9 @@ affiliations:
    ror: "02kkvpp62"
  - name: Ghent University, Belgium 
    index: 3
-   ror: "00cv9y106"
+   ror: "05v62cm79"
+ - name: National Centre for Atmospheric Science, Department of Meteorology, University of Reading
+   index: 4
 date: July 2026
 bibliography: paper.bib
 ---
