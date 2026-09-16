@@ -271,7 +271,7 @@ compute_auxiliary!(state, grid, ::BareGroundEvaporation, ::NoCanopyInterception,
 ```
 
 ```@docs; canonical = false
-compute_auxiliary!(state, grid, ::PALADYNCanopyEvapotranspiration, ::AbstractCanopyInterception, ::PhysicalConstants, ::AbstractAtmosphere, ::AbstractSoil, ::AbstractVegetation, args...)
+compute_auxiliary!(state, grid, ::PALADYNCanopyEvapotranspiration, ::AbstractCanopyInterception, ::PhysicalConstants, ::AbstractAtmosphere, ::AbstractSoil, ::AbstractVegetation, ::Optional{AbstractSnow}, args...)
 ```
 
 ## Coupling to soil hydrology
