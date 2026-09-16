@@ -1,7 +1,7 @@
 """
     $TYPEDEF
 
-Canopy evapotranspiration scheme from PALADYN ([willeitPALADYNV10Comprehensive2016; Eq. (5)](@cite)) 
+Canopy evapotranspiration scheme from PALADYN ([willeitPALADYNV10Comprehensive2016; Eq. (5)](@cite))
 that includes a canopy evaporation term based on the saturation fraction of canopy water defined by the
 canopy hydrology scheme.
 
@@ -120,11 +120,13 @@ function compute_auxiliary!(
         atmos::AbstractAtmosphere,
         soil::AbstractSoil,
         vegetation::AbstractVegetation,
+        snow::Optional{AbstractSnow} = nothing,
         args...
     )
     out = auxiliary_fields(state, evapotranspiration)
-    fields = get_fields(state, evapotranspiration, interception, atmos, soil, vegetation; except = out)
-    launch!(grid, XY, compute_auxiliary_kernel!, out, fields, evapotranspiration, interception, constants, atmos, soil, vegetation)
+    # merge the snow cover fraction so the ground/canopy evaporation fluxes can be scaled by the snow-free fraction
+    fields = merge(get_fields(state, evapotranspiration, interception, atmos, soil, vegetation; except = out), get_fields(state, snow))
+    launch!(grid, XY, compute_auxiliary_kernel!, out, fields, evapotranspiration, interception, constants, atmos, soil, vegetation, snow)
     return nothing
 end
 
@@ -275,6 +277,38 @@ end
 
 # Kernels
 
+"""
+    $TYPEDSIGNATURES
+
+Compute and store the skin-driven vapor conductances for canopy evapotranspiration, then evaluate
+the partitioned humidity fluxes from them. The conductances are merged into `fields` so the flux
+step reads them back without a global round-trip.
+"""
+@propagate_inbounds function compute_evapotranspiration_auxiliary!(
+        out, i, j, grid, fields,
+        evapotranspiration::PALADYNCanopyEvapotranspiration,
+        interception::AbstractCanopyInterception,
+        constants::PhysicalConstants,
+        atmos::AbstractAtmosphere,
+        soil::AbstractSoil,
+        vegetation::AbstractVegetation,
+        snow::Optional{AbstractSnow} = nothing,
+        args...
+    )
+    # First compute conductances
+    compute_evapotranspiration_conductances!(out, i, j, grid, fields, evapotranspiration, interception, constants, atmos, soil, vegetation, args...)
+    # TODO: Annoyingly, we need to explicitly add these to `fields`; need a better solution to this problem
+    conductances = (
+        ground_evaporation_conductance = out.ground_evaporation_conductance,
+        transpiration_conductance = out.transpiration_conductance,
+        canopy_evaporation_conductance = out.canopy_evaporation_conductance,
+    )
+    fields = merge(fields, conductances)
+    # Compute ET fluxes from stored conductances
+    compute_evapotranspiration_fluxes!(out, i, j, grid, fields, evapotranspiration, constants, atmos, snow)
+    return out
+end
+
 @kernel inbounds = true function compute_auxiliary_kernel!(
         out, grid, fields,
         evapotranspiration::PALADYNCanopyEvapotranspiration,
@@ -287,15 +321,5 @@ end
         args...
     )
     i, j = @index(Global, NTuple)
-    # First compute conductances
-    compute_evapotranspiration_conductances!(out, i, j, grid, fields, evapotranspiration, interception, constants, atmos, soil, vegetation, args...)
-    # TODO: Annoyingly, we need to explicitly add these to `fields`; need a better solution to this problem
-    conductances = (
-        ground_evaporation_conductance = out.ground_evaporation_conductance,
-        transpiration_conductance = out.transpiration_conductance,
-        canopy_evaporation_conductance = out.canopy_evaporation_conductance,
-    )
-    fields = merge(fields, conductances)
-    # Compute ET fluxes from stored conductances
-    compute_evapotranspiration_fluxes!(out, i, j, grid, fields, evapotranspiration, constants, atmos, snow)
+    compute_evapotranspiration_auxiliary!(out, i, j, grid, fields, evapotranspiration, interception, constants, atmos, soil, vegetation, snow, args...)
 end

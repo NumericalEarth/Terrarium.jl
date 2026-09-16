@@ -54,7 +54,7 @@ variables(::BareGroundEvaporation) = (
 function compute_auxiliary!(
         state, grid,
         evaporation::BareGroundEvaporation,
-        ::NoCanopyInterception,
+        interception::NoCanopyInterception,
         constants::PhysicalConstants,
         atmos::AbstractAtmosphere,
         soil::Optional{AbstractSoil} = nothing,
@@ -63,7 +63,7 @@ function compute_auxiliary!(
     out = auxiliary_fields(state, evaporation)
     # merge the snow cover fraction so the ground evaporation can be scaled by the snow-free fraction
     fields = merge(get_fields(state, evaporation, atmos, soil; except = out), get_fields(state, snow))
-    launch!(grid, XY, compute_auxiliary_kernel!, out, fields, evaporation, constants, atmos, soil, snow)
+    launch!(grid, XY, compute_auxiliary_kernel!, out, fields, evaporation, interception, constants, atmos, soil, nothing, snow)
     return nothing
 end
 
@@ -139,24 +139,49 @@ end
     out.evaporation_ground[i, j, 1] = E_gnd
     return out
 end
+
 # Kernels
 
+"""
+    $TYPEDSIGNATURES
 
-@kernel inbounds = true function compute_auxiliary_kernel!(
-        out, grid, fields,
-        evapotranspiration::BareGroundEvaporation,
+Compute and store the skin-driven ground evaporation conductance for bare-ground evaporation, then
+evaluate the ground evaporation flux from it. The conductance is merged into `fields` so the flux
+step reads it back without a global round-trip. The `interception` and `vegetation` arguments are
+unused by this scheme.
+"""
+@propagate_inbounds function compute_evapotranspiration_auxiliary!(
+        out, i, j, grid, fields,
+        evaporation::BareGroundEvaporation,
+        interception::NoCanopyInterception,
         constants::PhysicalConstants,
         atmos::AbstractAtmosphere,
         soil::Optional{AbstractSoil} = nothing,
+        vegetation::Optional{AbstractVegetation} = nothing,
         snow::Optional{AbstractSnow} = nothing,
+        args...
     )
-    i, j = @index(Global, NTuple)
-
     # First compute conductances
-    compute_evapotranspiration_conductances!(out, i, j, grid, fields, evapotranspiration, constants, atmos, soil)
+    compute_evapotranspiration_conductances!(out, i, j, grid, fields, evaporation, constants, atmos, soil)
     # TODO: Annoyingly, we need to explicitly add these to `fields`; need a better solution to this problem
     conductances = (ground_evaporation_conductance = out.ground_evaporation_conductance,)
     fields = merge(fields, conductances)
     # Compute ET fluxes from stored conductances; `snow` scales ground evaporation by the snow-free fraction
-    compute_evapotranspiration_fluxes!(out, i, j, grid, fields, evapotranspiration, constants, atmos, snow)
+    compute_evapotranspiration_fluxes!(out, i, j, grid, fields, evaporation, constants, atmos, snow)
+    return out
+end
+
+@kernel inbounds = true function compute_auxiliary_kernel!(
+        out, grid, fields,
+        evapotranspiration::BareGroundEvaporation,
+        interception::NoCanopyInterception,
+        constants::PhysicalConstants,
+        atmos::AbstractAtmosphere,
+        soil::Optional{AbstractSoil} = nothing,
+        vegetation::Optional{AbstractVegetation} = nothing,
+        snow::Optional{AbstractSnow} = nothing,
+        args...
+    )
+    i, j = @index(Global, NTuple)
+    compute_evapotranspiration_auxiliary!(out, i, j, grid, fields, evapotranspiration, interception, constants, atmos, soil, vegetation, snow, args...)
 end
