@@ -53,11 +53,15 @@ end
     compute_auxiliary!(per_process, grid, vegetation.plant_available_water, soil)
     compute_auxiliary!(per_process, grid, vegetation.carbon_dynamics, vegetation.traits)
     compute_auxiliary!(per_process, grid, vegetation.phenology, vegetation.carbon_dynamics, atmos)
-    compute_auxiliary!(per_process, grid, vegetation.photosynthesis, vegetation.stomatal_conductance,
-                       vegetation.traits, constants, atmos)
+    compute_auxiliary!(
+        per_process, grid, vegetation.photosynthesis, vegetation.stomatal_conductance,
+        vegetation.traits, constants, atmos
+    )
     compute_auxiliary!(per_process, grid, vegetation.stomatal_conductance, vegetation.traits, constants, atmos)
-    compute_auxiliary!(per_process, grid, vegetation.autotrophic_respiration, vegetation.carbon_dynamics,
-                       vegetation.phenology, vegetation.traits, atmos)
+    compute_auxiliary!(
+        per_process, grid, vegetation.autotrophic_respiration, vegetation.carbon_dynamics,
+        vegetation.phenology, vegetation.traits, atmos
+    )
 
     @testset "$(name)" for name in VEGETATION_CARBON_CYCLE_AUXILIARIES
         fused_vals = Array(interior(getproperty(fused, name)))

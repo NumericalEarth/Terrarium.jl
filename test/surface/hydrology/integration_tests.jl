@@ -49,8 +49,10 @@ end
     # Per-process path: the three standalone launches the fan-out used to issue, in dependency order.
     per_process = deepcopy(state)
     compute_auxiliary!(per_process, grid, hydrology.canopy_interception, atmos)
-    compute_auxiliary!(per_process, grid, hydrology.evapotranspiration, hydrology.canopy_interception,
-                       constants, atmos, soil, vegetation, snow)
+    compute_auxiliary!(
+        per_process, grid, hydrology.evapotranspiration, hydrology.canopy_interception,
+        constants, atmos, soil, vegetation, snow
+    )
     compute_auxiliary!(per_process, grid, hydrology.surface_runoff, hydrology.canopy_interception, soil, snow)
 
     @testset "$(name)" for name in SURFACE_HYDROLOGY_AUXILIARIES

@@ -79,11 +79,15 @@ resolves within a single launch. A "prescribed"/no-op scheme contributes a no-op
     i, j = @index(Global, NTuple)
     compute_canopy_auxiliary!(out, i, j, grid, fields, hydrology.canopy_interception, atmos)
     # `snow` lets the (bare-ground) evaporation scheme scale ground evaporation by the snow-free fraction
-    compute_evapotranspiration_auxiliary!(out, i, j, grid, fields, hydrology.evapotranspiration,
-                                          hydrology.canopy_interception, constants, atmos, soil, vegetation, snow)
+    compute_evapotranspiration_auxiliary!(
+        out, i, j, grid, fields, hydrology.evapotranspiration,
+        hydrology.canopy_interception, constants, atmos, soil, vegetation, snow
+    )
     # `snow` makes the surface runoff scheme's water input snow-aware (meltwater + bare-ground throughfall)
-    compute_surface_runoff!(out, i, j, grid, fields, hydrology.surface_runoff,
-                            hydrology.canopy_interception, get_hydrology(soil), snow)
+    compute_surface_runoff!(
+        out, i, j, grid, fields, hydrology.surface_runoff,
+        hydrology.canopy_interception, get_hydrology(soil), snow
+    )
 end
 
 """ $TYPEDSIGNATURES """
