@@ -9,8 +9,11 @@
 > *tendencies* bundles independent output fields and raises register pressure (an occupancy regression
 > on GPU), whereas fusing *auxiliaries* chains dependent stages and is a genuine win. The soil
 > auxiliary pass is a single launch (energy/bgc auxiliaries are no-ops), so **soil is dropped entirely**.
-> **Phase 3 (`SurfaceHydrology` auxiliary fusion) is implemented** (rev 7). The remaining target is the
-> auxiliary chain in `VegetationCarbonCycle` (Phase 4).
+> **Phase 3 (`SurfaceHydrology` auxiliary fusion) is implemented** (rev 7). **Phase 4
+> (`VegetationCarbonCycle` auxiliary fusion) is implemented** (rev 9): the five XY carbon-cycle stages
+> (carbon dynamics → phenology → photosynthesis → stomatal conductance → autotrophic respiration) collapse
+> to one launch, with `plant_available_water` kept as a preceding XYZ launch. Snow (rev 8) was considered
+> and left as-is — its auxiliary pass is already a single launch.
 
 Date of initial draft: 2026-08-31
 
@@ -170,6 +173,39 @@ Base revision: b005a836aa2c26b305cc0faa304ba7748e1e4476
 >   over all 12 surface-hydrology auxiliaries, vegetated + snow, to machine precision; (ii) the
 >   snow-free-fraction scaling above. Existing `test/surface/*`, `test/coupled_models/land_model_tests.jl`
 >   (vegetated, bare, snow, meltwater, latent-partition, thin-snow, excess-water) all green.
+>
+> 2026-09-16 (rev 8) — **Snow considered for fusion; left as-is.** An earlier revision folded the snow
+> auxiliary diagnosis into the fused surface-hydrology launch (a leading `compute_snow_properties!` stage).
+> That was reverted: snow's auxiliaries should not be computed inside surface hydrology. Re-examining the
+> snow side, there is **nothing to fuse**: `SingleLayerSnow.compute_auxiliary!` is already a single XY launch
+> (`compute_snow_properties!` → `snow_depth`, `snow_cover_fraction`). The only other snow XY launch is the
+> energy closure `energy_to_temperature!` (→ `snow_temperature`, `snow_liquid_fraction`), which (a) runs in a
+> **different pass** (`closure!`, at the start of each timestep, vs `compute_auxiliary!` at finalize) and
+> (b) produces **independent outputs** — the two launches share no dependency chain, so fusing them would be
+> the register-union anti-pattern the rev 6 rule forbids. Snow is therefore unchanged.
+>
+> 2026-09-16 (rev 9) — **Phase 4 (vegetation carbon auxiliary fusion) implemented.** The five real XY
+> auxiliary stages of `VegetationCarbonCycle` — carbon dynamics → phenology → photosynthesis → stomatal
+> conductance → autotrophic respiration — collapse from five launches to one fused XY launch, following the
+> Phase 3 pattern exactly. Each stage's per-cell mutating variant already existed (they are the bodies of
+> the standalone `compute_auxiliary_kernel!`s), so the fused kernel just calls them in dependency order; the
+> host collects `out = filter(v -> v isa Field, auxiliary_fields(state, <five components>))` and passes full
+> `fields` (no `except`) so a stage's write to `out.foo` is visible to a later stage reading `fields.foo`.
+> - **`plant_available_water` stays separate and first.** It is an XYZ launch that then materializes the
+>   derived XY `soil_moisture_limiting_factor` via `compute!`; photosynthesis and stomatal conductance read
+>   that factor, so PAW must run before the fused kernel — the same ordering the fan-out already used.
+>   `root_distribution` (lazy `FunctionField`, no-op) and `vegetation_dynamics` (no-op) calls are unchanged.
+> - **No `soil` in the fused kernel.** None of the five stages reads a soil field; the only soil-derived
+>   input is the PAW-produced limiting factor, read as a plain XY input. The kernel signature is
+>   `(out, grid, fields, veg, constants, atmos, args...)`.
+> - **No `PrescribedPhenology` no-op variant.** `PrescribedPhenology` is only ever paired with
+>   `PrescribedVegetation` (which has its own `compute_auxiliary!` and no autotrophic respiration), never
+>   with `VegetationCarbonCycle`, so the fused kernel never dispatches on it — adding a no-op would guard an
+>   unreachable state.
+> - **Tests.** New `test/vegetation/integration_tests.jl` (included from `vegetation_model_tests.jl`) checks
+>   the fused path against the per-process fan-out to machine precision across all nine written auxiliaries.
+>   Vegetation suite 148/148, land_model 45/45 green. Net: vegetation auxiliary pass 6 XY → 1 XY (PAW's XYZ
+>   launch and derived `compute!` unchanged).
 
 ## Problem description
 
@@ -414,7 +450,7 @@ chain. Tendency fusion is therefore **dropped** for surface hydrology; the two p
 launches stay. (If ever revisited, capture registers first — see `scratch/capture_soil_regs.jl` — and
 only fuse if the chain holds or `@noinline` recovers occupancy.)
 
-## Phase 4 — Fuse vegetation carbon (`VegetationCarbonCycle`)
+## Phase 4 — Fuse vegetation carbon (`VegetationCarbonCycle`) — **IMPLEMENTED (rev 9)**
 
 ### `compute_tendencies!` — **out of scope (rev 6)**
 
@@ -440,7 +476,7 @@ soil-dependent ones kept separate (rev 3):
 
 ```julia
 @kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields,
-        veg::VegetationCarbonCycle, constants, atmos, soil)
+        veg::VegetationCarbonCycle, constants, atmos, args...)
     i, j = @index(Global, NTuple)
     compute_veg_carbon_auxiliary!(out, i, j, grid, fields, veg.carbon_dynamics, veg.traits)
     compute_phenology!(out, i, j, grid, fields, veg.phenology, atmos)
@@ -449,9 +485,12 @@ soil-dependent ones kept separate (rev 3):
     compute_photosynthesis!(out, i, j, grid, fields, veg.photosynthesis, veg.stomatal_conductance, veg.traits, constants, atmos)
     compute_stomatal_conductance!(out, i, j, grid, fields, veg.stomatal_conductance, veg.traits, constants, atmos)
     compute_autotrophic_respiration!(out, i, j, grid, fields, veg.autotrophic_respiration, veg.carbon_dynamics, veg.phenology, veg.traits, atmos)
-    return nothing
 end
 ```
+
+(The kernel takes no `soil`: none of the five stages reads a soil field — the only soil-derived input,
+`soil_moisture_limiting_factor`, is materialized by PAW beforehand and read as a plain XY input. A `return`
+is not permitted inside a `@kernel`, so the body ends on the last stage call.)
 
 The photosynthesis → stomatal-conductance ordering is a clean forward dependency (rev 3): photosynthesis
 does not read stomatal's output field, so chaining them in one kernel is correct. `vegetation_dynamics`

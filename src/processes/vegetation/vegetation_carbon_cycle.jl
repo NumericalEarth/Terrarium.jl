@@ -87,34 +87,61 @@ function compute_auxiliary!(
         soil::Optional{AbstractSoil} = nothing,
         args...
     )
-    # Compute auxiliary variables for each component
-    # Roots: need soil state and computes root_fraction
+    # Roots: need soil state and computes root_fraction (a lazy `FunctionField`, no launch)
     compute_auxiliary!(state, grid, veg.root_distribution, soil)
 
-    # PAW: needs soil saturation profile and computes soil_moisture_limiting_factor
+    # PAW: needs soil saturation profile and materializes soil_moisture_limiting_factor (a derived field).
+    # It runs before the fused kernel below, whose photosynthesis and stomatal conductance stages read it.
     compute_auxiliary!(state, grid, veg.plant_available_water, soil)
 
-    # Veg. carbon dynamics: needs C_veg(t) and computes LAI_b(t)
-    compute_auxiliary!(state, grid, veg.carbon_dynamics, veg.traits)
-
-    # Phenology: needs LAI_b(t) and air temperature(t) and computes LAI(t) and phen(t)
-    compute_auxiliary!(state, grid, veg.phenology, veg.carbon_dynamics, atmos)
-
-    # Photosynthesis: needs atm. inputs(t), LAI(t), and computes Rd(t) and GPP(t)
-    # N.B. We break the usual dependency pattern here to resolve the tight coupling between photosynthesis and
-    # stomatal conductance. Photosynthesis does *not* depend on the auxiliary state of stomatal conductance but
-    # requires its parameters to compute λc.
-    compute_auxiliary!(state, grid, veg.photosynthesis, veg.stomatal_conductance, veg.traits, constants, atmos)
-
-    # Stomatal conductance: needs atm. inputs(t) and computes g_can(t)
-    compute_auxiliary!(state, grid, veg.stomatal_conductance, veg.traits, constants, atmos)
-
-    # Autotrophic respiration: needs atm. inputs(t), GPP(t), Rd(t), C_veg(t), phen(t) and computes Ra(t) and NPP(t)
-    compute_auxiliary!(state, grid, veg.autotrophic_respiration, veg.carbon_dynamics, veg.phenology, veg.traits, atmos)
+    # The carbon-cycle chain — carbon dynamics → phenology → photosynthesis → stomatal conductance →
+    # autotrophic respiration — is fused into a single launch. Each stage reads the previous stage's
+    # output within a cell, so the dependency chain resolves without returning to the host.
+    carbon_dynamics = veg.carbon_dynamics
+    phenology = veg.phenology
+    photosynthesis = veg.photosynthesis
+    stomatal_conductance = veg.stomatal_conductance
+    autotrophic_respiration = veg.autotrophic_respiration
+    out = filter(v -> v isa Field, auxiliary_fields(state, carbon_dynamics, phenology, photosynthesis,
+                                                     stomatal_conductance, autotrophic_respiration))
+    # Full fields (no `except`): within a cell the kernel writes `out.foo` and a later stage reads
+    # `fields.foo` — the same `Field` object, so the write is visible to the stages below.
+    fields = get_fields(state, carbon_dynamics, phenology, photosynthesis, stomatal_conductance,
+                        autotrophic_respiration, atmos)
+    launch!(grid, XY, compute_auxiliary_kernel!, out, fields, veg, constants, atmos)
 
     # Note: vegetation_dynamics compute_auxiliary! does nothing for now
     compute_auxiliary!(state, grid, veg.vegetation_dynamics)
     return nothing
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Fused auxiliary kernel for the vegetation carbon cycle. Each component's per-cell mutating variant runs in
+dependency order — carbon dynamics (a pure producer of `balanced_leaf_area_index` from the vegetation carbon
+pool), then phenology (which reads it to set `leaf_area_index` and `phenology_factor`), then photosynthesis
+(which reads `leaf_area_index` and the soil moisture limiting factor to set `net_assimilation` and
+`gross_primary_production`), then stomatal conductance (which reads `net_assimilation` to set
+`canopy_water_conductance`), then autotrophic respiration (which reads `gross_primary_production` and
+`phenology_factor` to set `net_primary_production`) — so the chain resolves within a single launch.
+"""
+@kernel inbounds = true function compute_auxiliary_kernel!(
+        out, grid, fields,
+        veg::VegetationCarbonCycle,
+        constants::PhysicalConstants,
+        atmos::AbstractAtmosphere,
+        args...
+    )
+    i, j = @index(Global, NTuple)
+    compute_veg_carbon_auxiliary!(out, i, j, grid, fields, veg.carbon_dynamics, veg.traits)
+    compute_phenology!(out, i, j, grid, fields, veg.phenology, atmos)
+    # Photosynthesis reads stomatal conductance's parameters (λc) but not its auxiliary state
+    compute_photosynthesis!(out, i, j, grid, fields, veg.photosynthesis, veg.stomatal_conductance,
+                            veg.traits, constants, atmos)
+    compute_stomatal_conductance!(out, i, j, grid, fields, veg.stomatal_conductance, veg.traits, constants, atmos)
+    compute_autotrophic_respiration!(out, i, j, grid, fields, veg.autotrophic_respiration,
+                                     veg.carbon_dynamics, veg.phenology, veg.traits, atmos)
 end
 
 """
