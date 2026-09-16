@@ -102,12 +102,18 @@ function compute_auxiliary!(
     photosynthesis = veg.photosynthesis
     stomatal_conductance = veg.stomatal_conductance
     autotrophic_respiration = veg.autotrophic_respiration
-    out = filter(v -> v isa Field, auxiliary_fields(state, carbon_dynamics, phenology, photosynthesis,
-                                                     stomatal_conductance, autotrophic_respiration))
+    out = filter(
+        v -> v isa Field, auxiliary_fields(
+            state, carbon_dynamics, phenology, photosynthesis,
+            stomatal_conductance, autotrophic_respiration
+        )
+    )
     # Full fields (no `except`): within a cell the kernel writes `out.foo` and a later stage reads
     # `fields.foo` — the same `Field` object, so the write is visible to the stages below.
-    fields = get_fields(state, carbon_dynamics, phenology, photosynthesis, stomatal_conductance,
-                        autotrophic_respiration, atmos)
+    fields = get_fields(
+        state, carbon_dynamics, phenology, photosynthesis, stomatal_conductance,
+        autotrophic_respiration, atmos
+    )
     launch!(grid, XY, compute_auxiliary_kernel!, out, fields, veg, constants, atmos)
 
     # Note: vegetation_dynamics compute_auxiliary! does nothing for now
@@ -137,11 +143,15 @@ pool), then phenology (which reads it to set `leaf_area_index` and `phenology_fa
     compute_veg_carbon_auxiliary!(out, i, j, grid, fields, veg.carbon_dynamics, veg.traits)
     compute_phenology!(out, i, j, grid, fields, veg.phenology, atmos)
     # Photosynthesis reads stomatal conductance's parameters (λc) but not its auxiliary state
-    compute_photosynthesis!(out, i, j, grid, fields, veg.photosynthesis, veg.stomatal_conductance,
-                            veg.traits, constants, atmos)
+    compute_photosynthesis!(
+        out, i, j, grid, fields, veg.photosynthesis, veg.stomatal_conductance,
+        veg.traits, constants, atmos
+    )
     compute_stomatal_conductance!(out, i, j, grid, fields, veg.stomatal_conductance, veg.traits, constants, atmos)
-    compute_autotrophic_respiration!(out, i, j, grid, fields, veg.autotrophic_respiration,
-                                     veg.carbon_dynamics, veg.phenology, veg.traits, atmos)
+    compute_autotrophic_respiration!(
+        out, i, j, grid, fields, veg.autotrophic_respiration,
+        veg.carbon_dynamics, veg.phenology, veg.traits, atmos
+    )
 end
 
 """
