@@ -447,7 +447,7 @@ full `fields`. See rev 7 for the latent canopy-ET `snow` bug this surfaced and f
 After Phase 1 there are two XY tendencies (canopy water, surface excess water). They are **independent
 outputs** (neither feeds the other), so fusing them is the register-union anti-pattern from rev 6, not a
 chain. Tendency fusion is therefore **dropped** for surface hydrology; the two per-process tendency
-launches stay. (If ever revisited, capture registers first — see `scratch/capture_soil_regs.jl` — and
+launches stay. (If ever revisited, capture registers first — see `scratch/benchmarks/soil/capture_soil_regs.jl` — and
 only fuse if the chain holds or `@noinline` recovers occupancy.)
 
 ## Phase 4 — Fuse vegetation carbon (`VegetationCarbonCycle`) — **IMPLEMENTED (rev 9)**
