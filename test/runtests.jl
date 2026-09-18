@@ -27,6 +27,10 @@ if MAIN_TESTS
         include("state_variables.jl")
     end
 
+    @testset "Boundary conditions" begin
+        include("boundary_conditions.jl")
+    end
+
     @testset "Inputs" begin
         include("inputs/inputs.jl")
         include("inputs/namespaced_inputs.jl")

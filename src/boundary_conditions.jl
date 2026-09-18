@@ -36,4 +36,3 @@ Implementation of `Oceananigans.BoundaryConditions.getbc` for variable placehold
     field = getproperty(fields, name)
     return @inbounds field[i, j]
 end
-

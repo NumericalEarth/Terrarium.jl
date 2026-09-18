@@ -1,8 +1,8 @@
 using Terrarium
-using Terrarium: StateVariables, prognostic, auxiliary, var, input, boundary_conditions, fill_halo_regions!, varname, vardims, XY, XYZ
+using Terrarium: StateVariables, prognostic, auxiliary, var, input, fill_halo_regions!, varname, vardims, XY, XYZ
 using Test
 
-@testset "Boundary conditions" begin
+@testset "BC initialization" begin
     Nz = 10
     grid = ColumnGrid(UniformSpacing(Δz = 0.1, N = Nz))
     vars = variables(prognostic(:x, XYZ()), auxiliary(:y, XYZ()), input(:c, XY()))
@@ -15,6 +15,12 @@ using Test
     @test state.x.boundary_conditions.bottom == lowerbc
     set!(state.x, 0.5)
     fill_halo_regions!(state)
+end
+
+@testset "Merge BCs" begin
+    Nz = 10
+    grid = ColumnGrid(UniformSpacing(Δz = 0.1, N = Nz))
+    vars = variables(prognostic(:x, XYZ()), auxiliary(:y, XYZ()), input(:c, XY()))
     # check that halo matches boundary value that makes the face equal to 1
     @test state.x[1, 1, Nz + 1] == 1.5
     bc2 = (y = (top = ValueBoundaryCondition(var(:c, XY())), bottom = ValueBoundaryCondition(0.0)),)
