@@ -71,8 +71,8 @@ ConstructionBase.constructorof(::Type{<:StateVariables{NF, pnames, cnames}}) whe
 """
     update_state!(state::StateVariables, model::AbstractModel, inputs::InputSources; compute_tendencies = true)
 
-Update the `state` for the given `model` and `inputs`; this includes calling `update_inputs!` and
-`fill_halo_regions!` followed by `compute_auxiliary!` and `compute_tendencies!`, if `compute_tendencies = true`.
+Update the `state` for the given `model` and `inputs`; this includes calling `update_inputs!` and `compute_auxiliary!`
+as well as `compute_tendencies!`, if `compute_tendencies = true`.
 """
 function Oceananigans.TimeSteppers.update_state!(state::StateVariables, model::AbstractModel, inputs::InputSources; compute_tendencies = true)
     reset_tendencies!(state)
