@@ -107,6 +107,17 @@ Oceananigans.Grids.isrectilinear(grid::ColumnRingGrid) = isrectilinear(getfield(
 @inline Oceananigans.Grids.ynodes(grid::ColumnRingGrid, args...; kwargs...) = ynodes(getfield(grid, :grid), args...; kwargs...)
 @inline Oceananigans.Grids.znodes(grid::ColumnRingGrid, args...; kwargs...) = znodes(getfield(grid, :grid), args...; kwargs...)
 
+# Generalized coordinate names and nodes. These are not part of the documented `AbstractGrid`
+# interface and `ξname`/`ηname`/`rname` are not even exported by `Oceananigans.Grids`, but
+# `set!(::Field, ::Function)` needs them to name and evaluate the coordinates of each node.
+Oceananigans.Grids.ξname(grid::ColumnRingGrid) = Oceananigans.Grids.ξname(getfield(grid, :grid))
+Oceananigans.Grids.ηname(grid::ColumnRingGrid) = Oceananigans.Grids.ηname(getfield(grid, :grid))
+Oceananigans.Grids.rname(grid::ColumnRingGrid) = Oceananigans.Grids.rname(getfield(grid, :grid))
+
+@inline Oceananigans.Grids.ξnode(i, j, k, grid::ColumnRingGrid, ℓx, ℓy, ℓz) = ξnode(i, j, k, getfield(grid, :grid), ℓx, ℓy, ℓz)
+@inline Oceananigans.Grids.ηnode(i, j, k, grid::ColumnRingGrid, ℓx, ℓy, ℓz) = ηnode(i, j, k, getfield(grid, :grid), ℓx, ℓy, ℓz)
+@inline Oceananigans.Grids.rnode(i, j, k, grid::ColumnRingGrid, ℓx, ℓy, ℓz) = rnode(i, j, k, getfield(grid, :grid), ℓx, ℓy, ℓz)
+
 # See the corresponding note for land grids in `grids.jl`: Oceananigans accesses grid dimensions and
 # discretization data as struct fields, so forward anything that is not one of our own fields.
 @inline Base.getproperty(grid::ColumnRingGrid, name::Symbol) = hasfield(typeof(grid), name) ? getfield(grid, name) : getproperty(getfield(grid, :grid), name)
