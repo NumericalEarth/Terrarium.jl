@@ -21,7 +21,8 @@ using Oceananigans.AbstractOperations: Average, Integral, ConditionalOperation, 
 using Oceananigans.Architectures: Architectures, AbstractArchitecture, CPU, GPU, ReactantState, architecture, on_architecture, array_type
 using Oceananigans.Fields: Field, FunctionField, AbstractField, Center, Face, set!, compute!, interior, location
 using Oceananigans.Forcings: Forcing, ContinuousForcing, DiscreteForcing
-using Oceananigans.Grids: Periodic, Flat, Bounded, znodes, znode, zspacings
+using Oceananigans.Grids: AbstractGrid, RectilinearGrid, CallableDiscretization, ExponentialDiscretization,
+    Periodic, Flat, Bounded, halo_size, isrectilinear, nodes, topology, xnodes, ynodes, znodes, znode, zspacings
 using Oceananigans.Operators: ∂zᵃᵃᶜ, ∂zᵃᵃᶠ, ℑzᵃᵃᶠ, Δzᵃᵃᶜ
 using Oceananigans.OutputReaders: FieldTimeSeries
 using Oceananigans.Simulations: Simulation, run!, timestepper, TimeStepWizard, conjure_time_step_wizard!, Callback, add_callback!
@@ -118,10 +119,11 @@ export XY, XYZ
 include("abstract_variables.jl")
 
 # grids
-export UniformSpacing, ExponentialSpacing, PrescribedSpacing
+export UniformSpacing, ExponentialSpacing, num_layers
 include("grids/vertical_discretization.jl")
 
-export ColumnGrid, ColumnRingGrid, get_field_grid
+export ColumnGrid, ColumnRingGrid, LandGrid
+export create_land_grid, ground_domain, snow_domain, canopy_domain
 include("grids/grids.jl")
 
 export ERA5LandForcings, ERA5LandInvariants, ERA5LandLeafAreaIndex

@@ -15,7 +15,7 @@ using Oceananigans
 using Oceananigans.Architectures: ReactantState, CPU, architecture, on_architecture
 
 using Terrarium: Terrarium, AbstractLandGrid, ColumnGrid, ColumnRingGrid, AbstractModel,
-    ModelIntegrator, get_field_grid, get_grid, get_timestepper
+    ModelIntegrator, ground_domain, get_grid, get_timestepper
 
 const RARCH = ReactantState
 

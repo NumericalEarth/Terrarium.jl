@@ -122,12 +122,12 @@ is thus not the same as the saturation tendency.
         evapotranspiration::Optional{AbstractEvapotranspiration}
     ) where {NF}
     # Operators require the underlying Oceananigans grid
-    field_grid = get_field_grid(grid)
+    ground_grid = ground_domain(grid)
 
     # Compute divergence of water fluxes
     # ∂θ∂t = ∇⋅K(θ)∇Ψ + S, where Ψ = ψₘ + ψₕ + ψz, and S is a forcing term for sources and sinks such as ET losses
     ∂θ∂t = (
-        - ∂zᵃᵃᶜ(i, j, k, field_grid, darcy_flux, fields.pressure_head, fields.hydraulic_conductivity)  # Darcy flux
+        - ∂zᵃᵃᶜ(i, j, k, ground_grid, darcy_flux, fields.pressure_head, fields.hydraulic_conductivity)  # Darcy flux
             + forcing(i, j, k, grid, clock, fields, evapotranspiration, hydrology, constants)          # ET source/sink
             + forcing(i, j, k, grid, clock, fields, hydrology.vwc_forcing, hydrology)                  # generic user-defined forcing
     )
@@ -180,9 +180,9 @@ Computes the unsaturated hydraulic conductivity for `RichardsEq` configurations 
         bgc::AbstractSoilBiogeochemistry
     ) where {NF}
     # Get underlying grid
-    fgrid = get_field_grid(grid)
+    ground_grid = ground_domain(grid)
     # compute hydraulic conductivity
-    Nz = fgrid.Nz
+    Nz = ground_grid.Nz
     k_below = ifelse(k >= Nz, Nz, max(k - 1, one(k)))
     k_above = min(k, Nz)
     K_face = min(
