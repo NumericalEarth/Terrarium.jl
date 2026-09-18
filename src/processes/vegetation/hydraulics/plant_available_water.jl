@@ -32,7 +32,7 @@ Field constructor for the soil moisture limiting factor. Returns a derived `Fiel
 the integral of `W(z) * r(z)` where `W` is the water availability coefficient and `r` is the root fraction.
 """
 function soil_moisture_limiting_factor(grid, clock, fields, ::FieldCapacityLimitedPAW)
-    Δz = zspacings(get_field_grid(grid), Center(), Center(), Center())
+    Δz = zspacings(ground_domain(grid), Center(), Center(), Center())
     β = Integral(fields.plant_available_water * fields.root_fraction / Δz, dims = 3)
     return Field(β)
 end

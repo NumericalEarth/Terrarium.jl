@@ -27,7 +27,7 @@ import RingGrids
 #
 # We build the same ~1° global land grid as the ERA5 example: all grid points with more than 50%
 # land become independent soil columns. Reactant currently requires uniform vertical spacing (see
-# the [Reactant page](@ref)), so we use `UniformSpacing` instead of `ExponentialSpacing`.
+# the [Reactant page](@ref)), so we use uniformly spaced layers instead of `ExponentialSpacing`.
 
 ## Load land-sea mask at ~1° resolution
 land_sea_frac_10km = RingGrids.Field(ERA5LandInvariants(), "lsm")

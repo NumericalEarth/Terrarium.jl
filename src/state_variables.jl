@@ -126,7 +126,7 @@ Initialize input variables from the given input `sources`. The `scope` correspon
 path of namespace names from the root namespace to `state` and is used to match namespaced
 input sources to their target variables; see [`varpath`](@ref).
 """
-function initialize!(state::StateVariables, grid::AbstractLandGrid, sources::InputSources, scope::Tuple{Vararg{Symbol}} = ())
+function initialize!(state::StateVariables, grid::AbstractGrid, sources::InputSources, scope::Tuple{Vararg{Symbol}} = ())
     # initialize inputs in current namespace, passing the full state as read-only `fields`
     initialize!(state.inputs, grid, state.clock, state, sources, scope)
     # recursively initialize namespaces
@@ -141,7 +141,7 @@ Update input variables from the given input `sources`. The `scope` corresponds t
 path of namespace names from the root namespace to `state` and is used to match namespaced
 input sources to their target variables; see [`varpath`](@ref).
 """
-function update_inputs!(state::StateVariables, grid::AbstractLandGrid, sources::InputSources, scope::Tuple{Vararg{Symbol}} = ())
+function update_inputs!(state::StateVariables, grid::AbstractGrid, sources::InputSources, scope::Tuple{Vararg{Symbol}} = ())
     # update inputs in current namespace, passing the full state as read-only `fields`
     update_inputs!(state.inputs, grid, state.clock, state, sources, scope)
     # debug: check all inputs are finite
@@ -319,10 +319,13 @@ end
 Initialize a `StateVariables` data structure containing `Field`s defined on the given `grid`
 for all variables defined by `process`. Any predefined `boundary_conditions` and `fields` will
 be passed through to `initialize` for each variable.
+
+The `grid` may be either a land grid or an ordinary spatial discretization, which is converted to
+a land grid via [`create_land_grid`](@ref).
 """
 function StateVariables(
         process::AbstractProcess{NF},
-        grid::AbstractLandGrid{NF},
+        grid::AbstractGrid{NF},
         params = nothing;
         clock = Clock(time = zero(NF)),
         input_variables = (),
@@ -346,10 +349,13 @@ Initialize a `StateVariables` data structure containing `Field`s defined on the 
 for all variables in `vars`. Any predefined `boundary_conditions` and `fields` will be passed
 through to `initialize` for each variable. The `timestepper`'s cache is allocated via
 `initialize(timestepper, state, progvars)`.
+
+The `grid` may be either a land grid or an ordinary spatial discretization, which is converted to
+a land grid via [`create_land_grid`](@ref); state variables always live on a land grid.
 """
 function StateVariables(
         vars::Variables,
-        grid::AbstractLandGrid{NF};
+        grid::AbstractGrid{NF};
         clock::Clock = Clock(time = 0.0),
         timestepper = default_timestepper(NF),
         model = nothing,
@@ -357,17 +363,20 @@ function StateVariables(
         initializers = (;),
         fields = (;)
     ) where {NF}
+    # State variables always live on a land grid, so an ordinary spatial discretization is converted
+    # to one here exactly as the model constructors do; this is a no-op for a land grid.
+    land_grid = create_land_grid(grid)
     # Initialize Fields for each variable group, if they are not already given in the user defined `fields`.
     fields_dict = OrderedDict{Symbol, AbstractField}(pairs(fields))
-    input_fields_dict = initialize(vars.inputs, grid, clock, fields_dict, boundary_conditions)
-    tendency_fields_dict = initialize(vars.tendencies, grid, clock, fields_dict, boundary_conditions)
-    prognostic_fields_dict = initialize(vars.prognostic, grid, clock, merge(fields_dict, input_fields_dict), boundary_conditions)
-    auxiliary_fields_dict = initialize(vars.auxiliary, grid, clock, merge(fields_dict, input_fields_dict, prognostic_fields_dict), boundary_conditions)
+    input_fields_dict = initialize(vars.inputs, land_grid, clock, fields_dict, boundary_conditions)
+    tendency_fields_dict = initialize(vars.tendencies, land_grid, clock, fields_dict, boundary_conditions)
+    prognostic_fields_dict = initialize(vars.prognostic, land_grid, clock, merge(fields_dict, input_fields_dict), boundary_conditions)
+    auxiliary_fields_dict = initialize(vars.auxiliary, land_grid, clock, merge(fields_dict, input_fields_dict, prognostic_fields_dict), boundary_conditions)
     # recursively initialize state variables for each namespace
     namespaces = map(values(vars.namespaces)) do ns
         ns_bcs = get(boundary_conditions, varname(ns), (;))
         ns_fields = get(fields, varname(ns), (;))
-        varname(ns) => StateVariables(variables(ns), grid; clock, boundary_conditions = ns_bcs, fields = ns_fields)
+        varname(ns) => StateVariables(variables(ns), land_grid; clock, boundary_conditions = ns_bcs, fields = ns_fields)
     end
     # get closure variable names
     closurenames = map(varname, closure_variables(values(vars.prognostic)))

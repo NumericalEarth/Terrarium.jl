@@ -8,7 +8,7 @@ using Enzyme
     # Model setup
     arch = CPU()
     NF = Float32
-    grid = ColumnGrid(arch, NF, UniformSpacing(N = 10))
+    grid = ColumnGrid(arch, NF, UniformSpacing(Δz = 0.1, N = 10))
     initializer = SoilInitializer(NF)
     model = SoilModel(grid; timestepper = ForwardEuler(NF), initializer = initializer)
     # constant surface temperature of 1°C

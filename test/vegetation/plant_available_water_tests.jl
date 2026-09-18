@@ -22,7 +22,7 @@ using Test
 
     # Soil moisture limiting factor
     ## use uniform root distribution
-    Δz = zspacings(get_field_grid(grid), Center(), Center(), Face())
+    Δz = zspacings(ground_domain(grid), Center(), Center(), Face())
     RF = set!(state.root_fraction, Δz / 2)
     ## set PAW to 50% in all layers
     PAW = set!(state.plant_available_water, 0.5)

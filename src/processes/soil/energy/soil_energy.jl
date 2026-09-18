@@ -41,10 +41,10 @@ variables(energy::SoilThermodynamics) = (
 
 # Field constructor for ground_temperature that returns a view of the uppermost soil layer
 function ground_temperature(grid, clock, fields, energy::SoilThermodynamics)
-    fgrid = get_field_grid(grid)
+    ground_grid = ground_domain(grid)
     # Use uppermost soil layer as ground temperature
     # TODO: Revisit this if/when we extend the vertical layers to include snow and canopy
-    return @view fields.temperature[:, :, fgrid.Nz]
+    return @view fields.temperature[:, :, ground_grid.Nz]
 end
 
 get_thermal_properties(energy::SoilThermodynamics) = energy.thermal_properties

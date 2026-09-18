@@ -59,8 +59,8 @@ volumetric energy/temperature closure) as the pack thins toward zero: half the t
 uppermost soil grid cell, so the floor scales with the grid resolution rather than a fixed constant.
 """
 @propagate_inbounds function min_snow_conduction_thickness(i, j, grid, fields, ::SingleLayerSnow)
-    field_grid = get_field_grid(grid)
-    return Δzᵃᵃᶜ(i, j, field_grid.Nz, field_grid) / 2
+    ground_grid = ground_domain(grid)
+    return Δzᵃᵃᶜ(i, j, ground_grid.Nz, ground_grid) / 2
 end
 
 # Top-level interface

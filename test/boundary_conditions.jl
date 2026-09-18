@@ -4,7 +4,7 @@ using Test
 
 @testset "Boundary conditions" begin
     Nz = 10
-    grid = ColumnGrid(UniformSpacing(N = Nz))
+    grid = ColumnGrid(UniformSpacing(Δz = 0.1, N = Nz))
     vars = variables(prognostic(:x, XYZ()), auxiliary(:y, XYZ()), input(:c, XY()))
     clock = Clock(time = 0.0)
     upperbc = ValueBoundaryCondition(1.0)
