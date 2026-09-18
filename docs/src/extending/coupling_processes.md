@@ -27,9 +27,9 @@ variables(energy::SoilThermodynamics) = (
 )
 
 function ground_temperature(grid, clock, fields, energy::SoilThermodynamics)
-    fgrid = get_field_grid(grid)
+    ground_grid = ground_domain(grid)
     # Use uppermost soil layer as ground temperature
-    return @view fields.temperature[:, :, fgrid.Nz]
+    return @view fields.temperature[:, :, ground_grid.Nz]
 end
 ```
 
