@@ -73,7 +73,7 @@ compute_auxiliary!(state, grid, energy::SoilThermodynamics, soil::AbstractSoil, 
 """ $TYPEDSIGNATURES """
 function compute_boundary_conditions!(state, grid, ::SoilThermodynamics)
     fill_halo_regions!(state.temperature, state)
-    compute_z_bcs!(state.tendencies.internal_energy, state.internal_energy, grid, state)
+    compute_z_bcs!(state.tendencies.internal_energy, state.internal_energy, architecture(grid), state.clock, state.inputs)
     return nothing
 end
 

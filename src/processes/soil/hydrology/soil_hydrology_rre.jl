@@ -81,7 +81,7 @@ function compute_boundary_conditions!(
     fill_halo_regions!(state.pressure_head, state)
     infiltration_field = hasproperty(state, :infiltration) ? (; infiltration = state.infiltration) : (;)
     fields = merge(get_fields(state, hydrology, strat, bgc), infiltration_field)
-    compute_z_bcs!(state.tendencies.saturation_water_ice, state.saturation_water_ice, grid, state.clock, fields)
+    compute_z_bcs!(state.tendencies.saturation_water_ice, state.saturation_water_ice, architecture(grid), state.clock, fields)
     return nothing
 end
 
