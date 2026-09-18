@@ -24,6 +24,7 @@ using Test
     state = StateVariables(vars, grid; clock, boundary_conditions = merged_bcs)
     # check that we can set the input variable to modify the boundary condition
     set!(state.c, 1.0)
+    fill_halo_regions!(state.x, state)
     fill_halo_regions!(state.y, state)
     @test state.x[1, 1, Nz + 1] == 2.0
 end
