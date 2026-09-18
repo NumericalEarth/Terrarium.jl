@@ -211,3 +211,12 @@ RingGrids.Field(field::Union{AbstractField, AbstractArray}, grid::AbstractLandGr
 RingGrids.Field(arch::AbstractArchitecture, field::Union{AbstractField, AbstractArray}, grid::AbstractLandGrid; kwargs...) = RingGrids.Field(arch, field, ground_domain(grid); kwargs...)
 Oceananigans.Field(ring_field::RingGrids.AbstractField, grid::AbstractLandGrid; kwargs...) = Oceananigans.Field(ring_field, ground_domain(grid); kwargs...)
 Oceananigans.FieldTimeSeries(ring_field::RingGrids.AbstractField, grid::AbstractLandGrid, times::AbstractVector; kwargs...) = Oceananigans.FieldTimeSeries(ring_field, ground_domain(grid), times; kwargs...)
+
+"""
+    $SIGNATURES
+
+Serialize a `ColumnRingGrid` as the `RectilinearGrid` it wraps. The `rings` and `mask` fields are
+intentionally discarded, so `Field`s will be read back as plain `RectilinearGrid`s.
+"""
+Oceananigans.OutputWriters.serializeproperty!(file, address, grid::ColumnRingGrid) =
+    Oceananigans.OutputWriters.serializeproperty!(file, address, getfield(grid, :grid))
