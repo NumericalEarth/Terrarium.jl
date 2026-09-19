@@ -474,7 +474,7 @@ function initialize(
         return fields[name]
     else
         bcs = get(boundary_conditions, name, nothing)
-        field = Field(grid, vardims(var), bcs)
+        field = Field(grid, varloc(var), bcs)
         # if field is an input variable and has a default value/initializer, call set! on it
         if isa(var, InputVariable) && !isnothing(var.default)
             set!(field, var.default)
@@ -502,7 +502,7 @@ function initialize(
     elseif isnothing(var.ctor)
         # retrieve boundary condition (if any) and create Field
         bcs = get(boundary_conditions, name, nothing)
-        return Field(grid, vardims(var), bcs)
+        return Field(grid, varloc(var), bcs)
     else
         # invoke field constructor if specified
         return var.ctor(var, grid, clock, NamedTuple(fields))

@@ -95,13 +95,13 @@ with the bulk density `ρ_snow`.
 # Process methods
 
 variables(snow::SingleLayerSnow) = (
-    prognostic(:snow_energy, XY(); closure = get_closure(snow), units = u"J/m^2", desc = "Depth-integrated (column) internal energy of the snowpack relative to water at 0°C"),
-    prognostic(:snow_water_equivalent, XY(); units = u"m", desc = "Snow water equivalent (ice + retained liquid)"),
-    auxiliary(:snow_depth, XY(); units = u"m", desc = "Snow layer depth"),
-    auxiliary(:snow_cover_fraction, XY(); bounds = UnitInterval, desc = "Sub-grid snow-covered area fraction"),
-    input(:surface_heat_flux, XY(); units = u"W/m^2", desc = "Net heat flux at the snow surface (positive upward)"),
-    input(:basal_heat_flux, XY(); units = u"W/m^2", desc = "Conductive heat flux at the snow base (positive upward, soil → snow)"),
-    input(:sublimation, XY(); units = u"m/s", desc = "Sublimation/evaporation rate from the snow surface (SWE)"),
+    prognostic(:snow_energy, Snow(XY()); closure = get_closure(snow), units = u"J/m^2", desc = "Depth-integrated (column) internal energy of the snowpack relative to water at 0°C"),
+    prognostic(:snow_water_equivalent, Snow(XY()); units = u"m", desc = "Snow water equivalent (ice + retained liquid)"),
+    auxiliary(:snow_depth, Snow(XY()); units = u"m", desc = "Snow layer depth"),
+    auxiliary(:snow_cover_fraction, Snow(XY()); bounds = UnitInterval, desc = "Sub-grid snow-covered area fraction"),
+    input(:surface_heat_flux, Snow(XY()); units = u"W/m^2", desc = "Net heat flux at the snow surface (positive upward)"),
+    input(:basal_heat_flux, Snow(XY()); units = u"W/m^2", desc = "Conductive heat flux at the snow base (positive upward, soil → snow)"),
+    input(:sublimation, Snow(XY()); units = u"m/s", desc = "Sublimation/evaporation rate from the snow surface (SWE)"),
 )
 
 """

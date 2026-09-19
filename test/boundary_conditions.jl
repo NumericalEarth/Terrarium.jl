@@ -1,11 +1,12 @@
 using Terrarium
 using Terrarium: StateVariables, prognostic, auxiliary, var, input, fill_halo_regions!, merge_boundary_conditions, varname, vardims, XY, XYZ
 using Test
+using Terrarium: Ground
 
 @testset "Field BC configuration" begin
     Nz = 10
     grid = ColumnGrid(UniformSpacing(Δz = 0.1, N = Nz))
-    vars = variables(prognostic(:x, XYZ()), auxiliary(:y, XYZ()), input(:c, XY()))
+    vars = variables(prognostic(:x, Ground(XYZ())), auxiliary(:y, Ground(XYZ())), input(:c, Ground(XY())))
     clock = Clock(time = 0.0)
     upperbc = ValueBoundaryCondition(1.0)
     lowerbc = FluxBoundaryCondition(-0.01)
@@ -17,7 +18,7 @@ using Test
     fill_halo_regions!(state.x, state)
     # check that halo matches boundary value that makes the face equal to 1
     @test state.x[1, 1, Nz + 1] == 1.5
-    bc2 = (y = (top = ValueBoundaryCondition(var(:c, XY())), bottom = ValueBoundaryCondition(0.0)),)
+    bc2 = (y = (top = ValueBoundaryCondition(var(:c, Ground(XY()))), bottom = ValueBoundaryCondition(0.0)),)
     merged_bcs = merge_boundary_conditions(bc1, bc2)
     @test hasproperty(merged_bcs, :x)
     @test hasproperty(merged_bcs, :y)

@@ -45,9 +45,9 @@ end
 
 variables(::BareGroundEvaporation) = (
     # Skin-driven vapor conductance β/rₐ (independent of skin temperature; held fixed during the SEB solve)
-    auxiliary(:ground_evaporation_conductance, XY(), units = u"m/s", desc = "Ground evaporation vapor conductance"),
-    auxiliary(:evaporation_ground, XY(), units = u"m/s", desc = "Ground evaporation flux in meters liquid water height"),
-    input(:skin_temperature, XY(), units = u"°C", desc = "Skin temperature of the surface"),
+    auxiliary(:ground_evaporation_conductance, Ground(XY()), units = u"m/s", desc = "Ground evaporation vapor conductance"),
+    auxiliary(:evaporation_ground, Ground(XY()), units = u"m/s", desc = "Ground evaporation flux in meters liquid water height"),
+    input(:skin_temperature, Surface(XY()), units = u"°C", desc = "Skin temperature of the surface"),
 )
 
 """ $TYPEDSIGNATURES """

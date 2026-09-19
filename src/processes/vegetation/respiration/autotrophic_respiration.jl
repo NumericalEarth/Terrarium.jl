@@ -30,11 +30,11 @@ end
 PALADYNAutotrophicRespiration(::Type{NF}; kwargs...) where {NF} = PALADYNAutotrophicRespiration{NF}(; kwargs...)
 
 variables(::PALADYNAutotrophicRespiration) = (
-    auxiliary(:autotrophic_respiration, XY(), units = u"kg/m^2/s"), # Autotrophic respiration [kgC/m²/s]
-    auxiliary(:net_primary_production, XY(), units = u"kg/m^2/s"), # Net Primary Production [kgC/m²/s]
-    input(:gross_primary_production, XY(), units = u"kg/m^2/s"), # Gross Primary Production [kgC/m²/s]
-    input(:daily_leaf_respiration, XY(), units = u"g/m^2/s"), # Daily leaf respiration [gC/m²/s]
-    input(:ground_temperature, XY(), default = 10.0, units = u"°C"), # Ground surface temperature [°C]
+    auxiliary(:autotrophic_respiration, Canopy(XY()), units = u"kg/m^2/s"), # Autotrophic respiration [kgC/m²/s]
+    auxiliary(:net_primary_production, Canopy(XY()), units = u"kg/m^2/s"), # Net Primary Production [kgC/m²/s]
+    input(:gross_primary_production, Canopy(XY()), units = u"kg/m^2/s"), # Gross Primary Production [kgC/m²/s]
+    input(:daily_leaf_respiration, Canopy(XY()), units = u"g/m^2/s"), # Daily leaf respiration [gC/m²/s]
+    input(:ground_temperature, Ground(Top(z = Center())), default = 10.0, units = u"°C"), # Ground surface temperature [°C]
 )
 
 """

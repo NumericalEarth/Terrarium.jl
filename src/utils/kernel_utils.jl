@@ -79,7 +79,7 @@ This is intended to be used as a constructor for `AuxiliaryVariable`s:
 ```julia
 myvar(i, j, k, grid, fields) = clamp(fields.x[i, j, k], zero(eltype(grid)), one(eltype(grid)))
 
-auxvar = auxiliary(:myvar, XYZ(), kernel(myvar))
+auxvar = auxiliary(:myvar, Ground(XYZ()), kernel(myvar))
 ```
 """
 function kernel(func, args...; clock = false)

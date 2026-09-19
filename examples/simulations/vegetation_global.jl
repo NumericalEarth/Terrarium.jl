@@ -41,7 +41,7 @@ lai_asset_path = Terrarium.get_asset(lai_asset)
 # cycle = true` makes the LAI climatology repeat every year over the whole simulation.
 lai_raster = RasterStack(lai_asset_path, lazy = true)
 lai_highveg = convert.(NF, replace_missing(lai_raster[:lai_hv], zero(NF)))
-lai_input = InputSource(grid, lai_highveg; source_grid = Terrarium.native_grid(lai_asset), name = :leaf_area_index, cycle = true)
+lai_input = InputSource(grid, lai_highveg; source_grid = Terrarium.native_grid(lai_asset), name = :leaf_area_index, cycle = true, domain = Terrarium.Canopy())
 
 # ## Vegetation model
 # Here we set up a [`PrescribedVegetation`](@ref) model which uses [`PrescribedPhenology`](@ref) to take LAI as a prescribed input.

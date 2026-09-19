@@ -41,7 +41,7 @@ Compute the continuous density function of the root distirbution as a function o
 end
 
 variables(rootdist::StaticExponentialRootDistribution) = (
-    auxiliary(:root_fraction, XYZ(), root_fraction, rootdist), # Static root fraction defined as function
+    auxiliary(:root_fraction, Ground(XYZ()), root_fraction, rootdist), # Static root fraction defined as function
 )
 
 """

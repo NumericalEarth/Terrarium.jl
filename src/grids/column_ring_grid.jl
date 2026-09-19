@@ -170,7 +170,7 @@ function Oceananigans.Field(ring_field::RingGrids.AbstractField, grid::ColumnRin
     mask = grid.mask.data   # host boolean mask (see note above)
     gathered = data[mask, :]
     values = reshape(gathered, size(gathered, 1), 1, size(gathered, 2))
-    oceananigans_field = Field(grid, dims)
+    oceananigans_field = Field(grid, Ground(dims))
     set!(oceananigans_field, values)
     return oceananigans_field
 end
@@ -196,7 +196,7 @@ function Oceananigans.FieldTimeSeries(ring_field::RingGrids.AbstractField, grid:
     mask = grid.mask.data   # host boolean mask (see note above)
     gathered = data[mask, :, :]
     values = reshape(gathered, size(gathered, 1), 1, size(gathered)[2:end]...)
-    oceananigans_fts = FieldTimeSeries(grid, dims, times)
+    oceananigans_fts = FieldTimeSeries(grid, Ground(dims), times)
     copyto!(interior(oceananigans_fts), values)
     return oceananigans_fts
 end

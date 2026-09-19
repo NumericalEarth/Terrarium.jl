@@ -9,8 +9,8 @@ $TYPEDFIELDS
 PrescribedAlbedo(::Type{NF}) where {NF} = PrescribedAlbedo{NF}()
 
 variables(::PrescribedAlbedo) = (
-    input(:albedo, XY(), bounds = UnitInterval, desc = "Surface albedo, i.e. ratio of outgoing to incoming shortwave radiation [-]"),
-    input(:emissivity, XY(), bounds = UnitInterval, desc = "Surface emissivity, i.e. efficiency of longwave emission [-]"),
+    input(:albedo, Surface(XY()), bounds = UnitInterval, desc = "Surface albedo, i.e. ratio of outgoing to incoming shortwave radiation [-]"),
+    input(:emissivity, Surface(XY()), bounds = UnitInterval, desc = "Surface emissivity, i.e. efficiency of longwave emission [-]"),
 )
 
 """
@@ -66,8 +66,8 @@ end
 DiagnosticAlbedo(::Type{NF}; kwargs...) where {NF} = DiagnosticAlbedo{NF}(; kwargs...)
 
 variables(::DiagnosticAlbedo) = (
-    auxiliary(:albedo, XY(), bounds = UnitInterval, desc = "Diagnosed surface albedo [-]"),
-    auxiliary(:emissivity, XY(), bounds = UnitInterval, desc = "Diagnosed surface emissivity [-]"),
+    auxiliary(:albedo, Surface(XY()), bounds = UnitInterval, desc = "Diagnosed surface albedo [-]"),
+    auxiliary(:emissivity, Surface(XY()), bounds = UnitInterval, desc = "Diagnosed surface emissivity [-]"),
 )
 
 """

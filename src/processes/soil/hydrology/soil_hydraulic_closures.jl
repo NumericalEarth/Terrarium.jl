@@ -12,7 +12,7 @@ which is here defined in implementations of [`AbstractSoilHydraulics`](@ref).
 @kwdef struct SoilSaturationPressureClosure <: AbstractSoilWaterClosure end
 
 variables(::SoilSaturationPressureClosure) = (
-    auxiliary(:pressure_head, XYZ(), units = u"m", desc = "Total hydraulic pressure head in m water displaced at standard pressure"),
+    auxiliary(:pressure_head, Ground(XYZ()), units = u"m", desc = "Total hydraulic pressure head in m water displaced at standard pressure"),
 )
 
 """

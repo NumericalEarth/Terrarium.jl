@@ -17,9 +17,9 @@ PrescribedRadiativeFluxes(::Type{NF}) where {NF} = PrescribedRadiativeFluxes{NF}
 ## Top-level interface methods
 
 variables(::PrescribedRadiativeFluxes) = (
-    input(:surface_shortwave_up, XY(), units = u"W/m^2", desc = "Outgoing (upwelling) shortwave radiation"),
-    input(:surface_longwave_up, XY(), units = u"W/m^2", desc = "Outgoing (upwelling) longwave radiation"),
-    auxiliary(:surface_net_radiation, XY(), units = u"W/m^2", desc = "Net outgoing (positive up) radiation"),
+    input(:surface_shortwave_up, Surface(XY()), units = u"W/m^2", desc = "Outgoing (upwelling) shortwave radiation"),
+    input(:surface_longwave_up, Surface(XY()), units = u"W/m^2", desc = "Outgoing (upwelling) longwave radiation"),
+    auxiliary(:surface_net_radiation, Surface(XY()), units = u"W/m^2", desc = "Net outgoing (positive up) radiation"),
 )
 
 """ $TYPEDSIGNATURES """
@@ -129,9 +129,9 @@ end
 ## Top-level interface methods
 
 variables(::DiagnosedRadiativeFluxes) = (
-    auxiliary(:surface_shortwave_up, XY(), units = u"W/m^2", desc = "Outgoing (upwelling) shortwave radiation"),
-    auxiliary(:surface_longwave_up, XY(), units = u"W/m^2", desc = "Outgoing (upwelling) longwave radiation"),
-    auxiliary(:surface_net_radiation, XY(), units = u"W/m^2", desc = "Net radiation budget"),
+    auxiliary(:surface_shortwave_up, Surface(XY()), units = u"W/m^2", desc = "Outgoing (upwelling) shortwave radiation"),
+    auxiliary(:surface_longwave_up, Surface(XY()), units = u"W/m^2", desc = "Outgoing (upwelling) longwave radiation"),
+    auxiliary(:surface_net_radiation, Surface(XY()), units = u"W/m^2", desc = "Net radiation budget"),
 )
 
 """ $TYPEDSIGNATURES """

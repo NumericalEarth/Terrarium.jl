@@ -18,9 +18,11 @@
 # this implementation is meant only to serve as an example.
 
 using Terrarium
+using Terrarium: Ground, XYZ
 using KernelAbstractions: @kernel, @index
 using Oceananigans.Operators: ∂zᵃᵃᶜ, ∂zᵃᵃᶠ
 using Oceananigans.Utils: launch!
+using Terrarium: Ground
 
 # ## Defining the process types
 #
@@ -52,7 +54,7 @@ LinearHeatConduction(::Type{NF}; kwargs...) where {NF} = LinearHeatConduction{NF
 # by this process. Temperature is a 3D column variable ([`XYZ`](@ref)) since it varies with depth.
 
 Terrarium.variables(::LinearHeatConduction) = (
-    Terrarium.prognostic(:temperature, Terrarium.XYZ(); units = u"°C"),
+    Terrarium.prognostic(:temperature, Ground(XYZ()); units = u"°C"),
 )
 
 # `prognostic` means the timestepper integrates this variable based on its tendency at each

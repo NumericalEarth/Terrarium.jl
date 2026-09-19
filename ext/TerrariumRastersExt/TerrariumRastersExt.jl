@@ -31,9 +31,9 @@ When `cycle = true`, the time axis is treated as periodic (e.g. an annual climat
 whole simulation. This type should generally not be constructed directly but rather via the `InputSource`
 constructor interface; static (time-invariant) rasters instead yield a plain `FieldInputSource`.
 """
-struct RasterInputSource{NF, name, VD, TT, IM <: AbstractVector{Int}, RS <: AbstractRaster{NF}, SG, UT, EX <: Extrapolation} <: InputSource{NF, name}
-    "Variable dimensions"
-    dims::VD
+struct RasterInputSource{NF, name, VL, TT, IM <: AbstractVector{Int}, RS <: AbstractRaster{NF}, SG, UT, EX <: Extrapolation} <: InputSource{NF, name}
+    "Variable location: spatial dimensions and the model domain the variable lives on"
+    loc::VL
 
     "Physical units"
     units::UT
@@ -67,6 +67,7 @@ function Terrarium.InputSource(
         raster::AbstractRaster{NF};
         source_grid = grid.rings,
         name = raster.name,
+        domain::Terrarium.VarDomain = Terrarium.Surface(),
         units = NoUnits,
         timedim = Ti,
         reftime = nothing,
@@ -78,7 +79,7 @@ function Terrarium.InputSource(
         td = dims(raster, timedim)
         raster = set(raster, td => Ti(td.val))
     end
-    return RasterInputSource(grid, source_grid, raster, dims(raster, Ti), name, units, reftime, extrapolation)
+    return RasterInputSource(grid, source_grid, raster, dims(raster, Ti), name, domain, units, reftime, extrapolation)
 end
 
 # Land grids delegate to the discretization of their ground domain, which carries the ring grid.
@@ -90,7 +91,7 @@ function RasterInputSource(
         source_grid::RingGrids.AbstractGrid,
         raster::AbstractRaster{NF},
         ::Nothing,
-        name, units, args...
+        name, domain, units, args...
     ) where {NF}
     idxmap = findall(Array(grid.mask))
     field = similar(grid.mask, NF)
@@ -102,7 +103,7 @@ function RasterInputSource(
         RingGrids.interpolate!(field, source_field)
     end
     # Construct and return a FieldInputSource from the RingGrids `field`
-    return Terrarium.InputSource(grid, field; name, units)
+    return Terrarium.InputSource(grid, field; name, domain, units)
 end
 
 # Time-varying rasters retain the custom source with lazy time interpolation (and optional cycling).
@@ -111,24 +112,24 @@ function RasterInputSource(
         source_grid::RingGrids.AbstractGrid,
         raster::AbstractRaster{NF},
         ::TimeDim,
-        name, units, reftime, extrapolation
+        name, domain, units, reftime, extrapolation
     ) where {NF}
     # get indices from grid mask
     idxmap = on_architecture(architecture(grid), findall(Array(grid.mask)))
     # infer the VarDims and subsequently the Field location from the data dimensions
-    rdims = Terrarium.vardims(raster)
+    rloc = Terrarium.VarLocation(Terrarium.vardims(raster), domain)
     # infer reference time
     reftime = default_reftime(raster, reftime)
     raster = Rasters.setdims(raster, convert_time_axis(dims(raster, Ti)))
     path = Terrarium.varpath(name)
-    return RasterInputSource{NF, path, typeof(rdims), typeof(reftime), typeof(idxmap), typeof(raster), typeof(source_grid), typeof(units), typeof(extrapolation)}(
-        rdims, units, idxmap, reftime, raster, source_grid, extrapolation
+    return RasterInputSource{NF, path, typeof(rloc), typeof(reftime), typeof(idxmap), typeof(raster), typeof(source_grid), typeof(units), typeof(extrapolation)}(
+        rloc, units, idxmap, reftime, raster, source_grid, extrapolation
     )
 end
 
 Terrarium.variables(source::RasterInputSource) = Terrarium.with_scope(
     Base.front(Terrarium.varpath(source)),
-    Terrarium.input(Terrarium.varname(source), source.dims; units = source.units)
+    Terrarium.input(Terrarium.varname(source), source.loc; units = source.units)
 ) |> tuple
 
 # Infer VarDims based on the axes defined in the Raster

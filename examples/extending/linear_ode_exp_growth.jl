@@ -9,6 +9,7 @@
 # for an arbitrary prognostic variable ``u``. For the sake of this demonstration we will treat the offset ``c`` as an auxiliary/diagnostic variable even though it is constant in time. ``F(t)`` is an external forcing that we apply.
 
 using Terrarium
+using Terrarium: Ground
 
 #
 # We begin by defining our model `struct` that subtypes [`Terrarium.AbstractModel`](@ref):
@@ -77,9 +78,9 @@ end
 # So, let's define those:
 
 Terrarium.variables(::ExpModel) = (
-    Terrarium.prognostic(:u, XY(), desc = "Exponential growth variable"),
-    Terrarium.auxiliary(:c, XY(), desc = "Constant offset for growth"),
-    Terrarium.input(:F, XY(), default = 0.0, desc = "External forcing"),
+    Terrarium.prognostic(:u, Ground(XY()), desc = "Exponential growth variable"),
+    Terrarium.auxiliary(:c, Ground(XY()), desc = "Constant offset for growth"),
+    Terrarium.input(:F, Ground(XY()), default = 0.0, desc = "External forcing"),
 )
 
 # Here, we defined our three variables with their names as a `Symbol` and whether they are 2D variables ([`XY`](@ref)) on the spatial grid or 3D variables ([`XYZ`](@ref)) that also vary along the vertical z-axis. Here we are considering only a simple scalar model so we choose 2D (`XY`), bearing in mind that all points in the X and Y dimensions of `ColumnGrid` are independent of each other.
@@ -137,9 +138,9 @@ using Random
 Random.seed!(1234) # set random seed
 
 t_F = 0:1:300; #seconds
-F = FieldTimeSeries(grid, XY(), t_F);
+F = FieldTimeSeries(grid, Ground(XY()), t_F);
 F.data .= randn(size(F));
-input = InputSource(grid, F, name = :F)
+input = InputSource(grid, F, name = :F; domain = Ground())
 
 # Here we constructed a 2D (`XY()`) time series on our `grid` at times `t_F` with random normal distributed data and defined our `InputSource` for our model based on it.
 
