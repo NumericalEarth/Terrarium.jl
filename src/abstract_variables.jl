@@ -1,47 +1,135 @@
+"""
+    $TYPEDEF
+
+Helper type used for specifying a single point or cross-section in space along the X, Y, or Z axis.
+If `val = nothing`, the coordinate is undefined or integrated over the extent of the axis.
+"""
+@kwdef struct Coordinate{V, L}
+    val::V = nothing
+    loc::L = Face()
+end
+
+# Dispatch for Oceananigans `location` method
+Oceananigans.location(dims::Coordinate) = dims.loc
+
+# A `Coordinate` resolves to a single index along its axis. An integer selects that index directly;
+# a function (`firstindex`/`lastindex`) is applied to the range of valid indices along the axis, so
+# that the same `Coordinate` means the top face (`Nz + 1`) or the top cell center (`Nz`) according to
+# the location it carries.
+Oceananigans.Fields.indices(axis, dims::Coordinate{<:Integer}) = dims.val
+Oceananigans.Fields.indices(axis, dims::Coordinate{<:Function}) = dims.val(axis)
+
 # Abstract variable types for declaring fields.
 
-abstract type VarDims end
+"""
+    $TYPEDEF
+
+Marker type for state variable spatial *domains*; currently, only three domains are considered:
+`Ground`, `Snow`, and `Canopy`.
+"""
+abstract type VarDomain end
+struct Ground <: VarDomain end
+struct Snow <: VarDomain end
+struct Canopy <: VarDomain end
 
 """
-    XYZ <: VarDims
+    $TYPEDEF
 
-Indicator type for variables that should be assigned a 3D field on their associated grid.
+Indicator type describing the location on which a variable should be instantiated on an Oceananigans grid.
+The fields `x`, `y`, and `z` should be one of: `Center()` or `Face()` for variables that should be discretized
+on grid cell centers or faces along each axis, `Coordinate` for variables that are defined at a single point along an axis,
+or `nothing` for variables that represented quantities integrated over a domain. 
 """
-@kwdef struct XYZ{LX, LY, LZ} <: VarDims
+@kwdef struct VarDims{LX, LY, LZ}
     x::LX = Center()
     y::LY = Center()
     z::LZ = Center()
 end
 
-# Dispatch for Oceananigans `location` method
-Oceananigans.location(dims::XYZ) = (dims.x, dims.y, dims.z)
+# Resolve one axis of a `VarDims` to its Oceananigans location. `nothing` means the variable has no
+# extent along that axis; a `Coordinate` contributes the location it is defined at.
+@inline axis_location(::Nothing) = nothing
+@inline axis_location(loc::CenterOrFace) = loc
+@inline axis_location(coord::Coordinate) = location(coord)
 
-"""
-    XY <: VarDims
+# The range of valid indices of `grid` along dimension `dim` at location `loc`. This is what the
+# `firstindex`/`lastindex` of a `Coordinate` are resolved against, and it is why a `Coordinate` must
+# carry its location: along a bounded axis there are `N` cell centers but `N + 1` faces.
+@inline axis_range(grid::AbstractGrid, dim::Int, loc) =
+    Base.OneTo(Oceananigans.Grids.total_length(loc, topology(grid, dim)(), size(grid, dim)))
 
-Indicator type for variables that should be assigned a 2D (lateral only) field on their associated grid.
-"""
-@kwdef struct XY{LX, LY} <: VarDims
-    x::LX = Center()
-    y::LY = Center()
-end
+# Resolve one axis of a `VarDims` to the corresponding entry of the `indices` argument of the `Field`
+# constructor. Anything which is not a `Coordinate` spans the whole axis.
+@inline axis_indices(_, ::Union{Nothing, CenterOrFace}) = Colon()
+@inline axis_indices(axis, coord::Coordinate) = indices(axis, coord)
 
-Oceananigans.location(dims::XY) = (dims.x, dims.y, nothing)
+Oceananigans.location(dims::VarDims) = (axis_location(dims.x), axis_location(dims.y), axis_location(dims.z))
 
-# TODO: do we need to support state variables not defined on a grid?
+Oceananigans.Fields.indices(grid::AbstractGrid, dims::VarDims) = (
+    axis_indices(axis_range(grid, 1, axis_location(dims.x)), dims.x),
+    axis_indices(axis_range(grid, 2, axis_location(dims.y)), dims.y),
+    axis_indices(axis_range(grid, 3, axis_location(dims.z)), dims.z),
+)
+
+# VarDims aliases
+
+const XY = VarDims{LX, LY, LZ} where {LX <: CenterOrFace, LY <: CenterOrFace, LZ <: Union{Nothing, Coordinate}}
+
+XY(x::CenterOrFace = Center(), y::CenterOrFace = Center(), z::Union{Nothing, Coordinate} = nothing) = VarDims(x, y, z)
+
+const Top = VarDims{LX, LY, LZ} where {LX <: CenterOrFace, LY <: CenterOrFace, LZ <: Coordinate{typeof(lastindex), Face}}
+
+Top(x::CenterOrFace = Center(), y::CenterOrFace = Center()) = VarDims(x, y, Coordinate(lastindex, Face()))
+
+const Bottom = VarDims{LX, LY, LZ} where {LX <: CenterOrFace, LY <: CenterOrFace, LZ <: Coordinate{typeof(firstindex), Face}}
+
+Bottom(x::CenterOrFace = Center(), y::CenterOrFace = Center()) = VarDims(x, y, Coordinate(firstindex, Face()))
+
+const XYZ = VarDims{LX, LY, LZ} where {LX <: CenterOrFace, LY <: CenterOrFace, LZ <: CenterOrFace}
+
+XYZ(x::CenterOrFace = Center(), y::CenterOrFace = Center(), z::CenterOrFace = Center()) = VarDims(x, y, z)
 
 """
     $SIGNATURES
 
 Infer the appropriate `VarDims` from the given `Field`.
+
+This infers the dimensions of an *externally supplied* field, e.g. one wrapped by an
+[`InputSource`](@ref), and returns only `XY` or `XYZ`. It is deliberately not the inverse of the
+`Field` constructor: a field created from a [`Top`](@ref) or [`Bottom`](@ref) variable reports `XY`,
+because recovering the `Coordinate` would mean inferring intent from the field's indices. Where the
+domain or the coordinate matters, read the variable's declared [`VarLocation`](@ref) instead.
 """
 vardims(::AbstractField{LX, LY, Nothing}) where {LX, LY} = XY(LX(), LY())
 vardims(::AbstractField{LX, LY, LZ}) where {LX, LY, LZ} = XYZ(LX(), LY(), LZ())
 
 """
+    $TYPEDEF
+
+Represents the "location" of an abstract variable, i.e. both the spatial domain and
+its dimensionality.
+"""
+struct VarLocation{Dims, Domain}
+    dims::Dims
+    domain::Domain
+end
+
+vardims(var::VarLocation) = var.dims
+vardomain(var::VarLocation) = var.domain
+
+Base.summary(::Ground) = "ground"
+Base.summary(::Snow) = "snow"
+Base.summary(::Canopy) = "canopy"
+
+# Aliased constructors for VarLocation on the three domains
+Ground(dims::VarDims) = VarLocation(dims, Ground())
+Snow(dims::VarDims) = VarLocation(dims, Snow())
+Canopy(dims::VarDims) = VarLocation(dims, Canopy())
+
+"""
 Base type for state variable placeholder types.
 """
-abstract type AbstractVariable{name, VD, UT} end
+abstract type AbstractVariable{name, VL, UT} end
 
 """
     $SIGNATURES
@@ -56,10 +144,27 @@ should return the name of the variable returned by the closure relation.
 """
     $SIGNATURES
 
+Retrieve the [`VarLocation`](@ref) of this variable, i.e. both its grid dimensions and the model
+domain it is defined on.
+"""
+@inline varloc(var::AbstractVariable) = var.loc
+@inline varloc(::Type{<:AbstractVariable{name, VL}}) where {name, VL} = VL
+
+"""
+    $SIGNATURES
+
 Retrieve the grid dimensions on which this variable is defined.
 """
-@inline vardims(var::AbstractVariable) = var.dims
-@inline vardims(::Type{<:AbstractVariable{name, VD}}) where {name, VD} = VD
+@inline vardims(var::AbstractVariable) = vardims(varloc(var))
+@inline vardims(::Type{<:AbstractVariable{name, <:VarLocation{Dims}}}) where {name, Dims} = Dims
+
+"""
+    $SIGNATURES
+
+Retrieve the grid domain on which this variable is defined.
+"""
+@inline vardomain(var::AbstractVariable) = vardomain(varloc(var))
+@inline vardomain(::Type{<:AbstractVariable{name, <:VarLocation{Dims, Domain}}}) where {name, Dims, Domain} = Domain
 
 """
     $SIGNATURES
@@ -67,33 +172,34 @@ Retrieve the grid dimensions on which this variable is defined.
 Retrieve the physical units for the given variable.
 """
 @inline varunits(var::AbstractVariable) = var.units
-@inline varunits(::Type{<:AbstractVariable{name, VD, UT}}) where {name, VD, UT} = UT
+@inline varunits(::Type{<:AbstractVariable{name, VL, UT}}) where {name, VL, UT} = UT
 
-# Test equality between variables by their names, dimensions, and physical units
+# Test equality between variables by their names, dimensions, domains, and physical units
 Base.:(==)(var1::AbstractVariable, var2::AbstractVariable) =
     varname(var1) == varname(var2) &&
     vardims(var1) == vardims(var2) &&
+    vardomain(var1) == vardomain(var2) &&
     varunits(var1) == varunits(var2)
 
 function Base.summary(var::AbstractVariable)
     unitstr = varunits(var) == NoUnits ? "-" : varunits(var)
-    text = "$(string(varname(var))) [$(unitstr)] on $(typeof(vardims(var)))"
+    text = "$(string(varname(var))) [$(unitstr)] on $(typeof(vardims(var))) of the $(summary(vardomain(var))) domain"
     return text
 end
 
 """
     $TYPEDEF
 
-Represents metadata for a generic state variable with the given `name` and spatial `dims`.
+Represents metadata for a generic state variable with the given `name` and spatial `loc`.
 """
-struct Variable{name, VD, UT} <: AbstractVariable{name, VD, UT}
-    "Variable dimensions"
-    dims::VD
+struct Variable{name, VL, UT} <: AbstractVariable{name, VL, UT}
+    "Variable location"
+    loc::VL
 
     "Physical units"
     units::UT
 
-    Variable(name::Symbol, dims::VarDims, units::Units = NoUnits) = new{name, typeof(dims), typeof(units)}(dims, units)
+    Variable(name::Symbol, loc::VarLocation, units::Units = NoUnits) = new{name, typeof(loc), typeof(units)}(loc, units)
 end
 
 """
@@ -113,17 +219,20 @@ abstract type AbstractClosureRelation end
 """
 Baste type for process state variables with specific intents, e.g. `prognostic`, `auxiliary`, or `input`.
 """
-abstract type AbstractProcessVariable{name, VD, UT} <: AbstractVariable{name, VD, UT} end
+abstract type AbstractProcessVariable{name, VL, UT} <: AbstractVariable{name, VL, UT} end
 
+@inline varloc(pv::AbstractProcessVariable) = varloc(pv.var)
 @inline vardims(pv::AbstractProcessVariable) = vardims(pv.var)
+@inline vardomain(pv::AbstractProcessVariable) = vardomain(pv.var)
 @inline varunits(pv::AbstractProcessVariable) = varunits(pv.var)
 
 function Base.show(io::IO, ::MIME"text/plain", var::AbstractVariable)
     units = varunits(var)
+    domain = summary(vardomain(var))
     return if units != NoUnits
-        println(io, "$(nameof(typeof(var))) $(varname(var)) with dimensions $(typeof(vardims(var))) and units $(string(varunits(var)))")
+        println(io, "$(nameof(typeof(var))) $(varname(var)) on the $domain domain with dimensions $(typeof(vardims(var))) and units $(string(varunits(var)))")
     else
-        println(io, "$(nameof(typeof(var))) $(varname(var)) with dimensions $(typeof(vardims(var)))")
+        println(io, "$(nameof(typeof(var))) $(varname(var)) on the $domain domain with dimensions $(typeof(vardims(var)))")
     end
 end
 
@@ -136,12 +245,12 @@ indirectly from the values of one or more prognostic variables.
 """
 struct AuxiliaryVariable{
         name,
-        VD <: VarDims,
+        VL <: VarLocation,
         UT <: Units,
-        Var <: Variable{name, VD, UT},
+        Var <: Variable{name, VL, UT},
         BT <: DomainSets.AbstractInterval,
         FC,
-    } <: AbstractProcessVariable{name, VD, UT}
+    } <: AbstractProcessVariable{name, VL, UT}
     "State variable"
     var::Var
 
@@ -163,12 +272,12 @@ Input variables can also be made to vary in time through the use of [`InputSourc
 """
 struct InputVariable{
         name,
-        VD <: VarDims,
+        VL <: VarLocation,
         UT <: Units,
-        Var <: Variable{name, VD, UT},
+        Var <: Variable{name, VL, UT},
         BT <: DomainSets.AbstractInterval,
         Def <: Union{Nothing, Number, Function},
-    } <: AbstractProcessVariable{name, VD, UT}
+    } <: AbstractProcessVariable{name, VL, UT}
     "State variable"
     var::Var
 
@@ -196,13 +305,13 @@ variable which is used to hold the value of their instantaneous time derivative 
 """
 struct PrognosticVariable{
         name,
-        VD <: VarDims,
+        VL <: VarLocation,
         UT <: Units,
-        Var <: Variable{name, VD, UT},
+        Var <: Variable{name, VL, UT},
         CL <: Union{Nothing, AbstractClosureRelation},
         TV <: Union{Nothing, AuxiliaryVariable},
         BT <: DomainSets.AbstractInterval,
-    } <: AbstractProcessVariable{name, VD, UT}
+    } <: AbstractProcessVariable{name, VL, UT}
     "State variable"
     var::Var
 
@@ -296,7 +405,7 @@ Variables(vars::Union{AbstractProcessVariable, Namespace}...) = Variables(vars)
 function Variables(vars::Tuple{Vararg{Union{AbstractProcessVariable, Namespace}}})
     # partition variables into prognostic, auxiliary, input, and namespace groups;
     # duplicates within each group are automatically merged
-    varmeta(var::AbstractVariable) = (varname(var), vardims(var), varunits(var))
+    varmeta(var::AbstractVariable) = (varname(var), vardims(var), vardomain(var), varunits(var))
     varmeta(ns::Namespace) = varname(ns)
     function register!(vardict::AbstractDict, var)
         if haskey(vardict, varname(var)) && varmeta(vardict[varname(var)]) != varmeta(var)
@@ -488,16 +597,19 @@ end
 """
     $SIGNATURES
 
-Convenience constructor for `Variable`.
+Convenience constructor for `Variable`. Variables declared with bare [`VarDims`](@ref) are placed on
+the ground domain, which is the only domain every land grid resolves; declare a variable on another
+domain by wrapping its dimensions, e.g. `var(:snow_temperature, Snow(XYZ()))`.
 """
-@inline var(name::Symbol, dims::VarDims, units::Units = NoUnits) = Variable(name, dims, units)
+@inline var(name::Symbol, loc::VarLocation, units::Units = NoUnits) = Variable(name, loc, units)
+@inline var(name::Symbol, dims::VarDims, units::Units = NoUnits) = var(name, Ground(dims), units)
 
 """
     $SIGNATURES
 
 Convenience constructors for `PrognosticVariable`.
 """
-@inline prognostic(name::Symbol, dims::VarDims; units = NoUnits, closure = nothing, bounds = Unbounded, desc = "") = prognostic(var(name, dims, units); closure, bounds, desc)
+@inline prognostic(name::Symbol, loc::Union{VarDims, VarLocation}; units = NoUnits, closure = nothing, bounds = Unbounded, desc = "") = prognostic(var(name, loc, units); closure, bounds, desc)
 @inline prognostic(var::Variable; closure = nothing, bounds = Unbounded, desc = "") = PrognosticVariable(var, closure, tendency(var), bounds, desc)
 
 """
@@ -505,7 +617,7 @@ Convenience constructors for `PrognosticVariable`.
 
 Convenience constructor method for `AuxiliaryVariable`.
 """
-@inline auxiliary(name::Symbol, dims::VarDims, ctor = nothing, params = nothing; units = NoUnits, bounds = Unbounded, desc = "") = auxiliary(var(name, dims, units), ctor, params; bounds, desc)
+@inline auxiliary(name::Symbol, loc::Union{VarDims, VarLocation}, ctor = nothing, params = nothing; units = NoUnits, bounds = Unbounded, desc = "") = auxiliary(var(name, loc, units), ctor, params; bounds, desc)
 @inline auxiliary(var::Variable, ::Nothing, ::Nothing; bounds = Unbounded, desc = "") = AuxiliaryVariable(var, nothing, bounds, desc)
 @inline auxiliary(var::Variable, ctor::Function, params; bounds = Unbounded, desc = "") = AuxiliaryVariable(var, (_, grid, clock, fields) -> ctor(grid, clock, fields, params), bounds, desc)
 # `KernelFunction` constructors (from `kernel`) are callable structs, not `Function`s; they define
@@ -517,7 +629,7 @@ Convenience constructor method for `AuxiliaryVariable`.
 
 Convenience constructor method for `InputVariable`.
 """
-@inline input(name::Symbol, dims::VarDims; default = nothing, units = NoUnits, bounds = Unbounded, desc = "") = input(var(name, dims, units); default, bounds, desc)
+@inline input(name::Symbol, loc::Union{VarDims, VarLocation}; default = nothing, units = NoUnits, bounds = Unbounded, desc = "") = input(var(name, loc, units); default, bounds, desc)
 @inline input(var::Variable; default = nothing, bounds = Unbounded, desc = "") = InputVariable(var, default, bounds, desc)
 
 """
@@ -526,7 +638,7 @@ Convenience constructor method for `InputVariable`.
 Creates an `AuxiliaryVariable` for the tendency of a prognostic variable with the given name, dimensions, and physical units.
 This constructor is primarily used internally by other constructors and does not usually need to be called by implementations of `variables`.
 """
-@inline tendency(var::Variable) = auxiliary(varname(var), vardims(var), units = upreferred(varunits(var)) / u"s")
+@inline tendency(var::Variable) = auxiliary(varname(var), varloc(var), units = upreferred(varunits(var)) / u"s")
 
 """
     $SIGNATURES
