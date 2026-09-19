@@ -7,6 +7,7 @@ CurrentModule = Terrarium
 ```@setup variables
 using Terrarium
 using Oceananigans
+using Terrarium: Ground, Surface
 ```
 
 ## Overview
@@ -33,13 +34,15 @@ Most state variables will thus be defined by implementation of `AbstractProcess`
 struct MyProcess{NF} <: Terrarium.AbstractProcess{NF} end
 
 Terrarium.variables(::MyProcess) = (
-    Terrarium.prognostic(:progvar, XYZ()),
-    Terrarium.auxiliary(:auxvar, XYZ()),
-    Terrarium.auxiliary(:bc, XY()),
-    Terrarium.input(:input, XY())
+    Terrarium.prognostic(:progvar, Ground(XYZ())),
+    Terrarium.auxiliary(:auxvar, Ground(XYZ())),
+    Terrarium.auxiliary(:bc, Ground(XY())),
+    Terrarium.input(:input, Ground(XY()))
 )
 ```
-This will result in a total of five state variables being allocated upon initialization: one input variable, two auxiliary variables named `auxvar` and `bc` and one prognostic variable named `progvar` along with its corresponding tendency variable which is created automatically. The second argument to the variable metadata constructors `prognostic` and `auxiliary` is a subtype of `VarDims` which specifies on which spatial dimensions the state variable should be defined. [`XYZ()`](@ref) corresponds to a 3D `Field` which varies both laterally and with depth. [`XY()`](@ref) corresponds to a 2D field which is discretized along the lateral X and Y dimensions only.
+This will result in a total of five state variables being allocated upon initialization: one input variable, two auxiliary variables named `auxvar` and `bc` and one prognostic variable named `progvar` along with its corresponding tendency variable which is created automatically. The second argument to the variable metadata constructors `prognostic` and `auxiliary` is a [`VarLocation`](@ref) which specifies the spatial domain and dimensions of the variable on the grid. The inner [`VarDims`](@ref) marker [`XYZ()`](@ref) corresponds to a 3D `Field` which varies both laterally and with depth, while [`XY()`](@ref) corresponds to a 2D field discretized only along the lateral X and Y dimensions.
+
+The outer [`VarDomain`](@ref) indicates the spatial domain on which the variables should be discretized. Currenly, Terrarium defines four `VarDomain`s: `Ground`, `Snow`, `Canopy`, and `Surface`, with the first three mapping to distinct vertical discretizations in [`LandGrid`](@ref) for the three domains. The [`Surface`](@ref) domain refers to the interface between the land and atmsophere and thus has no vertical layering. All `Surface` variables must be declared as `Surface(XY())`; `Surface(XYZ())` will raise an error.
 
 ## Merging and promotion rules
 
@@ -74,9 +77,9 @@ As a simple example, suppose we want to define an auxiliary variable `C` for the
 struct Pythagoras{NF} <: Terrarium.AbstractProcess{NF} end
 
 Terrarium.variables(pythag::Pythagoras) = (
-    Terrarium.auxiliary(:hypotenuse, XY(), hypotenuse, pythag),
-    Terrarium.input(:length, XY()),
-    Terrarium.input(:width, XY())
+    Terrarium.auxiliary(:hypotenuse, Ground(XY()), hypotenuse, pythag),
+    Terrarium.input(:length, Ground(XY())),
+    Terrarium.input(:width, Ground(XY()))
 )
 
 function hypotenuse(grid, clock, fields, ::Pythagoras)
