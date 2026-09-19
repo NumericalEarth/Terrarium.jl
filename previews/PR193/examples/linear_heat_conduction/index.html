@@ -92,10 +92,10 @@ T_init = copy(vec(interior(integrator.state.temperature)))</code></pre><pre><cod
 
 sim = Simulation(integrator; stop_time = 2days, Δt = 600.0)
 run!(sim)</code></pre><pre><code class="nohighlight hljs">[ Info: Initializing simulation...
-[ Info:     ... simulation initialization complete (84.657 ms)
+[ Info:     ... simulation initialization complete (61.290 ms)
 [ Info: Executing initial time step...
-[ Info:     ... initial time step complete (415.344 ms).
-[ Info: Simulation is stopping after running for 501.726 ms.
+[ Info:     ... initial time step complete (362.689 ms).
+[ Info: Simulation is stopping after running for 425.316 ms.
 [ Info: Simulation time 2 days equals or exceeds stop time 2 days.
 </code></pre><p>Extract the temperature profile and compare with the initial condition:</p><pre><code class="language-julia hljs">using CairoMakie
 import DisplayAs
@@ -116,9 +116,9 @@ Build Info:
   Official https://julialang.org release
 Platform Info:
   OS: Linux (x86_64-linux-gnu)
-  CPU: 4 × AMD EPYC 7763 64-Core Processor
+  CPU: 4 × AMD EPYC 9V45 96-Core Processor
   WORD_SIZE: 64
-  LLVM: libLLVM-18.1.7 (ORCJIT, znver3)
+  LLVM: libLLVM-18.1.7 (ORCJIT, znver5)
   GC: Built with stock GC
 Threads: 1 default, 1 interactive, 1 GC (on 4 virtual cores)
 Environment:
@@ -138,7 +138,7 @@ Pkg.status()</code></pre><pre><code class="nohighlight hljs">Status `~/work/Terr
   [63c18a36] KernelAbstractions v0.9.42
   [98b081ad] Literate v2.21.0
   [85f8d34a] NCDatasets v0.14.15
-  [904d977b] NumericalEarth v0.7.0
+  [904d977b] NumericalEarth v0.8.0
 ⌅ [9e8cae18] Oceananigans v0.111.0
   [a3a2b9e3] Rasters v0.15.0
   [d1845624] RingGrids v0.1.9
@@ -146,4 +146,4 @@ Pkg.status()</code></pre><pre><code class="nohighlight hljs">Status `~/work/Terr
   [b77e0a4c] InteractiveUtils v1.11.0
   [d6f4376e] Markdown v1.11.0
 Info Packages marked with ⌅ have new versions available but compatibility constraints restrict them from upgrading. To see why use `status --outdated`
-</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../simple_snow_ddm/">« Example: Degree-day snow melt model</a><a class="docs-footer-nextpage" href="../../models/land_model/">Land model »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Friday 18 September 2026 15:22">Friday 18 September 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../simple_snow_ddm/">« Example: Degree-day snow melt model</a><a class="docs-footer-nextpage" href="../../models/land_model/">Land model »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Saturday 19 September 2026 13:50">Saturday 19 September 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
