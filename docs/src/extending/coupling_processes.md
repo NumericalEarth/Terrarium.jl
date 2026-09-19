@@ -124,7 +124,7 @@ As an example, consider the `compute_auxiliary!` method for [`PALADYNCanopyEvapo
 function compute_auxiliary!(state, grid,
         evap::PALADYNCanopyEvapotranspiration,
         canopy_interception::AbstractCanopyInterception,  # 1. sibling (surface hydrology)
-        atmos::AbstractAtmosphere,                        # 2. atmosphere
+        atmos::AbstractAtmosphere,                        # 2. atmospheric inputs
         constants::PhysicalConstants,                     # 3. constants
         soil::Optional{AbstractSoil} = nothing            # 4. foreign (soil)
     )
