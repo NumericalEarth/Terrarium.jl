@@ -20,8 +20,8 @@ struct SnowEnergyTemperatureClosure{NF} <: AbstractEnergyClosure end
 SnowEnergyTemperatureClosure(::Type{NF}) where {NF} = SnowEnergyTemperatureClosure{NF}()
 
 variables(::SnowEnergyTemperatureClosure) = (
-    auxiliary(:snow_temperature, XY(), units = u"°C", desc = "Depth-averaged snow temperature in °C (≤ 0)"),
-    auxiliary(:snow_liquid_fraction, XY(), bounds = UnitInterval, desc = "Liquid (unfrozen) fraction of the snow water substance"),
+    auxiliary(:snow_temperature, Snow(XY()), units = u"°C", desc = "Depth-averaged snow temperature in °C (≤ 0)"),
+    auxiliary(:snow_liquid_fraction, Snow(XY()), bounds = UnitInterval, desc = "Liquid (unfrozen) fraction of the snow water substance"),
 )
 
 # Process-level closure entry points (dispatch on the snow process, mirroring the soil interface).

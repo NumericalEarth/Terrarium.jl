@@ -58,7 +58,7 @@ function Terrarium.InputSources(dataset::SoilGrids2, grid::ColumnRingGrid, horiz
             ring_field = RingGrids.on_architecture(arch, RingGrids.FullClenshawField(interior(var_field)[:, (end - 1):-1:2, end - idx + 1], input_as = Matrix))
             target_field = RingGrids.Field(grid.rings)
             RingGrids.interpolate!(target_field, ring_field)
-            layer_inputs[var] = InputSource(grid, Field(target_field, grid); name = horizon => var)
+            layer_inputs[var] = InputSource(grid, Field(target_field, grid); name = horizon => var, domain = Terrarium.Ground())
         end
         # Ensure that mineral texture components with each horizon sum to unity
         Terrarium.normalize_texture!(layer_inputs[:sand_fraction].field, layer_inputs[:silt_fraction].field, layer_inputs[:clay_fraction].field)
@@ -95,7 +95,7 @@ terrarium_model = Terrarium.LandModel(land_grid; vegetation, soil, surface_energ
 initial_date = DateTime(2024)
 soilgrids_inputs = InputSources(SoilGrids2(), land_grid)
 lai_highveg_fts = FieldTimeSeries(cat(lai_highveg_fields..., dims = 2), land_grid, 0.0:1day:365day)
-lai_inputs = InputSource(lai_highveg_fts, name = :leaf_area_index, reftime = Speedy.DEFAULT_DATE)
+lai_inputs = InputSource(lai_highveg_fts, name = :leaf_area_index, reftime = Speedy.DEFAULT_DATE; domain = Terrarium.Canopy())
 inputs = InputSources(lai_inputs, soilgrids_inputs.sources...) # combine input sources
 
 # Here we set our initial conditions for the soil

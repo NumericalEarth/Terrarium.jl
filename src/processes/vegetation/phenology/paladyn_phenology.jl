@@ -54,9 +54,9 @@ end
 PALADYNPhenology(::Type{NF}; kwargs...) where {NF} = PALADYNPhenology{NF}(; kwargs...)
 
 variables(::PALADYNPhenology) = (
-    prognostic(:growing_degree_days, XY(), units = u"K*d"), # Growing degree days [K⋅day]
-    auxiliary(:phenology_factor, XY()), # Phenology factor [-]
-    auxiliary(:leaf_area_index, XY()), # Leaf Area Index [m²/m²]
+    prognostic(:growing_degree_days, Canopy(XY()), units = u"K*d"), # Growing degree days [K⋅day]
+    auxiliary(:phenology_factor, Canopy(XY())), # Phenology factor [-]
+    auxiliary(:leaf_area_index, Canopy(XY())), # Leaf Area Index [m²/m²]
 )
 
 """

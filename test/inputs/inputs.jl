@@ -6,13 +6,13 @@ using Unitful
 @testset "Input sources" begin
     # Field input source
     grid = ColumnGrid(ExponentialSpacing())
-    X1 = Field(grid, XY())
-    field_input = InputSource(grid, X1; name = :X1)
+    X1 = Field(grid, Ground(XY()))
+    field_input = InputSource(grid, X1; name = :X1, domain = Ground())
     @test isa(field_input, FieldInputSource)
     ## check that dimensions and name were inferred correctly
-    @test field_input.dims == XY()
+    @test Terrarium.vardims(field_input) == XY()
     @test varname(field_input) == :X1
-    @test variables(field_input) == (Terrarium.input(:X1, XY()),)
+    @test variables(field_input) == (Terrarium.input(:X1, Ground(XY())),)
     ## check state variable is allocated and initialize! copies data
     X1 .= 1.0f0
     state = StateVariables(Variables(field_input), grid)
@@ -21,9 +21,9 @@ using Unitful
     @test all(state.inputs.X1 .≈ 1.0f0)
 
     # Multiple FieldInputSources via InputSources
-    X2 = Field(grid, XY())
-    field_sources = InputSources(InputSource(grid, X1; name = :X1), InputSource(grid, X2; name = :X2))
-    @test variables(field_sources) == (Terrarium.input(:X1, XY()), Terrarium.input(:X2, XY()))
+    X2 = Field(grid, Ground(XY()))
+    field_sources = InputSources(InputSource(grid, X1; name = :X1, domain = Ground()), InputSource(grid, X2; name = :X2, domain = Ground()))
+    @test variables(field_sources) == (Terrarium.input(:X1, Ground(XY())), Terrarium.input(:X2, Ground(XY())))
     state = StateVariables(Variables(field_sources), grid)
     @test hasproperty(state.inputs, :X1)
     @test hasproperty(state.inputs, :X2)
@@ -31,16 +31,16 @@ using Unitful
     # FieldTimeSeries input source
     grid = ColumnGrid(ExponentialSpacing())
     ts = 0.0:1.0:10.0
-    S1 = FieldTimeSeries(grid, XY(), ts)
-    fts_input = InputSource(S1; name = :S1)
+    S1 = FieldTimeSeries(grid, Ground(XY()), ts)
+    fts_input = InputSource(S1; name = :S1, domain = Ground())
     @test isa(fts_input, FieldTimeSeriesInputSource)
     ## check that dimensions and name were inferred correctly
-    @test fts_input.dims == XY()
+    @test Terrarium.vardims(fts_input) == XY()
     @test varname(fts_input) == :S1
     @test fts_input.fts === S1
     # populate S1 with random data and check update_inputs!
     S1.data .= randn(size(S1))
-    fields = (S1 = Field(grid, XY()),)
+    fields = (S1 = Field(grid, Ground(XY())),)
     clock = Clock(time = 0)
     update_inputs!(fields, grid, clock, fields, fts_input)
     @test all(fields.S1 .== S1[1])
@@ -50,10 +50,10 @@ using Unitful
     @test all(fields.S1 .== S1[2])
 
     # Multiple FTS via InputSources
-    S2 = FieldTimeSeries(grid, XY(), ts)
-    fts_sources = InputSources(InputSource(S1; name = :S1), InputSource(S2; name = :S2))
-    @test variables(fts_sources) == (Terrarium.input(:S1, XY()), Terrarium.input(:S2, XY()))
-    fields2 = (S1 = Field(grid, XY()), S2 = Field(grid, XY()))
+    S2 = FieldTimeSeries(grid, Ground(XY()), ts)
+    fts_sources = InputSources(InputSource(S1; name = :S1, domain = Ground()), InputSource(S2; name = :S2, domain = Ground()))
+    @test variables(fts_sources) == (Terrarium.input(:S1, Ground(XY())), Terrarium.input(:S2, Ground(XY())))
+    fields2 = (S1 = Field(grid, Ground(XY())), S2 = Field(grid, Ground(XY())))
     clock = Clock(time = 0)
     update_inputs!(fields2, grid, clock, fields2, fts_sources)
     @test all(fields2.S1 .== S1[1])
@@ -72,14 +72,14 @@ end
     ring_field2 = rand(ring_grid)
 
     # Test single field
-    source = InputSource(grid, ring_field1; name = :temperature)
+    source = InputSource(grid, ring_field1; name = :temperature, domain = Ground())
     @test isa(source, FieldInputSource)
-    @test source.dims == XY()
+    @test Terrarium.vardims(source) == XY()
     @test varname(source) == :temperature
-    @test variables(source) == (Terrarium.input(:temperature, XY()),)
+    @test variables(source) == (Terrarium.input(:temperature, Ground(XY())),)
 
     # Test multiple fields via InputSources
-    sources = InputSources(InputSource(grid, ring_field1; name = :temp), InputSource(grid, ring_field2; name = :pressure))
+    sources = InputSources(InputSource(grid, ring_field1; name = :temp, domain = Ground()), InputSource(grid, ring_field2; name = :pressure, domain = Ground()))
     @test length(variables(sources)) == 2
 
     # Test that data is correctly converted and stored
@@ -96,7 +96,7 @@ end
 
     # Test 3D RingGrids field (with vertical dimension)
     ring_field_3d = rand(ring_grid, 5)  # 5 vertical levels
-    source_3d = InputSource(grid, ring_field_3d; name = :field3d)
+    source_3d = InputSource(grid, ring_field_3d; name = :field3d, domain = Ground())
     @test isa(source_3d, FieldInputSource)
-    @test source_3d.dims == XYZ()
+    @test Terrarium.vardims(source_3d) == XYZ()
 end

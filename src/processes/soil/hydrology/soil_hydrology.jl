@@ -76,10 +76,10 @@ if not defined for the given configuration.
 @inline get_closure(hydrology::SoilHydrology) = hydrology.closure
 
 variables(hydrology::SoilHydrology{NF}) where {NF} = (
-    auxiliary(:saturation_water_ice, XYZ(), bounds = UnitInterval, desc = "Saturation level of water and ice in the pore space"),
-    auxiliary(:water_table, XY(), units = u"m", desc = "Elevation of the water table in meters"),
-    auxiliary(:hydraulic_conductivity, XYZ(z = Face()), units = u"m/s", desc = "Hydraulic conductivity of soil volumes in m/s"),
-    input(:liquid_water_fraction, XYZ(), default = 1, bounds = UnitInterval, desc = "Fraction of unfrozen water in the pore space"),
+    auxiliary(:saturation_water_ice, Ground(XYZ()), bounds = UnitInterval, desc = "Saturation level of water and ice in the pore space"),
+    auxiliary(:water_table, Ground(XY()), units = u"m", desc = "Elevation of the water table in meters"),
+    auxiliary(:hydraulic_conductivity, Ground(XYZ(z = Face())), units = u"m/s", desc = "Hydraulic conductivity of soil volumes in m/s"),
+    input(:liquid_water_fraction, Ground(XYZ()), default = 1, bounds = UnitInterval, desc = "Fraction of unfrozen water in the pore space"),
 )
 
 function compute_water_table!(state, grid, hydrology::SoilHydrology)

@@ -38,7 +38,10 @@ module IMEXTestTypes
         timestepper::TS = ForwardEuler(eltype(grid))
     end
 
-    Terrarium.variables(::TwoVarModel) = (prognostic(:a, XY()), prognostic(:b, XY()))
+    Terrarium.variables(::TwoVarModel) = (
+        prognostic(:a, Terrarium.Ground(XY())),
+        prognostic(:b, Terrarium.Ground(XY()))
+    )
     Terrarium.compute_auxiliary!(state, ::TwoVarModel) = nothing
     function Terrarium.compute_tendencies!(state, ::TwoVarModel)
         set!(state.tendencies.a, 1.0)
@@ -57,7 +60,10 @@ module IMEXTestTypes
         timestepper::TS = ForwardEuler(eltype(grid))
     end
 
-    Terrarium.variables(::FlippedModel) = (prognostic(:a, XY()), prognostic(:b, XY()))
+    Terrarium.variables(::FlippedModel) = (
+        prognostic(:a, Terrarium.Ground(XY())),
+        prognostic(:b, Terrarium.Ground(XY()))
+    )
     Terrarium.compute_auxiliary!(state, ::FlippedModel) = nothing
     function Terrarium.compute_tendencies!(state, ::FlippedModel)
         set!(state.tendencies.a, 1.0)

@@ -18,8 +18,8 @@ PrescribedSkinTemperature(::Type{NF}; kwargs...) where {NF} = PrescribedSkinTemp
 ## Top-level interface methods
 
 variables(::PrescribedSkinTemperature) = (
-    auxiliary(:ground_heat_flux, XY(), units = u"W/m^2", desc = "Ground heat flux"),
-    input(:skin_temperature, XY(), units = u"°C", desc = "Longwave emission temperature of the land surface in °C"),
+    auxiliary(:ground_heat_flux, Ground(XY()), units = u"W/m^2", desc = "Ground heat flux"),
+    input(:skin_temperature, Surface(XY()), units = u"°C", desc = "Longwave emission temperature of the land surface in °C"),
 )
 
 @inline compute_auxiliary!(state, grid, ::PrescribedSkinTemperature, args...) = nothing
@@ -123,9 +123,9 @@ end
 ## Top-level interface methods
 
 variables(::ImplicitSkinTemperature) = (
-    prognostic(:skin_temperature, XY(), units = u"°C", desc = "Longwave emission temperature of the land surface in °C"),
-    auxiliary(:ground_heat_flux, XY(), units = u"W/m^2", desc = "Ground heat flux"),
-    input(:ground_temperature, XY(), units = u"°C", desc = "Temperature of the uppermost ground or soil grid cell in °C"),
+    prognostic(:skin_temperature, Surface(XY()), units = u"°C", desc = "Longwave emission temperature of the land surface in °C"),
+    auxiliary(:ground_heat_flux, Ground(XY()), units = u"W/m^2", desc = "Ground heat flux"),
+    input(:ground_temperature, Ground(Top(z = Center())), units = u"°C", desc = "Temperature of the uppermost ground or soil grid cell in °C"),
 )
 
 """

@@ -29,6 +29,7 @@ using KernelAbstractions: @index, @kernel
 using Terrarium: launch!, XY, interior, AbstractProcess
 using Terrarium: Adapt          # Adapt is re-exported by Terrarium (transitive dep)
 import Lux.MLDataDevices as MLDD
+using Terrarium: Snow, Surface
 
 # ## The reference degree-day model
 #
@@ -96,9 +97,9 @@ Adapt.@adapt_structure NeuralSnowMeltBatched
 # the model.
 const SnowVars{NF} = Union{DegreeDaySnow{NF}, NeuralSnowMelt{NF}, NeuralSnowMeltBatched{NF}}
 Terrarium.variables(::SnowVars{NF}) where {NF} = (
-    Terrarium.input(:air_temperature, XY(), default = NF(0), units = u"°C", desc = "Near-surface air temperature in °C"),
-    Terrarium.input(:snow_fall, XY(), default = NF(0), units = u"m/s", desc = "Snow fall rate in m/s"),
-    Terrarium.prognostic(:snow_storage, XY(), units = u"m", desc = "Snow water equivalent in m"),
+    Terrarium.input(:air_temperature, Surface(XY()), default = NF(0), units = u"°C", desc = "Near-surface air temperature in °C"),
+    Terrarium.input(:snow_fall, Snow(XY()), default = NF(0), units = u"m/s", desc = "Snow fall rate in m/s"),
+    Terrarium.prognostic(:snow_storage, Snow(XY()), units = u"m", desc = "Snow water equivalent in m"),
 )
 
 # ## The model
@@ -264,7 +265,7 @@ snow_fall = fill(NF(1.0e-7), length(_lats))                  # uniform light sno
 ## input sources take a RingGrids.Field over the grid's rings
 inputs = InputSources(
     InputSource(grid, RingGrids.Field(air_temperature, rings), name = :air_temperature, units = u"°C"),
-    InputSource(grid, RingGrids.Field(snow_fall, rings), name = :snow_fall, units = u"m/s"),
+    InputSource(grid, RingGrids.Field(snow_fall, rings), name = :snow_fall, units = u"m/s"; domain = Snow()),
 )
 initializers = (snow_storage = NF(0.5),)                      # start with 0.5 m everywhere
 
@@ -320,7 +321,7 @@ const Nt_ft = 15           # 15-day rollout
 device_grid = ColumnRingGrid(ReactantState(), NF, UniformSpacing(Δz = 0.1, N = 1), rings)
 device_inputs = InputSources(
     InputSource(device_grid, RingGrids.Field(air_temperature, rings), name = :air_temperature, units = u"°C"),
-    InputSource(device_grid, RingGrids.Field(snow_fall, rings), name = :snow_fall, units = u"m/s"),
+    InputSource(device_grid, RingGrids.Field(snow_fall, rings), name = :snow_fall, units = u"m/s"; domain = Snow()),
 )
 build_device_integrator(process) = initialize(
     SnowModel(device_grid; snow_melt = process, timestepper = ForwardEuler(NF));

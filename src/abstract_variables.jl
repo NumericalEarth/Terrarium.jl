@@ -24,13 +24,20 @@ Oceananigans.Fields.indices(axis, dims::Coordinate{<:Function}) = dims.val(axis)
 """
     $TYPEDEF
 
-Marker type for state variable spatial *domains*; currently, only three domains are considered:
-`Ground`, `Snow`, and `Canopy`.
+Marker type for state variable spatial *domains*; currently, four domains are considered:
+`Ground`, `Snow`, `Canopy`, and `Surface`.
+
+The first three are *vertical* domains, each of which a land grid may discretize in its own right.
+`Surface` instead represents the land-atmosphere interface, whose physical position depends on the
+surface tile (the top of the soil column over bare ground, the top of the snowpack under snow, the
+canopy where there is vegetation). A variable declared on `Surface` therefore never carries a
+vertical dimension and must always be 2D (`XY`).
 """
 abstract type VarDomain end
 struct Ground <: VarDomain end
 struct Snow <: VarDomain end
 struct Canopy <: VarDomain end
+struct Surface <: VarDomain end
 
 """
     $TYPEDEF
@@ -75,19 +82,23 @@ Oceananigans.Fields.indices(grid::AbstractGrid, dims::VarDims) = (
 
 const XY = VarDims{LX, LY, LZ} where {LX <: CenterOrFace, LY <: CenterOrFace, LZ <: Union{Nothing, Coordinate}}
 
-XY(x::CenterOrFace = Center(), y::CenterOrFace = Center(), z::Union{Nothing, Coordinate} = nothing) = VarDims(x, y, z)
+XY(x::CenterOrFace, y::CenterOrFace = Center(), z::Union{Nothing, Coordinate} = nothing) = VarDims(x, y, z)
+XY(; x::CenterOrFace = Center(), y::CenterOrFace = Center(), z::Union{Nothing, Coordinate} = nothing) = VarDims(x, y, z)
 
-const Top = VarDims{LX, LY, LZ} where {LX <: CenterOrFace, LY <: CenterOrFace, LZ <: Coordinate{typeof(lastindex), Face}}
+const Top{TZ} = VarDims{LX, LY, LZ} where {LX <: CenterOrFace, LY <: CenterOrFace, TZ <: CenterOrFace, LZ <: Coordinate{typeof(lastindex), TZ}}
 
-Top(x::CenterOrFace = Center(), y::CenterOrFace = Center()) = VarDims(x, y, Coordinate(lastindex, Face()))
+Top(x::CenterOrFace, y::CenterOrFace = Center(), z::CenterOrFace = Face()) = VarDims(x, y, Coordinate(lastindex, z))
+Top(; x::CenterOrFace = Center(), y::CenterOrFace = Center(), z::CenterOrFace = Face()) = VarDims(x, y, Coordinate(lastindex, z))
 
-const Bottom = VarDims{LX, LY, LZ} where {LX <: CenterOrFace, LY <: CenterOrFace, LZ <: Coordinate{typeof(firstindex), Face}}
+const Bottom{TZ} = VarDims{LX, LY, LZ} where {LX <: CenterOrFace, LY <: CenterOrFace, TZ <: CenterOrFace, LZ <: Coordinate{typeof(firstindex), TZ}}
 
-Bottom(x::CenterOrFace = Center(), y::CenterOrFace = Center()) = VarDims(x, y, Coordinate(firstindex, Face()))
+Bottom(x::CenterOrFace, y::CenterOrFace = Center(), z::CenterOrFace = Face()) = VarDims(x, y, Coordinate(firstindex, z))
+Bottom(; x::CenterOrFace = Center(), y::CenterOrFace = Center(), z::CenterOrFace = Face()) = VarDims(x, y, Coordinate(firstindex, z))
 
 const XYZ = VarDims{LX, LY, LZ} where {LX <: CenterOrFace, LY <: CenterOrFace, LZ <: CenterOrFace}
 
-XYZ(x::CenterOrFace = Center(), y::CenterOrFace = Center(), z::CenterOrFace = Center()) = VarDims(x, y, z)
+XYZ(x::CenterOrFace, y::CenterOrFace = Center(), z::CenterOrFace = Center()) = VarDims(x, y, z)
+XYZ(; x::CenterOrFace = Center(), y::CenterOrFace = Center(), z::CenterOrFace = Center()) = VarDims(x, y, z)
 
 """
     $SIGNATURES
@@ -120,11 +131,14 @@ vardomain(var::VarLocation) = var.domain
 Base.summary(::Ground) = "ground"
 Base.summary(::Snow) = "snow"
 Base.summary(::Canopy) = "canopy"
+Base.summary(::Surface) = "surface"
 
 # Aliased constructors for VarLocation on the three domains
 Ground(dims::VarDims) = VarLocation(dims, Ground())
 Snow(dims::VarDims) = VarLocation(dims, Snow())
 Canopy(dims::VarDims) = VarLocation(dims, Canopy())
+Surface(dims::XY) = VarLocation(dims, Surface())
+Surface(::XYZ) = error("surface variables must be 2D (XY)")
 
 """
 Base type for state variable placeholder types.
@@ -402,6 +416,21 @@ with_scope(path::VarPath, var::AbstractVariable) =
 Variables(obj) = Variables(variables(obj))
 Variables(vars::Variables) = vars
 Variables(vars::Union{AbstractProcessVariable, Namespace}...) = Variables(vars)
+"""
+    $SIGNATURES
+
+Describe how two declarations of the same variable disagree. Used to report incompatible duplicates
+in terms of the attribute which differs rather than by printing both variables and leaving the
+reader to spot it.
+"""
+function describe_conflict(var1::AbstractVariable, var2::AbstractVariable)
+    differences = String[]
+    vardims(var1) != vardims(var2) && push!(differences, "dimensions $(typeof(vardims(var1))) vs $(typeof(vardims(var2)))")
+    vardomain(var1) != vardomain(var2) && push!(differences, "domain $(summary(vardomain(var1))) vs $(summary(vardomain(var2)))")
+    varunits(var1) != varunits(var2) && push!(differences, "units $(varunits(var1)) vs $(varunits(var2))")
+    return isempty(differences) ? "differing declarations" : join(differences, ", ")
+end
+
 function Variables(vars::Tuple{Vararg{Union{AbstractProcessVariable, Namespace}}})
     # partition variables into prognostic, auxiliary, input, and namespace groups;
     # duplicates within each group are automatically merged
@@ -409,7 +438,7 @@ function Variables(vars::Tuple{Vararg{Union{AbstractProcessVariable, Namespace}}
     varmeta(ns::Namespace) = varname(ns)
     function register!(vardict::AbstractDict, var)
         if haskey(vardict, varname(var)) && varmeta(vardict[varname(var)]) != varmeta(var)
-            error("Found incompatible duplicates of variable $(varname(var)): $(var) $(vars[varname(var)])")
+            error("Found incompatible duplicates of variable $(varname(var)): $(describe_conflict(var, vardict[varname(var)]))")
         elseif !haskey(vardict, varname(var))
             vardict[varname(var)] = var
         else
@@ -597,12 +626,21 @@ end
 """
     $SIGNATURES
 
-Convenience constructor for `Variable`. Variables declared with bare [`VarDims`](@ref) are placed on
-the ground domain, which is the only domain every land grid resolves; declare a variable on another
-domain by wrapping its dimensions, e.g. `var(:snow_temperature, Snow(XYZ()))`.
+Convenience constructor for `Variable`. Every variable states the domain it lives on by wrapping its
+[`VarDims`](@ref) in a [`VarDomain`](@ref), e.g. `var(:temperature, Ground(XYZ()))` or
+`var(:snow_temperature, Snow(XY()))`. There is deliberately no default: which domain a variable
+belongs to is not something a reader of the declaration should have to infer.
 """
 @inline var(name::Symbol, loc::VarLocation, units::Units = NoUnits) = Variable(name, loc, units)
-@inline var(name::Symbol, dims::VarDims, units::Units = NoUnits) = var(name, Ground(dims), units)
+
+# Declaring a variable with bare dimensions used to place it on the ground domain implicitly. Keep a
+# method so that the failure names the fix rather than listing candidate signatures.
+var(name::Symbol, dims::VarDims, ::Units...) = throw(
+    ArgumentError(
+        "variable :$name was declared with bare dimensions; it must also state its domain. " *
+            "Write `Ground(...)`, `Snow(...)` or `Canopy(...)` around its dimensions, as appropriate."
+    )
+)
 
 """
     $SIGNATURES

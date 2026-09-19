@@ -3,30 +3,30 @@
 """
 Alias for `FluxBoundaryCondition` on `internal_energy` with name `soil_heat_flux` representing the net heat flux into the top of the soil column. Without snow this equals the surface energy balance `ground_heat_flux`; with snow it is the (blended) conductive flux across the snow base.
 """
-SoilHeatFlux(value = var(:soil_heat_flux, XY(), u"W/m^2"); kwargs...) = (internal_energy = (top = FluxBoundaryCondition(value; kwargs...),),)
+SoilHeatFlux(value = var(:soil_heat_flux, Ground(XY()), u"W/m^2"); kwargs...) = (internal_energy = (top = FluxBoundaryCondition(value; kwargs...),),)
 
 """
 Alias for `FluxBoundaryCondition` on `internal_energy` with name `geothermal_heat_flux` representing the geothermal heat flux at the bottom
 boundary of the soil column.
 """
-GeothermalHeatFlux(value = var(:geothermal_heat_flux, XY(), u"W/m^2"); kwargs...) = (internal_energy = (bottom = FluxBoundaryCondition(value; kwargs...),),)
+GeothermalHeatFlux(value = var(:geothermal_heat_flux, Ground(XY()), u"W/m^2"); kwargs...) = (internal_energy = (bottom = FluxBoundaryCondition(value; kwargs...),),)
 
 """
 Alias for `ValueBoundaryCondition` on top `temperature` (in °C) with the given variable name.
 """
-PrescribedSurfaceTemperature(name::Symbol, value = var(name, XY(), u"°C"); kwargs...) = (temperature = (top = ValueBoundaryCondition(value; kwargs...),),)
+PrescribedSurfaceTemperature(name::Symbol, value = var(name, Ground(XY()), u"°C"); kwargs...) = (temperature = (top = ValueBoundaryCondition(value; kwargs...),),)
 
 """
 Alias for `ValueBoundaryCondition` on top `temperature` (in °C) with the given variable name.
 """
-PrescribedBottomTemperature(name::Symbol, value = var(name, XY(), u"°C"); kwargs...) = (temperature = (bottom = ValueBoundaryCondition(value; kwargs...),),)
+PrescribedBottomTemperature(name::Symbol, value = var(name, Ground(XY()), u"°C"); kwargs...) = (temperature = (bottom = ValueBoundaryCondition(value; kwargs...),),)
 
 # Hydrology BCs
 
 """
 Alias for `PrescribedFlux` with name `infiltration` representing liquid water infiltration at the soil surface.
 """
-InfiltrationFlux(value = var(:infiltration, XY(), u"m/s"); kwargs...) = (saturation_water_ice = (top = FluxBoundaryCondition(value; kwargs...),),)
+InfiltrationFlux(value = var(:infiltration, Ground(XY()), u"m/s"); kwargs...) = (saturation_water_ice = (top = FluxBoundaryCondition(value; kwargs...),),)
 
 """
 Alias for a discrete-form `FluxBoundaryCondition` on `saturation_water_ice` that normalizes the

@@ -10,8 +10,8 @@ using Test
 end
 
 Terrarium.variables(::ExpModel) = (
-    Terrarium.prognostic(:u, Terrarium.XY()),
-    Terrarium.auxiliary(:v, Terrarium.XY()),
+    Terrarium.prognostic(:u, Terrarium.Ground(Terrarium.XY())),
+    Terrarium.auxiliary(:v, Terrarium.Ground(Terrarium.XY())),
 )
 
 # just a constant offset (we could do it differently but this is for testing auxilitary as wel)
@@ -79,13 +79,13 @@ end
 end
 
 Terrarium.variables(::NamespacedExpModel) = (
-    Terrarium.prognostic(:u, Terrarium.XY()),
-    Terrarium.auxiliary(:v, Terrarium.XY()),
+    Terrarium.prognostic(:u, Terrarium.Ground(Terrarium.XY())),
+    Terrarium.auxiliary(:v, Terrarium.Ground(Terrarium.XY())),
     Terrarium.namespace(
         :inner, (
-            Terrarium.prognostic(:u, Terrarium.XY()),
-            Terrarium.auxiliary(:v, Terrarium.XY()),
-            Terrarium.input(:c, Terrarium.XY()),
+            Terrarium.prognostic(:u, Terrarium.Ground(Terrarium.XY())),
+            Terrarium.auxiliary(:v, Terrarium.Ground(Terrarium.XY())),
+            Terrarium.input(:c, Terrarium.Ground(Terrarium.XY())),
         )
     ),
 )

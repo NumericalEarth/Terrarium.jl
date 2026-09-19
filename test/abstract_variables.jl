@@ -3,6 +3,7 @@ using Terrarium: Variables, prognostic, auxiliary, input, tendency, namespace, p
 using Test
 using Oceananigans: Center, Face
 using Unitful
+using Terrarium: Canopy, Ground, Surface
 
 @testset "varpath" begin
     @test varpath(:x) == (:x,)
@@ -35,25 +36,25 @@ end
 
 @testset "Variable construction" begin
     # Test basic Variable creation
-    var = Terrarium.var(:temperature, XYZ(), u"K")
+    var = Terrarium.var(:temperature, Ground(XYZ()), u"K")
     @test Terrarium.varname(var) == :temperature
     @test Terrarium.vardims(var) isa XYZ
     @test Terrarium.varunits(var) == u"K"
 
     # Test with default units (NoUnits)
-    var_no_units = Terrarium.var(:pressure, XY())
+    var_no_units = Terrarium.var(:pressure, Ground(XY()))
     @test Terrarium.varname(var_no_units) == :pressure
     @test Terrarium.varunits(var_no_units) == Terrarium.NoUnits
 
     # Test convenience constructor
-    var_convenience = Terrarium.var(:saturation, XYZ(x = Center(), y = Center(), z = Face()))
+    var_convenience = Terrarium.var(:saturation, Ground(XYZ(x = Center(), y = Center(), z = Face())))
     @test Terrarium.varname(var_convenience) == :saturation
     @test Terrarium.vardims(var_convenience).z isa Face
 end
 
 @testset "PrognosticVariable construction" begin
     # Test basic prognostic variable
-    prog = prognostic(:temperature, XYZ(); units = u"K")
+    prog = prognostic(:temperature, Ground(XYZ()); units = u"K")
     @test Terrarium.hasclosure(prog) == false
     @test isa(prog.closure, Nothing)
     @test isa(prog.tendency, Terrarium.AuxiliaryVariable)
@@ -62,7 +63,7 @@ end
 
     # Test with closure relation
     struct MockClosure <: Terrarium.AbstractClosureRelation end
-    prog_with_closure = prognostic(:enthalpy, XYZ(); units = u"J", closure = MockClosure())
+    prog_with_closure = prognostic(:enthalpy, Ground(XYZ()); units = u"J", closure = MockClosure())
     @test Terrarium.hasclosure(prog_with_closure) == true
     @test isa(prog_with_closure.closure, MockClosure)
 
@@ -79,34 +80,34 @@ end
 
 @testset "AuxiliaryVariable construction" begin
     # Test basic auxiliary variable without constructor
-    aux = auxiliary(:pressure, XYZ(); units = u"Pa")
+    aux = auxiliary(:pressure, Ground(XYZ()); units = u"Pa")
     @test Terrarium.varname(aux) == :pressure
     @test isa(aux.ctor, Nothing)
 
     # Test with bounds
-    aux_bounded = auxiliary(:saturation, XYZ(); units = u"K", bounds = Terrarium.UnitInterval)
+    aux_bounded = auxiliary(:saturation, Ground(XYZ()); units = u"K", bounds = Terrarium.UnitInterval)
     @test aux_bounded.bounds == Terrarium.UnitInterval
 end
 
 @testset "InputVariable construction" begin
     # Test basic input variable without default
-    inp = input(:radiation, XYZ(); units = u"W/m^2")
+    inp = input(:radiation, Canopy(XYZ()); units = u"W/m^2")
     @test Terrarium.varname(inp) == :radiation
     @test isa(inp.default, Nothing)
 
     # Test with numeric default
-    inp_default_num = input(:precipitation, XY(); default = 0.01, units = u"m/s")
+    inp_default_num = input(:precipitation, Surface(XY()); default = 0.01, units = u"m/s")
     @test inp_default_num.default ≈ 0.01
 
     # Test with function default
     f(t) = sin(t)
-    inp_default_func = input(:forcing, XYZ(); default = f, units = u"K")
+    inp_default_func = input(:forcing, Ground(XYZ()); default = f, units = u"K")
     @test inp_default_func.default(π / 2) ≈ 1.0
 end
 
 @testset "tendency helper" begin
     # Test that tendency creates appropriate auxiliary variable
-    temp_var = Terrarium.var(:temperature, XYZ(), u"K")
+    temp_var = Terrarium.var(:temperature, Ground(XYZ()), u"K")
     tend = tendency(temp_var)
 
     @test Terrarium.varname(tend) == :temperature
@@ -117,7 +118,7 @@ end
 
 @testset "Namespace construction" begin
     # Test basic namespace creation
-    vars = Variables(prognostic(:temp, XYZ(); units = u"K"))
+    vars = Variables(prognostic(:temp, Ground(XYZ()); units = u"K"))
     ns = namespace(:soil, vars)
 
     @test Terrarium.varname(ns) == :soil
@@ -126,7 +127,7 @@ end
     # Test namespace from tuple of variables
     ns_from_tuple = namespace(
         :atmosphere,
-        (auxiliary(:humidity, XY(); units = u"kg"), prognostic(:pressure, XYZ(); units = u"Pa"))
+        (auxiliary(:humidity, Ground(XY()); units = u"kg"), prognostic(:pressure, Ground(XYZ()); units = u"Pa"))
     )
     @test Terrarium.varname(ns_from_tuple) == :atmosphere
     @test Terrarium.varname((prognostic_variables(ns_from_tuple.vars)[1])) == :pressure
@@ -136,9 +137,9 @@ end
 @testset "Variables construction" begin
     # Test basic Variables creation from tuple
     vars = Variables(
-        prognostic(:temperature, XYZ(); units = u"K"),
-        auxiliary(:pressure, XY(); units = u"Pa"),
-        input(:radiation, XYZ(); default = 100.0, units = u"W/m^2")
+        prognostic(:temperature, Ground(XYZ()); units = u"K"),
+        auxiliary(:pressure, Ground(XY()); units = u"Pa"),
+        input(:radiation, Canopy(XYZ()); default = 100.0, units = u"W/m^2")
     )
 
     @test length(vars.prognostic) == 1
@@ -148,8 +149,8 @@ end
 
     # Test with namespaces
     vars_with_ns = Variables(
-        prognostic(:temp, XYZ(); units = u"K"),
-        namespace(:soil, (prognostic(:moisture, XY(); units = u"kg"),))
+        prognostic(:temp, Ground(XYZ()); units = u"K"),
+        namespace(:soil, (prognostic(:moisture, Ground(XY()); units = u"kg"),))
     )
 
     @test length(vars_with_ns.namespaces) == 1
@@ -157,8 +158,8 @@ end
 
     # Test automatic merging of namespaces with same name
     vars_merged = Variables(
-        namespace(:atmosphere, (prognostic(:temp, XYZ(); units = u"K"),)),
-        namespace(:atmosphere, (auxiliary(:pressure, XY(); units = u"Pa"),))
+        namespace(:atmosphere, (prognostic(:temp, Ground(XYZ()); units = u"K"),)),
+        namespace(:atmosphere, (auxiliary(:pressure, Ground(XY()); units = u"Pa"),))
     )
 
     @test length(vars_merged.namespaces) == 1
@@ -170,14 +171,14 @@ end
 @testset "Variables duplicate detection" begin
     # Test that duplicate variable names raise an error
     @test_throws ErrorException Variables(
-        prognostic(:temperature, XYZ(); units = u"K"),
-        auxiliary(:temperature, XY(); units = u"Pa")  # Same name!
+        prognostic(:temperature, Ground(XYZ()); units = u"K"),
+        auxiliary(:temperature, Ground(XY()); units = u"Pa")  # Same name!
     )
 
     # Test that duplicate namespace names are merged (not an error)
     vars = Variables(
-        namespace(:soil, (prognostic(:temp, XYZ(); units = u"K"),)),
-        namespace(:soil, (auxiliary(:pressure, XY(); units = u"Pa"),))
+        namespace(:soil, (prognostic(:temp, Ground(XYZ()); units = u"K"),)),
+        namespace(:soil, (auxiliary(:pressure, Ground(XY()); units = u"Pa"),))
     )
     @test length(vars.namespaces) == 1
     @test haskey(vars.namespaces, :soil)
@@ -186,10 +187,10 @@ end
 @testset "Variable helper functions" begin
     # Test prognostic_variables
     vars = Variables(
-        prognostic(:temp, XYZ(); units = u"K"),
-        prognostic(:moisture, XY(); units = u"kg"),
-        auxiliary(:pressure, XYZ(); units = u"Pa"),
-        input(:radiation, XYZ(); default = 100.0)
+        prognostic(:temp, Ground(XYZ()); units = u"K"),
+        prognostic(:moisture, Ground(XY()); units = u"kg"),
+        auxiliary(:pressure, Ground(XYZ()); units = u"Pa"),
+        input(:radiation, Canopy(XYZ()); default = 100.0)
     )
 
     prog_vars = prognostic_variables(vars)
@@ -209,7 +210,7 @@ end
 
 @testset "Variable show methods" begin
     # Test that Variable shows correctly
-    var = Terrarium.var(:temperature, XYZ(), u"K")
+    var = Terrarium.var(:temperature, Ground(XYZ()), u"K")
     io = IOBuffer()
     show(io, MIME"text/plain"(), var)
     str = String(take!(io))
@@ -217,7 +218,7 @@ end
     @test occursin("K", str)
 
     # Test Variable without units
-    var_no_units = Terrarium.var(:pressure, XY())
+    var_no_units = Terrarium.var(:pressure, Ground(XY()))
     io = IOBuffer()
     show(io, MIME"text/plain"(), var_no_units)
     str = String(take!(io))
@@ -226,8 +227,8 @@ end
 
 @testset "Variables show methods" begin
     vars = Variables(
-        prognostic(:temp, XYZ(); units = u"K"),
-        auxiliary(:pressure, XY(); units = u"Pa")
+        prognostic(:temp, Ground(XYZ()); units = u"K"),
+        auxiliary(:pressure, Ground(XY()); units = u"Pa")
     )
 
     io = IOBuffer()
@@ -243,11 +244,11 @@ end
 
 @testset "merge Variables" begin
     vars1 = Variables(
-        prognostic(:temp, XYZ(); units = u"K")
+        prognostic(:temp, Ground(XYZ()); units = u"K")
     )
 
     vars2 = Variables(
-        auxiliary(:pressure, XY(); units = u"Pa")
+        auxiliary(:pressure, Ground(XY()); units = u"Pa")
     )
 
     merged = merge(vars1, vars2)
@@ -261,23 +262,23 @@ end
 @testset "Namespace merging in Variables" begin
     # same-named namespaces should merge their variables
     vars = Variables(
-        Terrarium.namespace(:ns, (Terrarium.input(:a, XY()),)),
-        Terrarium.namespace(:ns, (Terrarium.input(:b, XY()),)),
+        Terrarium.namespace(:ns, (Terrarium.input(:a, Ground(XY())),)),
+        Terrarium.namespace(:ns, (Terrarium.input(:b, Ground(XY())),)),
     )
     @test Tuple(keys(vars.namespaces)) == (:ns,)
     @test Tuple(keys(vars.namespaces[:ns].vars.inputs)) == (:a, :b)
 
     # nested namespaces merge recursively
     nested = Variables(
-        Terrarium.namespace(:outer, (Terrarium.namespace(:inner, (Terrarium.input(:a, XY()),)),)),
-        Terrarium.namespace(:outer, (Terrarium.namespace(:inner, (Terrarium.input(:b, XY()),)),)),
+        Terrarium.namespace(:outer, (Terrarium.namespace(:inner, (Terrarium.input(:a, Ground(XY())),)),)),
+        Terrarium.namespace(:outer, (Terrarium.namespace(:inner, (Terrarium.input(:b, Ground(XY())),)),)),
     )
     @test Tuple(keys(nested.namespaces)) == (:outer,)
     @test Tuple(keys(nested.namespaces[:outer].namespaces[:inner].inputs)) == (:a, :b)
 end
 
 @testset "with_scope" begin
-    var = input(:temperature, XYZ(); units = u"K")
+    var = input(:temperature, Ground(XYZ()); units = u"K")
 
     # Test root scope
     result = Terrarium.with_scope((), var)

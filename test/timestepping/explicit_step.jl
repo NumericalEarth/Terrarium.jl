@@ -26,18 +26,18 @@ Terrarium.variables(closure::TestClosure) = (
     # for a model with prognostic variables at the top level and
     # in a nested namespace.
     state = (
-        prognostic = (x = Field(grid, XYZ()), y = Field(grid, XYZ())),
-        auxiliary = (z = Field(grid, XYZ()),),
+        prognostic = (x = Field(grid, Ground(XYZ())), y = Field(grid, Ground(XYZ()))),
+        auxiliary = (z = Field(grid, Ground(XYZ())),),
         tendencies = (
-            x = Field(grid, XYZ()),
-            y = Field(grid, XYZ()),
+            x = Field(grid, Ground(XYZ())),
+            y = Field(grid, Ground(XYZ())),
         ),
         namespaces = (
             inner = (
-                prognostic = (x = Field(grid, XYZ()),),
+                prognostic = (x = Field(grid, Ground(XYZ())),),
                 auxiliary = (;),
                 tendencies = (
-                    x = Field(grid, XYZ()),
+                    x = Field(grid, Ground(XYZ())),
                 ),
                 namespaces = (;),
                 clock = clock,

@@ -1,14 +1,14 @@
 using Terrarium
 using Test
 
-using Terrarium: AbstractLandGrid, VarDims, XY, XYZ, prognostic, auxiliary, input, namespace
+using Terrarium: AbstractLandGrid, VarDims, XY, XYZ, Ground, prognostic, auxiliary, input, namespace
 
 DEFAULT_NF = Float32
 
 module StateVariablesTestTypes
 
     using Terrarium
-    using Terrarium: AbstractLandGrid, VarDims, XY, XYZ, prognostic, auxiliary, input, namespace
+    using Terrarium: AbstractLandGrid, VarDims, XY, XYZ, Ground, prognostic, auxiliary, input, namespace
 
     using Test
 
@@ -20,9 +20,9 @@ module StateVariablesTestTypes
 
     Terrarium.variables(model::SubModel) = (
         # duplicate naming allowed in new namesapce
-        auxiliary(:auxvar2D, XY()),
+        auxiliary(:auxvar2D, Ground(XY())),
         # inputs are handled "globally" (i.e. all inputs with a given name refer to the same field)
-        input(:forcing, XY()),
+        input(:forcing, Ground(XY())),
     )
 
     @kwdef struct TestModel{NF, Grid <: AbstractLandGrid{NF}, Sub} <: Terrarium.AbstractModel{NF, Grid}
@@ -35,16 +35,16 @@ module StateVariablesTestTypes
     struct TestClosure <: Terrarium.AbstractClosureRelation end
 
     Terrarium.variables(::TestClosure) = (
-        auxiliary(:closurevar, XYZ()),
+        auxiliary(:closurevar, Ground(XYZ())),
     )
 
     Terrarium.variables(model::TestModel) = (
-        prognostic(:progvar3D, XYZ()),
-        prognostic(:cprogvar3D, XYZ(), closure = TestClosure()),
-        prognostic(:progvar2D, XY()),
-        auxiliary(:auxvar3D, XYZ()),
-        auxiliary(:auxvar2D, XY()),
-        input(:forcing, XY()),
+        prognostic(:progvar3D, Ground(XYZ())),
+        prognostic(:cprogvar3D, Ground(XYZ()), closure = TestClosure()),
+        prognostic(:progvar2D, Ground(XY())),
+        auxiliary(:auxvar3D, Ground(XYZ())),
+        auxiliary(:auxvar2D, Ground(XY())),
+        input(:forcing, Ground(XY())),
         namespace(:submodel, variables(model.submodel)),
     )
 end

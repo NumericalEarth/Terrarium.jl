@@ -96,17 +96,58 @@ grids are their own ground discretization.
     $SIGNATURES
 
 Return the spatial discretization of the snow domain of `grid`, or `nothing` if the snowpack is not
-vertically resolved.
+vertically resolved. Grids which are not land grids never resolve a snow domain.
 """
+@inline snow_domain(::AbstractGrid) = nothing
 @inline snow_domain(grid::LandGrid) = getfield(grid, :snow)
 
 """
     $SIGNATURES
 
 Return the spatial discretization of the canopy domain of `grid`, or `nothing` if the canopy is not
-vertically resolved.
+vertically resolved. Grids which are not land grids never resolve a canopy domain.
 """
+@inline canopy_domain(::AbstractGrid) = nothing
 @inline canopy_domain(grid::LandGrid) = getfield(grid, :canopy)
+
+"""
+    $SIGNATURES
+
+Return the spatial discretization of `grid` for the model domain selected by `domain`, or `nothing`
+if `grid` does not resolve that domain vertically.
+"""
+@inline get_domain(grid::AbstractGrid, ::Ground) = ground_domain(grid)
+@inline get_domain(grid::AbstractGrid, ::Snow) = snow_domain(grid)
+@inline get_domain(grid::AbstractGrid, ::Canopy) = canopy_domain(grid)
+# The surface is an interface, not a vertical domain: it is never discretized in its own right, so
+# its (necessarily two-dimensional) variables fall back to the shared horizontal discretization.
+@inline get_domain(::AbstractGrid, ::Surface) = nothing
+
+"""
+    $SIGNATURES
+
+Return the spatial discretization on which a variable at `loc` is allocated.
+
+A domain which the model does not resolve vertically still has variables: a single-layer snowpack has
+a snow water equivalent, a big-leaf canopy has a temperature. Those variables carry no vertical
+dimension, so they are allocated on the shared horizontal discretization, which is the ground
+domain's. A variable which *is* vertically resolved ([`XYZ`](@ref)) cannot be placed on a domain with
+no vertical discretization, and asking for one is a configuration error.
+"""
+@inline function variable_grid(grid::AbstractGrid, loc::VarLocation)
+    domain_grid = get_domain(grid, vardomain(loc))
+    return isnothing(domain_grid) ? default_domain_grid(grid, vardims(loc), vardomain(loc)) : domain_grid
+end
+
+@inline default_domain_grid(grid::AbstractGrid, ::VarDims, ::VarDomain) = ground_domain(grid)
+
+default_domain_grid(grid::AbstractGrid, dims::XYZ, domain::VarDomain) = throw(
+    ArgumentError(
+        "cannot allocate a vertically resolved ($(typeof(dims))) variable on the $(summary(domain)) " *
+            "domain: this $(nameof(typeof(grid))) does not discretize it vertically. Either declare the " *
+            "variable on the ground domain, or construct the grid with a $(summary(domain)) discretization."
+    )
+)
 
 # Properties which are not the land grid's own resolve against the ground domain grid, so that a
 # ground discretization which is itself a wrapper (e.g. `ColumnRingGrid`) can expose its own

@@ -11,8 +11,8 @@ struct PrescribedTurbulentFluxes{NF} <: AbstractTurbulentFluxes{NF} end
 PrescribedTurbulentFluxes(::Type{NF}) where {NF} = PrescribedTurbulentFluxes{NF}()
 
 variables(::PrescribedTurbulentFluxes) = (
-    input(:sensible_heat_flux, XY(), units = u"W/m^2", desc = "Sensible heat flux at the surface [W m⁻²]"),
-    input(:latent_heat_flux, XY(), units = u"W/m^2", desc = "Latent heat flux at the surface [W m⁻²]"),
+    input(:sensible_heat_flux, Surface(XY()), units = u"W/m^2", desc = "Sensible heat flux at the surface [W m⁻²]"),
+    input(:latent_heat_flux, Surface(XY()), units = u"W/m^2", desc = "Latent heat flux at the surface [W m⁻²]"),
 )
 
 # The turbulent fluxes are prescribed input variables, so there is nothing to diagnose.
@@ -88,8 +88,8 @@ end
 ## Top-level interface methods
 
 variables(::DiagnosedTurbulentFluxes) = (
-    auxiliary(:sensible_heat_flux, XY(), units = u"W/m^2", desc = "Sensible heat flux at the surface [W m⁻²]"),
-    auxiliary(:latent_heat_flux, XY(), units = u"W/m^2", desc = "Latent heat flux at the surface [W m⁻²]"),
+    auxiliary(:sensible_heat_flux, Surface(XY()), units = u"W/m^2", desc = "Sensible heat flux at the surface [W m⁻²]"),
+    auxiliary(:latent_heat_flux, Surface(XY()), units = u"W/m^2", desc = "Latent heat flux at the surface [W m⁻²]"),
 )
 
 """ $TYPEDSIGNATURES """

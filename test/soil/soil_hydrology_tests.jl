@@ -1,5 +1,5 @@
 using Terrarium
-using Terrarium: forcing, compute_volumetric_water_content_tendency, hydraulic_conductivity, Variables, auxiliary, get_closure
+using Terrarium: Ground, forcing, compute_volumetric_water_content_tendency, hydraulic_conductivity, Variables, auxiliary, get_closure
 using Test
 
 using FreezeCurves
@@ -226,7 +226,7 @@ end
         strat = HomogeneousSoilStratigraphy(eltype(grid); porosity = ConstantSoilPorosity(eltype(grid); mineral_porosity))
         bgc = ConstantSoilCarbonDensity(eltype(grid))
         hydrology = SoilHydrology(eltype(grid), RichardsEq())
-        infiltration_var = auxiliary(:infiltration, XY(), units = u"m/s", desc = "Infiltration flux")
+        infiltration_var = auxiliary(:infiltration, Ground(XY()), units = u"m/s", desc = "Infiltration flux")
         # `strat`'s own variables (the per-horizon namespace `porosity_top` reaches into) must be part
         # of the state too, not just `hydrology`'s.
         vars = merge(Variables(hydrology), Variables(strat), Variables((infiltration_var,)))

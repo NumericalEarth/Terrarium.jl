@@ -6,6 +6,7 @@ import Oceananigans: CenterField, Center, set!, interior
 import Oceananigans.Grids: RectilinearGrid, z_domain, halo_size, total_size, nodes, xnodes, znodes, isrectilinear
 import Terrarium.RingGrids
 import Terrarium.RingGrids: FullHEALPixGrid, get_npoints
+using Terrarium: Ground
 
 @testset "AbstractGrid interface" begin
     grid = ColumnGrid(UniformSpacing(Δz = 0.1f0, N = 5), 2)
@@ -280,7 +281,7 @@ end
     @test Terrarium.num_layers(grid) == 5
     @test Oceananigans.Grids.topology(grid) == Oceananigans.Grids.topology(column_grid)
     @test architecture(grid) == architecture(column_grid)
-    @test size(Field(grid, XYZ())) == size(grid)
+    @test size(Field(grid, Ground(XYZ()))) == size(grid)
 
     # Grids which are not land grids are their own ground discretization.
     @test ground_domain(column_grid) === column_grid

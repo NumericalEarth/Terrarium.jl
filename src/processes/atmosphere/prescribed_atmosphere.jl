@@ -11,7 +11,7 @@ end
 Base.nameof(::TracerGas{NF, name}) where {NF, name} = name
 
 variables(gas::TracerGas{NF, name}) where {NF, name} = (
-    input(name, XY(), default = gas.concentration, units = u"ppm", desc = "Ambient atmospheric $(name) concentration in ppm"),
+    input(name, Surface(XY()), default = gas.concentration, units = u"ppm", desc = "Ambient atmospheric $(name) concentration in ppm"),
 )
 
 """
@@ -97,8 +97,8 @@ ParameterEditing.parameters(::PrescribedAtmosphere) = (;)
 minimum_windspeed(atmos::PrescribedAtmosphere) = atmos.min_windspeed
 
 variables(atmos::PrescribedAtmosphere{NF}) where {NF} = (
-    input(:air_temperature, XY(), default = NF(10), units = u"°C", desc = "Near-surface air temperature in °C"),
-    input(:air_pressure, XY(), default = NF(101_325), units = u"Pa", desc = "Atmospheric pressure at the surface in Pa"),
+    input(:air_temperature, Surface(XY()), default = NF(10), units = u"°C", desc = "Near-surface air temperature in °C"),
+    input(:air_pressure, Surface(XY()), default = NF(101_325), units = u"Pa", desc = "Atmospheric pressure at the surface in Pa"),
     variables(atmos.wind)...,
     variables(atmos.humidity)...,
     variables(atmos.precip)...,
@@ -167,7 +167,7 @@ Represents a windspeed as direct input/forcing variable.
 struct Windspeed <: AbstractWind end
 
 variables(::Windspeed) = (
-    input(:windspeed, XY(), default = 0.1, units = u"m/s", desc = "Wind speed in m/s"),
+    input(:windspeed, Surface(XY()), default = 0.1, units = u"m/s", desc = "Wind speed in m/s"),
 )
 
 """
@@ -185,8 +185,8 @@ Represents a windspeed given as `u` (east-west) and `v` (south-north) velocity c
 struct WindVelocity <: AbstractWind end
 
 variables(::WindVelocity) = (
-    input(:wind_u, XY(), default = 0.1, units = u"m/s", desc = "Wind velocity u-component in m/s"),
-    input(:wind_v, XY(), default = 0.1, units = u"m/s", desc = "Wind velocity v-component in m/s"),
+    input(:wind_u, Surface(XY()), default = 0.1, units = u"m/s", desc = "Wind velocity u-component in m/s"),
+    input(:wind_v, Surface(XY()), default = 0.1, units = u"m/s", desc = "Wind velocity v-component in m/s"),
 )
 
 @propagate_inbounds windspeed(i, j, grid, fields, atmos::AbstractAtmosphere{NF, PR, IR, HD, WindVelocity}) where {NF, PR, IR, HD} = max(sqrt(fields.wind_u[i, j]^2 + fields.wind_v[i, j]^2), minimum_windspeed(atmos))
@@ -201,7 +201,7 @@ provided directly as an input field.
 struct SpecificHumidity <: AbstractHumidity end
 
 variables(::SpecificHumidity) = (
-    input(:specific_humidity, XY(), default = 1.0e-3, units = u"kg/kg", desc = "Near-surface specific humidity in kg/kg"),
+    input(:specific_humidity, Surface(XY()), default = 1.0e-3, units = u"kg/kg", desc = "Near-surface specific humidity in kg/kg"),
 )
 
 """
@@ -233,8 +233,8 @@ are provided as separate input fields.
 struct RainSnow <: AbstractPrecipitation end
 
 variables(::RainSnow) = (
-    input(:rainfall, XY(), units = u"m/s", desc = "Liquid precipitation (rainfall) rate"),
-    input(:snowfall, XY(), units = u"m/s", desc = "Frozen precipitation (snowfall) rate"),
+    input(:rainfall, Surface(XY()), units = u"m/s", desc = "Liquid precipitation (rainfall) rate"),
+    input(:snowfall, Surface(XY()), units = u"m/s", desc = "Frozen precipitation (snowfall) rate"),
 )
 
 """
@@ -261,9 +261,9 @@ length [hr].
 struct LongShortWaveRadiation <: AbstractIncomingRadiation end
 
 variables(::LongShortWaveRadiation) = (
-    input(:surface_shortwave_down, XY(), default = 341, units = u"W/m^2", desc = "Incoming (downwelling) shortwave solar radiation"),
-    input(:surface_longwave_down, XY(), default = 333, units = u"W/m^2", desc = "Incoming (downwelling) longwave thermal radiation"),
-    input(:daytime_length, XY(), default = 12, units = u"hr", desc = "Number of daytime hours varying with the season and orbital parameters"),
+    input(:surface_shortwave_down, Surface(XY()), default = 341, units = u"W/m^2", desc = "Incoming (downwelling) shortwave solar radiation"),
+    input(:surface_longwave_down, Surface(XY()), default = 333, units = u"W/m^2", desc = "Incoming (downwelling) longwave thermal radiation"),
+    input(:daytime_length, Surface(XY()), default = 12, units = u"hr", desc = "Number of daytime hours varying with the season and orbital parameters"),
 )
 
 """

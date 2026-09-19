@@ -97,8 +97,8 @@ function StateVariables(
 end
 
 interface_variables(::LandModel) = (
-    auxiliary(:soil_heat_flux, XY(); units = u"W/m^2", desc = "Blended heat flux into the soil top (snow base + bare ground)"),
-    auxiliary(:snow_surface_heat_flux, XY(); units = u"W/m^2", desc = "Conductive heat flux from the skin into the top of the snowpack (positive upward); drives the snowpack's own energy tendency"),
+    auxiliary(:soil_heat_flux, Ground(XY()); units = u"W/m^2", desc = "Blended heat flux into the soil top (snow base + bare ground)"),
+    auxiliary(:snow_surface_heat_flux, Snow(XY()); units = u"W/m^2", desc = "Conductive heat flux from the skin into the top of the snowpack (positive upward); drives the snowpack's own energy tendency"),
 )
 
 function initialize!(state, model::LandModel)
