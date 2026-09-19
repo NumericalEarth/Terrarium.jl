@@ -33,6 +33,8 @@ Base revision: 4f3841955af84ac6cb4a6f88b04538fc0dd7d658
 >
 > Revision 7 (2026-09-18): Simplified the grid type hierarchy following review. (i) `Oceananigans.Grids.AbstractGrid` is imported into `Terrarium` so it needs no qualification. (ii) `ColumnGrid` is no longer a wrapper struct at all: it is a *type alias* for `RectilinearGrid{NF, Periodic, Flat, Bounded, …}` plus constructors which build one from an `AbstractVerticalSpacing`, so a column grid simply *is* an Oceananigans grid. (iii) `AbstractColumnGrid` and the `WrappedGrid` union are therefore gone; `ColumnRingGrid` remains a wrapper struct (it carries the ring grid and mask) and subtypes `AbstractGrid` directly, defining its own copy of the interface forwarding separately from `AbstractLandGrid`. (iv) All Terrarium methods which dispatch on a grid now take `AbstractLandGrid`, with two deliberate exceptions recorded in Revision 6(v) below, replaced by: the `AbstractModel` constructor (which accepts any `AbstractGrid` and calls `create_land_grid` — the whole point of Phase 4) and the `Field`/`FieldTimeSeries` constructors taking `VarDims` (a purely geometric mapping from `VarDims` to an Oceananigans location, carrying no land model semantics, and needed by `ColumnRingGrid`'s own field conversions). Tests which pass a grid to a process function now build a `LandGrid` explicitly. (v) `root_fraction` dispatches on `AbstractLandGrid{<:Any, <:Any, Flat}`, which expresses the "column-like discretization" requirement of its two-argument `FunctionField` more precisely than the old `AbstractColumnGrid` bound did.
 >
+> Revision 9 (2026-09-18): `ColumnRingGrid` is to be a *fully valid* Oceananigans grid, usable anywhere a `RectilinearGrid` is, rather than a wrapper that Terrarium unwraps before handing it to Oceananigans. The alternative considered was to reintroduce the removed `get_field_grid` under a new name so that `Field`s are allocated on the wrapped `RectilinearGrid`; that was rejected because it treats a deficiency in Oceananigans as a Terrarium problem and leaves `ColumnRingGrid` a second-class grid. Consequently every Oceananigans method a grid must provide is forwarded, and, because Oceananigans nowhere defines what that set is, the new section ["The `AbstractGrid` interface in practice"](#the-abstractgrid-interface-in-practice) records each method and field as it is discovered, together with whether it appears in `src/Grids/abstract_grid.jl` and whether it is exported. Three snags so far: the unexported, undocumented `ξname`/`ηname`/`rname`; `ξnode`/`ηnode`/`rnode`; and `serializeproperty!`, where a `ColumnRingGrid` cannot round-trip through JLD2 because its `mask` comes back as a `BitVector`. That section is to be maintained as further snags appear.
+>
 > Revision 6 (2026-09-17, *implementation notes — pending approval*): Deviations made while implementing Phases 2-4.
 > (i) The shared wrapper forwarding is anchored on a union alias `WrappedGrid = Union{AbstractLandGrid, AbstractColumnGrid}`, with `AbstractColumnGrid` moved from `column_grid.jl` into `grids.jl` alongside `AbstractLandGrid`; both column grids keep `AbstractColumnGrid` as their common supertype and it is that type which carries the forwarded dispatches.
 > (ii) `LandGrid`'s keyword constructor takes ready-made per-domain grids (`LandGrid(ground; snow, canopy)`) rather than per-domain `AbstractVerticalSpacing`s. Building a domain grid from a spacing requires a grid-type-specific "same horizontal discretization, new vertical discretization" operation; that is deferred until a vertically resolved snow or canopy scheme actually needs it.
@@ -334,6 +336,84 @@ function create_land_grid end
 - `get_grid(model)` now returns a `LandGrid` wrapping the grid that was passed in, not the grid
   itself; use `ground_domain(get_grid(model))` to recover the previous object
 - Code transformation examples (old → new) and rationale for the two-layer split
+
+## The `AbstractGrid` interface in practice
+
+> **Maintained section.** `ColumnRingGrid` is intended to be a fully valid Oceananigans grid, usable
+> anywhere a `RectilinearGrid` is. Oceananigans does not define what that requires: `abstract_grid.jl`
+> declares the supertype and a handful of methods, and everything else is discovered by running into a
+> `MethodError`. This section records every method and field we have found to be necessary, so the
+> requirement set is written down somewhere even though upstream does not write it down. **Add a row
+> whenever a new snag appears.**
+>
+> The two rightmost columns are the point of the exercise: they say how much of the real requirement
+> set Oceananigans actually advertises. "In `abstract_grid.jl`" means the method is defined or
+> documented in `src/Grids/abstract_grid.jl`, the file a reader would take for the interface
+> definition. "Exported" means exported from `Oceananigans.Grids`.
+
+### Methods
+
+| Method | Needed for | In `abstract_grid.jl` | Exported |
+|---|---|---|---|
+| `Base.size(grid)` | everything; `Field` allocation, kernel launches | yes (via `Nx`/`Ny`/`Nz` fields or the `SZ` parameter) | n/a |
+| `halo_size(grid)` | `Field` allocation, halo filling | yes (via `Hx`/`Hy`/`Hz` or `SZ`) | yes |
+| `architecture(grid)` | kernel launches, data transfers | yes (via the `architecture` field) | n/a |
+| `topology(grid)` | boundary conditions, halo filling | yes (from the type parameters, no method needed) | yes |
+| `Base.eltype(grid)` | numeric type of allocated data | yes (from `FT`, no method needed) | n/a |
+| `isrectilinear(grid)` | operator selection | yes (`false` fallback) | **no** |
+| `nodes`, `xnodes`, `ynodes`, `znodes` | coordinates for output and diagnostics | **no** | yes |
+| `ξname`, `ηname`, `rname` | `set!(::Field, ::Function)`, to name the coordinate arguments | **no** | **no** |
+| `ξnode`, `ηnode`, `rnode` | `set!(::Field, ::Function)`, to evaluate coordinates per node | **no** | yes |
+| `on_architecture(arch, grid)` | CPU↔GPU and CPU↔Reactant transfers | **no** | yes |
+| `Adapt.adapt_structure` | passing the grid into a kernel | **no** | n/a (Adapt.jl) |
+| `serializeproperty!(file, address, grid)` | `JLD2Writer` output, `FieldTimeSeries` read-back | **no** (in `OutputWriters`) | **no** |
+| `Base.summary`, `Base.show` | error messages, REPL display, `Simulation` banners | **no** | n/a |
+
+### Fields accessed directly
+
+Oceananigans reads grid geometry as *struct fields* rather than through accessors, so a wrapper grid
+must also answer `getproperty` for names it does not itself define. `ColumnRingGrid` forwards every
+unknown property to the wrapped `RectilinearGrid`, which covers all of these at once:
+
+| Field | Read by |
+|---|---|
+| `Nx`, `Ny`, `Nz` | `size`, `total_size`, kernel work layouts |
+| `Hx`, `Hy`, `Hz` | `halo_size`, halo filling |
+| `architecture` | the default `architecture(::AbstractGrid)` |
+| `xᶜᵃᵃ`, `xᶠᵃᵃ`, `yᵃᶜᵃ`, `yᵃᶠᵃ` | `xnode`, `ynode` and the spacing operators |
+| `z` | `rnode`, `znode`, `zspacings`, the vertical discretization |
+| `Lx`, `Ly`, `Lz` | domain extents in diagnostics and `show` |
+
+Forwarding by `getproperty` is what AGENTS.md pitfall 6 warns against ("fix on the caller side
+instead"), but here the caller is Oceananigans and the fields *are* its interface, so a wrapper has
+no alternative. This is itself the clearest symptom of the missing interface definition: a grid
+cannot be implemented by defining methods alone.
+
+### Snags encountered, in order
+
+1. **`ξname`, `ηname`, `rname` (2026-09-18).** `set!(field, ::Function)` calls `_node_names(grid, …)`
+   to decide what to call the function's arguments. Not exported, not documented, and reached from a
+   user-facing operation as ordinary as initializing a field from a profile. Symptom:
+   `MethodError: no method matching ξname(::ColumnRingGrid{…})`, which broke both the `soil_heat_global`
+   Reactant configuration and the `soil_heat_global.jl` documentation example.
+2. **`ξnode`, `ηnode`, `rnode` (2026-09-18).** The same call path then evaluates the coordinates.
+   `rnode` has a generic fallback that reads `grid.z`, so property forwarding covers it; `ξnode` and
+   `ηnode` are defined per concrete grid type and are not.
+3. **`serializeproperty!` (2026-09-18).** `JLD2Writer` serializes the grid each output `Field` lives
+   on, and `FieldTimeSeries` reconstructs it on read. A `ColumnRingGrid` cannot round-trip: its `mask`
+   is a `RingGrids.Field{Bool}` backed by a `Vector{Bool}` which JLD2 reads back as a `BitVector`,
+   failing a `typeassert` against the grid's own `Mask` type parameter. We serialize the wrapped
+   `RectilinearGrid` instead, discarding `rings`/`mask`, which are reattached on load by passing the
+   live grid to `RingGrids.Field`.
+
+### Open questions for upstream
+
+- Should `abstract_grid.jl` carry the full list, or should Oceananigans provide a test suite that a
+  candidate grid can be run against? The latter would have caught all three snags above at once.
+- `ξname`/`ηname`/`rname` are required of every grid but exported by none; either they should be
+  exported or `set!` should not depend on them.
+- Is serialization meant to be part of the grid interface at all? If a grid is not required to
+  round-trip through JLD2, `JLD2Writer` should say so rather than failing at read time.
 
 ## Known limitations
 
