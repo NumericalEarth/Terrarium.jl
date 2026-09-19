@@ -1,5 +1,6 @@
 using Terrarium
-using Terrarium: FieldInputSource, FieldTimeSeriesInputSource, Variables, initialize!, interior, InputSources, varname
+using Terrarium: InputSources, FieldInputSource, FieldTimeSeriesInputSource, Variables, Ground
+using Terrarium: initialize!, interior, varname
 using Test
 using Unitful
 

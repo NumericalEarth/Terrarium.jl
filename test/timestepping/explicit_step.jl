@@ -1,4 +1,5 @@
 using Terrarium
+using Terrarium: Ground, Top, Bottom
 using Test
 
 # The tests below drive `explicit_step!` with a lightweight `NamedTuple` mock standing in for a
@@ -11,7 +12,7 @@ struct TestClosure
 end
 
 Terrarium.variables(closure::TestClosure) = (
-    Terrarium.auxiliary(closure.varname, XYZ()),
+    Terrarium.auxiliary(closure.varname, Ground(XYZ())),
 )
 
 @testset "Forward Euler" begin
@@ -58,4 +59,39 @@ Terrarium.variables(closure::TestClosure) = (
     @test all(state.namespaces.inner.prognostic.x .≈ Δt * dxdt * 2)
     # check that z was not changed (inverse closure not evaluated)
     @test all(iszero.(state.auxiliary.z))
+end
+
+@testset "Forward Euler on vertically sliced fields" begin
+    # A variable declared at the `Top` or `Bottom` of a domain occupies a single vertical index but
+    # still carries a `Center`/`Face` vertical location, so it is indistinguishable from a fully
+    # resolved variable by its location parameters alone. `explicit_step!` must dispatch on the
+    # field's `indices` instead and step only the index the slice occupies.
+    Δt = 10.0
+    Nz = 10
+    grid = ColumnGrid(CPU(), Float64, ExponentialSpacing(N = Nz))
+    clock = Clock(time = 0.0)
+
+    for (name, loc, k) in (
+            ("Top(Face)", Ground(Top()), Nz + 1),
+            ("Top(Center)", Ground(Top(z = Center())), Nz),
+            ("Bottom(Face)", Ground(Bottom()), 1),
+        )
+        state = (
+            prognostic = (x = Field(grid, loc),),
+            auxiliary = (;),
+            tendencies = (x = Field(grid, loc),),
+            namespaces = (;),
+            clock = clock,
+        )
+        dxdt = 0.1
+        set!(state.tendencies.x, dxdt)
+
+        Terrarium.explicit_step!(state, grid, ForwardEuler(; Δt), Δt, (:x,))
+
+        # the slice is stepped, whichever vertical index it occupies
+        @test axes(state.prognostic.x, 3) == k:k
+        @test all(interior(state.prognostic.x) .≈ Δt * dxdt)
+        # and nothing outside the slice is touched, i.e. the step did not walk the whole column
+        @test count(!iszero, parent(state.prognostic.x)) == length(interior(state.prognostic.x))
+    end
 end
