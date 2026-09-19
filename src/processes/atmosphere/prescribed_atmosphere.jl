@@ -144,7 +144,7 @@ Retrieve or compute the air pressure at the current time step.
 
 Return the current prescribed ambient CO2 concentration level.
 """
-@propagate_inbounds ambient_co2(i, j, grid, fields, ::PrescribedAtmosphere) = fields.CO2[i, j, 1]
+@propagate_inbounds ambient_co2(i, j, grid, fields, ::PrescribedAtmosphere) = fields.CO2[i, j, end]
 
 """
     air_density(i, j, grid, fields, atmos::AbstractAtmosphere, constants::PhysicalConstants)

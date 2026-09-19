@@ -201,8 +201,8 @@ Mutating wrapper for [`compute_autotrophic_respiration`](@ref) that stores the r
 @propagate_inbounds function compute_autotrophic_respiration!(out, i, j, grid, fields, autoresp::AbstractAutotrophicRespiration, args...)
     # Compute and store results
     Ra, NPP = compute_autotrophic_respiration(i, j, grid, fields, autoresp, args...)
-    out.autotrophic_respiration[i, j, 1] = Ra
-    out.net_primary_production[i, j, 1] = NPP
+    out.autotrophic_respiration[i, j, end] = Ra
+    out.net_primary_production[i, j, end] = NPP
     return out
 end
 

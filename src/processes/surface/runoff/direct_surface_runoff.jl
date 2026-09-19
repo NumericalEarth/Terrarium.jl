@@ -117,7 +117,7 @@ surface hydrology tendencies, so that `surface_excess_water += ∂S∂t * Δt` d
     ) where {NF}
     S = surface_excess_water(i, j, grid, fields, runoff)
     D = compute_surface_drainage(runoff, S)
-    tendencies.surface_excess_water[i, j, 1] = -min(D, S)
+    tendencies.surface_excess_water[i, j, end] = -min(D, S)
     return tendencies
 end
 
@@ -143,15 +143,15 @@ end
         # First, compute rate of excess water removal (surface drainage)
         surface_drainage = compute_surface_drainage(runoff, excess_water)
         # Calculate infiltration
-        infil = out.infiltration[i, j, 1] = compute_infiltration(runoff, surface_drainage, sat_top, k_unsat)
+        infil = out.infiltration[i, j, end] = compute_infiltration(runoff, surface_drainage, sat_top, k_unsat)
     else
         # Case 2: No excess water -> rainfall is routed directly to infiltration
         surface_drainage = zero(NF)
-        infil = out.infiltration[i, j, 1] = compute_infiltration(runoff, influx, sat_top, k_unsat)
+        infil = out.infiltration[i, j, end] = compute_infiltration(runoff, influx, sat_top, k_unsat)
     end
 
     # Compute surface runoff
-    out.surface_runoff[i, j, 1] = compute_surface_runoff(runoff, influx, surface_drainage, infil)
+    out.surface_runoff[i, j, end] = compute_surface_runoff(runoff, influx, surface_drainage, infil)
     return out
 end
 

@@ -173,7 +173,7 @@ Kernel function that diagnoses the water table at grid cell `i, j` given the cur
 @propagate_inbounds function compute_water_table!(water_table, i, j, grid, sat, ::SoilHydrology{NF}) where {NF}
     zs = znodes(ground_domain(grid), Center(), Center(), Face())
     # scan z axis starting from the bottom (index 1) to find first non-saturated grid cell
-    water_table[i, j, 1] = findfirst_z(i, j, <(one(NF)), zs, sat)
+    water_table[i, j, end] = findfirst_z(i, j, <(one(NF)), zs, sat)
     return nothing
 end
 
@@ -246,7 +246,7 @@ surface into the `surface_excess_water` pool owned by the given surface `runoff`
         runoff::AbstractSurfaceRunoff
     ) where {NF}
     surface_excess = redistribute_saturation_profile!(out.saturation_water_ice, i, j, grid, hydrology)
-    out.surface_excess_water[i, j, 1] += surface_excess
+    out.surface_excess_water[i, j, end] += surface_excess
     return nothing
 end
 

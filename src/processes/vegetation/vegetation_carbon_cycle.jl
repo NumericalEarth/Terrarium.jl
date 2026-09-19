@@ -137,7 +137,7 @@ end
 
 @propagate_inbounds function vegetation_area_fraction(i, j, grid, fields, veg::VegetationCarbonCycle)
     if isnothing(veg.vegetation_dynamics)
-        LAI = fields.leaf_area_index[i, j, 1]
+        LAI = fields.leaf_area_index[i, j, end]
         LAI_max = maximum_leaf_area_index(i, j, grid, fields, veg.traits)
         f_veg = LAI / LAI_max
         return f_veg

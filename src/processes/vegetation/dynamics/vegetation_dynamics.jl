@@ -146,7 +146,7 @@ Mutating wrapper for [`compute_ν_tendency`](@ref) that stores the result in `te
         vegcarbon_dynamics::PALADYNCarbonDynamics,
         traits::PlantTraits
     )
-    tend.vegetation_area_fraction[i, j, 1] = compute_ν_tendency(i, j, grid, fields, veg_dynamics, vegcarbon_dynamics, traits)
+    tend.vegetation_area_fraction[i, j, end] = compute_ν_tendency(i, j, grid, fields, veg_dynamics, vegcarbon_dynamics, traits)
     return tend
 end
 

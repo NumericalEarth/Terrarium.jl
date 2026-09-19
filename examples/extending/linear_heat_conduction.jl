@@ -135,9 +135,13 @@ end
 # physics and dispatch logic should be defined in the `compute_*` kernel functions.
 #
 # !!! note "Always use 3D indexing in kernel functions"
-#     Even for surface (`XY`) fields, write output as `out.name[i, j, 1]` (with `k = 1`).
-#     2D indexing (`out.name[i, j]`), especially in `setindex!`, will result in errors when
-#     compiling the kernel on GPU.
+#     Write output as `out.name[i, j, k]`. 2D indexing (`out.name[i, j]`), especially in
+#     `setindex!`, will result in errors when compiling the kernel on GPU.
+#
+#     For a field with no vertical extent, write `out.name[i, j, end]` rather than a literal
+#     index. A variable declared at the `Top` or `Bottom` of a domain is stored at that
+#     interface, not at `k = 1`, so `end` is the index which is correct for every such field;
+#     a literal `1` reads or writes outside the field, silently so under `@inbounds`.
 
 @kernel inbounds = true function compute_tendencies_kernel!(
         tendencies, grid, fields, proc::AbstractHeatConduction, args...

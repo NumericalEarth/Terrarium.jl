@@ -131,11 +131,11 @@ function Terrarium.compute_tendencies!(state, grid, snow_melt::DegreeDaySnow)
 end
 @kernel function ddm_snow_flux_kernel!(tend, grid, fields, snow_melt)
     i, j = @index(Global, NTuple)
-    @inbounds tend.snow_storage[i, j, 1] = ddm_snow_flux(i, j, fields, snow_melt)
+    @inbounds tend.snow_storage[i, j, end] = ddm_snow_flux(i, j, fields, snow_melt)
 end
 @inline function ddm_snow_flux(i, j, fields, snow_melt::DegreeDaySnow)
-    P = @inbounds fields.snow_fall[i, j, 1]
-    T = @inbounds fields.air_temperature[i, j, 1]
+    P = @inbounds fields.snow_fall[i, j, end]
+    T = @inbounds fields.air_temperature[i, j, end]
     return P - melt(snow_melt, T)
 end
 
@@ -148,11 +148,11 @@ function Terrarium.compute_tendencies!(state, grid, snow_melt::NeuralSnowMelt)
 end
 @kernel function nn_snow_flux_kernel!(tend, grid, fields, snow_melt)
     i, j = @index(Global, NTuple)
-    @inbounds tend.snow_storage[i, j, 1] = nn_snow_flux(i, j, fields, snow_melt)
+    @inbounds tend.snow_storage[i, j, end] = nn_snow_flux(i, j, fields, snow_melt)
 end
 @inline function nn_snow_flux(i, j, fields, p::NeuralSnowMelt)
-    P = @inbounds fields.snow_fall[i, j, 1]
-    T = @inbounds fields.air_temperature[i, j, 1]
+    P = @inbounds fields.snow_fall[i, j, end]
+    T = @inbounds fields.air_temperature[i, j, end]
     Tn = (T - p.T_mean) / p.T_std
     ## KernelLux evaluates the MLP inside the kernel; the input is a 1-element static vector.
     y, _ = apply_in_kernel(p.model, SA[Tn], p.ps, p.st)

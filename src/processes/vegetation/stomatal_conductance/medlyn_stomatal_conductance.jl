@@ -167,7 +167,7 @@ Calls [`compute_stomatal_conductance`](@ref) and stores the result in `out`.
         args...
     ) where {NF}
     g_stm = compute_stomatal_conductance(i, j, grid, fields, stomcond, traits, constants, atmos, args...)
-    out.canopy_water_conductance[i, j, 1] = g_stm
+    out.canopy_water_conductance[i, j, end] = g_stm
     return out
 end
 

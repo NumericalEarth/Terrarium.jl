@@ -89,6 +89,6 @@ end
 
 @kernel inbounds = true function enforce_snow_constraints!(out, grid, snow::AbstractSnow{NF}) where {NF}
     i, j = @index(Global, NTuple)
-    out.snow_water_equivalent[i, j, 1] = max(out.snow_water_equivalent[i, j], zero(NF))
-    out.snow_energy[i, j, 1] = out.snow_energy[i, j] * (out.snow_water_equivalent[i, j] > zero(NF))
+    out.snow_water_equivalent[i, j, end] = max(out.snow_water_equivalent[i, j], zero(NF))
+    out.snow_energy[i, j, end] = out.snow_energy[i, j] * (out.snow_water_equivalent[i, j] > zero(NF))
 end

@@ -427,9 +427,9 @@ Calls [`compute_photosynthesis`](@ref) and stores the results in `out`.
         atmos::AbstractAtmosphere
     )
     Rd, An, GPP = compute_photosynthesis(i, j, grid, fields, photo, stomcond, traits, constants, atmos)
-    out.leaf_respiration[i, j, 1] = Rd
-    out.net_assimilation[i, j, 1] = An
-    out.gross_primary_production[i, j, 1] = GPP
+    out.leaf_respiration[i, j, end] = Rd
+    out.net_assimilation[i, j, end] = An
+    out.gross_primary_production[i, j, end] = GPP
     return out
 end
 
