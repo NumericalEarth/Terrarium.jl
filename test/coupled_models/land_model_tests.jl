@@ -218,10 +218,10 @@ end
     Δt = 60.0
     S₀ = 0.1
     set!(state.surface_excess_water, S₀)
-    pools = Float64[Array(state.surface_excess_water)[1, 1, 1]]
+    pools = Float64[Array(interior(state.surface_excess_water))[1, 1, 1]]
     for _ in 1:5
         timestep!(integrator, Δt)
-        push!(pools, Array(state.surface_excess_water)[1, 1, 1])
+        push!(pools, Array(interior(state.surface_excess_water))[1, 1, 1])
     end
     # The pool is monotonically drawn down (never grows) ...
     @test all(diff(pools) .< 0)

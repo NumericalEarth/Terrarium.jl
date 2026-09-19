@@ -99,9 +99,9 @@ variables(snow::SingleLayerSnow) = (
     prognostic(:snow_water_equivalent, Snow(XY()); units = u"m", desc = "Snow water equivalent (ice + retained liquid)"),
     auxiliary(:snow_depth, Snow(XY()); units = u"m", desc = "Snow layer depth"),
     auxiliary(:snow_cover_fraction, Snow(XY()); bounds = UnitInterval, desc = "Sub-grid snow-covered area fraction"),
-    input(:surface_heat_flux, Snow(XY()); units = u"W/m^2", desc = "Net heat flux at the snow surface (positive upward)"),
-    input(:basal_heat_flux, Snow(XY()); units = u"W/m^2", desc = "Conductive heat flux at the snow base (positive upward, soil → snow)"),
-    input(:sublimation, Snow(XY()); units = u"m/s", desc = "Sublimation/evaporation rate from the snow surface (SWE)"),
+    input(:surface_heat_flux, Snow(Top()); units = u"W/m^2", desc = "Net heat flux at the snow surface (positive upward)"),
+    input(:basal_heat_flux, Snow(Bottom()); units = u"W/m^2", desc = "Conductive heat flux at the snow base (positive upward, soil → snow)"),
+    input(:sublimation, Snow(Top()); units = u"m/s", desc = "Sublimation/evaporation rate from the snow surface (SWE)"),
 )
 
 """
