@@ -118,9 +118,9 @@ Base.@propagate_inbounds function compute_diffusion_tendency!(
         args...
     )
     ## Oceananigans operators require the underlying Oceananigans field grid, not the Terrarium wrapper
-    field_grid = get_field_grid(grid)
+    ground_grid = ground_domain(grid)
     ## ∂T/∂t = -(1/c) * ∂q/∂z,  where  q = -κ * ∂T/∂z
-    tendencies.temperature[i, j, k] += -∂zᵃᵃᶜ(i, j, k, field_grid, diffusive_heat_flux, fields, proc) / proc.c
+    tendencies.temperature[i, j, k] += -∂zᵃᵃᶜ(i, j, k, ground_grid, diffusive_heat_flux, fields, proc) / proc.c
     return tendencies
 end
 
@@ -234,7 +234,7 @@ run!(sim)
 using CairoMakie
 import DisplayAs
 
-z = znodes(get_field_grid(grid), Center())
+z = znodes(ground_domain(grid), Center())
 T_final = vec(interior(integrator.state.temperature))
 
 let fig = Figure(),

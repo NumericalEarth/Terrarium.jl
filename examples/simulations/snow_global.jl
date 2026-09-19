@@ -39,7 +39,7 @@ land_sea_frac_native = RingGrids.Field(arch, ERA5LandInvariants(), "lsm"; NF)
 ring_grid = on_architecture(arch, RingGrids.FullGaussianGrid(72))
 land_sea_frac_N72 = RingGrids.interpolate(ring_grid, land_sea_frac_native)
 land_mask = land_sea_frac_N72 .> 0.5
-grid = ColumnRingGrid(arch, NF, UniformSpacing(N = 1), land_mask.grid, land_mask)
+grid = ColumnRingGrid(arch, NF, UniformSpacing(Δz = 0.1, N = 1), land_mask.grid, land_mask)
 
 # The `x`-axis of the underlying `RectilinearGrid` indexes land points in ring order; we grab the
 # per-column latitudes (radians) and copy them to the device so the forcing kernels can index them.

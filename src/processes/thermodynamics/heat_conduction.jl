@@ -24,10 +24,10 @@ explicit two-phase heat conduction operator.
         args...
     )
     # Operators require the underlying Oceananigans grid
-    field_grid = get_field_grid(grid)
+    ground_grid = ground_domain(grid)
 
     # Divergence of heat fluxes
-    ∂U∂t = -∂zᵃᵃᶜ(i, j, k, field_grid, diffusive_heat_flux, fields, energy, args...)
+    ∂U∂t = -∂zᵃᵃᶜ(i, j, k, ground_grid, diffusive_heat_flux, fields, energy, args...)
     return ∂U∂t
 end
 

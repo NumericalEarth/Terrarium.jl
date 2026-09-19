@@ -256,7 +256,7 @@ println("Max |M_nn − M| over [-30, 30] °C: ", melt_error, "  (analytic max me
 using RingGrids
 
 rings = RingGrids.FullGaussianGrid(8)
-grid = ColumnRingGrid(UniformSpacing(N = 1), rings)         # CPU, all-land
+grid = ColumnRingGrid(UniformSpacing(Δz = 0.1, N = 1), rings)         # CPU, all-land
 _lons, _lats = RingGrids.get_lonlats(rings)                  # per-column lon/lat in radians
 air_temperature = NF.(25 .- 30 .* abs.(_lats) ./ (π / 2))    # warm equator (~25°C), cold poles (~-5°C)
 snow_fall = fill(NF(1.0e-7), length(_lats))                  # uniform light snowfall [m/s]
@@ -317,7 +317,7 @@ const Nt_ft = 15           # 15-day rollout
 
 # We run the full model on the Reactant device, with the input sources on a `ReactantState` grid.
 
-device_grid = ColumnRingGrid(ReactantState(), NF, UniformSpacing(N = 1), rings)
+device_grid = ColumnRingGrid(ReactantState(), NF, UniformSpacing(Δz = 0.1, N = 1), rings)
 device_inputs = InputSources(
     InputSource(device_grid, RingGrids.Field(air_temperature, rings), name = :air_temperature, units = u"°C"),
     InputSource(device_grid, RingGrids.Field(snow_fall, rings), name = :snow_fall, units = u"m/s"),
