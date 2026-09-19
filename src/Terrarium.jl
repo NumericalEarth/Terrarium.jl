@@ -19,7 +19,7 @@ using KernelAbstractions: @kernel, @index
 # Oceananigans numerics
 using Oceananigans.AbstractOperations: Average, Integral, ConditionalOperation, KernelFunctionOperation
 using Oceananigans.Architectures: Architectures, AbstractArchitecture, CPU, GPU, ReactantState, architecture, on_architecture, array_type
-using Oceananigans.Fields: Field, FunctionField, AbstractField, Center, Face, set!, compute!, interior, location
+using Oceananigans.Fields: Field, FunctionField, AbstractField, Center, Face, set!, compute!, interior, indices, location
 using Oceananigans.Forcings: Forcing, ContinuousForcing, DiscreteForcing
 using Oceananigans.Grids: AbstractGrid, RectilinearGrid, CallableDiscretization, ExponentialDiscretization,
     Periodic, Flat, Bounded, halo_size, isrectilinear, nodes, topology, xnodes, ynodes, znodes, znode, zspacings,
@@ -82,6 +82,11 @@ const LengthQuantity{NF, U} = Quantity{NF, 𝐋, U} where {NF, U <: Units}
 Alias for Oceananigans `AbstractBoundaryConditionClassification`
 """
 const BCType = AbstractBoundaryConditionClassification
+
+"""
+Alias for Oceananigans location types, i.e. `Center` or `Face`.
+"""
+const CenterOrFace = Union{Center, Face}
 
 # Re-export selected types and methods from Oceananigans
 export Simulation, Clock, Field, FieldTimeSeries, KernelFunctionOperation, Center, Face
