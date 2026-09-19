@@ -126,7 +126,7 @@ conductivity (fully dry or frozen) impose no restriction and return `Inf`.
     z = znode(i, j, k, grid, Center(), Center(), Center())
     z_ref = znode(i, j, grid.Nz + 1, grid, Center(), Center(), Face())
     ψz = z - z_ref
-    z₀ = fields.water_table[i, j, 1]
+    z₀ = fields.water_table[i, j, end]
     ψh = max(zero(z), z₀ - z)
     ψm = ψ - ψh - ψz
     # specific moisture capacity ∂θ/∂ψ (m⁻¹) from the analytic SWRC derivative

@@ -95,7 +95,7 @@ end
     ψz = z - z_ref
     # compute hydrostatic pressure head assuming impermeable lower boundary
     # TODO: relax this assumption in the future?
-    z₀ = fields.water_table[i, j, 1]
+    z₀ = fields.water_table[i, j, end]
     ψh = max(0, z₀ - z)
     # remove hydrostatic and elevation components
     ψm = ψ - ψh - ψz
@@ -129,7 +129,7 @@ end
     ψz = z - z_ref
     # compute hydrostatic pressure head assuming impermeable lower boundary
     # TODO: can we generalize this for arbitrary lower boundaries?
-    z₀ = fields.water_table[i, j, 1]
+    z₀ = fields.water_table[i, j, end]
     ψh = max(0, z₀ - z)
     # compute total pressure head as sum of ψh + ψm + ψz
     # note that ψh and ψz will cancel out in the saturated zone

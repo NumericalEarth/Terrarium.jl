@@ -184,9 +184,9 @@ Compute and store the skin-driven vapor conductances on `grid` for the given sch
     g_gnd, g_trp, g_can = compute_evapotranspiration_conductances(i, j, grid, fields, evapotranspiration, interception, constants, atmos, soil, vegetation, args...)
 
     # Store skin-driven vapor conductances in corresponding output Fields
-    out.ground_evaporation_conductance[i, j, 1] = g_gnd
-    out.canopy_evaporation_conductance[i, j, 1] = g_can
-    out.transpiration_conductance[i, j, 1] = g_trp
+    out.ground_evaporation_conductance[i, j, end] = g_gnd
+    out.canopy_evaporation_conductance[i, j, end] = g_can
+    out.transpiration_conductance[i, j, end] = g_trp
     return out
 end
 
@@ -246,9 +246,9 @@ for the given scheme `evapotranspiration` and process dependencies.
     # Rescale by snow-covered fraction (if applicable) and convert to liquid water flux
     f_snow = snow_cover_fraction(i, j, grid, fields, snow)
     f_bare = NF(1) - f_snow
-    out.evaporation_ground[i, j, 1] = f_bare * Qh_gnd * r
-    out.transpiration[i, j, 1] = f_bare * Qh_trp * r
-    out.evaporation_canopy[i, j, 1] = f_bare * Qh_can * r
+    out.evaporation_ground[i, j, end] = f_bare * Qh_gnd * r
+    out.transpiration[i, j, end] = f_bare * Qh_trp * r
+    out.evaporation_canopy[i, j, end] = f_bare * Qh_can * r
     return out
 end
 

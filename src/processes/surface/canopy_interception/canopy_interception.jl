@@ -214,10 +214,10 @@ end
     rainfall_ground = compute_precip_ground(canopy_interception, rain, I_can, R_can)
 
     # Store results
-    out.canopy_water_interception[i, j, 1] = I_can
-    out.canopy_water_removal[i, j, 1] = R_can
-    out.saturation_canopy_water[i, j, 1] = f_can
-    out.rainfall_ground[i, j, 1] = rainfall_ground
+    out.canopy_water_interception[i, j, end] = I_can
+    out.canopy_water_removal[i, j, end] = R_can
+    out.saturation_canopy_water[i, j, end] = f_can
+    out.rainfall_ground[i, j, end] = rainfall_ground
     return out
 end
 
@@ -233,7 +233,7 @@ end
     R_can = fields.canopy_water_removal[i, j]
 
     # Compute canopy water tendency
-    tendencies.canopy_water[i, j, 1] = compute_canopy_water_tendency(canopy_interception, I_can, E_can, R_can)
+    tendencies.canopy_water[i, j, end] = compute_canopy_water_tendency(canopy_interception, I_can, E_can, R_can)
     return tendencies
 end
 

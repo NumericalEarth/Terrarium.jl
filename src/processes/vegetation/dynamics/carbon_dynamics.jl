@@ -162,7 +162,7 @@ Mutating wrapper for [`compute_balanced_leaf_area_index`](@ref) that stores the 
         traits::PlantTraits
     )
     # Compute balanced Leaf Area Index
-    out.balanced_leaf_area_index[i, j, 1] = compute_balanced_leaf_area_index(vegcarbon_dynamics, traits, fields.carbon_vegetation[i, j])
+    out.balanced_leaf_area_index[i, j, end] = compute_balanced_leaf_area_index(vegcarbon_dynamics, traits, fields.carbon_vegetation[i, j])
     return nothing
 end
 
@@ -177,7 +177,7 @@ Calls [`compute_veg_carbon_tendency`](@ref) and stores the result in `out`.
         traits::PlantTraits
     )
     # Compute and store C_veg tendency
-    tend.carbon_vegetation[i, j, 1] = compute_veg_carbon_tendency(i, j, grid, fields, vegcarbon_dynamics, traits)
+    tend.carbon_vegetation[i, j, end] = compute_veg_carbon_tendency(i, j, grid, fields, vegcarbon_dynamics, traits)
     return nothing
 end
 

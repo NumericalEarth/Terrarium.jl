@@ -158,8 +158,8 @@ mass and energy balances (see [`compute_snow_water_tendency`](@ref) and [`comput
         atmos::AbstractAtmosphere,
         constants::PhysicalConstants
     )
-    tendencies.snow_water_equivalent[i, j, 1] += compute_snow_water_tendency(i, j, grid, fields, snow, atmos)
-    tendencies.snow_energy[i, j, 1] += compute_snow_energy_tendency(i, j, grid, fields, snow, atmos, constants)
+    tendencies.snow_water_equivalent[i, j, end] += compute_snow_water_tendency(i, j, grid, fields, snow, atmos)
+    tendencies.snow_energy[i, j, end] += compute_snow_energy_tendency(i, j, grid, fields, snow, atmos, constants)
     return nothing
 end
 """
@@ -175,8 +175,8 @@ Compute the snow depth, cover fraction, and thermal conductivity at grid cell `i
     W_snow = fields.snow_water_equivalent[i, j]
     ρ_w = constants.material.density_water
     ρ_snow = compute_snow_density(i, j, grid, fields, snow.density)
-    out.snow_depth[i, j, 1] = compute_snow_depth(snow, W_snow, ρ_snow, ρ_w)
-    out.snow_cover_fraction[i, j, 1] = compute_snow_cover_fraction(snow.cover, W_snow)
+    out.snow_depth[i, j, end] = compute_snow_depth(snow, W_snow, ρ_snow, ρ_w)
+    out.snow_cover_fraction[i, j, end] = compute_snow_cover_fraction(snow.cover, W_snow)
     return nothing
 end
 

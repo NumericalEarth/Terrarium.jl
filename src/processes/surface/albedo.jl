@@ -126,8 +126,8 @@ end
         args...
     )
     α, ϵ = compute_albedo(i, j, grid, fields, albedo, vegetation, snow)
-    out.albedo[i, j, 1] = α
-    out.emissivity[i, j, 1] = ϵ
+    out.albedo[i, j, end] = α
+    out.emissivity[i, j, end] = ϵ
     return nothing
 end
 
