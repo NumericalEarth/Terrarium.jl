@@ -34,9 +34,29 @@ canopy where there is vegetation). A variable declared on `Surface` therefore ne
 vertical dimension and must always be 2D (`XY`).
 """
 abstract type VarDomain end
+"""
+The ground (soil) domain: the vertically resolved subsurface column. This is the domain on which a
+land grid's shared horizontal discretization is defined, and the default discretization for
+variables whose own domain a grid does not resolve vertically.
+"""
 struct Ground <: VarDomain end
+"""
+The snow domain, i.e. the snowpack above the ground surface. A grid which does not discretize the
+snowpack vertically (a single-layer scheme) still carries its 2D variables.
+"""
 struct Snow <: VarDomain end
+"""
+The canopy domain, i.e. the vegetation layer. A grid which does not discretize the canopy vertically
+(a big-leaf scheme) still carries its 2D variables.
+"""
 struct Canopy <: VarDomain end
+"""
+The land-atmosphere interface. Unlike [`Ground`](@ref), [`Snow`](@ref), and [`Canopy`](@ref), the
+surface is not a vertical domain: its physical position depends on the surface tile, being the top
+of the soil column over bare ground, the top of the snowpack under snow, and the canopy where there
+is vegetation. `Surface` variables therefore never carry a vertical dimension and must be declared
+as `Surface(XY())`; `Surface(XYZ())` raises an error.
+"""
 struct Surface <: VarDomain end
 
 """
@@ -80,21 +100,53 @@ Oceananigans.Fields.indices(grid::AbstractGrid, dims::VarDims) = (
 
 # VarDims aliases
 
+"""
+    XY(x = Center(), y = Center(), z = nothing)
+
+Dimensions for a variable with no vertical extent, i.e. one assigned a 2D (lateral only) field on
+its associated grid. This covers both genuinely two-dimensional quantities and those integrated or
+averaged over a domain's vertical extent.
+"""
 const XY = VarDims{LX, LY, LZ} where {LX <: CenterOrFace, LY <: CenterOrFace, LZ <: Union{Nothing, Coordinate}}
 
 XY(x::CenterOrFace, y::CenterOrFace = Center(), z::Union{Nothing, Coordinate} = nothing) = VarDims(x, y, z)
 XY(; x::CenterOrFace = Center(), y::CenterOrFace = Center(), z::Union{Nothing, Coordinate} = nothing) = VarDims(x, y, z)
 
+"""
+    Top(x = Center(), y = Center(), z = Face())
+
+Dimensions for a variable defined at a single point at the *top* of a domain's vertical axis, such
+as a surface flux. The vertical index is resolved with `lastindex`, so a field declared this way is
+restricted to one `k`: `Nz + 1` at `Face` (the default, appropriate for fluxes across the interface)
+and `Nz` at `Center` (the uppermost cell).
+
+See also [`Bottom`](@ref).
+"""
 const Top{TZ} = VarDims{LX, LY, LZ} where {LX <: CenterOrFace, LY <: CenterOrFace, TZ <: CenterOrFace, LZ <: Coordinate{typeof(lastindex), TZ}}
 
 Top(x::CenterOrFace, y::CenterOrFace = Center(), z::CenterOrFace = Face()) = VarDims(x, y, Coordinate(lastindex, z))
 Top(; x::CenterOrFace = Center(), y::CenterOrFace = Center(), z::CenterOrFace = Face()) = VarDims(x, y, Coordinate(lastindex, z))
 
+"""
+    Bottom(x = Center(), y = Center(), z = Face())
+
+Dimensions for a variable defined at a single point at the *bottom* of a domain's vertical axis,
+such as a basal flux. The vertical index is resolved with `firstindex`, so a field declared this way
+is restricted to `k = 1`.
+
+See also [`Top`](@ref).
+"""
 const Bottom{TZ} = VarDims{LX, LY, LZ} where {LX <: CenterOrFace, LY <: CenterOrFace, TZ <: CenterOrFace, LZ <: Coordinate{typeof(firstindex), TZ}}
 
 Bottom(x::CenterOrFace, y::CenterOrFace = Center(), z::CenterOrFace = Face()) = VarDims(x, y, Coordinate(firstindex, z))
 Bottom(; x::CenterOrFace = Center(), y::CenterOrFace = Center(), z::CenterOrFace = Face()) = VarDims(x, y, Coordinate(firstindex, z))
 
+"""
+    XYZ(x = Center(), y = Center(), z = Center())
+
+Dimensions for a variable which is resolved over a domain's full vertical extent, i.e. one assigned
+a 3D field on its associated grid.
+"""
 const XYZ = VarDims{LX, LY, LZ} where {LX <: CenterOrFace, LY <: CenterOrFace, LZ <: CenterOrFace}
 
 XYZ(x::CenterOrFace, y::CenterOrFace = Center(), z::CenterOrFace = Center()) = VarDims(x, y, z)
