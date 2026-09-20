@@ -12,7 +12,3 @@ end
 @testset "Surface runoff" begin
     include("surface_runoff_tests.jl")
 end
-
-@testset "Fused surface hydrology" begin
-    include("integration_tests.jl")
-end

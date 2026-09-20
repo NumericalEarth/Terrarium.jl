@@ -16,9 +16,6 @@ passthrough_rainfall(grid, clock, fields, ::NoCanopyInterception) = fields.rainf
 
 @inline compute_auxiliary!(state, grid, ::NoCanopyInterception, args...) = nothing
 
-# No-op per-cell variant: `rainfall_ground` is a lazy passthrough of `rainfall`, never written.
-@inline compute_canopy_auxiliary!(out, i, j, grid, fields, ::NoCanopyInterception, args...) = nothing
-
 @inline compute_tendencies!(state, grid, ::NoCanopyInterception, args...) = nothing
 
 @propagate_inbounds canopy_water(i, j, grid, fields, ::NoCanopyInterception) = zero(eltype(grid))
