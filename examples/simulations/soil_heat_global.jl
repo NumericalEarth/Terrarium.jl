@@ -38,8 +38,9 @@ DisplayAs.PNG(fig) #hide
 # Then we set up a masked [`ColumnRingGrid`](@ref), selecting only grid points
 # with >50% land cover:
 land_mask = land_sea_frac_N72 .> 0.5
+land_mask_cpu = on_architecture(CPU(), land_mask)
 grid = ColumnRingGrid(arch, NF, ExponentialSpacing(N = 30), land_mask.grid, land_mask)
-grid_lon, grid_lat = RingGrids.get_lonlats(grid.rings) # in radians
+grid_lon, grid_lat = RingGrids.get_lonlats(grid.rings) # in radians, on CPU
 
 # Remember from the documentation section on [grids](@ref Grids), that the `x`-axis of the Oceananigans [`RectilinearGrid`](@extref Oceananigans.Grids.RectilinearGrid)
 # corresponds to a single index following the ring order (for more details, see the [corresponding section in the
@@ -91,8 +92,9 @@ function get_temperature_bc(lon::AbstractVector, lat::AbstractVector, amplitude 
     return periodic_bc
 end
 
-lon_masked = grid_lon[land_mask]
-lat_masked = grid_lat[land_mask] # mask out non-land points
+
+lon_masked = grid_lon[land_mask_cpu]
+lat_masked = grid_lat[land_mask_cpu] # mask out non-land points
 bc = PrescribedSurfaceTemperature(:T_ub, get_temperature_bc(lon_masked, lat_masked))
 inits = (temperature = initial_soil_temperature,)
 
