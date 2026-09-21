@@ -21,7 +21,7 @@ end</code></pre><h2 id="Defining-the-model-behavior"><a class="docs-heading-anch
     Terrarium.prognostic(:u, Ground(XY()), desc = &quot;Exponential growth variable&quot;),
     Terrarium.auxiliary(:c, Ground(XY()), desc = &quot;Constant offset for growth&quot;),
     Terrarium.input(:F, Ground(XY()), default = 0.0, desc = &quot;External forcing&quot;),
-)</code></pre><p>Here, we defined our three variables with their names as a <code>Symbol</code> and whether they are 2D variables (<a href="@ref"><code>XY</code></a>) on the spatial grid or 3D variables (<a href="@ref"><code>XYZ</code></a>) that also vary along the vertical z-axis. Here we are considering only a simple scalar model so we choose 2D (<code>XY</code>), bearing in mind that all points in the X and Y dimensions of <code>ColumnGrid</code> are independent of each other.</p><p>We also need to define <code>compute_auxiliary!</code> and <code>compute_tendencies!</code> as discussed above. We will use here a pattern which is commonly employed within Terrarium: we unpack the grid and process from the model and forward the method calls to more specialized ones defined for the <code>LinearDynamics</code> process. The <code>compute_auxiliary!</code> and <code>compute_tendencies!</code> of <code>AbstractProcess</code>es follow the signatures <code>(state, grid, processes...)</code>, as you see here:</p><pre><code class="language-julia hljs">function Terrarium.compute_auxiliary!(state, model::ExpModel)
+)</code></pre><p>Here, we defined our three variables with their names as a <code>Symbol</code> and whether they are 2D variables (<a href="../../api_index/#Terrarium.XY"><code>XY</code></a>) on the spatial grid or 3D variables (<a href="../../api_index/#Terrarium.XYZ"><code>XYZ</code></a>) that also vary along the vertical z-axis. Here we are considering only a simple scalar model so we choose 2D (<code>XY</code>), bearing in mind that all points in the X and Y dimensions of <code>ColumnGrid</code> are independent of each other.</p><p>We also need to define <code>compute_auxiliary!</code> and <code>compute_tendencies!</code> as discussed above. We will use here a pattern which is commonly employed within Terrarium: we unpack the grid and process from the model and forward the method calls to more specialized ones defined for the <code>LinearDynamics</code> process. The <code>compute_auxiliary!</code> and <code>compute_tendencies!</code> of <code>AbstractProcess</code>es follow the signatures <code>(state, grid, processes...)</code>, as you see here:</p><pre><code class="language-julia hljs">function Terrarium.compute_auxiliary!(state, model::ExpModel)
     compute_auxiliary!(state, model.grid, model.dynamics)
     return nothing
 end</code></pre><pre><code class="language-julia hljs">function Terrarium.compute_tendencies!(state, model::ExpModel)
@@ -97,12 +97,12 @@ run!(sim)
 println(&quot;Simulation data saved to $(output_file)&quot;)</code></pre><pre><code class="nohighlight hljs">[ Info: Initializing simulation...
 ┌ Warning: error ArgumentError(&quot;a group or dataset named grid is already present within this group&quot;) thrown when trying to serialize the grid at serialized/grid
 └ @ Oceananigans.OutputWriters ~/.julia/packages/Oceananigans/RPT5V/src/OutputWriters/jld2_writer.jl:251
-[ Info:     ... simulation initialization complete (9.679 seconds)
+[ Info:     ... simulation initialization complete (10.997 seconds)
 [ Info: Executing initial time step...
-[ Info:     ... initial time step complete (1.506 seconds).
-[ Info: Simulation is stopping after running for 14.222 seconds.
+[ Info:     ... initial time step complete (2.180 seconds).
+[ Info: Simulation is stopping after running for 15.510 seconds.
 [ Info: Simulation time 5 minutes equals or exceeds stop time 5 minutes.
-Simulation data saved to /tmp/jl_494XqnIhCf/simulation.jld2
+Simulation data saved to /tmp/jl_iZ4bWBQXSd/simulation.jld2
 </code></pre><p>Then load the output data and plot the results:</p><pre><code class="language-julia hljs">using CairoMakie
 import DisplayAs
 
@@ -115,9 +115,9 @@ Build Info:
   Official https://julialang.org release
 Platform Info:
   OS: Linux (x86_64-linux-gnu)
-  CPU: 4 × Intel(R) Xeon(R) 6973P-C
+  CPU: 4 × AMD EPYC 7763 64-Core Processor
   WORD_SIZE: 64
-  LLVM: libLLVM-18.1.7 (ORCJIT, graniterapids)
+  LLVM: libLLVM-18.1.7 (ORCJIT, znver3)
   GC: Built with stock GC
 Threads: 1 default, 1 interactive, 1 GC (on 4 virtual cores)
 Environment:
@@ -145,4 +145,4 @@ Pkg.status()</code></pre><pre><code class="nohighlight hljs">Status `~/work/Terr
   [b77e0a4c] InteractiveUtils v1.11.0
   [d6f4376e] Markdown v1.11.0
 Info Packages marked with ⌅ have new versions available but compatibility constraints restrict them from upgrading. To see why use `status --outdated`
-</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../extending/coupling_processes/">« Coupling processes</a><a class="docs-footer-nextpage" href="../simple_snow_ddm/">Example: Degree-day snow melt model »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Sunday 20 September 2026 15:17">Sunday 20 September 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../extending/coupling_processes/">« Coupling processes</a><a class="docs-footer-nextpage" href="../simple_snow_ddm/">Example: Degree-day snow melt model »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Monday 21 September 2026 13:12">Monday 21 September 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
