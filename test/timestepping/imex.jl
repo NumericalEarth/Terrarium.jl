@@ -40,7 +40,7 @@ module IMEXTestTypes
 
     Terrarium.variables(::TwoVarModel) = (
         prognostic(:a, Terrarium.Ground(XY())),
-        prognostic(:b, Terrarium.Ground(XY()))
+        prognostic(:b, Terrarium.Ground(XY())),
     )
     Terrarium.compute_auxiliary!(state, ::TwoVarModel) = nothing
     function Terrarium.compute_tendencies!(state, ::TwoVarModel)
@@ -62,7 +62,7 @@ module IMEXTestTypes
 
     Terrarium.variables(::FlippedModel) = (
         prognostic(:a, Terrarium.Ground(XY())),
-        prognostic(:b, Terrarium.Ground(XY()))
+        prognostic(:b, Terrarium.Ground(XY())),
     )
     Terrarium.compute_auxiliary!(state, ::FlippedModel) = nothing
     function Terrarium.compute_tendencies!(state, ::FlippedModel)
