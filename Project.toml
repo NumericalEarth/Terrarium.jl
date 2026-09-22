@@ -37,7 +37,7 @@ TerrariumRastersExt = "Rasters"
 TerrariumReactantExt = "Reactant"
 
 [sources]
-Oceananigans = { url = "https://github.com/maximilian-gelbrecht/Oceananigans.jl.git", rev = "mg/fix-compute-field-stretch" }
+Oceananigans = { url = "https://github.com/maximilian-gelbrecht/Oceananigans.jl.git", rev = "mg/fts-reactant" }
 
 [compat]
 Adapt = "4"
@@ -54,7 +54,7 @@ Interpolations = "0.16"
 IntervalSets = "0.7"
 KernelAbstractions = "0.9"
 ModelParameters = "0.4"
-Oceananigans = "0.110.15, 0.111"
+Oceananigans = "0.110.15, 0.111, 0.112, 0.113"
 Pkg = "1"
 ProgressMeter = "1.11"
 Reactant = "0.2"

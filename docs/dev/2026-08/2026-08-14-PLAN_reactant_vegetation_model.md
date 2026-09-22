@@ -1,10 +1,12 @@
 # Reactant support for `VegetationModel` with `PrescribedVegetation` (static LAI)
 
-> Status: **completed**. `:vegetation_column` passes CPU-vs-Reactant and is registered in the suite.
-> Both blockers turned out to be Oceananigans bugs and were fixed upstream, so **no Terrarium source
-> change was needed** — the only Terrarium changes are the new test configuration and one test-harness
-> fix. Scope was deliberately limited to a *static, constant* prescribed LAI; the time-varying LAI
-> climatology is blocked by input interpolation and remains out of scope.
+> Status: **in progress** (revision 6). Static LAI (`:vegetation_column`) is done and in the suite. The
+> time-varying `FieldTimeSeries` LAI path now traces too, against Oceananigans `mg/fts-reactant` including
+> the one-line follow-up fix found here (on the branch since commit `92919412`, 2026-09-22):
+> `:vegetation_column_lai_cycle` matches CPU after 100 steps and the global N72 ERA5-Land LAI climatology
+> runs through the compiled loop. Terrarium-side changes are small (a traced-time `convert_dt` in the
+> Reactant extension and two `FieldTimeSeries` constructor fixes) but no longer zero. Remaining: the
+> branch has to be merged and released so the repo's Oceananigans pin can move back to a release.
 
 Date of initial draft: 2026-08-14
 
@@ -49,6 +51,25 @@ Base revision: 99c748b79711e295e99a5a6370d386853652cf06
   `2026-08-25-oceananigans_fts_time_interpolation_mwe.jl`. Three blockers, none of them the temporal
   interpolation arithmetic itself (which traces correctly): a data-dependent branch and an `::Int`-only
   snapshot index upstream, and a hard `convert` of the traced clock in our own `convert_dt`.
+- 2026-09-22, **revision 6** (prompt: *"Continue with the Reactant vegetation plan. The field time series
+  interpolation problem should be fixed in the `maximilian-gelbrecht:mg/fts-reactant` branch of Oceananigans
+  that will be merged into `main` soon. Use the feature branch for now and try to run the vegetation model
+  (including input data) with Reactant"*). Scope extended to the time-varying LAI input, which was the
+  explicit exclusion of the original draft. The two upstream blockers from the 2026-08-25 note are fixed on
+  `mg/fts-reactant` (Oceananigans 0.113.1): `getindex(::TotallyInMemoryFTS, ::Time{<:TracedRNumber})` is
+  now branchless and slices the snapshots dynamically. Running it against Terrarium's grids exposed **one
+  more upstream defect** — the fix builds `TracedRNumber{eltype(fts.grid)}`, and on a grid with array-valued
+  vertical coordinates (every `ExponentialSpacing` grid) the grid's element type is *already* a
+  `TracedRNumber` inside the trace, so this nests traced types and throws a `TypeError`. The upstream unit
+  test does not see it because it uses a uniform grid whose coordinates stay plain ranges. The one-line fix
+  (unwrap the element type) is in `docs/dev/2026-09/2026-09-22-oceananigans_fts_unwrapped_eltype.patch`,
+  was verified locally, and is on the branch since commit `92919412` (same day). Terrarium-side: the `convert_dt` blocker is
+  fixed in the Reactant extension; two `FieldTimeSeries` constructor gaps found on the way (no
+  `time_indexing` forwarding, and a wrong `reshape` that made the 2D RingGrids-field constructor fail) are
+  fixed in `src/`. New suite configuration `:vegetation_column_lai_cycle`; the harness now accepts
+  `inputs`. Both Oceananigans pins moved to `mg/fts-reactant`, which required widening the compat bound to
+  `0.113` — a `[compat]` edit, called out here because AGENTS.md reserves those for explicit requests; it
+  is implied by the instruction to use the branch.
 
 ## Problem description
 
@@ -61,7 +82,10 @@ The goal here is the *narrowest useful* vegetation configuration: a standalone
 `VegetationModel(grid; vegetation = PrescribedVegetation(NF))` whose leaf area index is a **constant**
 input field, driven by the default `PrescribedAtmosphere`.
 
-### Explicitly out of scope: the LAI climatology
+### Explicitly out of scope (in the original draft): the LAI climatology
+
+> **Revision 6 (2026-09-22): now in scope and working**, see "Time-varying LAI input" below. The text of
+> this section is the original motivation for the static restriction and is kept as written.
 
 `examples/simulations/vegetation_global.jl` drives the same model with an annually cycling ERA5-Land
 LAI climatology:
@@ -371,6 +395,41 @@ Terrarium side this is a test-only change plus a dependency repoint.
 | `test/reactant/runtests.jl` | Register `:vegetation_column` in the testset |
 | `test/reactant/correctness.jl` | `_sync_group!` skips lazy `AbstractOperation`s (bug fix, see below) |
 
+Revision 6 (2026-09-22), time-varying LAI:
+
+| File | Change |
+| --- | --- |
+| `Project.toml`, `test/reactant/Project.toml` | `[sources]` now `#mg/fts-reactant` (Oceananigans 0.113.1, which also contains the compute-field fix via CliMA PR #5880); `[compat] Oceananigans` widened to `0.110.15, 0.111, 0.112, 0.113` |
+| `ext/TerrariumReactantExt/TerrariumReactantExt.jl` | `convert_dt(::Type{NF}, ::TracedRNumber)` emits a traced element-type conversion instead of `convert(NF, …)`, so `timestamp`/`update_inputs!` accept the traced `clock.time` |
+| `src/grids/grid_utils.jl` | `FieldTimeSeries(grid::AbstractLandGrid, dims, times; kwargs...)` forwards keyword arguments (needed for `time_indexing = Cyclical()`) |
+| `src/grids/column_ring_grid.jl` | `FieldTimeSeries(ring_field, grid::ColumnRingGrid, times; kwargs...)`: same forwarding, docstring, and a bug fix — the 2D (horizontal × time) case reshaped the data to `(:, 1)`, folding the time axis into the point axis so the masked gather threw a `BoundsError`; it now inserts a singleton vertical axis instead |
+| `test/grids.jl` | Regression test for the ring-field `FieldTimeSeries` constructor (2D and 3D, masked grid) |
+| `test/reactant/setup.jl` | `build_integrator` passes an optional `inputs` entry; new `:vegetation_column_lai_cycle` configuration |
+| `test/reactant/runtests.jl` | Register `:vegetation_column_lai_cycle` |
+| `docs/dev/2026-09/2026-09-22-oceananigans_fts_unwrapped_eltype.patch` | The upstream one-liner (see revision log), on `mg/fts-reactant` since `92919412` |
+| `docs/dev/2026-09/2026-09-22-vegetation_global_reactant.jl` | Global N72 ERA5-Land LAI climatology, CPU vs Reactant (needs Rasters/NCDatasets; not part of the suite) |
+
+### Time-varying LAI input
+
+`FieldTimeSeriesInputSource.update_inputs!` runs inside the traced step and calls `fts[Time(t)]` with the
+traced clock. On `mg/fts-reactant` that returns a `Field` whose data is the lazily broadcast
+`ψ₂ * ñ + ψ₁ * (1 - ñ)` of two dynamically sliced snapshots, which `set!` then copies into the input
+field — all of it StableHLO, no host round trip. The snapshot store (`parent(fts)`, a
+`(Nx, 1, 1, Nt)` array) is a traced argument of the compiled program like any other state array.
+
+Terrarium's part of the chain is `timestamp(eltype(fts.times), reftime, clock.time)`, which ends in
+`convert_dt(::Type{NF}, Δt::Number) = convert(NF, Δt)`. With a traced `Δt` that has to become a traced
+conversion; the extension adds exactly that method. The eager path (initialization, `ConcreteRNumber`
+clock) needed nothing: `convert(Float64, ::ConcreteRNumber)` materializes.
+
+What the LAI climatology must look like for this to work: an **in-memory `FieldTimeSeries` on the model
+grid**, i.e. regridded and masked *once*, up front. `examples/simulations/vegetation_global.jl` instead uses
+the Rasters extension's `RasterInputSource`, which reads two records from the (lazy) raster and regrids
+them on every step — that is host I/O and cannot be traced, independently of the Oceananigans fix. The
+global run therefore builds the series with `FieldTimeSeries(ring_field, grid, times; time_indexing =
+Cyclical())` from the N72 asset (366 daily snapshots × 14018 land columns, 20 MB) and passes
+`InputSource(fts; name = :leaf_area_index)`.
+
 Deliberately **not** changed, contrary to the draft's plan: `root_distribution.jl`,
 `plant_available_water.jl` and `lue_photosynthesis.jl`. See the decision note under "Proposed approach"
 and the branch section above.
@@ -417,20 +476,67 @@ both backends. This is a weaker test than `:land_soil_snow` and should be recogn
 verifies compilation and pointwise numerics, not integration. It becomes a real dynamical test only once
 a time-varying LAI input is supported (out of scope here) or the model is coupled into `LandModel`.
 
+### Revision 6 (2026-09-22): time-varying LAI
+
+Environment: Julia 1.12.6, Oceananigans 0.113.1 @ `mg/fts-reactant` + the local unwrapped-eltype patch,
+Reactant 0.2.278 (suite) / 0.2.287 (global run), CPU backend, `Float32`.
+
+- **`:vegetation_column_lai_cycle`**: four LAI snapshots (1, 4, 2, 3) every 3 h with `Cyclical()`
+  indexing (12 h period), 100 steps of 600 s, so the run crosses several snapshot boundaries and wraps the
+  period once. Initialization bit-identical on all fields (the eager path with the `ConcreteRNumber` clock
+  works unchanged). After 100 steps every field matches; `phenology_factor`, which is `LAI / LAI_max`, is
+  bit-identical, so the interpolated LAI itself agrees exactly, and the photosynthesis outputs differ by
+  float-reorder noise only (largest `max_rel = 5.7e-7`, `net_assimilation`). The last update happens at the
+  step *start* (t = 59 400 s, i.e. 16 200 s into the second period), where the cyclical interpolation gives
+  exactly 3.0 — confirmed on the CPU state.
+- **Without the unwrapped-eltype patch** the same configuration fails to trace with
+  `TypeError: in RNumber, in T, … got Type{Reactant.TracedRNumber{Float32}}` at
+  `OceananigansReactantExt/OutputReaders.jl:49`, from `update_inputs!`. Initialization still passes, so
+  this is a compile-time failure of the traced step only.
+- **Global N72 run** (`2026-09-22-vegetation_global_reactant.jl`): `ColumnRingGrid` on
+  `FullGaussianGrid(72)` with the ERA5-Land land-sea mask (> 50 % land, 14 018 columns), 10-layer
+  `ExponentialSpacing`, `PrescribedVegetation`, and the `lai_hv` daily climatology of
+  `ERA5LandLeafAreaIndex(N72)` as a `Cyclical()` `FieldTimeSeries` (366 snapshots). 30 daily steps on CPU
+  and on `ReactantState`, compiled once (`run_timesteps!`, ~85 s including compilation on an M-series CPU;
+  the CPU run takes ~11 s, almost all of it compilation). Results: `leaf_area_index` and `phenology_factor`
+  bit-identical (`max|Δ| = 0`); `gross_primary_production`, `net_assimilation`,
+  `canopy_water_conductance` agree to `max|Δ| ≤ 4e-10` (`max_rel` up to `5.8e-5`, dominated by near-zero
+  values; all within the suite tolerances). The input really varied: `max|LAI_end − LAI_0| = 0.62` over
+  the 30 days. This is the configuration the plan originally excluded, running through the traced loop.
+- **Full `test/reactant/runtests.jl` against the patched branch: 186/186 correctness (seven
+  configurations, up from 132 with six) and 6/6 autodiff, all passing**, so the Oceananigans jump from
+  0.110.19 to 0.113.1 and the `convert_dt` extension method regress nothing. Run from a scratch
+  environment whose Oceananigans `[sources]` entry is a local checkout of `mg/fts-reactant` plus the
+  patch; the repo's own `test/reactant/Project.toml` pins the remote branch and will pass only once the
+  patch is on it.
+- **`Pkg.test()` (main CPU suite): all testsets pass** on Oceananigans 0.113.1, including the new
+  `FieldTimeSeries` constructor test in `test/grids.jl`.
+
 ## Documentation changes
 
-None. `root_fraction` and `soil_moisture_limiting_factor` still return lazily-computed fields, so their
-docstrings remain accurate.
+None for the static step. `root_fraction` and `soil_moisture_limiting_factor` still return lazily-computed
+fields, so their docstrings remain accurate.
+
+Revision 6: the ring-field `FieldTimeSeries` constructor gained a docstring, and the land-grid one documents
+the forwarded keyword arguments. `examples/simulations/vegetation_global.jl` is unchanged: it still uses the
+`RasterInputSource` path, which is fine on CPU/GPU but not traceable; switching the example to an in-memory
+`FieldTimeSeries` is a separate decision (it changes the example's memory footprint at 0.1°).
 
 ## Known limitations
 
-- **Time-varying LAI remains unsupported** — the `InputSource` interpolation path does not trace. This
-  is the motivating restriction for this step, not an incidental one. Confirmed by running, and reduced
-  to a Terrarium-free reproducer, on 2026-08-25: see
-  `2026-08-25-OCEANANIGANS_fts_time_interpolation_issue.md`. There are three separate blockers — two
-  upstream (`getindex(fts, ::Time)` branches on a traced `n₁ == n₂`; snapshot indexing is restricted to
-  `n::Int`) and one of ours (`convert_dt` hard-converts the traced `clock.time`) — and they affect every
-  `FieldTimeSeries`-backed input, not just LAI.
+- **Time-varying LAI: supported since revision 6, with two strings attached.** (Originally: "remains
+  unsupported — the `InputSource` interpolation path does not trace"; the three blockers listed in
+  `2026-08-25-OCEANANIGANS_fts_time_interpolation_issue.md` are all fixed, two upstream on
+  `mg/fts-reactant`, one in our extension.) The strings: (1) on any grid with array-valued vertical
+  coordinates, i.e. all of Terrarium's `ExponentialSpacing` grids, it needs the unwrapped-eltype fix, on
+  `mg/fts-reactant` since commit `92919412`; the repo's `test/reactant` environment must therefore be at
+  that revision or later (`Pkg.update("Oceananigans")` after a pin change — a plain `resolve`/`instantiate`
+  keeps the stale tree).
+  (2) Only `TotallyInMemoryFTS` sources trace. `RasterInputSource` (the example's path) and `OnDisk`
+  series do host I/O per step and remain CPU/GPU-only.
+- **The whole climatology is a compiled-program argument.** The `(Nx, 1, 1, Nt)` snapshot store is passed
+  into the XLA program and each step slices two snapshots out of it. That is 20 MB at N72; at the native
+  0.1° grid of the example (~6.5 M points × 366 days) it would be ~10 GB per variable and is not viable.
 - **The test is static** — see the caveat under Testing and verification.
 - **The traced step does not cover the lazy reductions.** With `soil === nothing`, both
   `root_fraction` and `soil_moisture_limiting_factor` are touched only at initialization, which is
@@ -439,15 +545,18 @@ docstrings remain accurate.
   `compute!(Field(Integral(…)))` inside a compiled step is first exercised by a coupled `LandModel`
   with vegetation, which is untested.
 - **Depends on an unmerged Oceananigans branch.** Both environments point at
-  `maximilian-gelbrecht/Oceananigans.jl#mg/fix-compute-field-stretch`. The pin should be dropped once the
-  fix is merged and released upstream.
+  `maximilian-gelbrecht/Oceananigans.jl#mg/fts-reactant` (revision 6; previously
+  `#mg/fix-compute-field-stretch`, whose content is now in `main` via CliMA PR #5880). The pin should be
+  dropped, and the compat bound revisited, once the branch is merged and released.
 
 ## Future work
 
-- Reactant support for interpolated/time-varying `InputSource`s, which would let the ERA5-Land LAI
-  climatology in `examples/simulations/vegetation_global.jl` run under Reactant. Blockers are now
-  enumerated in `2026-08-25-OCEANANIGANS_fts_time_interpolation_issue.md`; the Terrarium-side one
-  (`convert_dt`) is independent of upstream and can be fixed now.
+- ~~Reactant support for interpolated/time-varying `InputSource`s~~ — done in revision 6 for
+  `FieldTimeSeries` sources. Left: push the unwrapped-eltype patch upstream (before `mg/fts-reactant` is
+  merged — done, commit `92919412`; a unit test on a stretched grid would still be worth adding), then drop
+  the `[sources]` pin. Consider a
+  constructor that builds an in-memory `FieldTimeSeries` from a `Raster` (the regrid-once step the global
+  script does by hand), so `examples/simulations/vegetation_global.jl` can offer the traceable path.
 - Extend to `VegetationCarbonCycle` (prognostic carbon pool, `PaladynPhenology`, autotrophic
   respiration, vegetation dynamics), which has real tendencies and would give a meaningful dynamical
   Reactant test.
@@ -456,4 +565,4 @@ docstrings remain accurate.
   Known limitations) and so answer whether Option A above is worth doing. Note two known defects stand
   in the way and are unrelated to Reactant: the default pure-sand `SoilTexture` makes `β` non-finite,
   and `PALADYNCarbonDynamics`'s turnover rates are declared `yr⁻¹` but integrated in seconds.
-- Drop the Oceananigans `[sources]` pin once `mg/fix-compute-field-stretch` is merged and released.
+- Drop the Oceananigans `[sources]` pin once `mg/fts-reactant` (with the eltype patch) is merged and released.

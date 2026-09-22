@@ -164,6 +164,32 @@ end
         @test_throws ErrorException Terrarium.Field(ring_field_3d_plus, grid)
     end
 
+    @testset "RingGrids to Oceananigans FieldTimeSeries conversion" begin
+        ring_grid = FullHEALPixGrid(8)
+        nz = 10
+        nt = 4
+        times = 0.0:1.0:(nt - 1)
+        mask = rand(Bool, ring_grid)
+        masked_grid = ColumnRingGrid(UniformSpacing(Δz = 0.5, N = nz), mask)
+        active = findall(mask.data)
+
+        # 2D (horizontal × time) → XY series, one snapshot per time
+        ring_field_2d = rand(ring_grid, nt)
+        fts_2d = Terrarium.FieldTimeSeries(ring_field_2d, masked_grid, times)
+        @test isa(fts_2d, Terrarium.FieldTimeSeries)
+        @test size(fts_2d) == (sum(mask), 1, 1, nt)
+        @test all(interior(fts_2d)[:, 1, 1, n] == ring_field_2d.data[active, n] for n in 1:nt)
+
+        # 3D (horizontal × vertical × time) → XYZ series
+        ring_field_3d = rand(ring_grid, nz, nt)
+        fts_3d = Terrarium.FieldTimeSeries(ring_field_3d, masked_grid, times)
+        @test size(fts_3d) == (sum(mask), 1, nz, nt)
+        @test all(interior(fts_3d)[:, 1, :, n] == ring_field_3d.data[active, :, n] for n in 1:nt)
+
+        # the last dimension must match the number of times
+        @test_throws AssertionError Terrarium.FieldTimeSeries(ring_field_2d, masked_grid, times[1:(end - 1)])
+    end
+
     @testset "Oceananigans Field to RingGrids Field" begin
         ring_grid = FullHEALPixGrid(8)
         npoints = get_npoints(ring_grid)

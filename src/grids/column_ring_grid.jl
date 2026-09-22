@@ -145,15 +145,24 @@ function Oceananigans.Field(ring_field::RingGrids.AbstractField, grid::ColumnRin
     return oceananigans_field
 end
 
-function Oceananigans.FieldTimeSeries(ring_field::RingGrids.AbstractField, grid::ColumnRingGrid, times::AbstractVector; default_value = zero(eltype(ring_field)))
+"""
+    $SIGNATURES
+
+Converts a `RingGrids.Field` whose last dimension is time to an Oceananigans `FieldTimeSeries` on the given
+`ColumnRingGrid`, one snapshot per entry of `times`. Only masked grid points are copied. A 2D RingGrids field
+(horizontal × time) yields a 2D series, a 3D field (horizontal × vertical × time) a 3D series. Additional
+keyword arguments (e.g. `time_indexing = Cyclical()`) are forwarded to the `FieldTimeSeries` constructor.
+"""
+function Oceananigans.FieldTimeSeries(ring_field::RingGrids.AbstractField, grid::ColumnRingGrid, times::AbstractVector; kwargs...)
     @assert last(size(ring_field)) == length(times) "Last dimension of RingGrids Field must match the length of `times`"
     arch = architecture(grid)
 
     if ndims(ring_field) == 2
-        # 2D field (horizontal only): treat the data as a single-column matrix so one masked gather
-        # (`data[mask, :]`) serves both the 1D and 2D cases. There's a related Reactant bug that makes this necessary: https://github.com/EnzymeAD/Reactant.jl/issues/3087
+        # 2D field (horizontal + time): insert a singleton vertical dimension so one masked gather
+        # (`data[mask, :, :]`) serves both the 2D and 3D cases; the time axis must stay last.
+        # There's a related Reactant bug that makes this necessary: https://github.com/EnzymeAD/Reactant.jl/issues/3087
         dims = XY()
-        data = reshape(on_architecture(arch, ring_field.data), :, 1)
+        data = reshape(on_architecture(arch, ring_field.data), size(ring_field, 1), 1, size(ring_field, 2))
     elseif ndims(ring_field) == 3
         # 3D field (horizontal + vertical or other dimensions)
         @assert size(grid.grid, 3) == size(ring_field, 2) "Vertical dimension mismatch: grid has $(size(grid.grid, 3)) layers, but field has $(size(ring_field, 2)) layers"
@@ -166,7 +175,7 @@ function Oceananigans.FieldTimeSeries(ring_field::RingGrids.AbstractField, grid:
     mask = grid.mask.data   # host boolean mask (see note above)
     gathered = data[mask, :, :]
     values = reshape(gathered, size(gathered, 1), 1, size(gathered)[2:end]...)
-    oceananigans_fts = FieldTimeSeries(grid, dims, times)
+    oceananigans_fts = FieldTimeSeries(grid, dims, times; kwargs...)
     copyto!(interior(oceananigans_fts), values)
     return oceananigans_fts
 end
