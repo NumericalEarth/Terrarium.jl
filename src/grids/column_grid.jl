@@ -1,10 +1,9 @@
+# TODO: Consider proposing a new typology type in Oceananigans-proper to describe column Grids
 """
 Alias for an Oceananigans `RectilinearGrid` representing a set of laterally independent vertical
-columns with dimensions (x, y, z) where `x` is the column dimension, `y = 1` is constant (`Flat`),
-and `z` is the vertical axis.
-
-Note that this is a plain spatial discretization, not a land grid; see [`LandGrid`](@ref) for the
-land model counterpart which collects the discretizations of all vertical domains.
+columns with dimensions (x, y, z) where `x` (`Periodic`) is the column dimension, `y = 1` is constant (`Flat`),
+and `z` is the vertical axis with `Bounded` topology. The `x`-dimension is somewhat arbitrairly assigned a `Periodic`
+topology to reflect the fact that it has no well defined spatial extent.
 """
 const ColumnGrid{NF, Arch} = RectilinearGrid{NF, Periodic, Flat, Bounded, CZ, FX, FY, VX, VY, Arch, SZ} where {CZ, FX, FY, VX, VY, SZ}
 
