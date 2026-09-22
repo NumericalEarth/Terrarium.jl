@@ -213,7 +213,6 @@ sim.output_writers[:soil] = JLD2Writer(
      saturation  = integrator.state.saturation_water_ice);
     filename = output_file,
     overwrite_files = true,
-    including = [:grid], # save the grid with the output
     schedule = TimeInterval(2hours),
 )
 
