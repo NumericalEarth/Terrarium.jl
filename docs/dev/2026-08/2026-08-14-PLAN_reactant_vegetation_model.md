@@ -86,7 +86,13 @@ Base revision: 99c748b79711e295e99a5a6370d386853652cf06
   (`yr⁻¹` rates integrated per second) and the 31 °C skin temperature over snow (constant albedo) are
   both visible in the run and both still open; neither affects the CPU-vs-Reactant comparison. Also in
   this revision, at the user's request: the traced `convert_dt` method moved from a separate file into
-  `TerrariumReactantExt.jl`.
+  `TerrariumReactantExt.jl`, and the Reactant examples dropped their uniform-grid restriction
+  (*"adjust the Reactant `examples`, as we don't need to use uniformly spaced grids anymore now"*):
+  `examples/autodiff/differentiating_terrarium_reactant.jl` and `global_sensitivity.jl` now use
+  `ExponentialSpacing` like their CPU counterparts, the stale "cannot update `FieldTimeSeries` inputs"
+  remark in the latter is corrected, and `docs/src/running/reactant.md` describes the current test
+  coverage (stretched grids, snow, vegetation, time-varying inputs, coupled `LandModel`) instead of
+  "heat conduction with uniform vertical spacing".
 
 ## Problem description
 
@@ -432,6 +438,8 @@ Revision 7 (2026-09-22), default `LandModel`:
 | --- | --- |
 | `test/reactant/setup.jl` | New `:land_default` configuration (all-default `LandModel` with soil, snow and vegetation; `NewtonSolver` skin temperature) |
 | `test/reactant/runtests.jl` | Register `:land_default` |
+| `examples/autodiff/differentiating_terrarium_reactant.jl`, `examples/autodiff/global_sensitivity.jl` | `ExponentialSpacing` instead of `UniformSpacing`; outdated restriction comments removed |
+| `docs/src/running/reactant.md` | Warning box updated to the current coverage; example grid stretched; eager device initialization described correctly |
 
 ### Time-varying LAI input
 
