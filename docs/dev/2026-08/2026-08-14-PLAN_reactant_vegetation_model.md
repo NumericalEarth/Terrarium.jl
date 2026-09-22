@@ -511,6 +511,9 @@ Reactant 0.2.278 (suite) / 0.2.287 (global run), CPU backend, `Float32`.
   patch is on it.
 - **`Pkg.test()` (main CPU suite): all testsets pass** on Oceananigans 0.113.1, including the new
   `FieldTimeSeries` constructor test in `test/grids.jl`.
+- **Repo environment, after the fix landed upstream** (`mg/fts-reactant` at commit `92919412`, Manifests
+  at tree `2035f77c`): `test/reactant/runtests.jl` again **186/186 + 6/6**, now with no local patch
+  involved. The CI environment is therefore self-sufficient again.
 
 ## Documentation changes
 
