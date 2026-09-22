@@ -5,8 +5,10 @@
 > the one-line follow-up fix found here (on the branch since commit `92919412`, 2026-09-22):
 > `:vegetation_column_lai_cycle` matches CPU after 100 steps and the global N72 ERA5-Land LAI climatology
 > runs through the compiled loop. Terrarium-side changes are small (a traced-time `convert_dt` in the
-> Reactant extension and two `FieldTimeSeries` constructor fixes) but no longer zero. Remaining: the
-> branch has to be merged and released so the repo's Oceananigans pin can move back to a release.
+> Reactant extension and two `FieldTimeSeries` constructor fixes) but no longer zero. Revision 7 adds the
+> **full default `LandModel`** (soil + snow + `VegetationCarbonCycle`) as `:land_default`, which also matches
+> CPU. Remaining: the branch has to be merged and released so the repo's Oceananigans pin can move back
+> to a release.
 
 Date of initial draft: 2026-08-14
 
@@ -70,6 +72,21 @@ Base revision: 99c748b79711e295e99a5a6370d386853652cf06
   `inputs`. Both Oceananigans pins moved to `mg/fts-reactant`, which required widening the compat bound to
   `0.113` — a `[compat]` edit, called out here because AGENTS.md reserves those for explicit requests; it
   is implied by the instruction to use the branch.
+- 2026-09-22, **revision 7** (prompt: *"Once all of this is done, add one further test for a full default
+  `LandModel` (with vegetation, soil, snow)"*). New suite configuration `:land_default`: `LandModel(grid)`
+  with every component at its default — `VegetationCarbonCycle` (PALADYN phenology, carbon and vegetation
+  dynamics, autotrophic respiration), `SoilEnergyWaterCarbon` with Richards-equation hydrology and SURFEX
+  hydraulics, `SingleLayerSnow`, default surface energy balance and surface hydrology — except the
+  skin-temperature solver, which is the fixed-iteration `NewtonSolver` because the default `RootSolver`'s
+  convergence-tested loop still cannot be raised (blocker #6 of the 2026-08-04 coupled-model plan; the
+  default is unchanged there too). Initial state as in `:land_soil_snow` (cold, no melt) plus a nonzero
+  vegetation carbon pool and area fraction so the vegetation tendencies are active. Passes CPU-vs-Reactant;
+  see Testing. Two side findings: the "default pure-sand texture makes β non-finite" defect listed under
+  Future work no longer reproduces (β = 0.39, finite, on current `main`), and the fast carbon turnover
+  (`yr⁻¹` rates integrated per second) and the 31 °C skin temperature over snow (constant albedo) are
+  both visible in the run and both still open; neither affects the CPU-vs-Reactant comparison. Also in
+  this revision, at the user's request: the traced `convert_dt` method moved from a separate file into
+  `TerrariumReactantExt.jl`.
 
 ## Problem description
 
@@ -409,6 +426,13 @@ Revision 6 (2026-09-22), time-varying LAI:
 | `docs/dev/2026-09/2026-09-22-oceananigans_fts_unwrapped_eltype.patch` | The upstream one-liner (see revision log), on `mg/fts-reactant` since `92919412` |
 | `docs/dev/2026-09/2026-09-22-vegetation_global_reactant.jl` | Global N72 ERA5-Land LAI climatology, CPU vs Reactant (needs Rasters/NCDatasets; not part of the suite) |
 
+Revision 7 (2026-09-22), default `LandModel`:
+
+| File | Change |
+| --- | --- |
+| `test/reactant/setup.jl` | New `:land_default` configuration (all-default `LandModel` with soil, snow and vegetation; `NewtonSolver` skin temperature) |
+| `test/reactant/runtests.jl` | Register `:land_default` |
+
 ### Time-varying LAI input
 
 `FieldTimeSeriesInputSource.update_inputs!` runs inside the traced step and calls `fts[Time(t)]` with the
@@ -515,6 +539,24 @@ Reactant 0.2.278 (suite) / 0.2.287 (global run), CPU backend, `Float32`.
   at tree `2035f77c`): `test/reactant/runtests.jl` again **186/186 + 6/6**, now with no local patch
   involved. The CI environment is therefore self-sufficient again.
 
+### Revision 7 (2026-09-22): default `LandModel`
+
+`:land_default`, run alone through the shared harness (Oceananigans 0.113.1 @ `92919412`, Reactant
+0.2.278, CPU backend, `Float32`, 100 steps of 600 s): **110/110**, i.e. all 51 fields bit-identical at
+initialization and all within tolerance after 100 steps. Largest disagreements are float-reorder noise:
+`temperature` `max_rel = 1.4e-5`, `liquid_water_fraction` `8.6e-6`, `hydraulic_conductivity` `1.9e-6`,
+`internal_energy` `max_abs = 64 J/m³` at `max_rel = 9.3e-7`; everything else `≤ 4e-7`. Compilation plus
+run took 8 min 48 s on an M-series CPU, which makes it the slowest configuration in the suite by a wide
+margin. This is the first traced configuration in which vegetation, soil and snow are coupled, so it
+covers the lazy `Integral` in `soil_moisture_limiting_factor` *inside* the compiled step (the case the
+static plan listed as untested), the PALADYN carbon and dynamics tendencies, and the canopy hydrology.
+
+What the 100 steps actually exercise (CPU exploration, same configuration): the vegetation carbon pool
+falls from 2.0 to 1.5 kgC/m², autotrophic respiration and NPP are nonzero, `balanced_leaf_area_index`
+is 0.68, β = 0.39; but with air at −2 °C the GDD phenology keeps `leaf_area_index = 0`, so GPP,
+transpiration and canopy interception are identically zero. A warm configuration would exercise those
+too, at the price of snowmelt-threshold sensitivity in the comparison; left for a follow-up.
+
 ## Documentation changes
 
 None for the static step. `root_fraction` and `soil_moisture_limiting_factor` still return lazily-computed
@@ -537,6 +579,8 @@ the forwarded keyword arguments. `examples/simulations/vegetation_global.jl` is 
   keeps the stale tree).
   (2) Only `TotallyInMemoryFTS` sources trace. `RasterInputSource` (the example's path) and `OnDisk`
   series do host I/O per step and remain CPU/GPU-only.
+- **`:land_default` is default except for the skin-temperature solver**, and photosynthesis is inactive
+  in its cold initial state (see Revision 7 under Testing). The default `RootSolver` remains untraceable.
 - **The whole climatology is a compiled-program argument.** The `(Nx, 1, 1, Nt)` snapshot store is passed
   into the XLA program and each step slices two snapshots out of it. That is 20 MB at N72; at the native
   0.1° grid of the example (~6.5 M points × 366 days) it would be ~10 GB per variable and is not viable.
@@ -563,9 +607,10 @@ the forwarded keyword arguments. `examples/simulations/vegetation_global.jl` is 
 - Extend to `VegetationCarbonCycle` (prognostic carbon pool, `PaladynPhenology`, autotrophic
   respiration, vegetation dynamics), which has real tendencies and would give a meaningful dynamical
   Reactant test.
-- Wire vegetation into the coupled `LandModel` Reactant configuration now that both halves work
-  standalone. This is the next step, and the one that would actually trace the lazy reductions (see
-  Known limitations) and so answer whether Option A above is worth doing. Note two known defects stand
-  in the way and are unrelated to Reactant: the default pure-sand `SoilTexture` makes `β` non-finite,
-  and `PALADYNCarbonDynamics`'s turnover rates are declared `yr⁻¹` but integrated in seconds.
+- ~~Wire vegetation into the coupled `LandModel` Reactant configuration~~ — done in revision 7
+  (`:land_default`); the lazy reductions trace inside the compiled step, so Option A above is purely a
+  performance question. Of the two defects noted here, the pure-sand `β` one no longer reproduces; the
+  `PALADYNCarbonDynamics` turnover units (`yr⁻¹` integrated in seconds) are still open and unrelated to
+  Reactant. A warm variant of `:land_default` (active photosynthesis, canopy interception) would complete
+  the coverage.
 - Drop the Oceananigans `[sources]` pin once `mg/fts-reactant` (with the eltype patch) is merged and released.
