@@ -27,7 +27,7 @@ update_inputs!(inputs, grid, clock, fields, input::InputSource)
 A [`FieldInputSource`](@ref) holds a single `Field` that is copied into the state once at initialization and is thereafter unchanged. This is the appropriate input source for spatially-varying but time-constant forcings (e.g. maps of soil properties or prescribed climatology).
 
 ```@docs; canonical = false
-InputSource(grid::AbstractLandGrid{NF}, field::FS; domain = Ground()) where {NF, FS <: AnyField{NF}}
+InputSource(grid::AbstractLandGrid{NF}, field::FS; domain) where {NF, FS <: AnyField{NF}}
 ```
 
 ```julia
@@ -57,7 +57,7 @@ using Oceananigans.Units: hours
 
 # Allocate and populate a FieldTimeSeries
 times = 0.0:3600.0:86400.0 # hourly for one day (seconds)
-fts = FieldTimeSeries(grid, Ground(XY()), times)
+fts = FieldTimeSeries(grid, Surface(XY()), times)
 fts.data .= randn(size(fts)) # fill with data
 source = InputSource(fts; name = :air_temperature, units = u"°C")
 ```

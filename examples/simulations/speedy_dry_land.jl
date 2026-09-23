@@ -26,7 +26,7 @@ soil_initializer = SoilInitializer(eltype(grid))
 # Soil model with a prescribed surface-temperature boundary condition driven
 # by SpeedyWeather's near-surface air temperature.
 soil_model = SoilModel(grid; initializer = soil_initializer)
-air_temperature_field = Field(grid, Terrarium.Ground(XY()))
+air_temperature_field = Field(grid, Terrarium.Surface(XY()))
 Tair_input = InputSource(grid, air_temperature_field; name = :air_temperature)
 bcs = PrescribedSurfaceTemperature(:air_temperature)
 
