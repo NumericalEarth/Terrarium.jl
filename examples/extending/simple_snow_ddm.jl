@@ -190,8 +190,7 @@ snow_sim.output_writers[:snapshots] = JLD2Writer(
     snow_integrator,
     (snow_storage = snow_integrator.state.snow_storage,);
     filename = output_file_snow,
-    overwrite_existing = true,
-    including = [:grid],
+    overwrite_files = true,
     schedule = TimeInterval(3600)
 )
 run!(snow_sim)

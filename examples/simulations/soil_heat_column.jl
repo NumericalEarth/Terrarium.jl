@@ -164,8 +164,7 @@ simulation.output_writers[:temperature] = Oceananigans.OutputWriters.JLD2Writer(
     (; temperature = integrator.state.temperature);
     filename = output_file,
     schedule = TimeInterval(Δt),
-    including = [:grid],
-    overwrite_existing = true
+    overwrite_files = true
 )
 
 run!(simulation)

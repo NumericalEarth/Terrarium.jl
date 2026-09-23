@@ -177,8 +177,7 @@ sim.output_writers[:snapshots] = JLD2Writer(
     integrator,
     (u = integrator.state.u,);
     filename = output_file,
-    overwrite_existing = true,
-    including = [:grid], # include the grid with the output
+    overwrite_files = true,
     schedule = TimeInterval(10seconds)
 )
 run!(sim)
