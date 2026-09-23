@@ -56,6 +56,7 @@ Includes minimum conductance and light extinction effects based on LAI, scaled b
     # Compute stomatal conductance g_stm
     let g_min = stomcond.g_min / NF(1.0e3) # convert mm/s to m/s
         g₁ = stomcond.g₁
+        D = stomcond.diffusivity_ratio_water_co2
         k_ext = traits.extinction_coefficient
         # We clamp VPD from below at 10 Pa (0.01 kPa) for numerical stability (division by zero risk)
         # and convert to kPa, the units of VPD in [willeitPALADYNV10Comprehensive2016](@cite)
@@ -70,13 +71,13 @@ Includes minimum conductance and light extinction effects based on LAI, scaled b
         g₀ = g_min * (1 - exp(-k_ext * LAI)) * β # m/s
         # Collect constants for An conversion factor
         M_C = constants.material.atomic_weight_carbon # atomic weight of carbon in gC/mol
-        M_air = constants.material.molecular_weight_dry_air / NF(1.0e3)
+        M_air = constants.material.molecular_weight_dry_air / NF(1.0e3) # gC / mol -> kgC / mol
         R = constants.thermodynamics.gas_constant_dry_air * M_air # Universal gas constant in J/(mol·K)
         T_K = celsius_to_kelvin(constants.thermodynamics, T_air)
         # Compute ideal gas conversion factor in m³/mol
         F = R * T_K / pres
         # Dimensionless scaling coefficient (from Medlyn model)
-        b = 1 + g₁ / sqrt(vpd)
+        b = D * (1 + g₁ / sqrt(vpd))
         # Stomatal conductance [m/s] as g₀ [m/s] + b * An / cₐ [gC/m²/s] / M_C [gC/mol] × F [m³/mol]
         # An is converted from gC/m²/s → mol C/m²/s, then to m/s via ideal gas law
         g_stm = g₀ + b * An / cₐ / M_C * F
@@ -99,8 +100,7 @@ derived from the optimal stomatal conductance model ([medlynReconcilingOptimalEm
 @inline function compute_λc(stomcond::MedlynStomatalConductance{NF}, vpd) where {NF}
     # here we allow zero VPD since lim x⁻¹ as x → ∞ ≈ 0
     g₁ = stomcond.g₁
-    D = stomcond.diffusivity_ratio_water_co2
-    λc = NF(1.0) - D / (NF(1.0) + g₁ / sqrt(pa_to_kpa(vpd)))
+    λc = NF(1.0) - NF(1.6) / (NF(1.0) + g₁ / sqrt(pa_to_kpa(vpd)))
     return λc
 end
 
