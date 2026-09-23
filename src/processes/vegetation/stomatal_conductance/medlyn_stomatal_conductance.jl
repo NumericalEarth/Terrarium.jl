@@ -100,7 +100,7 @@ derived from the optimal stomatal conductance model ([medlynReconcilingOptimalEm
 @inline function compute_λc(stomcond::MedlynStomatalConductance{NF}, vpd) where {NF}
     # here we allow zero VPD since lim x⁻¹ as x → ∞ ≈ 0
     g₁ = stomcond.g₁
-    λc = NF(1.0) - NF(1.6) / (NF(1.0) + g₁ / sqrt(pa_to_kpa(vpd)))
+    λc = NF(1.0) - NF(1.0) / (NF(1.0) + g₁ / sqrt(pa_to_kpa(vpd)))
     return λc
 end
 
