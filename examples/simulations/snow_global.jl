@@ -130,7 +130,7 @@ sim.output_writers[:swe] = JLD2Writer(
     integrator,
     (snow_water_equivalent = integrator.state.snow_water_equivalent,);
     filename = output_file,
-    overwrite_existing = true,
+    overwrite_files = true,
     schedule = TimeInterval(1days),
 )
 
