@@ -64,8 +64,8 @@ end
 # Top-level interface methods
 
 variables(::DirectSurfaceRunoff) = (
-    prognostic(:surface_excess_water, Surface(XY()), units = u"m", desc = "Excess water at the soil surface in m³/m²"),
-    auxiliary(:surface_runoff, Surface(XY()), units = u"m/s", desc = "Total surface runoff"),
+    prognostic(:surface_excess_water, Ground(Top()), units = u"m", desc = "Excess water at the soil surface in m³/m²"),
+    auxiliary(:surface_runoff, Ground(Top()), units = u"m/s", desc = "Total surface runoff"),
     auxiliary(:infiltration, Ground(Top()), units = u"m/s", desc = "Infiltration flux"),
 )
 
