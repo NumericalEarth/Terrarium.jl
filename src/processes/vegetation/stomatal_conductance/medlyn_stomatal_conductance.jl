@@ -16,8 +16,12 @@ $TYPEDFIELDS
 """
 @parameterized @kwdef struct MedlynStomatalConductance{NF} <: AbstractStomatalConductance{NF}
     "Parameter in optimal stomatal conductance formulation representing the quasi-linear
-    relationship between conductance and net assimilation, [linOptimalStomatalBehaviour2015](@cite). PFT specific."
-    @param g₁::NF = 2.3 (bounds = Positive,) # TODO: value for Needleleaf tree PFT
+    relationship between conductance and net assimilation, [linOptimalStomatalBehaviour2015](@cite). PFT specific.
+    [willeitPALADYNV10Comprehensive2016](@cite) tabulates `g₁` as a pure number (Table 5; 2.3 for the
+    needleleaf tree PFT) because its VPD carries kPa. Terrarium computes VPD in Pa, so both this file's
+    uses of `g₁/√VPD` convert first; dimensionally that makes `g₁` a √kPa quantity, and it must not be
+    rescaled to √Pa."
+    @param g₁::NF = 2.3 (units = u"kPa^(1/2)", bounds = Positive) # TODO: value for Needleleaf tree PFT
 
     "Minimum stomatal conductance parameter"
     @param g_min::NF = 0.5 (units = u"mm/s", bounds = Positive)
@@ -59,7 +63,9 @@ Includes minimum conductance and light extinction effects based on LAI, scaled b
         D = stomcond.diffusivity_ratio_water_co2
         k_ext = traits.extinction_coefficient
         # We clamp VPD from below at 10 Pa (0.01 kPa) for numerical stability (division by zero risk)
-        vpd = max(vpd, NF(10.0))
+        # and convert to kPa, the units VPD carries in [willeitPALADYNV10Comprehensive2016](@cite)
+        # (Table 2) and in which g₁ is therefore defined (see `compute_λc`).
+        vpd = pa_to_kpa(max(vpd, NF(10.0)))
         # We similarly clamp net assimilation from below at zero;
         # this assumes that the stomata are closed during respiration (An < 0) and ensures that
         # stomatal conductance remains nonnegative
@@ -99,7 +105,7 @@ derived from the optimal stomatal conductance model ([medlynReconcilingOptimalEm
     # here we allow zero VPD since lim x⁻¹ as x → ∞ ≈ 0
     g₁ = stomcond.g₁
     D = stomcond.diffusivity_ratio_water_co2
-    λc = NF(1.0) - D / (NF(1.0) + g₁ / sqrt(vpd * NF(1.0e-3)))
+    λc = NF(1.0) - D / (NF(1.0) + g₁ / sqrt(pa_to_kpa(vpd)))
     return λc
 end
 

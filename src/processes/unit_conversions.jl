@@ -22,6 +22,13 @@ ppm_to_mole_fraction(c::NF) where {NF} = c * NF(1.0e-6)
 """
     $SIGNATURES
 
+Convert a pressure `p` from pascals (Pa) to kilopascals (kPa).
+"""
+pa_to_kpa(p::NF) where {NF} = p * NF(1.0e-3)
+
+"""
+    $SIGNATURES
+
 Compute partial pressure of O₂ (Pa) from surface pressure.
 """
 @inline function partial_pressure_O2(pres::NF) where {NF}
