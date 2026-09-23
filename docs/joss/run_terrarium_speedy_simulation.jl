@@ -13,6 +13,10 @@ using Statistics
 import RingGrids
 import SpeedyWeather as Speedy
 
+# Make output directory for simulation results
+output_dir = joinpath(@__DIR__, "outputs")
+mkpath(output_dir)
+
 # Choose architecture based on available hardware
 arch = CUDA.functional() ? GPU() : CPU()
 speedy_arch = RingGrids.Architectures.architecture(arch)
@@ -101,7 +105,7 @@ land = Speedy.LandModel(
 surface_heat_flux = Speedy.SurfaceHeatFlux(land.spectral_grid, land = Speedy.PrescribedLandHeatFlux())
 surface_humidity_flux = Speedy.SurfaceHumidityFlux(land.spectral_grid, land = Speedy.PrescribedLandHumidityFlux())
 albedo = Speedy.OceanLandAlbedo(land.spectral_grid, land = Speedy.PrescribedAlbedo(land.spectral_grid))
-output = Speedy.NetCDFOutput(land.spectral_grid, Speedy.PrimitiveDryModel; interval = Hour(4), nlayers_soil = land.geometry.nlayers, path = "outputs/")
+output = Speedy.NetCDFOutput(land.spectral_grid, Speedy.PrimitiveDryModel; interval = Hour(4), nlayers_soil = land.geometry.nlayers, path = output_dir)
 time_stepping = Speedy.Leapfrog(land.spectral_grid, Δt_at_T32 = Minute(15))
 primitive_wet_coupled = Speedy.PrimitiveWetModel(
     land.spectral_grid;
