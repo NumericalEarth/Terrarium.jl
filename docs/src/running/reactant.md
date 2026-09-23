@@ -7,15 +7,21 @@ CurrentModule = Terrarium
 Terrarium models can be compiled and executed with
 [Reactant.jl](https://github.com/EnzymeAD/Reactant.jl), which traces the model time step into
 MLIR/StableHLO and compiles it with XLA for high-performance execution on CPUs, GPUs, and TPUs.
-The only user-facing change is the architecture passed to the grid: with `ReactantState()`,
-initialization runs on the CPU and is transferred to the device, and the first call to
-`timestep!` or `run!` compiles the time step transparently (subsequent steps reuse the compiled
+The only user-facing change is the architecture passed to the grid: with `ReactantState()`, the
+model state is allocated and initialized on the device, and the first call to `timestep!` or `run!`
+compiles the stepping loop transparently (subsequent calls with the same arguments reuse the compiled
 program).
 
 !!! warning "Experimental"
-    Reactant support is experimental and currently validated for `SoilModel` heat conduction
-    on `ColumnGrid` and `ColumnRingGrid` with **uniform vertical spacing**. Correctness against
-    the CPU implementation is tested continuously in `test/reactant/`.
+    Reactant support is experimental. Correctness against the CPU implementation is tested
+    continuously in `test/reactant/` for `SoilModel` (heat conduction and Richards-equation
+    hydrology), `SnowModel`, `VegetationModel` with constant and time-varying (`FieldTimeSeries`)
+    inputs, and the coupled `LandModel` with soil, snow and vegetation, on `ColumnGrid` and
+    `ColumnRingGrid` with uniform or stretched (`ExponentialSpacing`) vertical grids. Two things to
+    keep in mind: the default skin-temperature solver (`RootSolver`) iterates to a tolerance and cannot
+    be compiled, so a `LandModel` needs `ImplicitSkinTemperature(NF; solver = NewtonSolver(NF))`; and
+    only in-memory `FieldTimeSeries` input sources can be updated inside the compiled loop, whereas
+    raster-backed and on-disk sources read from the host on every step and cannot.
 
 ## Example
 
@@ -28,7 +34,7 @@ using Terrarium
 using Reactant, CUDA  # CUDA is required by Reactant's kernel integration, even on CPU
 
 # ReactantState() instead of CPU() or GPU() — the only change!
-grid = ColumnGrid(ReactantState(), Float32, UniformSpacing(Δz = 0.2f0, N = 10))
+grid = ColumnGrid(ReactantState(), Float32, ExponentialSpacing(N = 10))
 model = SoilModel(grid)
 
 boundary_conditions = PrescribedSurfaceTemperature(:T_ub, 1.0f0)
@@ -45,4 +51,4 @@ T = Array(interior(integrator.state.temperature))
 The target device is selected by Reactant, e.g. `Reactant.set_default_backend("gpu")` before
 constructing the model.
 
-In the example folder you can also find examples that demonstrate how to use the Reactant model to take derivatives of the model and integratate and train neural networks. 
+In the example folder you can also find examples that demonstrate how to use the Reactant model to take derivatives of the model and integrate and train neural networks. 

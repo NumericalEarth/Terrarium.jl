@@ -17,10 +17,10 @@ using Enzyme
 
 import CairoMakie as Makie
 
-# We set up a single soil column on the device. Reactant currently requires uniform vertical
-# spacing (see the [Reactant page](@ref)).
+# We set up a single soil column on the device, with the same exponentially stretched vertical grid
+# as the CPU example.
 
-grid = ColumnGrid(ReactantState(), Float32, UniformSpacing(Δz = 0.2f0, N = 20))
+grid = ColumnGrid(ReactantState(), Float32, ExponentialSpacing())
 model = SoilModel(grid)
 bcs = PrescribedSurfaceTemperature(:T_ub, 1.0f0)   # constant 1 °C surface temperature
 initializers = (temperature = (x, z) -> -1.0f0 - 0.05f0 * z,)

@@ -76,17 +76,21 @@ end
     FieldTimeSeries(
         grid::AbstractLandGrid,
         dims::VarDims,
-        times=eltype(grid)[]
+        times=eltype(grid)[];
+        kwargs...
     )
 
-Construct a `FieldTimeSeries` on the given land `grid` with the given `dims` and `times`.
+Construct a `FieldTimeSeries` on the given land `grid` with the given `dims` and `times`. Additional
+keyword arguments (e.g. `time_indexing = Cyclical()` for a periodically repeating climatology) are
+forwarded to the Oceananigans `FieldTimeSeries` constructor.
 """
 function Oceananigans.FieldTimeSeries(
         grid::AbstractLandGrid,
         dims::VarDims,
-        times = eltype(grid)[]
+        times = eltype(grid)[];
+        kwargs...
     )
     loc = location(dims)
     arch = architecture(grid)
-    return FieldTimeSeries(loc, get_field_grid(grid), on_architecture(arch, times))
+    return FieldTimeSeries(loc, get_field_grid(grid), on_architecture(arch, times); kwargs...)
 end

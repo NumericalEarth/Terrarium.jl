@@ -26,8 +26,7 @@ import RingGrids
 # ## Grid and forcing
 #
 # We build the same ~1° global land grid as the ERA5 example: all grid points with more than 50%
-# land become independent soil columns. Reactant currently requires uniform vertical spacing (see
-# the [Reactant page](@ref)), so we use `UniformSpacing` instead of `ExponentialSpacing`.
+# land become independent soil columns on an exponentially stretched vertical grid.
 
 ## Load land-sea mask at ~1° resolution
 land_sea_frac_10km = RingGrids.Field(ERA5LandInvariants(), "lsm")
@@ -35,12 +34,11 @@ land_sea_frac_N72 = RingGrids.interpolate(ring_grid, land_sea_frac_10km)
 land_mask = land_sea_frac_N72 .> 0.5 # select only grid points with > 50% land
 
 Nz = 30 # number of soil layers
-grid = ColumnRingGrid(ReactantState(), Float32, UniformSpacing(Δz = 0.2f0, N = Nz), land_mask)
+grid = ColumnRingGrid(ReactantState(), Float32, ExponentialSpacing(N = Nz), land_mask)
 
-# Load ERA-5 2 meter air temperature at ~1° resolution as the surface forcing. The compiled
-# stepping loop cannot yet update time-dependent `FieldTimeSeries` inputs from the host, so we
-# take the first time slice as a constant-in-time forcing field (a `FieldInputSource`, as in the
-# hybrid modeling example).
+# Load ERA-5 2 meter air temperature at ~1° resolution as the surface forcing. To keep the example
+# small we take the first time slice as a constant-in-time forcing field (a `FieldInputSource`, as in
+# the hybrid modeling example); a time-varying `FieldTimeSeries` input would work as well.
 
 # The full-year hourly file is large (~1.5 GB, 8760 time steps); load it lazily and materialize
 # only the first time slice, which we use as a constant-in-time forcing.
