@@ -60,7 +60,6 @@ Includes minimum conductance and light extinction effects based on LAI, scaled b
     # Compute stomatal conductance g_stm
     let g_min = stomcond.g_min / NF(1.0e3) # convert mm/s to m/s
         g₁ = stomcond.g₁
-        D = stomcond.diffusivity_ratio_water_co2
         k_ext = traits.extinction_coefficient
         # We clamp VPD from below at 10 Pa (0.01 kPa) for numerical stability (division by zero risk)
         # and convert to kPa, the units VPD carries in [willeitPALADYNV10Comprehensive2016](@cite)
@@ -81,7 +80,7 @@ Includes minimum conductance and light extinction effects based on LAI, scaled b
         # Compute ideal gas conversion factor in m³/mol
         F = R * T_K / pres
         # Dimensionless scaling coefficient (from Medlyn model)
-        b = D * (1 + g₁ / sqrt(vpd))
+        b = 1 + g₁ / sqrt(vpd)
         # Stomatal conductance [m/s] as g₀ [m/s] + b * An / cₐ [gC/m²/s] / M_C [gC/mol] × F [m³/mol]
         # An is converted from gC/m²/s → mol C/m²/s, then to m/s via ideal gas law
         g_stm = g₀ + b * An / cₐ / M_C * F
