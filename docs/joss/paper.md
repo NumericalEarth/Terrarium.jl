@@ -26,7 +26,7 @@ authors:
   - name: Kieran Hunt
     orcid: 0000-0003-1480-3755
     affiliation: 4
-  - name: Pierre Luigi Vidale
+  - name: Pier Luigi Vidale
     orcid: 0000-0002-1800-8460
     affiliation: 4
   - name: Niklas Boers
@@ -150,7 +150,8 @@ All pull requests are reviewed and signed off by human developers.
 # Acknowledgements
 
 BG acknowledges the support of the Past2Future (P2F) project; The Past to Future (P2F) project has received funding from the European Union’s Horizon Europe research and innovation programme under grant agreement No. 101184070.
-MG acknowledges funding from the Volkswagen Foundation and the European Union’s Horizon Europe research and innovation programme ClimTip (grant agreement no. 101137601), this is ClimTip contribution #XXX. 
+MG acknowledges funding from the Volkswagen Foundation and the European Union’s Horizon Europe research and innovation programme ClimTip (grant agreement no. 101137601), this is ClimTip contribution #XXX.
+PLV acknowledges funding from the National Centre for Atmospheric Science and from Schmidt Futures (LEMONTREE project, #XXX)
 Funded by the European Union.
 Views and opinions expressed are however those of the author(s) only and do not necessarily reflect those of the European Union or the European Climate, Infrastructure and Environment Executive Agency (CINEA).
 Neither the European Union nor the granting authority can be held responsible for them.
