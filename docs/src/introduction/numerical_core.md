@@ -28,7 +28,7 @@ ground_domain(get_grid(model))        # the underlying domain `grid`
 
 A pre-built `LandGrid` may also be passed to a model constructor directly, in which case it is stored as-is. The domain grids are retrieved with [`ground_domain`](@ref), [`snow_domain`](@ref), and [`canopy_domain`](@ref).
 
-`LandGrid` and `ColumnRingGrid` are both thin wrappers around another grid, and each forwards the `AbstractGrid` interface to the underlying grid. This incldues `struct` fields such as `grid.Nx`, which Oceananigans accesses directly. A land grid is required to implement the following methods:
+`LandGrid` and `ColumnRingGrid` are both thin wrappers around another grid, and each forwards the `AbstractGrid` interface to the underlying grid. This includes `struct` fields such as `grid.Nx`, which Oceananigans accesses directly. A land grid is required to implement the following methods:
 - `architecture(grid)` (from Oceananigans) which returns the [`Architecture`](@extref Oceananigans.Architectures.AbstractArchitecture) (e.g. [`CPU`](@extref Oceananigans.Architectures.CPU) or [`GPU`](@extref Oceananigans.Architectures.GPU)) on which the grid is defined,
 - [`ground_domain`](@ref) which returns the spatial discretization of the ground domain, i.e. the grid on which soil `Field`s are defined. For a grid which is not a land grid, such as a `ColumnGrid`, this returns the grid unchanged, so it is safe to call on any grid.
 
