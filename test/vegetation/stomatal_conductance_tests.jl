@@ -205,8 +205,10 @@ end
     # λc = 1 - D/(1 + g₁/√VPD) = 1 - D/2 at this VPD
     @test compute_λc(stomcond, vpd) ≈ 1 - D / 2
 
-    # and the Medlyn factor b = D(1 + g₁/√VPD) = 2D, isolated by differencing out
-    # the minimum-conductance term g₀ (which does not depend on An)
+    # and the Medlyn factor b = 1 + g₁/√VPD = 2, isolated by differencing out the
+    # minimum-conductance term g₀ (which does not depend on An). No diffusivity ratio
+    # here: PALADYN Eq. (68) has none, and the 1.6 of the CO₂-diffusion form Eq. (69)
+    # appears only in λc, Eq. (71).
     T_air = 20.0     # °C
     pres = 101325.0  # Pa
     co2 = 415.0      # ppm
@@ -221,7 +223,7 @@ end
     R = constants.thermodynamics.gas_constant_dry_air * M_air
     F = R * celsius_to_kelvin(constants.thermodynamics, T_air) / pres
     cₐ = ppm_to_mole_fraction(co2)
-    @test g_with_A - g_zero_A ≈ 2D * An / cₐ / M_C * F
+    @test g_with_A - g_zero_A ≈ 2 * An / cₐ / M_C * F
 end
 
 @testset "midday conductance is physically plausible" begin
@@ -231,6 +233,6 @@ end
     # Typical midday conditions; VPD = 0.8 kPa, An ≈ 8 μmol CO₂ m⁻² s⁻¹.
     g_stm = compute_stomatal_conductance(stomcond, traits, constants, 800.0, 20.0, 101325.0, 415.0, 1.0e-4, 3.0, 1.0)
     # Bracketed tightly enough to catch a Pa/kPa mix-up in the g₁/√VPD term, which
-    # would put this near 1.2 mm/s instead.
-    @test 2.5e-3 < g_stm < 4.0e-3
+    # would put this near 0.9 mm/s instead.
+    @test 1.8e-3 < g_stm < 2.5e-3
 end

@@ -16,11 +16,7 @@ $TYPEDFIELDS
 """
 @parameterized @kwdef struct MedlynStomatalConductance{NF} <: AbstractStomatalConductance{NF}
     "Parameter in optimal stomatal conductance formulation representing the quasi-linear
-    relationship between conductance and net assimilation, [linOptimalStomatalBehaviour2015](@cite). PFT specific.
-    [willeitPALADYNV10Comprehensive2016](@cite) tabulates `g₁` as a pure number (Table 5; 2.3 for the
-    needleleaf tree PFT) because its VPD carries kPa. Terrarium computes VPD in Pa, so both this file's
-    uses of `g₁/√VPD` convert first; dimensionally that makes `g₁` a √kPa quantity, and it must not be
-    rescaled to √Pa."
+    relationship between conductance and net assimilation, [linOptimalStomatalBehaviour2015](@cite). PFT specific."
     @param g₁::NF = 2.3 (units = u"kPa^(1/2)", bounds = Positive) # TODO: value for Needleleaf tree PFT
 
     "Minimum stomatal conductance parameter"
@@ -62,7 +58,7 @@ Includes minimum conductance and light extinction effects based on LAI, scaled b
         g₁ = stomcond.g₁
         k_ext = traits.extinction_coefficient
         # We clamp VPD from below at 10 Pa (0.01 kPa) for numerical stability (division by zero risk)
-        # and convert to kPa, the units VPD carries in [willeitPALADYNV10Comprehensive2016](@cite)
+        # and convert to kPa, the units of VPD in [willeitPALADYNV10Comprehensive2016](@cite)
         # (Table 2) and in which g₁ is therefore defined (see `compute_λc`).
         vpd = pa_to_kpa(max(vpd, NF(10.0)))
         # We similarly clamp net assimilation from below at zero;
