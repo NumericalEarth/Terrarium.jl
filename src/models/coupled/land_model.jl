@@ -50,6 +50,15 @@ $(TYPEDFIELDS)
     @component timestepper::Timestepper = default_timestepper(eltype(grid))
 end
 
+"""
+    $SIGNATURES
+
+Construct a [`LandModel`](@ref) from the given `grid` with the model's multi-domain
+[`LandGrid`](@ref) constructed via [`create_land_grid`](@ref).
+"""
+LandModel(grid::AbstractGrid; kwargs...) = LandModel(create_land_grid(grid); kwargs...)
+LandModel(grid::AbstractLandGrid; kwargs...) = LandModel(; grid, kwargs...)
+
 function StateVariables(
         model::LandModel{NF};
         clock = Clock(time = zero(NF)),

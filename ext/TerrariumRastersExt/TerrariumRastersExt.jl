@@ -67,7 +67,7 @@ function Terrarium.InputSource(
         raster::AbstractRaster{NF};
         source_grid = grid.rings,
         name = raster.name,
-        domain::Terrarium.VarDomain = Terrarium.Surface(),
+        domain::Terrarium.Optional{Terrarium.VarDomain} = nothing,
         units = NoUnits,
         timedim = Ti,
         reftime = nothing,

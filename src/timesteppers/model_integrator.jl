@@ -10,7 +10,7 @@ treated as a "model" in `Oceananigans` `Simulation`s and output reading/writing 
 struct ModelIntegrator{
         NF,
         Arch <: AbstractArchitecture,
-        Grid <: AbstractLandGrid{NF},
+        Grid <: AbstractGrid{NF},
         TimeStepper <: AbstractTimeStepper{NF},
         Model <: AbstractModel{NF, Grid},
         StateVars <: AbstractStateVariables,

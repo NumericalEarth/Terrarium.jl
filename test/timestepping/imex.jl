@@ -1,12 +1,12 @@
 using Terrarium
 using Test
 
-using Terrarium: AbstractLandGrid, AbstractIMEX, AbstractTimeStepper, AbstractVariable, EmptyCache, Explicit, Implicit, prognostic, XY
+using Terrarium: AbstractGrid, AbstractIMEX, AbstractTimeStepper, AbstractVariable, EmptyCache, Explicit, Implicit, prognostic, XY
 
 module IMEXTestTypes
 
     using Terrarium
-    using Terrarium: AbstractLandGrid, AbstractIMEX, AbstractTimeStepper, AbstractVariable, Implicit, prognostic, XY
+    using Terrarium: AbstractGrid, AbstractIMEX, AbstractTimeStepper, AbstractVariable, Implicit, prognostic, XY
 
     # A mock implicit timestepper used only to verify IMEX routing. Its update is deliberately distinct
     # from forward Euler (u += 2·∂u∂t·Δt) so we can tell which sub-stepper integrated which variable.
@@ -32,15 +32,15 @@ module IMEXTestTypes
 
     # Minimal two-variable model with constant unit tendencies. Both variables default to the `Explicit`
     # timestepping class; specific routing under an IMEX timestepper is declared via `timestepping`
-    @kwdef struct TwoVarModel{NF, Grid <: AbstractLandGrid{NF}, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
+    @kwdef struct TwoVarModel{NF, Grid <: AbstractGrid{NF}, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
         grid::Grid
         initializer = DefaultInitializer(eltype(grid))
         timestepper::TS = ForwardEuler(eltype(grid))
     end
 
     Terrarium.variables(::TwoVarModel) = (
-        prognostic(:a, Terrarium.Ground(XY())),
-        prognostic(:b, Terrarium.Ground(XY())),
+        prognostic(:a, XY()),
+        prognostic(:b, XY()),
     )
     Terrarium.compute_auxiliary!(state, ::TwoVarModel) = nothing
     function Terrarium.compute_tendencies!(state, ::TwoVarModel)
@@ -54,15 +54,15 @@ module IMEXTestTypes
 
     # A second model identical to `TwoVarModel` but with the routing flipped, used to exercise the
     # per-model nature of `timestepping`: here `:a` is integrated implicitly and `:b` explicitly.
-    @kwdef struct FlippedModel{NF, Grid <: AbstractLandGrid{NF}, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
+    @kwdef struct FlippedModel{NF, Grid <: AbstractGrid{NF}, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
         grid::Grid
         initializer = DefaultInitializer(eltype(grid))
         timestepper::TS = ForwardEuler(eltype(grid))
     end
 
     Terrarium.variables(::FlippedModel) = (
-        prognostic(:a, Terrarium.Ground(XY())),
-        prognostic(:b, Terrarium.Ground(XY())),
+        prognostic(:a, XY()),
+        prognostic(:b, XY()),
     )
     Terrarium.compute_auxiliary!(state, ::FlippedModel) = nothing
     function Terrarium.compute_tendencies!(state, ::FlippedModel)

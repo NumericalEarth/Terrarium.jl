@@ -1,5 +1,5 @@
 using Terrarium
-using Terrarium: Clock, Variables, InputSource, Ground, initialize!, update_inputs!, variables, interior, InputSources, varname
+using Terrarium: Clock, Variables, InputSource, initialize!, update_inputs!, variables, interior, InputSources, varname
 using Test
 
 using Dates
@@ -46,7 +46,7 @@ const RasterInputSource = TerrariumRastersExt.RasterInputSource
         raster = Raster(static_file; name = :temperature)
 
         # A static (time-invariant) raster reduces to a plain FieldInputSource
-        source = InputSource(grid, raster; domain = Ground())
+        source = InputSource(grid, raster)
         @test isa(source, Terrarium.FieldInputSource)
         @test Terrarium.vardims(source) == XY()
         @test varname(source) == :temperature
@@ -54,7 +54,7 @@ const RasterInputSource = TerrariumRastersExt.RasterInputSource
         # Check variables are correctly inferred
         vars = variables(source)
         @test length(vars) == 1
-        @test first(vars) == Terrarium.input(:temperature, Ground(XY()))
+        @test first(vars) == Terrarium.input(:temperature, XY())
 
         # Test initialization
         state = StateVariables(Variables(source), grid)
@@ -99,7 +99,7 @@ const RasterInputSource = TerrariumRastersExt.RasterInputSource
 
         # Create RasterInputSource with reference time
         reftime = DateTime(2020, 1, 1)
-        source = InputSource(grid, raster; reftime, domain = Ground())
+        source = InputSource(grid, raster; reftime)
         @test isa(source, RasterInputSource)
         @test varname(source) == :forcing
         @test source.reftime == reftime
@@ -107,7 +107,7 @@ const RasterInputSource = TerrariumRastersExt.RasterInputSource
         # Check variables
         vars = variables(source)
         @test length(vars) == 1
-        @test first(vars) == Terrarium.input(:forcing, Ground(XY()))
+        @test first(vars) == Terrarium.input(:forcing, XY())
 
         # Test initialization and update
         state = StateVariables(Variables(source), grid)
@@ -154,7 +154,7 @@ const RasterInputSource = TerrariumRastersExt.RasterInputSource
             defVar(ds, "forcing", timeseries_data, ("x", "y", "time"))
         end
         raster = Raster(timeseries_file; name = :forcing)
-        source = InputSource(grid, raster; reftime = DateTime(2020, 1, 1), cycle = true, domain = Ground())
+        source = InputSource(grid, raster; reftime = DateTime(2020, 1, 1), cycle = true)
         @test isa(source, RasterInputSource)
         @test isa(source.extrapolation, Cyclical)
 
@@ -209,10 +209,10 @@ const RasterInputSource = TerrariumRastersExt.RasterInputSource
 
         # Create InputSources with two separate RasterInputSources
         sources = InputSources(
-            InputSource(grid, raster1; domain = Ground()),
-            InputSource(grid, raster2; domain = Ground())
+            InputSource(grid, raster1),
+            InputSource(grid, raster2)
         )
-        @test variables(sources) == (Terrarium.input(:var1, Ground(XY())), Terrarium.input(:var2, Ground(XY())))
+        @test variables(sources) == (Terrarium.input(:var1, XY()), Terrarium.input(:var2, XY()))
 
         # Test initialization
         state = StateVariables(Variables(sources), grid)

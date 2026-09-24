@@ -320,8 +320,9 @@ Initialize a `StateVariables` data structure containing `Field`s defined on the 
 for all variables defined by `process`. Any predefined `boundary_conditions` and `fields` will
 be passed through to `initialize` for each variable.
 
-The `grid` may be either a land grid or an ordinary spatial discretization, which is converted to
-a land grid via [`create_land_grid`](@ref).
+The `grid` may be either a land grid or an ordinary spatial discretization; fields are allocated on
+whichever is given. [`AbstractLandGrid`](@ref)s resolve variables' [`VarDomain`](@ref)s to a
+their respective vertical discretization; on an ordinary grid the domain is ignored.
 """
 function StateVariables(
         process::AbstractProcess{NF},
@@ -350,8 +351,9 @@ for all variables in `vars`. Any predefined `boundary_conditions` and `fields` w
 through to `initialize` for each variable. The `timestepper`'s cache is allocated via
 `initialize(timestepper, state, progvars)`.
 
-The `grid` may be either a land grid or an ordinary spatial discretization, which is converted to
-a land grid via [`create_land_grid`](@ref); state variables always live on a land grid.
+The `grid` may be either a land grid or an ordinary spatial discretization; fields are allocated on
+whichever is given. Only an [`AbstractLandGrid`](@ref) resolves a variable's [`VarDomain`](@ref) to a
+per-domain discretization; on an ordinary grid the domain is ignored.
 """
 function StateVariables(
         vars::Variables,
@@ -363,20 +365,17 @@ function StateVariables(
         initializers = (;),
         fields = (;)
     ) where {NF}
-    # State variables always live on a land grid, so an ordinary spatial discretization is converted
-    # to one here exactly as the model constructors do; this is a no-op for a land grid.
-    land_grid = create_land_grid(grid)
     # Initialize Fields for each variable group, if they are not already given in the user defined `fields`.
     fields_dict = OrderedDict{Symbol, AbstractField}(pairs(fields))
-    input_fields_dict = initialize(vars.inputs, land_grid, clock, fields_dict, boundary_conditions)
-    tendency_fields_dict = initialize(vars.tendencies, land_grid, clock, fields_dict, boundary_conditions)
-    prognostic_fields_dict = initialize(vars.prognostic, land_grid, clock, merge(fields_dict, input_fields_dict), boundary_conditions)
-    auxiliary_fields_dict = initialize(vars.auxiliary, land_grid, clock, merge(fields_dict, input_fields_dict, prognostic_fields_dict), boundary_conditions)
+    input_fields_dict = initialize(vars.inputs, grid, clock, fields_dict, boundary_conditions)
+    tendency_fields_dict = initialize(vars.tendencies, grid, clock, fields_dict, boundary_conditions)
+    prognostic_fields_dict = initialize(vars.prognostic, grid, clock, merge(fields_dict, input_fields_dict), boundary_conditions)
+    auxiliary_fields_dict = initialize(vars.auxiliary, grid, clock, merge(fields_dict, input_fields_dict, prognostic_fields_dict), boundary_conditions)
     # recursively initialize state variables for each namespace
     namespaces = map(values(vars.namespaces)) do ns
         ns_bcs = get(boundary_conditions, varname(ns), (;))
         ns_fields = get(fields, varname(ns), (;))
-        varname(ns) => StateVariables(variables(ns), land_grid; clock, boundary_conditions = ns_bcs, fields = ns_fields)
+        varname(ns) => StateVariables(variables(ns), grid; clock, boundary_conditions = ns_bcs, fields = ns_fields)
     end
     # get closure variable names
     closurenames = map(varname, closure_variables(values(vars.prognostic)))
@@ -427,7 +426,7 @@ for each variable.
 """
 function initialize(
         vars::OrderedDict{Symbol, <:AbstractVariable},
-        grid::AbstractLandGrid,
+        grid::AbstractGrid,
         clock::Clock,
         fields::OrderedDict{Symbol, AbstractField},
         boundary_conditions::NamedTuple,
@@ -448,7 +447,7 @@ end
 # Convenience dispatch that accepts `fields` as a NamedTuple and converts to OrderedDict
 initialize(
     var::AbstractVariable,
-    grid::AbstractLandGrid,
+    grid::AbstractGrid,
     clock::Clock,
     fields::NamedTuple,
     boundary_conditions::NamedTuple,
@@ -464,7 +463,7 @@ Otherwise, the new `Field` is constructed using the given `boundary_conditions`.
 """
 function initialize(
         var::AbstractVariable,
-        grid::AbstractLandGrid,
+        grid::AbstractGrid,
         clock::Clock,
         fields::OrderedDict{Symbol, AbstractField},
         boundary_conditions::NamedTuple,
@@ -491,7 +490,7 @@ Initialize a `Field` on `grid` for the given [`AuxiliaryVariable`](@ref).
 """
 function initialize(
         var::AuxiliaryVariable,
-        grid::AbstractLandGrid,
+        grid::AbstractGrid,
         clock::Clock,
         fields::OrderedDict{Symbol, AbstractField},
         boundary_conditions::NamedTuple

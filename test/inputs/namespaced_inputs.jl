@@ -1,13 +1,13 @@
 using Terrarium
-using Terrarium: Variables, Namespace, XY, XYZ, Ground, initialize!, interior, varname, matches_scope, with_scope
+using Terrarium: Variables, Namespace, XY, XYZ, initialize!, interior, varname, matches_scope, with_scope
 using Test
 
 @testset "Namespaced input sources" begin
     grid = ColumnGrid(ExponentialSpacing())
 
     # source with a namespaced name
-    X1 = Field(grid, Ground(XY()))
-    src = InputSource(grid, X1; name = :ns1 => :x, domain = Ground())
+    X1 = Field(grid, XY())
+    src = InputSource(grid, X1; name = :ns1 => :x)
     @test varname(src) == :x
     @test varpath(src) == (:ns1, :x)
     @test matches_scope(src, (:ns1,))
@@ -18,13 +18,13 @@ using Test
     vars = variables(src)
     @test length(vars) == 1 && isa(vars[1], Namespace)
     @test varname(vars[1]) == :ns1
-    @test first(variables(vars[1])) == Terrarium.input(:x, Ground(XY()))
+    @test first(variables(vars[1])) == Terrarium.input(:x, XY())
 
     # initialize state with a root input :x and two namespaces both declaring :x
     all_vars = Variables(
-        Terrarium.input(:x, Ground(XY())),
-        Terrarium.namespace(:ns1, (Terrarium.input(:x, Ground(XY())),)),
-        Terrarium.namespace(:ns2, (Terrarium.input(:x, Ground(XY())),)),
+        Terrarium.input(:x, XY()),
+        Terrarium.namespace(:ns1, (Terrarium.input(:x, XY()),)),
+        Terrarium.namespace(:ns2, (Terrarium.input(:x, XY()),)),
     )
     state = StateVariables(all_vars, grid)
     X1 .= 3.0f0
@@ -35,9 +35,9 @@ using Test
     @test all(interior(state.inputs.x) .== 0.0f0)
 
     # a root-level source should not leak into namespaces
-    X2 = Field(grid, Ground(XY()))
+    X2 = Field(grid, XY())
     X2 .= 5.0f0
-    root_src = InputSource(grid, X2; name = :x, domain = Ground())
+    root_src = InputSource(grid, X2; name = :x)
     initialize!(state, grid, InputSources(root_src))
     @test all(interior(state.inputs.x) .== 5.0f0)
     @test all(interior(state.namespaces.ns1.x) .== 3.0f0)
@@ -50,11 +50,11 @@ using Test
 
     # time-varying sources follow the same scoping rules in update_inputs!
     ts = 0.0:1.0:10.0
-    S = FieldTimeSeries(grid, Ground(XY()), ts)
+    S = FieldTimeSeries(grid, XY(), ts)
     for (i, t) in enumerate(ts)
         S[i] .= Float32(t)
     end
-    fts_src = InputSource(S; name = :ns2 => :x, domain = Ground())
+    fts_src = InputSource(S; name = :ns2 => :x)
     @test varpath(fts_src) == (:ns2, :x)
     update_inputs!(state, grid, InputSources(fts_src))
     @test all(interior(state.namespaces.ns2.x) .== 0.0f0)
@@ -75,16 +75,16 @@ end
 
     # prescribe texture for the organic horizon only; note that the fractions
     # must sum to unity in each grid cell
-    sand = Field(grid, Ground(XY()))
-    silt = Field(grid, Ground(XY()))
-    clay = Field(grid, Ground(XY()))
+    sand = Field(grid, XY())
+    silt = Field(grid, XY())
+    clay = Field(grid, XY())
     sand .= 0.25f0
     silt .= 0.5f0
     clay .= 0.25f0
     inputs = InputSources(
-        InputSource(grid, sand; name = :horizon1 => :sand_fraction, domain = Ground()),
-        InputSource(grid, silt; name = :horizon1 => :silt_fraction, domain = Ground()),
-        InputSource(grid, clay; name = :horizon1 => :clay_fraction, domain = Ground()),
+        InputSource(grid, sand; name = :horizon1 => :sand_fraction),
+        InputSource(grid, silt; name = :horizon1 => :silt_fraction),
+        InputSource(grid, clay; name = :horizon1 => :clay_fraction),
     )
     integrator = initialize(model; inputs)
     state = integrator.state

@@ -27,18 +27,18 @@ update_inputs!(inputs, grid, clock, fields, input::InputSource)
 A [`FieldInputSource`](@ref) holds a single `Field` that is copied into the state once at initialization and is thereafter unchanged. This is the appropriate input source for spatially-varying but time-constant forcings (e.g. maps of soil properties or prescribed climatology).
 
 ```@docs; canonical = false
-InputSource(grid::AbstractLandGrid{NF}, field::FS; domain) where {NF, FS <: AnyField{NF}}
+InputSource(grid::AbstractGrid{NF}, field::FS; name, domain, units) where {NF, FS <: AnyField{NF}}
 ```
 
 ```julia
 using Oceananigans: Field
-using Terrarium: Ground, Snow, Surface
+using Terrarium: Atmosphere, Ground, Snow, Surface
 
 # Existing Field or array on the model grid
 albedo_field = Field(grid_2d)
 set!(albedo_field, 0.3)
 
-source = InputSource(grid, albedo_field; name = :albedo, domain = Ground())
+source = InputSource(grid, albedo_field; name = :albedo)
 ```
 
 For a [`ColumnRingGrid`](@ref), a [`RingGrids.Field`](@extref SpeedyWeather RingGrids.Field) can be passed directly and will be converted automatically:
@@ -63,7 +63,7 @@ source = InputSource(fts; name = :air_temperature, units = u"°C")
 ```
 
 ```@docs; canonical = false
-InputSource(grid::AbstractLandGrid{NF}, field::FS; domain = Ground()) where {NF, FS <: AnyFieldTimeSeries{NF}}
+InputSource(fts::AnyFieldTimeSeries{NF}; name, domain, reftime, units) where {NF}
 ```
 
 The `FieldTimeSeries` can also be loaded from a file using the relevant constructors provided by Oceananigans.
@@ -86,7 +86,7 @@ If the `Raster` has no time dimension, `initialize!` copies the data once and `u
 using Rasters
 
 raster = Raster("path/to/temperature.nc"; name = :temperature)
-source = InputSource(grid, raster; domain = Ground())   # Defaults to using name of Raster
+source = InputSource(grid, raster)   # Defaults to using name of Raster
 ```
 
 **Time-varying raster input**
@@ -95,14 +95,14 @@ If the `Raster` has a `Ti` (time) dimension, values are linearly interpolated be
 
 ```julia
 raster = Raster("path/to/forcing_timeseries.nc"; name = :air_temperature)
-source = InputSource(grid, raster; reftime = DateTime(2000, 1, 1), domain = Ground())
+source = InputSource(grid, raster; reftime = DateTime(2000, 1, 1))
 ```
 
 The `reftime` keyword maps the simulation's numeric `clock.time` (seconds) to wall-clock `DateTime`. If `reftime` is `nothing` (the default), the first time-axis value is used as the reference point. Pass `reftime` explicitly when the simulation clock does not start at the first record of the dataset:
 
 ```julia
 # Simulation starts at t=0 s, but data begins on Jan 1 2000
-source = InputSource(grid, raster; reftime = DateTime(2000, 1, 1), domain = Ground())
+source = InputSource(grid, raster; reftime = DateTime(2000, 1, 1))
 ```
 
 ## Multiple input sources
@@ -158,7 +158,7 @@ The minimum set of input fields needed by a process is declared by including `in
 
 ```julia
 Terrarium.variables(snow::DegreeDaySnow{NF}) where {NF} = (
-    input(:air_temperature, Surface(XY()), units = u"°C"),
+    input(:air_temperature, Atmosphere(XY()), units = u"°C"),
     input(:snow_fall,       Snow(XY()), units = u"m/s"),
     prognostic(:snow_storage, Snow(XY())),
 )
@@ -177,7 +177,7 @@ To add a new input source backend:
 3. Implement `initialize!(fields, source::MySource, clock)` for any one-time setup.
 4. Implement `update_inputs!(fields, source::MySource, clock::Clock)` to update the
    input field at each time step.
-5. Optionally provide a convenience `InputSource(grid, ...; name, units, domain = Ground())` constructor
+5. Optionally provide a convenience `InputSource(grid, ...; name, units, domain)` constructor
    dispatch so users do not need to reference the concrete type name.
 
 ```julia

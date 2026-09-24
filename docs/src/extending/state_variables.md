@@ -6,8 +6,8 @@ CurrentModule = Terrarium
 
 ```@setup variables
 using Terrarium
+using Terrarium: Ground, Snow, Canopy, Surface, Atmosphere, Top, Bottom
 using Oceananigans
-using Terrarium: Ground, Surface
 ```
 
 ## Overview
@@ -42,7 +42,9 @@ Terrarium.variables(::MyProcess) = (
 ```
 This will result in a total of five state variables being allocated upon initialization: one input variable, two auxiliary variables named `auxvar` and `bc` and one prognostic variable named `progvar` along with its corresponding tendency variable which is created automatically. The second argument to the variable metadata constructors `prognostic` and `auxiliary` is a [`VarLocation`](@ref) which specifies the spatial domain and dimensions of the variable on the grid. The inner [`VarDims`](@ref) marker [`XYZ()`](@ref) corresponds to a 3D `Field` which varies both laterally and with depth, while [`XY()`](@ref) corresponds to a 2D field discretized only along the lateral X and Y dimensions.
 
-The outer [`VarDomain`](@ref) indicates the spatial domain on which the variables should be discretized. Currenly, Terrarium defines four `VarDomain`s: `Ground`, `Snow`, `Canopy`, and `Surface`, with the first three mapping to distinct vertical discretizations in [`LandGrid`](@ref) for the three domains. The [`Surface`](@ref) domain refers to the interface between the land and atmsophere and thus has no vertical layering. All `Surface` variables must be declared as `Surface(XY())`; `Surface(XYZ())` will raise an error.
+The outer [`VarDomain`](@ref) indicates the spatial domain on which the variables should be discretized. Currently, Terrarium defines five `VarDomain`s: `Ground`, `Snow`, `Canopy`, `Surface`, and `Atmosphere`, with the first three mapping to distinct vertical discretizations in [`LandGrid`](@ref) for the three domains. The [`Surface`](@ref) domain refers to the interface between the land and atmosphere, and [`Atmosphere`](@ref) to the atmospheric forcings a land model reads rather than computes. Neither is discretized vertically, so their variables must be declared with dimensions `XY`.
+
+A variable may also be declared with bare dimensions and no domain at all, e.g. `prognostic(:u, XY())`. Such a declaration indicates that the code is agnostic to where the variable lives: it is compatible with any domain and will automatically promote the domain to match conflicting definitions of the same variable. [`InputSource`](@ref) defaults to using `domain = nothing` unless otherwise specified by the caller.
 
 ## Merging and promotion rules
 

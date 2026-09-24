@@ -12,7 +12,7 @@ $TYPEDFIELDS
         NF,
         Vegetation <: AbstractVegetation{NF},
         Atmosphere <: AbstractAtmosphere{NF},
-        GridType <: AbstractLandGrid{NF},
+        GridType <: AbstractGrid{NF},
         Initializer <: AbstractInitializer,
         Timestepper <: AbstractTimeStepper{NF},
     } <: AbstractVegetationModel{NF, GridType}

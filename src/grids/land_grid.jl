@@ -122,6 +122,7 @@ if `grid` does not resolve that domain vertically.
 # The surface is an interface, not a vertical domain: it is never discretized in its own right, so
 # its (necessarily two-dimensional) variables fall back to the shared horizontal discretization.
 @inline get_domain(::AbstractGrid, ::Surface) = nothing
+@inline get_domain(::AbstractGrid, ::Atmosphere) = nothing
 
 """
     $SIGNATURES
@@ -133,10 +134,26 @@ a snow water equivalent, a big-leaf canopy has a temperature. Those variables ca
 dimension, so they are allocated on the shared horizontal discretization, which is the ground
 domain's. A variable which *is* vertically resolved ([`XYZ`](@ref)) cannot be placed on a domain with
 no vertical discretization, and asking for one is a configuration error.
+
+A grid which is not an [`AbstractLandGrid`](@ref) has a single discretization and no notion of
+domains, so the variable's domain is ignored and the grid is returned unchanged.
 """
-@inline function variable_grid(grid::AbstractGrid, loc::VarLocation)
+@inline function variable_grid(grid::AbstractLandGrid, loc::VarLocation)
     domain_grid = get_domain(grid, vardomain(loc))
     return isnothing(domain_grid) ? default_domain_grid(grid, vardims(loc), vardomain(loc)) : domain_grid
+end
+
+@inline variable_grid(grid::AbstractGrid, ::VarLocation) = grid
+
+# A variable declared without a domain falls back to the ground domain. That is unambiguous for a 2D
+# variable, but for one with a vertical extent or position it is a real choice being made silently,
+# which is how variables end up on the wrong discretization.
+function variable_grid(grid::AbstractLandGrid, loc::VarLocation{<:VarDims, Nothing})
+    dims = vardims(loc)
+    !isnothing(dims.z) && @warn "a variable declared without a domain, but with a vertical " *
+        "position or extent ($(typeof(dims))), is being allocated on the ground domain of this " *
+        "$(nameof(typeof(grid))). State the domain explicitly, e.g. `Ground(...)`." maxlog = 1
+    return ground_domain(grid)
 end
 
 @inline default_domain_grid(grid::AbstractGrid, ::VarDims, ::VarDomain) = ground_domain(grid)

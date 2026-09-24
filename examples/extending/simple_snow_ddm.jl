@@ -34,7 +34,6 @@
 using Terrarium
 using KernelAbstractions
 using RingGrids, NCDatasets
-using Terrarium: Snow, Surface
 
 ## output writers
 using Oceananigans: JLD2Writer, TimeInterval, prettytime
@@ -57,12 +56,12 @@ import DisplayAs
 end
 #
 Terrarium.variables(model::DegreeDaySnow{NF}) where {NF} = (
-    Terrarium.input(:air_temperature, Surface(XY()), default = NF(0), units = u"°C", desc = "Near-surface air temperature in °C"),
-    Terrarium.input(:snow_fall, Snow(XY()), default = NF(0), units = u"m/s", desc = "snow fall rate in m/s"),
-    Terrarium.prognostic(:snow_storage, Snow(XY()), units = u"m", desc = "Snow water equivalent in m"),
+    Terrarium.input(:air_temperature, Terrarium.Atmosphere(XY()), default = NF(0), units = u"°C", desc = "Near-surface air temperature in °C"),
+    Terrarium.input(:snow_fall, Terrarium.Snow(XY()), default = NF(0), units = u"m/s", desc = "snow fall rate in m/s"),
+    Terrarium.prognostic(:snow_storage, Terrarium.Snow(XY()), units = u"m", desc = "Snow water equivalent in m"),
 )
 
-@kwdef struct SnowModel{NF, Grid <: Terrarium.AbstractLandGrid{NF}, Pro, Init, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
+@kwdef struct SnowModel{NF, Grid <: Terrarium.AbstractGrid{NF}, Pro, Init, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
     "Spatial grid on which state variables are discretized"
     grid::Grid
     "Snow melting process"
@@ -169,7 +168,7 @@ DisplayAs.PNG(heatmap(snow_climatology[:, 1], title = "Snowfall (m/s)"))
 # Now, we just need to define initialize everything correctly. As we are working with globally gridded data, we will define [`ColumnRingGrid`](@ref) based on the `global_grid` we already initialized. Then, we will load our inputs. For this, we will choose the January (so the first element) of our climatology files. When using them in [`InputSource`](@ref) be sure to choose the same name and units as used in the definitions of the dynamics before.
 
 grid = ColumnRingGrid(UniformSpacing(Δz = 0.1, N = 1), global_grid, land_sea_mask);
-sf_input = InputSource(grid, snow_climatology[:, 1], name = :snow_fall, units = u"m/s"; domain = Snow());
+sf_input = InputSource(grid, snow_climatology[:, 1], name = :snow_fall, units = u"m/s"; domain = Terrarium.Snow());
 lst_input = InputSource(grid, lst_climatology[:, 1], name = :air_temperature, units = u"°C")
 
 # As an initial condition, we just cover the whole Earth in deep snow (everywhere the same)!

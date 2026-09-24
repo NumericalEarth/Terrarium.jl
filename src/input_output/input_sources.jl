@@ -149,7 +149,7 @@ is where most forcing data lives; give it explicitly for a source feeding a vari
 domain. It must match the [`VarDomain`](@ref) that variable is declared with, since a variable
 declared on two different domains is a conflict rather than a merge, and is reported as one.
 """
-function InputSource(grid::AbstractGrid{NF}, field::FS; name, domain::VarDomain = Surface(), units = NoUnits) where {NF, FS <: AnyField{NF}}
+function InputSource(grid::AbstractGrid{NF}, field::FS; name, domain::Optional{VarDomain} = nothing, units = NoUnits) where {NF, FS <: AnyField{NF}}
     # ensure fields are on the same architecture as the grid
     field = on_architecture(architecture(grid), field)
 
@@ -169,7 +169,7 @@ end
 Convenience function to create a `FieldInputSource` from a `RingGrids.Field`.
 Converts the RingGrids field to an Oceananigans field and then creates the input source.
 """
-function InputSource(grid::ColumnRingGrid{NF}, ring_field::RingGrids.AbstractField; name, domain::VarDomain = Surface(), units = NoUnits) where {NF}
+function InputSource(grid::ColumnRingGrid{NF}, ring_field::RingGrids.AbstractField; name, domain::Optional{VarDomain} = nothing, units = NoUnits) where {NF}
     oceananigans_field = Field(ring_field, grid)
     loc = VarLocation(Terrarium.vardims(oceananigans_field), domain)
     path = varpath(name)
@@ -205,7 +205,7 @@ struct FieldTimeSeriesInputSource{NF, name, VL <: VarLocation, FTS <: AnyFieldTi
     fts::FTS
 end
 
-function InputSource(fts::AnyFieldTimeSeries{NF}; name, domain::VarDomain = Surface(), reftime = first(fts.times), units = NoUnits) where {NF}
+function InputSource(fts::AnyFieldTimeSeries{NF}; name, domain::Optional{VarDomain} = nothing, reftime = first(fts.times), units = NoUnits) where {NF}
     loc = VarLocation(vardims(fts), domain)
     path = varpath(name)
     return FieldTimeSeriesInputSource{NF, path, typeof(loc), typeof(fts), typeof(reftime), typeof(units)}(loc, units, reftime, fts)

@@ -62,13 +62,39 @@ that `field.grid` names the domain the field lives on and Oceananigans' own grid
 which dispatch on concrete grid types, apply to it unchanged.
 """
 function Oceananigans.Field(
+        grid::AbstractLandGrid,
+        loc::VarLocation,
+        boundary_conditions = nothing,
+        args...;
+        kwargs...
+    )
+    return create_field(variable_grid(grid, loc), loc, boundary_conditions, args...; kwargs...)
+end
+
+# A plain grid has a single discretization, so there is no domain to resolve and `loc`'s domain (if
+# any) is ignored; only its dimensions matter.
+function Oceananigans.Field(
         grid::AbstractGrid,
         loc::VarLocation,
         boundary_conditions = nothing,
         args...;
         kwargs...
     )
-    domain = variable_grid(grid, loc)
+    return create_field(grid, loc, boundary_conditions, args...; kwargs...)
+end
+
+# Bare dimensions declare a domainless variable; see `var`.
+Oceananigans.Field(grid::AbstractGrid, dims::VarDims, args...; kwargs...) =
+    Field(grid, VarLocation(dims), args...; kwargs...)
+
+# Allocate the field on an already-resolved `domain` discretization.
+function create_field(
+        domain::AbstractGrid,
+        loc::VarLocation,
+        boundary_conditions = nothing,
+        args...;
+        kwargs...
+    )
     dims = vardims(loc)
     # infer the location and index restriction of the Field on the Oceananigans grid from `dims`
     field_loc = location(dims)
@@ -98,12 +124,26 @@ Construct a `FieldTimeSeries` on the domain discretization of `grid` selected by
 given `times`.
 """
 function Oceananigans.FieldTimeSeries(
+        grid::AbstractLandGrid,
+        loc::VarLocation,
+        times = eltype(grid)[]
+    )
+    return create_field_time_series(variable_grid(grid, loc), loc, architecture(grid), times)
+end
+
+# As for `Field`: a plain grid resolves no domain.
+function Oceananigans.FieldTimeSeries(
         grid::AbstractGrid,
         loc::VarLocation,
         times = eltype(grid)[]
     )
-    domain = variable_grid(grid, loc)
+    return create_field_time_series(grid, loc, architecture(grid), times)
+end
+
+Oceananigans.FieldTimeSeries(grid::AbstractGrid, dims::VarDims, times = eltype(grid)[]) =
+    FieldTimeSeries(grid, VarLocation(dims), times)
+
+function create_field_time_series(domain::AbstractGrid, loc::VarLocation, arch, times)
     dims = vardims(loc)
-    arch = architecture(grid)
     return FieldTimeSeries(location(dims), domain, on_architecture(arch, times); indices = indices(domain, dims))
 end

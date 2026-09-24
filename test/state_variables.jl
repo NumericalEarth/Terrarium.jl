@@ -1,18 +1,18 @@
 using Terrarium
 using Test
 
-using Terrarium: AbstractLandGrid, VarDims, XY, XYZ, Ground, prognostic, auxiliary, input, namespace
+using Terrarium: AbstractGrid, VarDims, XY, XYZ, prognostic, auxiliary, input, namespace
 
 DEFAULT_NF = Float32
 
 module StateVariablesTestTypes
 
     using Terrarium
-    using Terrarium: AbstractLandGrid, VarDims, XY, XYZ, Ground, prognostic, auxiliary, input, namespace
+    using Terrarium: AbstractGrid, VarDims, XY, XYZ, prognostic, auxiliary, input, namespace
 
     using Test
 
-    @kwdef struct SubModel{NF, Grid <: AbstractLandGrid{NF}} <: Terrarium.AbstractModel{NF, Grid}
+    @kwdef struct SubModel{NF, Grid <: AbstractGrid{NF}} <: Terrarium.AbstractModel{NF, Grid}
         grid::Grid
         initializer = DefaultInitializer(eltype(grid))
         timestepper = ForwardEuler(eltype(grid))
@@ -20,12 +20,12 @@ module StateVariablesTestTypes
 
     Terrarium.variables(model::SubModel) = (
         # duplicate naming allowed in new namesapce
-        auxiliary(:auxvar2D, Ground(XY())),
+        auxiliary(:auxvar2D, XY()),
         # inputs are handled "globally" (i.e. all inputs with a given name refer to the same field)
-        input(:forcing, Ground(XY())),
+        input(:forcing, XY()),
     )
 
-    @kwdef struct TestModel{NF, Grid <: AbstractLandGrid{NF}, Sub} <: Terrarium.AbstractModel{NF, Grid}
+    @kwdef struct TestModel{NF, Grid <: AbstractGrid{NF}, Sub} <: Terrarium.AbstractModel{NF, Grid}
         grid::Grid
         submodel::Sub = SubModel(; grid)
         initializer = DefaultInitializer(eltype(grid))
@@ -35,16 +35,16 @@ module StateVariablesTestTypes
     struct TestClosure <: Terrarium.AbstractClosureRelation end
 
     Terrarium.variables(::TestClosure) = (
-        auxiliary(:closurevar, Ground(XYZ())),
+        auxiliary(:closurevar, XYZ()),
     )
 
     Terrarium.variables(model::TestModel) = (
-        prognostic(:progvar3D, Ground(XYZ())),
-        prognostic(:cprogvar3D, Ground(XYZ()), closure = TestClosure()),
-        prognostic(:progvar2D, Ground(XY())),
-        auxiliary(:auxvar3D, Ground(XYZ())),
-        auxiliary(:auxvar2D, Ground(XY())),
-        input(:forcing, Ground(XY())),
+        prognostic(:progvar3D, XYZ()),
+        prognostic(:cprogvar3D, XYZ(), closure = TestClosure()),
+        prognostic(:progvar2D, XY()),
+        auxiliary(:auxvar3D, XYZ()),
+        auxiliary(:auxvar2D, XY()),
+        input(:forcing, XY()),
         namespace(:submodel, variables(model.submodel)),
     )
 end
