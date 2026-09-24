@@ -72,7 +72,7 @@ lst_input = InputSource(grid, lst_climatology[:, 1], name = :air_temperature, un
 ├── boundary conditions: FieldBoundaryConditions
 │   └── west: Periodic, east: Periodic, south: Nothing, north: Nothing, bottom: Nothing, top: Nothing, immersed: Nothing
 └── data: 1416×1×1 OffsetArray(::Array{Float32, 3}, -2:1413, 1:1, 1:1) with eltype Float32 with indices -2:1413×1:1×1:1
-    └── max=36.2279, min=-44.1269, mean=-7.27615)</code></pre><p>As an initial condition, we just cover the whole Earth in deep snow (everywhere the same)!</p><pre><code class="language-julia hljs">snow_initializers = (snow_storage = 0.5,)</code></pre><pre><code class="nohighlight hljs">(snow_storage = 0.5,)</code></pre><p>Now, we initialize our model and the integrator. As in the first example, we use a <code>Heun</code> time stepper</p><pre><code class="language-julia hljs">snow_model = SnowModel(grid; timestepper = Heun(Δt = Float32(1.0)));
+    └── max=36.2279, min=-44.1269, mean=-7.27614)</code></pre><p>As an initial condition, we just cover the whole Earth in deep snow (everywhere the same)!</p><pre><code class="language-julia hljs">snow_initializers = (snow_storage = 0.5,)</code></pre><pre><code class="nohighlight hljs">(snow_storage = 0.5,)</code></pre><p>Now, we initialize our model and the integrator. As in the first example, we use a <code>Heun</code> time stepper</p><pre><code class="language-julia hljs">snow_model = SnowModel(grid; timestepper = Heun(Δt = Float32(1.0)));
 snow_inputs = InputSources(sf_input, lst_input)
 snow_integrator = initialize(snow_model; inputs = snow_inputs, initializers = snow_initializers)</code></pre><pre><code class="nohighlight hljs">Integrator of Main.var&quot;##324&quot;.SnowModel{Float32, LandGrid{Float32, Oceananigans.Grids.Periodic, Oceananigans.Grids.Flat, Oceananigans.Grids.Bounded, CPU, ColumnRingGrid{Float32, CPU, RingGrids.FullGaussianGrid{SpeedyWeatherInternals.Architectures.CPU{KernelAbstractions.CPU}, Vector{UnitRange{Int64}}, Vector{Int64}, Int64}, Oceananigans.Grids.RectilinearGrid{Float32, Oceananigans.Grids.Periodic, Oceananigans.Grids.Flat, Oceananigans.Grids.Bounded, Oceananigans.Grids.StaticVerticalDiscretization{OffsetArrays.OffsetVector{Float32, Vector{Float32}}, OffsetArrays.OffsetVector{Float32, Vector{Float32}}, OffsetArrays.OffsetVector{Float32, Vector{Float32}}, OffsetArrays.OffsetVector{Float32, Vector{Float32}}}, Float32, Float32, OffsetArrays.OffsetVector{Float32, StepRangeLen{Float32, Float64, Float64, Int64}}, Nothing, CPU, Oceananigans.Grids.GridSize{1410, 1, 1, 3, 0, 1}}, RingGrids.Field{Bool, 1, Vector{Bool}, RingGrids.FullGaussianGrid{SpeedyWeatherInternals.Architectures.CPU{KernelAbstractions.CPU}, Vector{UnitRange{Int64}}, Vector{Int64}, Int64}, SpeedyWeatherInternals.ArrayDimensions.XY}}, Nothing, Nothing}, Main.var&quot;##324&quot;.DegreeDaySnow{Float64}, DefaultInitializer{Float32}, Heun{Float32}} with timestepper Heun{Float32}(1.0f0)
 ├── Current time: 0.0
@@ -91,18 +91,18 @@ snow_sim.output_writers[:snapshots] = JLD2Writer(
 run!(snow_sim)
 @assert isfile(output_file_snow) &quot;Output file does not exist!&quot;
 println(&quot;Simulation data saved to $(output_file_snow)&quot;)</code></pre><pre><code class="nohighlight hljs">[ Info: Initializing simulation...
-[ Info:     ... simulation initialization complete (3.867 seconds)
+[ Info:     ... simulation initialization complete (5.128 seconds)
 [ Info: Executing initial time step...
-[ Info:     ... initial time step complete (1.497 seconds).
-[ Info: Simulation is stopping after running for 15.222 seconds.
+[ Info:     ... initial time step complete (1.871 seconds).
+[ Info: Simulation is stopping after running for 18.001 seconds.
 [ Info: Simulation time 80 days equals or exceeds stop time 80 days.
-Simulation data saved to /tmp/jl_5qvgvolShS/ddsnow-simulation.jld2
-</code></pre><p>And now, we plot that data. First we load the JLD2 file.</p><pre><code class="language-julia hljs">fts_result = FieldTimeSeries(output_file_snow, &quot;snow_storage&quot;)</code></pre><pre><code class="nohighlight hljs">1410×1×1×1921 FieldTimeSeries{Oceananigans.OutputReaders.InMemory} located at (Center, Center, ⋅) of snow_storage at /tmp/jl_5qvgvolShS/ddsnow-simulation.jld2
+Simulation data saved to /tmp/jl_edcLsFEfIv/ddsnow-simulation.jld2
+</code></pre><p>And now, we plot that data. First we load the JLD2 file.</p><pre><code class="language-julia hljs">fts_result = FieldTimeSeries(output_file_snow, &quot;snow_storage&quot;)</code></pre><pre><code class="nohighlight hljs">1410×1×1×1921 FieldTimeSeries{Oceananigans.OutputReaders.InMemory} located at (Center, Center, ⋅) of snow_storage at /tmp/jl_edcLsFEfIv/ddsnow-simulation.jld2
 ├── grid: 1410×1×1 RectilinearGrid{Float32, Periodic, Flat, Bounded} on CPU with 3×0×1 halo
 ├── indices: (:, :, :)
 ├── time_indexing: Linear()
 ├── backend: InMemory()
-├── path: /tmp/jl_5qvgvolShS/ddsnow-simulation.jld2
+├── path: /tmp/jl_edcLsFEfIv/ddsnow-simulation.jld2
 ├── name: snow_storage
 └── data: 1416×1×1×1921 OffsetArray(::Array{Float32, 4}, -2:1413, 1:1, 1:1, 1:1921) with eltype Float32 with indices -2:1413×1:1×1:1×1:1921
     └── max=27.1672, min=0.0, mean=4.45305</code></pre><p>Then, we plot it using <code>CairoMakie</code>. For this purpose we first convert to a <code>RingGrids.Field</code> and then plot it via <code>heatmap</code> like so</p><pre><code class="language-julia hljs">tsteps = 1
@@ -138,9 +138,9 @@ Build Info:
   Official https://julialang.org release
 Platform Info:
   OS: Linux (x86_64-linux-gnu)
-  CPU: 4 × AMD EPYC 9V74 80-Core Processor
+  CPU: 4 × AMD EPYC 7763 64-Core Processor
   WORD_SIZE: 64
-  LLVM: libLLVM-18.1.7 (ORCJIT, znver4)
+  LLVM: libLLVM-18.1.7 (ORCJIT, znver3)
   GC: Built with stock GC
 Threads: 1 default, 1 interactive, 1 GC (on 4 virtual cores)
 Environment:
@@ -167,4 +167,4 @@ Pkg.status()</code></pre><pre><code class="nohighlight hljs">Status `~/work/Terr
   [80418d68] Terrarium v0.1.7 `~/work/Terrarium.jl/Terrarium.jl`
   [b77e0a4c] InteractiveUtils v1.11.0
   [d6f4376e] Markdown v1.11.0
-</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../linear_ode_exp_growth/">« Example: Simple exponential growth model</a><a class="docs-footer-nextpage" href="../linear_heat_conduction/">Example: Linear heat conduction »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Wednesday 23 September 2026 15:44">Wednesday 23 September 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../linear_ode_exp_growth/">« Example: Simple exponential growth model</a><a class="docs-footer-nextpage" href="../linear_heat_conduction/">Example: Linear heat conduction »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Thursday 24 September 2026 14:20">Thursday 24 September 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
