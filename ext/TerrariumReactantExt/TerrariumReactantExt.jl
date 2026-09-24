@@ -14,16 +14,16 @@ using Oceananigans
 
 using Oceananigans.Architectures: ReactantState, CPU, architecture, on_architecture
 
-using Terrarium: Terrarium, AbstractLandGrid, ColumnRingGrid, AbstractModel,
+using Terrarium: Terrarium, AbstractGrid, ColumnRingGrid, AbstractModel,
     ModelIntegrator, ground_domain, get_grid, get_timestepper
 
 const RARCH = ReactantState
 
 @inline Terrarium.uses_reactant(::Terrarium.ReactantMarker) = true
 
-# Land grids that live on the device.
-const ReactantLandGrid{NF, TX, TY, TZ} = AbstractLandGrid{NF, TX, TY, TZ, <:RARCH}
-const ReactantModel{NF} = AbstractModel{NF, <:ReactantLandGrid{NF}}
+# Grids and models that live on the device
+const ReactantGrid{NF, TX, TY, TZ} = AbstractGrid{NF, TX, TY, TZ, <:RARCH}
+const ReactantModel{NF} = AbstractModel{NF, <:ReactantGrid{NF}}
 
 include("grids.jl")
 include("transfer.jl")
