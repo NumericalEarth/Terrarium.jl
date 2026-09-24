@@ -139,7 +139,7 @@ Random.seed!(1234) # set random seed
 t_F = 0:1:300; #seconds
 F = FieldTimeSeries(grid, XY(), t_F);
 F.data .= randn(size(F));
-input = InputSource(grid, F, name = :F; domain = nothing)
+input = InputSource(F; name = :F)
 
 # Here we constructed a 2D (`XY()`) time series on our `grid` at times `t_F` with random normal distributed data and defined our `InputSource` for our model based on it.
 
