@@ -19,45 +19,7 @@ Oceananigans.location(dims::Coordinate) = dims.loc
 Oceananigans.Fields.indices(axis, dims::Coordinate{<:Integer}) = dims.val
 Oceananigans.Fields.indices(axis, dims::Coordinate{<:Function}) = dims.val(axis)
 
-# Abstract variable types for declaring fields.
-
-"""
-    $TYPEDEF
-
-Marker type for state variable spatial *domains*; currently, four domains are considered:
-`Ground`, `Snow`, `Canopy`, and `Surface`.
-
-The first three are *vertical* domains, each of which a land grid may discretize in its own right.
-`Surface` instead represents the land-atmosphere interface, whose physical position depends on the
-surface tile (the top of the soil column over bare ground, the top of the snowpack under snow, the
-canopy where there is vegetation). A variable declared on `Surface` therefore never carries a
-vertical dimension and must always be 2D (`XY`).
-"""
-abstract type VarDomain end
-"""
-The ground (soil) domain: the vertically resolved subsurface column. This is the domain on which a
-land grid's shared horizontal discretization is defined, and the default discretization for
-variables whose own domain a grid does not resolve vertically.
-"""
-struct Ground <: VarDomain end
-"""
-The snow domain, i.e. the snowpack above the ground surface. A grid which does not discretize the
-snowpack vertically (a single-layer scheme) still carries its 2D variables.
-"""
-struct Snow <: VarDomain end
-"""
-The canopy domain, i.e. the vegetation layer. A grid which does not discretize the canopy vertically
-(a big-leaf scheme) still carries its 2D variables.
-"""
-struct Canopy <: VarDomain end
-"""
-The land-atmosphere interface. Unlike [`Ground`](@ref), [`Snow`](@ref), and [`Canopy`](@ref), the
-surface is not a vertical domain: its physical position depends on the surface tile, being the top
-of the soil column over bare ground, the top of the snowpack under snow, and the canopy where there
-is vegetation. `Surface` variables therefore never carry a vertical dimension and must be declared
-as `Surface(XY())`; `Surface(XYZ())` raises an error.
-"""
-struct Surface <: VarDomain end
+# Abstract state variable types
 
 """
     $TYPEDEF
@@ -171,11 +133,24 @@ vardims(::AbstractField{LX, LY, LZ}) where {LX, LY, LZ} = XYZ(LX(), LY(), LZ())
 
 Represents the "location" of an abstract variable, i.e. both the spatial domain and
 its dimensionality.
+
+The `domain` may be `nothing`, which declares a variable as domain-agnostic: it makes no claim about
+where the variable lives, so it is compatible with any domain and adopts whichever one another
+declaration of the same variable states. This is the default for an [`InputSource`](@ref), which
+generally cannot know the domain of the variable it feeds, and it is also the natural choice for a
+model discretized on a plain `AbstractGrid`, which has only one discretization.
+
+On an [`AbstractLandGrid`](@ref) a variable which is still domainless once all declarations are
+merged is allocated on the ground domain. That is unambiguous for a 2D variable, since every domain
+shares the same horizontal discretization, but a variable with a vertical extent or position also
+warns; see `domain_matters`.
 """
 struct VarLocation{Dims, Domain}
     dims::Dims
     domain::Domain
 end
+
+VarLocation(dims::VarDims) = VarLocation(dims, nothing)
 
 vardims(var::VarLocation) = var.dims
 vardomain(var::VarLocation) = var.domain
@@ -184,6 +159,25 @@ Base.summary(::Ground) = "ground"
 Base.summary(::Snow) = "snow"
 Base.summary(::Canopy) = "canopy"
 Base.summary(::Surface) = "surface"
+Base.summary(::Atmosphere) = "atmosphere"
+
+# Variables may be declared without a domain, so the places which name a variable's domain need a
+# word for its absence. Defining `Base.summary(::Nothing)` would be type piracy.
+@inline domain_summary(domain::VarDomain) = summary(domain)
+@inline domain_summary(::Nothing) = "unspecified"
+
+"""
+    $SIGNATURES
+
+Whether two declarations of the same variable agree on its domain. A declaration without a domain
+makes no claim and is compatible with any: this is what lets an [`InputSource`](@ref), which
+generally cannot know which domain the variable it feeds belongs to, stay domain-agnostic and adopt
+whatever the declaring process states. Two *different* stated domains remain a conflict.
+"""
+@inline domains_compatible(d1::VarDomain, d2::VarDomain) = d1 == d2
+@inline domains_compatible(::Nothing, ::VarDomain) = true
+@inline domains_compatible(::VarDomain, ::Nothing) = true
+@inline domains_compatible(::Nothing, ::Nothing) = true
 
 # Aliased constructors for VarLocation on the three domains
 Ground(dims::VarDims) = VarLocation(dims, Ground())
@@ -191,6 +185,8 @@ Snow(dims::VarDims) = VarLocation(dims, Snow())
 Canopy(dims::VarDims) = VarLocation(dims, Canopy())
 Surface(dims::XY) = VarLocation(dims, Surface())
 Surface(::XYZ) = error("surface variables must be 2D (XY)")
+Atmosphere(dims::XY) = VarLocation(dims, Atmosphere())
+Atmosphere(::XYZ) = error("atmospheric forcing variables must be 2D (XY)")
 
 """
 Base type for state variable placeholder types.
@@ -249,7 +245,7 @@ Base.:(==)(var1::AbstractVariable, var2::AbstractVariable) =
 
 function Base.summary(var::AbstractVariable)
     unitstr = varunits(var) == NoUnits ? "-" : varunits(var)
-    text = "$(string(varname(var))) [$(unitstr)] on $(typeof(vardims(var))) of the $(summary(vardomain(var))) domain"
+    text = "$(string(varname(var))) [$(unitstr)] on $(typeof(vardims(var))) of the $(domain_summary(vardomain(var))) domain"
     return text
 end
 
@@ -294,7 +290,7 @@ abstract type AbstractProcessVariable{name, VL, UT} <: AbstractVariable{name, VL
 
 function Base.show(io::IO, ::MIME"text/plain", var::AbstractVariable)
     units = varunits(var)
-    domain = summary(vardomain(var))
+    domain = domain_summary(vardomain(var))
     return if units != NoUnits
         println(io, "$(nameof(typeof(var))) $(varname(var)) on the $domain domain with dimensions $(typeof(vardims(var))) and units $(string(varunits(var)))")
     else
@@ -478,7 +474,7 @@ reader to spot it.
 function describe_conflict(var1::AbstractVariable, var2::AbstractVariable)
     differences = String[]
     vardims(var1) != vardims(var2) && push!(differences, "dimensions $(typeof(vardims(var1))) vs $(typeof(vardims(var2)))")
-    vardomain(var1) != vardomain(var2) && push!(differences, "domain $(summary(vardomain(var1))) vs $(summary(vardomain(var2)))")
+    !domains_compatible(vardomain(var1), vardomain(var2)) && push!(differences, "domain $(domain_summary(vardomain(var1))) vs $(domain_summary(vardomain(var2)))")
     varunits(var1) != varunits(var2) && push!(differences, "units $(varunits(var1)) vs $(varunits(var2))")
     return isempty(differences) ? "differing declarations" : join(differences, ", ")
 end
@@ -486,16 +482,29 @@ end
 function Variables(vars::Tuple{Vararg{Union{AbstractProcessVariable, Namespace}}})
     # partition variables into prognostic, auxiliary, input, and namespace groups;
     # duplicates within each group are automatically merged
-    varmeta(var::AbstractVariable) = (varname(var), vardims(var), vardomain(var), varunits(var))
+    varmeta(var::AbstractVariable) = (varname(var), vardims(var), varunits(var))
     varmeta(ns::Namespace) = varname(ns)
-    function register!(vardict::AbstractDict, var)
-        if haskey(vardict, varname(var)) && varmeta(vardict[varname(var)]) != varmeta(var)
-            error("Found incompatible duplicates of variable $(varname(var)): $(describe_conflict(var, vardict[varname(var)]))")
-        elseif !haskey(vardict, varname(var))
-            vardict[varname(var)] = var
+    # The domain is compared separately from the rest of the metadata because a domainless
+    # declaration is compatible with any domain rather than equal to it.
+    compatible(v1, v2) = varmeta(v1) == varmeta(v2) && domains_compatible(vardomain(v1), vardomain(v2))
+    function register!(vardict::AbstractDict, var::AbstractVariable)
+        name = varname(var)
+        if !haskey(vardict, name)
+            vardict[name] = var
+        elseif !compatible(vardict[name], var)
+            error("Found incompatible duplicates of variable $name: $(describe_conflict(var, vardict[name]))")
+        elseif isnothing(vardomain(vardict[name])) && !isnothing(vardomain(var))
+            # the stated domain wins over the agnostic one
+            vardict[name] = var
         else
-            vardict[varname(var)] = first(merge(vardict[varname(var)], var))
+            vardict[name] = first(merge(vardict[name], var))
         end
+        return nothing
+    end
+    # Namespaces carry no domain, so they are merged on their name alone.
+    function register!(nsdict::AbstractDict, ns::Namespace)
+        name = varname(ns)
+        nsdict[name] = haskey(nsdict, name) ? first(merge(nsdict[name], ns)) : ns
         return nothing
     end
     # create OrderedDicts for each variable type
@@ -678,21 +687,19 @@ end
 """
     $SIGNATURES
 
-Convenience constructor for `Variable`. Every variable states the domain it lives on by wrapping its
-[`VarDims`](@ref) in a [`VarDomain`](@ref), e.g. `var(:temperature, Ground(XYZ()))` or
-`var(:snow_temperature, Snow(XY()))`. There is deliberately no default: which domain a variable
-belongs to is not something a reader of the declaration should have to infer.
+Convenience constructor for `Variable`. A variable normally states the domain it lives on by
+wrapping its [`VarDims`](@ref) in a [`VarDomain`](@ref), e.g. `var(:temperature, Ground(XYZ()))` or
+`var(:snow_temperature, Snow(XY()))`.
+
+Bare dimensions, e.g. `var(:u, XY())`, declare the variable without a domain. This is for models
+discretized on a plain `AbstractGrid`, where there is only one discretization and naming a domain
+would say nothing. Prefer stating the domain in any model which runs on an
+[`AbstractLandGrid`](@ref): there the domain is a real choice, and a reader of the declaration
+should not have to infer it.
 """
 @inline var(name::Symbol, loc::VarLocation, units::Units = NoUnits) = Variable(name, loc, units)
 
-# Declaring a variable with bare dimensions used to place it on the ground domain implicitly. Keep a
-# method so that the failure names the fix rather than listing candidate signatures.
-var(name::Symbol, dims::VarDims, ::Units...) = throw(
-    ArgumentError(
-        "variable :$name was declared with bare dimensions; it must also state its domain. " *
-            "Write `Ground(...)`, `Snow(...)` or `Canopy(...)` around its dimensions, as appropriate."
-    )
-)
+@inline var(name::Symbol, dims::VarDims, units::Units = NoUnits) = Variable(name, VarLocation(dims), units)
 
 """
     $SIGNATURES

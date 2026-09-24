@@ -121,6 +121,8 @@ end
 export @assert_kernel
 include("utils/utils.jl")
 
+include("domains.jl")
+
 export XY, XYZ
 include("abstract_variables.jl")
 
