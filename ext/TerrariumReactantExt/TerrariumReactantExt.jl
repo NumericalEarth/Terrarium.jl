@@ -22,7 +22,7 @@ const RARCH = ReactantState
 @inline Terrarium.uses_reactant(::Terrarium.ReactantMarker) = true
 
 # Grids and models that live on the device
-const ReactantGrid{NF, TX, TY, TZ} = AbstractGrid{NF, TX, TY, TZ, <:RARCH}
+const ReactantGrid{NF, TX, TY, TZ, ST} = AbstractGrid{NF, TX, TY, TZ, <:RARCH, ST}
 const ReactantModel{NF} = AbstractModel{NF, <:ReactantGrid{NF}}
 
 include("grids.jl")
