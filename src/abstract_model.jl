@@ -38,7 +38,7 @@ Implementations of `AbstractModel` are required to implement, at minimum, three 
 Note that a default implementation of `variables` is provided which automatically collects all
 variables declared by `AbstractProcess`es defined as fields (properties) of `struct`s that subtype `AbstractModel`.
 """
-abstract type AbstractModel{NF, Grid <: AbstractGrid{NF}}  end
+abstract type AbstractModel{NF, Grid <: AbstractGrid}  end
 
 # Method interface for AbstractModel and AbstractProcess
 
