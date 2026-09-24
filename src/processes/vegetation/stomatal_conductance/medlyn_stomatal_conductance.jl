@@ -101,9 +101,6 @@ end
 Computes the ratio of leaf-internal and air CO2 concentration `λc = cᵢ/cₐ`, derived from the
 optimal stomatal conductance model ([medlynReconcilingOptimalEmpirical2011](@cite)) in the
 corrected form of [medlynCorrigendumReconcilingOptimal2012](@cite).
-Substituting `gₛ` into the CO₂ diffusion relation `cᵢ = cₐ - D Aₙ/gₛ` cancels the assimilation
-and leaves `λc = g₁/(g₁ + √VPD)`, so the diffusivity ratio `D` drops out here and appears only
-in [`compute_stomatal_conductance`](@ref). The two must stay consistent: `b (1 - λc) = D`.
 
 # References
 

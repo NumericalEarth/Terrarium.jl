@@ -243,10 +243,7 @@ end
 
     # `gₛ` and `λc` are two faces of one closure and agree only if the water vapor
     # conductance they jointly imply satisfies Fick's law, gᴴ²ᴼ = D gᶜᴼ² = D Aₙ/(cₐ - cᵢ).
-    # Writing gₛ - g₀ = b Aₙ/cₐ and cᵢ = λc cₐ, this reduces to b (1 - λc) = D. It holds
-    # under either convention for splitting D between the two — the corrected Medlyn
-    # form used here, or PALADYN Eqs. (68) and (71) — and fails if D is moved into one
-    # of them without the other.
+    # Writing gₛ - g₀ = b Aₙ/cₐ and cᵢ = λc cₐ, this reduces to b (1 - λc) = D when g₀ = 0.
     T_air = 20.0     # °C
     pres = 101325.0  # Pa
     co2 = 415.0      # ppm
