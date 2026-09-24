@@ -4,7 +4,7 @@ grid = ColumnGrid(ExponentialSpacing(N = 10), num_columns)</code></pre><pre clas
 ├── Periodic x ∈ [0.0, 1.0)      regularly spaced with Δx=1.0
 ├── Flat y                       
 └── Bounded  z ∈ [-175.325, 0.0] variably spaced with min(Δz)=0.05, max(Δz)=100.0</code></pre><div class="admonition is-success" id="Modular-grids-92b105016f087b28"><header class="admonition-header">Modular grids<a class="admonition-anchor" href="#Modular-grids-92b105016f087b28" title="Permalink"></a></header><div class="admonition-body"><p>Terrarium models are processes and designed to be largely invariant to the specific choice of grid. You can, for example, easily increase <code>num_columns</code> to add more (independent) columns or replace the above <code>grid</code> with a GPU-based grid with more soil layers <code>ColumnGrid(GPU(), ExponentialSpacing(N = 30))</code>. Alternatively, we could use a global <a href="../../api_index/#Terrarium.ColumnRingGrid"><code>ColumnRingGrid</code></a> as shown in <a href="../../examples/soil_heat_global/#soil_heat_global">this example</a>.</p></div></div><p>We will start here by constructing a simple <a href="../../api_index/#Terrarium.SoilModel"><code>SoilModel</code></a> using its defaults:</p><pre><code class="language-julia hljs">model = SoilModel(grid)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SoilModel{Float64} on CPU()
-├── grid:  LandGrid with dimensions (1, 1, 10)
+├── grid:  1×1×10 RectilinearGrid{Float64, Periodic, Flat, Bounded} on CPU with 1×0×3 halo
 ├── soil:  SoilEnergyWaterCarbon{Float64, SoilStratigraphy{Float64, 1, Tuple{ConstantSoilHorizon{Float64, :soil, ConstantSoilPorosity{Float64}}}}, SoilThermodynamics{Float64, Terrarium.ExplicitTwoPhaseHeatConduction, SoilEnergyTemperatureClosure, SoilThermalProperties{Float64, FreeWater, InverseQuadratic, SoilThermalConductivities{Float64}}}, SoilHydrology{Float64, NoFlow, SoilSaturationPressureClosure, SoilHydraulicsSURFEX{Float64, BrooksCorey{FreezeCurves.SoilWaterVolume{Float64, Float64, Float64}, Float64, Float64}, UnsatKLinear{Float64}}, Nothing}, ConstantSoilCarbonDensity{Float64}}
 ├── constants:  PhysicalConstants{Float64}
 ├── initializer:  DefaultInitializer{Float64}
@@ -63,7 +63,7 @@ hydrology = SoilHydrology(eltype(grid), RichardsEq()) # also a valid constructor
 biogeochem = ConstantSoilCarbonDensity(eltype(grid))
 soil = SoilEnergyWaterCarbon(eltype(grid); energy, hydrology, biogeochem)
 model = SoilModel(grid; soil)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SoilModel{Float64} on CPU()
-├── grid:  LandGrid with dimensions (1, 1, 10)
+├── grid:  1×1×10 RectilinearGrid{Float64, Periodic, Flat, Bounded} on CPU with 1×0×3 halo
 ├── soil:  SoilEnergyWaterCarbon{Float64, SoilStratigraphy{Float64, 1, Tuple{ConstantSoilHorizon{Float64, :soil, ConstantSoilPorosity{Float64}}}}, SoilThermodynamics{Float64, Terrarium.ExplicitTwoPhaseHeatConduction, SoilEnergyTemperatureClosure, SoilThermalProperties{Float64, FreeWater, InverseQuadratic, SoilThermalConductivities{Float64}}}, SoilHydrology{Float64, RichardsEq, SoilSaturationPressureClosure, SoilHydraulicsSURFEX{Float64, BrooksCorey{FreezeCurves.SoilWaterVolume{Float64, Float64, Float64}, Float64, Float64}, UnsatKLinear{Float64}}, Nothing}, ConstantSoilCarbonDensity{Float64}}
 ├── constants:  PhysicalConstants{Float64}
 ├── initializer:  DefaultInitializer{Float64}
@@ -75,7 +75,7 @@ variables(model)</code></pre><pre class="documenter-example-output"><code class=
 ├── snow_energy [J m^-2] on XY{Center, Center, Nothing} of the snow domain
 ├── snow_water_equivalent [m] on XY{Center, Center, Nothing} of the snow domain
 ├── skin_temperature [°C] on XY{Center, Center, Nothing} of the surface domain
-├── surface_excess_water [m] on XY{Center, Center, Nothing} of the surface domain
+├── surface_excess_water [m] on XY{Center, Center, Terrarium.Coordinate{typeof(lastindex), Face}} of the ground domain
 ├─ Auxiliary: 
 ├── temperature [°C] on XYZ{Center, Center, Center} of the ground domain
 ├── liquid_water_fraction [-] on XYZ{Center, Center, Center} of the ground domain
@@ -96,22 +96,22 @@ variables(model)</code></pre><pre class="documenter-example-output"><code class=
 ├── rainfall_ground [m s^-1] on XY{Center, Center, Nothing} of the ground domain
 ├── ground_evaporation_conductance [m s^-1] on XY{Center, Center, Nothing} of the ground domain
 ├── evaporation_ground [m s^-1] on XY{Center, Center, Nothing} of the ground domain
-├── surface_runoff [m s^-1] on XY{Center, Center, Nothing} of the surface domain
+├── surface_runoff [m s^-1] on XY{Center, Center, Terrarium.Coordinate{typeof(lastindex), Face}} of the ground domain
 ├── infiltration [m s^-1] on XY{Center, Center, Terrarium.Coordinate{typeof(lastindex), Face}} of the ground domain
 ├─ Inputs: 
 ├── surface_heat_flux [W m^-2] on XY{Center, Center, Terrarium.Coordinate{typeof(lastindex), Face}} of the snow domain
 ├── basal_heat_flux [W m^-2] on XY{Center, Center, Terrarium.Coordinate{typeof(firstindex), Face}} of the snow domain
 ├── sublimation [m s^-1] on XY{Center, Center, Terrarium.Coordinate{typeof(lastindex), Face}} of the snow domain
-├── air_temperature [°C] on XY{Center, Center, Nothing} of the surface domain
-├── air_pressure [Pa] on XY{Center, Center, Nothing} of the surface domain
-├── windspeed [m s^-1] on XY{Center, Center, Nothing} of the surface domain
-├── specific_humidity [-] on XY{Center, Center, Nothing} of the surface domain
-├── rainfall [m s^-1] on XY{Center, Center, Nothing} of the surface domain
-├── snowfall [m s^-1] on XY{Center, Center, Nothing} of the surface domain
-├── surface_shortwave_down [W m^-2] on XY{Center, Center, Nothing} of the surface domain
-├── surface_longwave_down [W m^-2] on XY{Center, Center, Nothing} of the surface domain
-├── daytime_length [hr] on XY{Center, Center, Nothing} of the surface domain
-├── CO2 [ppm] on XY{Center, Center, Nothing} of the surface domain
+├── air_temperature [°C] on XY{Center, Center, Nothing} of the atmosphere domain
+├── air_pressure [Pa] on XY{Center, Center, Nothing} of the atmosphere domain
+├── windspeed [m s^-1] on XY{Center, Center, Nothing} of the atmosphere domain
+├── specific_humidity [-] on XY{Center, Center, Nothing} of the atmosphere domain
+├── rainfall [m s^-1] on XY{Center, Center, Nothing} of the atmosphere domain
+├── snowfall [m s^-1] on XY{Center, Center, Nothing} of the atmosphere domain
+├── surface_shortwave_down [W m^-2] on XY{Center, Center, Nothing} of the atmosphere domain
+├── surface_longwave_down [W m^-2] on XY{Center, Center, Nothing} of the atmosphere domain
+├── daytime_length [hr] on XY{Center, Center, Nothing} of the atmosphere domain
+├── CO2 [ppm] on XY{Center, Center, Nothing} of the atmosphere domain
 ├─ Namespaces:
 ├── Terrarium.Namespace{:soil, Terrarium.Variables}
 </code></pre><p>The bare soil configuration uses simpler hydrology (no canopy interception or canopy evapotranspiration) and focuses on direct soil-atmosphere exchanges. You can still customize soil components the same way as with <code>SoilModel</code>:</p><pre><code class="language-julia hljs">hydrology = SoilHydrology(eltype(grid), vertical_flow = RichardsEq())
@@ -169,9 +169,9 @@ thermal_properties = SoilThermalProperties(eltype(grid); conductivities)
 energy = SoilThermodynamics(eltype(grid); thermal_properties)
 soil = SoilEnergyWaterCarbon(eltype(grid); energy)
 model = SoilModel(grid; soil)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SoilModel{Float64} on CPU()
-├── grid:  LandGrid with dimensions (1, 1, 10)
+├── grid:  1×1×10 RectilinearGrid{Float64, Periodic, Flat, Bounded} on CPU with 1×0×3 halo
 ├── soil:  SoilEnergyWaterCarbon{Float64, SoilStratigraphy{Float64, 1, Tuple{ConstantSoilHorizon{Float64, :soil, ConstantSoilPorosity{Float64}}}}, SoilThermodynamics{Float64, Terrarium.ExplicitTwoPhaseHeatConduction, SoilEnergyTemperatureClosure, SoilThermalProperties{Float64, FreeWater, InverseQuadratic, SoilThermalConductivities{Float64}}}, SoilHydrology{Float64, NoFlow, SoilSaturationPressureClosure, SoilHydraulicsSURFEX{Float64, BrooksCorey{FreezeCurves.SoilWaterVolume{Float64, Float64, Float64}, Float64, Float64}, UnsatKLinear{Float64}}, Nothing}, ConstantSoilCarbonDensity{Float64}}
 ├── constants:  PhysicalConstants{Float64}
 ├── initializer:  DefaultInitializer{Float64}
 ├── timestepper:  ForwardEuler{Float64}
-</code></pre><div class="admonition is-todo" id="Improved-parameter-handling-6baf1f72f86825c0"><header class="admonition-header">Improved parameter handling<a class="admonition-anchor" href="#Improved-parameter-handling-6baf1f72f86825c0" title="Permalink"></a></header><div class="admonition-body"><p>We will soon make it easier to collect, select, and modify parameters <em>after</em> model construction using a parameter handling system based on <a href="https://github.com/rafaqz/ModelParameters.jl"><code>ModelParameters</code></a>. Stay tuned!</p></div></div></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../introduction/mathematical_formulation/">« Mathematical formulation</a><a class="docs-footer-nextpage" href="../initialization/">Initialization »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Wednesday 23 September 2026 21:56">Wednesday 23 September 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+</code></pre><div class="admonition is-todo" id="Improved-parameter-handling-6baf1f72f86825c0"><header class="admonition-header">Improved parameter handling<a class="admonition-anchor" href="#Improved-parameter-handling-6baf1f72f86825c0" title="Permalink"></a></header><div class="admonition-body"><p>We will soon make it easier to collect, select, and modify parameters <em>after</em> model construction using a parameter handling system based on <a href="https://github.com/rafaqz/ModelParameters.jl"><code>ModelParameters</code></a>. Stay tuned!</p></div></div></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../introduction/mathematical_formulation/">« Mathematical formulation</a><a class="docs-footer-nextpage" href="../initialization/">Initialization »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Thursday 24 September 2026 13:53">Thursday 24 September 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
