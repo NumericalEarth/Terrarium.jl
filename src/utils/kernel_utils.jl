@@ -36,11 +36,11 @@ Return a `KernelFunctionOperation` over `grid` with the given `state` and traili
 """
 function kernel_operation(func, state, grid, args...; location = (Center, Center, Nothing), with_clock = false)
     fields = get_fields(state, args...)
-    fgrid = get_field_grid(grid)
+    ground_grid = ground_domain(grid)
     if with_clock
-        return KernelFunctionOperation{location...}(func, fgrid, state.clock, fields, args...)
+        return KernelFunctionOperation{location...}(func, ground_grid, state.clock, fields, args...)
     else
-        return KernelFunctionOperation{location...}(func, fgrid, fields, args...)
+        return KernelFunctionOperation{location...}(func, ground_grid, fields, args...)
     end
 end
 
@@ -54,12 +54,12 @@ end
 
 function (op::KernelFunction{false})(var, grid, clock, fields, args...)
     loc = map(typeof, location(vardims(var)))
-    return KernelFunctionOperation{loc...}(op.func, get_field_grid(grid), clock, fields, args..., op.args...)
+    return KernelFunctionOperation{loc...}(op.func, ground_domain(grid), clock, fields, args..., op.args...)
 end
 
 function (op::KernelFunction{true})(var, grid, clock, fields, args...)
     loc = map(typeof, location(vardims(var)))
-    return KernelFunctionOperation{loc...}(op.func, get_field_grid(grid), fields, args..., op.args...)
+    return KernelFunctionOperation{loc...}(op.func, ground_domain(grid), fields, args..., op.args...)
 end
 
 """

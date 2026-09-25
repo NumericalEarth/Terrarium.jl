@@ -84,8 +84,8 @@ always the *unblended* ground-only target, used both when there is no snow and (
 `1 - f_snow`) for the bare-ground share of the skin-temperature solve when there is.
 """
 @propagate_inbounds function ground_thermal_interface(i, j, grid, fields, skinT::ImplicitSkinTemperature)
-    field_grid = get_field_grid(grid)
-    Δz₁ = Δzᵃᵃᶜ(i, j, field_grid.Nz, field_grid)
+    ground_grid = ground_domain(grid)
+    Δz₁ = Δzᵃᵃᶜ(i, j, ground_grid.Nz, ground_grid)
     Tg = fields.ground_temperature[i, j]
     return (Tg, skinT.κₛ, Δz₁)
 end

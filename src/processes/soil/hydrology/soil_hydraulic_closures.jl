@@ -85,12 +85,12 @@ end
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry
     )
-    fgrid = get_field_grid(grid)
+    ground_grid = ground_domain(grid)
     ψ = fields.pressure_head[i, j, k] # assumed given
     # get the elevation (z-coord) of k'th layer and reference (surface)
-    z = znode(i, j, k, fgrid, Center(), Center(), Center())
+    z = znode(i, j, k, ground_grid, Center(), Center(), Center())
     # TODO: we need a more user friendly interface for this...
-    z_ref = znode(i, j, fgrid.Nz + 1, fgrid, Center(), Center(), Face())
+    z_ref = znode(i, j, ground_grid.Nz + 1, ground_grid, Center(), Center(), Face())
     # elevation pressure head
     ψz = z - z_ref
     # compute hydrostatic pressure head assuming impermeable lower boundary
@@ -113,11 +113,11 @@ end
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry
     )
-    fgrid = get_field_grid(grid)
+    ground_grid = ground_domain(grid)
     sat = fields.saturation_water_ice[i, j, k] # assumed given
     # get the elevation (z-coord) of k'th layer and reference (surface)
-    z = znode(i, j, k, fgrid, Center(), Center(), Center())
-    z_ref = znode(i, j, fgrid.Nz + 1, fgrid, Center(), Center(), Face())
+    z = znode(i, j, k, ground_grid, Center(), Center(), Center())
+    z_ref = znode(i, j, ground_grid.Nz + 1, ground_grid, Center(), Center(), Face())
     # get inverse of SWRC
     inv_swrc = inv(get_swrc(hydrology))
     por = porosity(i, j, k, grid, fields, strat, bgc)

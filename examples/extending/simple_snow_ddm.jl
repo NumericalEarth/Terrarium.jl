@@ -167,9 +167,9 @@ DisplayAs.PNG(heatmap(snow_climatology[:, 1], title = "Snowfall (m/s)"))
 #
 # Now, we just need to define initialize everything correctly. As we are working with globally gridded data, we will define [`ColumnRingGrid`](@ref) based on the `global_grid` we already initialized. Then, we will load our inputs. For this, we will choose the January (so the first element) of our climatology files. When using them in [`InputSource`](@ref) be sure to choose the same name and units as used in the definitions of the dynamics before.
 
-snow_grid = ColumnRingGrid(UniformSpacing(N = 1), global_grid, land_sea_mask);
-sf_input = InputSource(snow_grid, snow_climatology[:, 1], name = :snow_fall, units = u"m/s");
-lst_input = InputSource(snow_grid, lst_climatology[:, 1], name = :air_temperature, units = u"°C")
+grid = ColumnRingGrid(UniformSpacing(Δz = 0.1, N = 1), global_grid, land_sea_mask);
+sf_input = InputSource(grid, snow_climatology[:, 1], name = :snow_fall, units = u"m/s");
+lst_input = InputSource(grid, lst_climatology[:, 1], name = :air_temperature, units = u"°C")
 
 # As an initial condition, we just cover the whole Earth in deep snow (everywhere the same)!
 
@@ -177,7 +177,7 @@ snow_initializers = (snow_storage = 0.5,)
 
 # Now, we initialize our model and the integrator. As in the first example, we use a `Heun` time stepper
 
-snow_model = SnowModel(snow_grid; timestepper = Heun(Δt = Float32(1.0)));
+snow_model = SnowModel(grid; timestepper = Heun(Δt = Float32(1.0)));
 snow_inputs = InputSources(sf_input, lst_input)
 snow_integrator = initialize(snow_model; inputs = snow_inputs, initializers = snow_initializers)
 
@@ -202,7 +202,7 @@ fts_result = FieldTimeSeries(output_file_snow, "snow_storage")
 
 # Then, we plot it using `CairoMakie`. For this purpose we first convert to a `RingGrids.Field` and then plot it via `heatmap` like so
 tsteps = 1
-ring_field = RingGrids.Field(fts_result[tsteps], snow_grid)[:, 1]
+ring_field = RingGrids.Field(fts_result[tsteps], grid)[:, 1]
 DisplayAs.PNG(heatmap(ring_field))
 
 # Now we just wrap that into a Makie animation in the following to create a movie of our results
@@ -224,7 +224,7 @@ ax = Axis(
 )
 lond = RingGrids.get_lond(ring_field)
 latd = RingGrids.get_latd(ring_field)
-data = @lift Matrix(RingGrids.Field(fts_result[$n_t], snow_grid)[:, 1])
+data = @lift Matrix(RingGrids.Field(fts_result[$n_t], grid)[:, 1])
 hm = heatmap!(ax, lond, latd, data, colorrange = (0, 1))
 Colorbar(fig[:, end + 1], hm)
 frames = 1:length(fts_result)

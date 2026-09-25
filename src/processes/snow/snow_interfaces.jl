@@ -50,11 +50,11 @@ which is only valid once the soil resistance is genuinely negligible next to the
     hydrology = get_hydrology(soil)
     bgc = get_biogeochemistry(soil)
     energy = get_energy_balance(soil)
-    field_grid = get_field_grid(grid)
-    k = field_grid.Nz
+    ground_grid = ground_domain(grid)
+    k = ground_grid.Nz
     composition = soil_composition(i, j, k, grid, fields, strat, hydrology, bgc)
     κ_soil = compute_thermal_conductivity(energy.thermal_properties, composition)
-    Δz_soil = Δzᵃᵃᶜ(i, j, k, field_grid)
+    Δz_soil = Δzᵃᵃᶜ(i, j, k, ground_grid)
 
     ρ_snow = compute_snow_density(i, j, grid, fields, snow.density)
     κ_snow = compute_thermal_conductivity(snow, constants.material, ρ_snow)
