@@ -126,9 +126,9 @@ and `thickness` inputs. Input sources can target such variables by passing a nam
 ```julia
 inputs = InputSources(
     ## targets the `sand_fraction` input variable in the `organic` horizon namespace
-    InputSource(grid, sand_field; name = :organic => :sand_fraction, domain = Ground()),
+    InputSource(grid, sand_field; name = :organic => :sand_fraction),
     ## nested namespaces chain as pairs: ns1 => ns2 => varname
-    InputSource(grid, other_field; name = :ns1 => :ns2 => :x, domain = Ground()),
+    InputSource(grid, other_field; name = :ns1 => :ns2 => :x),
 )
 ```
 
@@ -185,7 +185,7 @@ struct MyInputSource{NF} <: InputSource{NF, :my_var}
     data::Vector{NF}
 end
 
-Terrarium.variables(::MyInputSource{NF}) where {NF} = (input(:my_var, Ground(XY())),)
+Terrarium.variables(::MyInputSource{NF}) where {NF} = (input(:my_var, XY())y),)
 
 function Terrarium.update_inputs!(fields, source::MyInputSource, clock::Clock)
     # populate fields.my_var from source.data at clock.time
