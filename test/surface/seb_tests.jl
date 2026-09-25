@@ -16,3 +16,7 @@ end
 @testset "SEB: Skin temperature" begin
     include("skin_temperature.jl")
 end
+
+@testset "SEB: Ground heat flux" begin
+    include("ground_heat_flux.jl")
+end

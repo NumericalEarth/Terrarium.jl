@@ -73,7 +73,7 @@ end
 Blended soil-top heat flux [W/m²] at grid cell `i, j`: the snow-cover-fraction-weighted combination of
 the snow→soil basal conductive flux `Q_base` (see [`compute_snow_basal_heat_flux`](@ref)) and the
 *explicit* bare-ground conductive flux `G` (`ground_heat_flux`, already the unblended per-bare-ground-area
-quantity — see the `ImplicitSkinTemperature`-specific `compute_ground_heat_flux` in `skin_temperature.jl`),
+quantity — see the `ImplicitSkinTemperature`-specific `compute_ground_heat_flux` in `ground_heat_flux.jl`),
 `f_snow·Q_base + (1 − f_snow)·G`.
 """
 @propagate_inbounds function compute_snow_soil_heat_flux(
