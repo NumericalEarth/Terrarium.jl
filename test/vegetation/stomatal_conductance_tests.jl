@@ -202,7 +202,7 @@ end
     # as Pa in one and kPa in the other displaces it by a factor of 1000.
     vpd = g₁^2 * 1.0e3 # Pa
 
-    # λc = (g₁/√VPD)/(1 + g₁/√VPD) = 1/2 at this VPD
+    # λc = 1 - 1/(1 + g₁/√VPD) = 1/2 at this VPD
     @test compute_λc(stomcond, vpd) ≈ 1 // 2
 
     # and the Medlyn factor b = D(1 + g₁/√VPD) = 2D, isolated by differencing out the
