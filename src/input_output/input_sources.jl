@@ -195,6 +195,9 @@ function InputSource(fts::AnyFieldTimeSeries{NF}; name, reftime = first(fts.time
     return FieldTimeSeriesInputSource{NF, path, typeof(dims), typeof(fts), typeof(reftime), typeof(units)}(dims, units, reftime, fts)
 end
 
+# Forward to `InputSource(fts)` to avoid hitting static InputSource(grid, ::AbstractField) constructor
+InputSource(::AbstractGrid{NF}, fts::AnyFieldTimeSeries{NF}; kwargs...) where {NF} = InputSource(fts; kwargs...)
+
 variables(source::FieldTimeSeriesInputSource) = tuple(with_scope(Base.front(varpath(source)), input(varname(source), source.dims; units = source.units)))
 
 # to initialize just update the state once at the start time
