@@ -57,7 +57,7 @@ using Oceananigans.Units: hours
 
 # Allocate and populate a FieldTimeSeries
 times = 0.0:3600.0:86400.0 # hourly for one day (seconds)
-fts = FieldTimeSeries(grid, Surface(XY()), times)
+fts = FieldTimeSeries(grid, Atmosphere(XY()), times)
 fts.data .= randn(size(fts)) # fill with data
 source = InputSource(fts; name = :air_temperature, units = u"°C")
 ```
