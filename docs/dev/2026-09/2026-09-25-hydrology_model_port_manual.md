@@ -58,3 +58,4 @@ Model description (the `Model equations version clean`) can be found in [this ma
 	- `AbstractSoilHydraulics` should ideally be subtyped for the specific constants of the force restorce scheme: $C_1, C_2, C_3$.  However, there is no unsaturated hydraulic conductivity needed here, so it should be set to a sort of none type. Brooks-Corey can be used as a retention curve. 
 	- `ForceRestoreVeritcalFlow` can subtype `AbstractVeritcalFlow` and be the set of processes that actually calculates the vertical fluxes $D_1$ and $K_2$. I suppose also the tendency functions are best added in the same `src/processes/hydrology/soil_hydrology.jl`
 
+I think that it makes most sense to then wrap these new processes in a new model. Name is to be decided, it could e.g. be `ForceRestoreHydrologyModel` or `SimpleHydrologyModel`. 
