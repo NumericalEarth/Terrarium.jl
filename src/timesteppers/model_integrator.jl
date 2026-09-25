@@ -62,7 +62,7 @@ function Base.getproperty(integrator::ModelIntegrator, name::Symbol)
     # TODO: Raise an issue in Oceananigans for better long-term solution
     if name == :grid
         model = getfield(integrator, :model)
-        return get_field_grid(get_grid(model))
+        return ground_domain(get_grid(model))
     else
         return getfield(integrator, name)
     end

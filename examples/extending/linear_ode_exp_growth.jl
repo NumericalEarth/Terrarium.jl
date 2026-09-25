@@ -29,7 +29,8 @@ using Terrarium
 # * [`ColumnGrid`](@ref) is a set of laterally independent vertical columns with dimensions ``(x, y, z)`` where ``x`` is the column dimension, ``y=1`` is constant, and ``z`` is the vertical axis,
 # * [`ColumnRingGrid`](@ref) represents a global (spherical) grid of independent, vertical columns where the spatial discretization in the horizontal direction is defined by a [`RingGrids.AbstractGrid`](@extref).
 #
-# In both cases we need to specify the vertical discretization via an [`UniformSpacing`](@ref), [`ExponentialSpacing`](@ref) or [`PrescribedSpacing`](@ref).
+# In both cases we need to specify the vertical discretization, either as a range of cell interfaces
+# (as here, for uniformly spaced layers) or via [`ExponentialSpacing`](@ref) for layers that thicken with depth.
 #
 # ## Initializer and Boundary Conditions
 #
@@ -41,7 +42,7 @@ using Terrarium
 #
 # For our current example, we are defining a simple linear ODE without any spatial dynamics, so we can get away with just a single column with one vertical layer. We can define it like so:
 
-grid = ColumnGrid(CPU(), Float64, UniformSpacing(N = 1))
+grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 1))
 
 # ## Defining the model
 #

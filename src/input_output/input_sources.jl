@@ -133,12 +133,12 @@ end
 Create a `FieldInputSource` with the given grid and input variable `fields`. Use it for static input fields.
 The `name` can either be a plain `Symbol` or a namespaced path; see [`varpath`](@ref).
 """
-function InputSource(grid::AbstractLandGrid{NF}, field::FS; name, units = NoUnits) where {NF, FS <: AnyField{NF}}
+function InputSource(grid::AbstractGrid{NF}, field::FS; name, units = NoUnits) where {NF, FS <: AnyField{NF}}
     # ensure fields are on the same architecture as the grid
     field = on_architecture(architecture(grid), field)
 
     # Check that fields match grid
-    @assert field.grid == get_field_grid(grid) "Field must have the same grid as the input grid"
+    @assert field.grid == ground_domain(grid) "Field must have the same grid as the input grid"
 
     # infer the VarDims and subsequently the Field location from the data dimensions
     dims = Terrarium.vardims(field)
@@ -159,6 +159,9 @@ function InputSource(grid::ColumnRingGrid{NF}, ring_field::RingGrids.AbstractFie
     path = varpath(name)
     return FieldInputSource{NF, path, typeof(dims), typeof(oceananigans_field), typeof(units)}(dims, units, oceananigans_field)
 end
+
+# Land grids delegate to the discretization of the ground domain, which carries the ring grid.
+InputSource(grid::AbstractLandGrid, ring_field::RingGrids.AbstractField; kwargs...) = InputSource(ground_domain(grid), ring_field; kwargs...)
 
 variables(source::FieldInputSource) = tuple(with_scope(Base.front(varpath(source)), input(varname(source), source.dims; units = source.units)))
 

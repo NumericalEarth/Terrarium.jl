@@ -26,7 +26,7 @@ end
 
 @testset "ExpModel: Heun and Euler time steppers" begin
 
-    grid = ColumnGrid(CPU(), Float64, UniformSpacing(N = 1))
+    grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 1))
     model_euler = ExpModel(grid)
     model_heun = ExpModel(grid; timestepper = Heun())
 
@@ -52,7 +52,7 @@ end
 
 # Use timestep!(state, model, timestepper, Δt) to clip negative values in an super simple example sim
 @testset "ExpModel: clip negative values" begin
-    grid = ColumnGrid(CPU(), Float64, UniformSpacing(N = 1))
+    grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 1))
     model = ExpModel(grid)
 
     Terrarium.timestep!(state, model::ExpModel, timestepper::ForwardEuler, Δt) = begin
@@ -106,7 +106,7 @@ function Terrarium.compute_tendencies!(state, model::NamespacedExpModel)
 end
 
 @testset "NamespacedExpModel: time stepping prognostic/input in a namespace" begin
-    grid = ColumnGrid(CPU(), Float64, UniformSpacing(N = 1))
+    grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 1))
     model_heun = NamespacedExpModel(grid; timestepper = Heun())
     model_euler = NamespacedExpModel(grid)
 
