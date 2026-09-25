@@ -280,7 +280,7 @@ end
     @test Terrarium.num_layers(grid) == 5
     @test Oceananigans.Grids.topology(grid) == Oceananigans.Grids.topology(column_grid)
     @test architecture(grid) == architecture(column_grid)
-    @test size(Field(grid, XYZ())) == size(grid)
+    @test size(Field(grid, Terrarium.Ground(XYZ()))) == size(grid)
 
     # Grids which are not land grids are their own ground discretization.
     @test ground_domain(column_grid) === column_grid
@@ -348,16 +348,24 @@ end
 @testset "Model construction from spatial discretizations" begin
     column_grid = ColumnGrid(UniformSpacing(Δz = 0.1f0, N = 5), 2)
 
-    # Models accept an ordinary spatial discretization and build their land grid internally.
+    # Single-domain models keep whatever discretization they are given: an ordinary spatial
+    # discretization is no longer wrapped in a land grid, so a model which resolves only the ground
+    # can be built on a plain Oceananigans grid.
     model = SoilModel(column_grid)
-    @test get_grid(model) isa LandGrid
-    @test ground_domain(get_grid(model)) === column_grid
+    @test get_grid(model) === column_grid
 
-    # A pre-built land grid is stored as-is.
+    # A pre-built land grid is likewise stored as-is.
     land_grid = LandGrid(column_grid)
     @test get_grid(SoilModel(land_grid)) === land_grid
+    @test ground_domain(get_grid(SoilModel(land_grid))) === column_grid
 
-    # Models can also be built directly on a plain Oceananigans grid.
+    # ... including a bare `RectilinearGrid`.
     rect_grid = RectilinearGrid(Float32, size = (2, 1, 5), x = (0, 1), y = (0, 1), z = (-1, 0))
-    @test ground_domain(get_grid(SoilModel(rect_grid))) === rect_grid
+    @test get_grid(SoilModel(rect_grid)) === rect_grid
+
+    # `LandModel` couples several vertical domains, so it is the exception: it builds a land grid
+    # from an ordinary discretization and stores a pre-built one unchanged.
+    @test get_grid(LandModel(column_grid; vegetation = nothing)) isa LandGrid
+    @test ground_domain(get_grid(LandModel(column_grid; vegetation = nothing))) === column_grid
+    @test get_grid(LandModel(land_grid; vegetation = nothing)) === land_grid
 end

@@ -70,11 +70,11 @@ end
 
 @testset "Texture normalization" begin
     grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 10), 10)
-    sand = Field(grid, XY())
+    sand = Field(grid, Terrarium.Ground(XY()))
     set!(sand, 0.5)
-    silt = Field(grid, XY())
+    silt = Field(grid, Terrarium.Ground(XY()))
     set!(silt, 0.4)
-    clay = Field(grid, XY())
+    clay = Field(grid, Terrarium.Ground(XY()))
     set!(clay, 0.2) # violate bounds
     normalize_texture!(sand, silt, clay)
     # all entries sum to unity

@@ -128,9 +128,9 @@ for the latent-flux partition).
     )
     f = snow_cover_fraction(i, j, grid, fields, snow)
     E_subl = compute_snow_sublimation_flux(i, j, grid, fields, snow, atmos, constants, seb.skin_temperature)
-    out.sublimation[i, j, 1] = f * E_subl
-    out.basal_heat_flux[i, j, 1] = compute_snow_soil_heat_flux(i, j, grid, fields, snow, constants, soil)
-    out.surface_heat_flux[i, j, 1] = compute_snow_surface_heat_flux(i, j, grid, fields, snow, constants)
+    out.sublimation[i, j, end] = f * E_subl
+    out.basal_heat_flux[i, j, end] = compute_snow_soil_heat_flux(i, j, grid, fields, snow, constants, soil)
+    out.surface_heat_flux[i, j, end] = compute_snow_surface_heat_flux(i, j, grid, fields, snow, constants)
     return nothing
 end
 

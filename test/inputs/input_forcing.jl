@@ -1,12 +1,12 @@
 module ForcingInputTest
 
 using Terrarium
-using Terrarium: AbstractLandGrid, prognostic, input
+using Terrarium: AbstractGrid, XY, XYZ, prognostic, input
 using Test
 
 DEFAULT_NF = Float32
 
-@kwdef struct TestModel{NF, Grid <: AbstractLandGrid{NF}} <: Terrarium.AbstractModel{NF, Grid}
+@kwdef struct TestModel{NF, Grid <: AbstractGrid{NF}} <: Terrarium.AbstractModel{NF, Grid}
     grid::Grid
     initializer = DefaultInitializer(eltype(grid))
     timestepper = ForwardEuler(eltype(grid))

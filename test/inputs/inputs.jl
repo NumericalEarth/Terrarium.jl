@@ -1,5 +1,6 @@
 using Terrarium
-using Terrarium: FieldInputSource, FieldTimeSeriesInputSource, Variables, initialize!, interior, InputSources, varname
+using Terrarium: InputSources, FieldInputSource, FieldTimeSeriesInputSource, Variables
+using Terrarium: initialize!, interior, varname
 using Test
 using Unitful
 
@@ -10,7 +11,7 @@ using Unitful
     field_input = InputSource(grid, X1; name = :X1)
     @test isa(field_input, FieldInputSource)
     ## check that dimensions and name were inferred correctly
-    @test field_input.dims == XY()
+    @test Terrarium.vardims(field_input) == XY()
     @test varname(field_input) == :X1
     @test variables(field_input) == (Terrarium.input(:X1, XY()),)
     ## check state variable is allocated and initialize! copies data
@@ -35,7 +36,7 @@ using Unitful
     fts_input = InputSource(S1; name = :S1)
     @test isa(fts_input, FieldTimeSeriesInputSource)
     ## check that dimensions and name were inferred correctly
-    @test fts_input.dims == XY()
+    @test Terrarium.vardims(fts_input) == XY()
     @test varname(fts_input) == :S1
     @test fts_input.fts === S1
     # populate S1 with random data and check update_inputs!
@@ -74,7 +75,7 @@ end
     # Test single field
     source = InputSource(grid, ring_field1; name = :temperature)
     @test isa(source, FieldInputSource)
-    @test source.dims == XY()
+    @test Terrarium.vardims(source) == XY()
     @test varname(source) == :temperature
     @test variables(source) == (Terrarium.input(:temperature, XY()),)
 
@@ -98,5 +99,5 @@ end
     ring_field_3d = rand(ring_grid, 5)  # 5 vertical levels
     source_3d = InputSource(grid, ring_field_3d; name = :field3d)
     @test isa(source_3d, FieldInputSource)
-    @test source_3d.dims == XYZ()
+    @test Terrarium.vardims(source_3d) == XYZ()
 end

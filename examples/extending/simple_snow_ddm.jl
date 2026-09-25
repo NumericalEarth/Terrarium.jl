@@ -56,12 +56,12 @@ import DisplayAs
 end
 #
 Terrarium.variables(model::DegreeDaySnow{NF}) where {NF} = (
-    Terrarium.input(:air_temperature, XY(), default = NF(0), units = u"°C", desc = "Near-surface air temperature in °C"),
-    Terrarium.input(:snow_fall, XY(), default = NF(0), units = u"m/s", desc = "snow fall rate in m/s"),
-    Terrarium.prognostic(:snow_storage, XY(), units = u"m", desc = "Snow water equivalent in m"),
+    Terrarium.input(:air_temperature, Terrarium.Atmosphere(XY()), default = NF(0), units = u"°C", desc = "Near-surface air temperature in °C"),
+    Terrarium.input(:snow_fall, Terrarium.Atmosphere(XY()), default = NF(0), units = u"m/s", desc = "snow fall rate in m/s"),
+    Terrarium.prognostic(:snow_storage, Terrarium.Snow(XY()), units = u"m", desc = "Snow water equivalent in m"),
 )
 
-@kwdef struct SnowModel{NF, Grid <: Terrarium.AbstractLandGrid{NF}, Pro, Init, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
+@kwdef struct SnowModel{NF, Grid <: Terrarium.AbstractGrid{NF}, Pro, Init, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
     "Spatial grid on which state variables are discretized"
     grid::Grid
     "Snow melting process"
@@ -104,7 +104,7 @@ end
 #
 @kernel function compute_snow_flux!(tend, grid, fields, snow_melt)
     i, j = @index(Global, NTuple)
-    tend.snow_storage[i, j] = compute_snow_flux_tendency(i, j, grid, fields, snow_melt)
+    tend.snow_storage[i, j, 1] = compute_snow_flux_tendency(i, j, grid, fields, snow_melt)
 end
 #
 Terrarium.compute_auxiliary!(state, model::SnowModel) = nothing
@@ -116,8 +116,8 @@ Terrarium.compute_auxiliary!(state, grid, model::DegreeDaySnow) = nothing
 
 function compute_snow_flux_tendency(i, j, grid, fields, snow_melt)
     ## get the variables we need
-    P = fields.snow_fall[i, j]
-    T = fields.air_temperature[i, j]
+    P = fields.snow_fall[i, j, 1]
+    T = fields.air_temperature[i, j, 1]
     ## get the parameters
     T_melt = snow_melt.T_melt
     k = snow_melt.k

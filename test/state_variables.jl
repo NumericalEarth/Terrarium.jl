@@ -1,18 +1,18 @@
 using Terrarium
 using Test
 
-using Terrarium: AbstractLandGrid, VarDims, XY, XYZ, prognostic, auxiliary, input, namespace
+using Terrarium: AbstractGrid, VarDims, XY, XYZ, prognostic, auxiliary, input, namespace
 
 DEFAULT_NF = Float32
 
 module StateVariablesTestTypes
 
     using Terrarium
-    using Terrarium: AbstractLandGrid, VarDims, XY, XYZ, prognostic, auxiliary, input, namespace
+    using Terrarium: AbstractGrid, VarDims, XY, XYZ, prognostic, auxiliary, input, namespace
 
     using Test
 
-    @kwdef struct SubModel{NF, Grid <: AbstractLandGrid{NF}} <: Terrarium.AbstractModel{NF, Grid}
+    @kwdef struct SubModel{NF, Grid <: AbstractGrid{NF}} <: Terrarium.AbstractModel{NF, Grid}
         grid::Grid
         initializer = DefaultInitializer(eltype(grid))
         timestepper = ForwardEuler(eltype(grid))
@@ -25,7 +25,7 @@ module StateVariablesTestTypes
         input(:forcing, XY()),
     )
 
-    @kwdef struct TestModel{NF, Grid <: AbstractLandGrid{NF}, Sub} <: Terrarium.AbstractModel{NF, Grid}
+    @kwdef struct TestModel{NF, Grid <: AbstractGrid{NF}, Sub} <: Terrarium.AbstractModel{NF, Grid}
         grid::Grid
         submodel::Sub = SubModel(; grid)
         initializer = DefaultInitializer(eltype(grid))

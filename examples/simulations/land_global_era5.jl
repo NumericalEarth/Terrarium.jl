@@ -162,7 +162,8 @@ inputs = InputSources(
         name = :leaf_area_index,
         source_grid = Terrarium.native_grid(lai_asset),
         timedim = :dayofyear,
-        cycle = true
+        cycle = true,
+        domain = Terrarium.Canopy()
     ),
 )
 

@@ -3,7 +3,7 @@ using Test
 
 # mock a simple model with exponential dynamics (and a constant offset) to test time steppers
 
-@kwdef struct ExpModel{NF, Grid <: Terrarium.AbstractLandGrid{NF}, I, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
+@kwdef struct ExpModel{NF, Grid <: Terrarium.AbstractGrid{NF}, I, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
     grid::Grid
     initializer::I = DefaultInitializer(eltype(grid))
     timestepper::TS = ForwardEuler(eltype(grid))
@@ -72,7 +72,7 @@ end
 # variable (and its auxiliary offset and an input) living inside a namespace `:inner`.
 # This exercises time stepping of prognostic and input variables defined in namespaces and
 # also tests that actually the correct timestepper is used in the namespace as well.
-@kwdef struct NamespacedExpModel{NF, Grid <: Terrarium.AbstractLandGrid{NF}, I, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
+@kwdef struct NamespacedExpModel{NF, Grid <: Terrarium.AbstractGrid{NF}, I, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
     grid::Grid
     initializer::I = DefaultInitializer(eltype(grid))
     timestepper::TS = ForwardEuler(eltype(grid))

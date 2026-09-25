@@ -18,6 +18,7 @@
 # this implementation is meant only to serve as an example.
 
 using Terrarium
+using Terrarium: XYZ
 using KernelAbstractions: @kernel, @index
 using Oceananigans.Operators: ∂zᵃᵃᶜ, ∂zᵃᵃᶠ
 using Oceananigans.Utils: launch!
@@ -52,7 +53,7 @@ LinearHeatConduction(::Type{NF}; kwargs...) where {NF} = LinearHeatConduction{NF
 # by this process. Temperature is a 3D column variable ([`XYZ`](@ref)) since it varies with depth.
 
 Terrarium.variables(::LinearHeatConduction) = (
-    Terrarium.prognostic(:temperature, Terrarium.XYZ(); units = u"°C"),
+    Terrarium.prognostic(:temperature, XYZ(); units = u"°C"),
 )
 
 # `prognostic` means the timestepper integrates this variable based on its tendency at each
@@ -133,9 +134,13 @@ end
 # physics and dispatch logic should be defined in the `compute_*` kernel functions.
 #
 # !!! note "Always use 3D indexing in kernel functions"
-#     Even for surface (`XY`) fields, write output as `out.name[i, j, 1]` (with `k = 1`).
-#     2D indexing (`out.name[i, j]`), especially in `setindex!`, will result in errors when
-#     compiling the kernel on GPU.
+#     Write output as `out.name[i, j, k]`. 2D indexing (`out.name[i, j]`), especially in
+#     `setindex!`, will result in errors when compiling the kernel on GPU.
+#
+#     For a field with no vertical extent, write `out.name[i, j, end]` rather than a literal
+#     index. A variable declared at the `Top` or `Bottom` of a domain is stored at that
+#     interface, not at `k = 1`, so `end` is the index which is correct for every such field;
+#     a literal `1` reads or writes outside the field, silently so under `@inbounds`.
 
 @kernel inbounds = true function compute_tendencies_kernel!(
         tendencies, grid, fields, proc::AbstractHeatConduction, args...
@@ -177,7 +182,7 @@ end
 
 @kwdef struct HeatModel{
         NF,
-        Grid <: Terrarium.AbstractLandGrid{NF},
+        Grid <: Terrarium.AbstractGrid{NF},
         Cond <: AbstractHeatConduction{NF},
         Init <: Terrarium.AbstractInitializer{NF},
         TS <: Terrarium.AbstractTimeStepper,

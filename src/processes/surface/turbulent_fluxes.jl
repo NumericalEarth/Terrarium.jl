@@ -11,8 +11,8 @@ struct PrescribedTurbulentFluxes{NF} <: AbstractTurbulentFluxes{NF} end
 PrescribedTurbulentFluxes(::Type{NF}) where {NF} = PrescribedTurbulentFluxes{NF}()
 
 variables(::PrescribedTurbulentFluxes) = (
-    input(:sensible_heat_flux, XY(), units = u"W/m^2", desc = "Sensible heat flux at the surface [W m⁻²]"),
-    input(:latent_heat_flux, XY(), units = u"W/m^2", desc = "Latent heat flux at the surface [W m⁻²]"),
+    input(:sensible_heat_flux, Surface(XY()), units = u"W/m^2", desc = "Sensible heat flux at the surface [W m⁻²]"),
+    input(:latent_heat_flux, Surface(XY()), units = u"W/m^2", desc = "Latent heat flux at the surface [W m⁻²]"),
 )
 
 # The turbulent fluxes are prescribed input variables, so there is nothing to diagnose.
@@ -88,8 +88,8 @@ end
 ## Top-level interface methods
 
 variables(::DiagnosedTurbulentFluxes) = (
-    auxiliary(:sensible_heat_flux, XY(), units = u"W/m^2", desc = "Sensible heat flux at the surface [W m⁻²]"),
-    auxiliary(:latent_heat_flux, XY(), units = u"W/m^2", desc = "Latent heat flux at the surface [W m⁻²]"),
+    auxiliary(:sensible_heat_flux, Surface(XY()), units = u"W/m^2", desc = "Sensible heat flux at the surface [W m⁻²]"),
+    auxiliary(:latent_heat_flux, Surface(XY()), units = u"W/m^2", desc = "Latent heat flux at the surface [W m⁻²]"),
 )
 
 """ $TYPEDSIGNATURES """
@@ -214,9 +214,9 @@ end
 @kernel function compute_auxiliary_kernel!(out, grid, fields, tur::DiagnosedTurbulentFluxes, args...)
     i, j = @index(Global, NTuple)
     # compute sensible heat flux
-    out.sensible_heat_flux[i, j, 1] = compute_sensible_heat_flux(i, j, grid, fields, tur, args...)
+    out.sensible_heat_flux[i, j, end] = compute_sensible_heat_flux(i, j, grid, fields, tur, args...)
     # compute latent heat flux - pass all args to allow dispatch on evtr presence
-    out.latent_heat_flux[i, j, 1] = compute_latent_heat_flux(i, j, grid, fields, tur, args...)
+    out.latent_heat_flux[i, j, end] = compute_latent_heat_flux(i, j, grid, fields, tur, args...)
 end
 
 # Per-process mutating variant used by the fused surface-energy-balance kernel.
@@ -228,8 +228,8 @@ Compute the turbulent (sensible and latent) heat fluxes from the current skin te
 them into the auxiliary output fields `out`.
 """
 @propagate_inbounds function compute_turbulent_fluxes!(out, i, j, grid, fields, tur::DiagnosedTurbulentFluxes, skinT, constants, atmos, hydrology, snow)
-    out.sensible_heat_flux[i, j, 1] = compute_sensible_heat_flux(i, j, grid, fields, tur, skinT, constants, atmos)
-    out.latent_heat_flux[i, j, 1] = compute_latent_heat_flux(i, j, grid, fields, tur, skinT, constants, atmos, hydrology, snow)
+    out.sensible_heat_flux[i, j, end] = compute_sensible_heat_flux(i, j, grid, fields, tur, skinT, constants, atmos)
+    out.latent_heat_flux[i, j, end] = compute_latent_heat_flux(i, j, grid, fields, tur, skinT, constants, atmos, hydrology, snow)
     return nothing
 end
 

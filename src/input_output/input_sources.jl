@@ -17,6 +17,17 @@ abstract type InputSource{NF, name} end
 InputSource(; kwargs...) = InputSource(kwargs...)
 
 """
+    $SIGNATURES
+
+Retrieve the [`VarLocation`](@ref) of the variable this input source provides, and its constituent
+[`VarDims`](@ref) and [`VarDomain`](@ref). The dimensions are inferred from the source data; the
+domain is given when the source is constructed and must match the variable it feeds.
+"""
+@inline varloc(source::InputSource) = source.loc
+@inline vardims(source::InputSource) = vardims(varloc(source))
+@inline vardomain(source::InputSource) = vardomain(varloc(source))
+
+"""
     $TYPEDSIGNATURES
 
 Returns a tuple of `Symbol`s corresponding to variable names supported by this `InputSource`.
@@ -107,9 +118,9 @@ end
 Input source that defines `input` state variables with the given names which
 can then be directly modified by the user.
 """
-struct FieldInputSource{NF, name, VD <: VarDims, FS <: AnyField{NF}, UT} <: InputSource{NF, name}
-    "Variable dimensions"
-    dims::VD
+struct FieldInputSource{NF, name, VL <: VarLocation, FS <: AnyField{NF}, UT} <: InputSource{NF, name}
+    "Variable location: spatial dimensions and the model domain the variable lives on"
+    loc::VL
 
     "Physical units"
     units::UT
@@ -132,8 +143,13 @@ end
 
 Create a `FieldInputSource` with the given grid and input variable `fields`. Use it for static input fields.
 The `name` can either be a plain `Symbol` or a namespaced path; see [`varpath`](@ref).
+
+The spatial dimensions are inferred from `field`. The `domain` defaults to [`Surface`](@ref), which
+is where most forcing data lives; give it explicitly for a source feeding a variable on another
+domain. It must match the [`VarDomain`](@ref) that variable is declared with, since a variable
+declared on two different domains is a conflict rather than a merge, and is reported as one.
 """
-function InputSource(grid::AbstractGrid{NF}, field::FS; name, units = NoUnits) where {NF, FS <: AnyField{NF}}
+function InputSource(grid::AbstractGrid{NF}, field::FS; name, domain::Optional{VarDomain} = nothing, units = NoUnits) where {NF, FS <: AnyField{NF}}
     # ensure fields are on the same architecture as the grid
     field = on_architecture(architecture(grid), field)
 
@@ -141,10 +157,10 @@ function InputSource(grid::AbstractGrid{NF}, field::FS; name, units = NoUnits) w
     @assert field.grid == ground_domain(grid) "Field must have the same grid as the input grid"
 
     # infer the VarDims and subsequently the Field location from the data dimensions
-    dims = Terrarium.vardims(field)
+    loc = VarLocation(Terrarium.vardims(field), domain)
 
     path = varpath(name)
-    return FieldInputSource{NF, path, typeof(dims), typeof(field), typeof(units)}(dims, units, field)
+    return FieldInputSource{NF, path, typeof(loc), typeof(field), typeof(units)}(loc, units, field)
 end
 
 """
@@ -153,17 +169,17 @@ end
 Convenience function to create a `FieldInputSource` from a `RingGrids.Field`.
 Converts the RingGrids field to an Oceananigans field and then creates the input source.
 """
-function InputSource(grid::ColumnRingGrid{NF}, ring_field::RingGrids.AbstractField; name, units = NoUnits) where {NF}
+function InputSource(grid::ColumnRingGrid{NF}, ring_field::RingGrids.AbstractField; name, domain::Optional{VarDomain} = nothing, units = NoUnits) where {NF}
     oceananigans_field = Field(ring_field, grid)
-    dims = Terrarium.vardims(oceananigans_field)
+    loc = VarLocation(Terrarium.vardims(oceananigans_field), domain)
     path = varpath(name)
-    return FieldInputSource{NF, path, typeof(dims), typeof(oceananigans_field), typeof(units)}(dims, units, oceananigans_field)
+    return FieldInputSource{NF, path, typeof(loc), typeof(oceananigans_field), typeof(units)}(loc, units, oceananigans_field)
 end
 
 # Land grids delegate to the discretization of the ground domain, which carries the ring grid.
 InputSource(grid::AbstractLandGrid, ring_field::RingGrids.AbstractField; kwargs...) = InputSource(ground_domain(grid), ring_field; kwargs...)
 
-variables(source::FieldInputSource) = tuple(with_scope(Base.front(varpath(source)), input(varname(source), source.dims; units = source.units)))
+variables(source::FieldInputSource) = tuple(with_scope(Base.front(varpath(source)), input(varname(source), source.loc; units = source.units)))
 
 """
 Type alias for a `FieldTimeSeries` with any X, Y, Z location or grid.
@@ -175,9 +191,9 @@ const AnyFieldTimeSeries{NF} = FieldTimeSeries{LX, LY, LZ, TI, K, I, D, G, NF} w
 
 Input source that reads input fields from pre-specified Oceananigans `FieldTimeSeries`.
 """
-struct FieldTimeSeriesInputSource{NF, name, VD <: VarDims, FTS <: AnyFieldTimeSeries{NF}, TT, UT} <: InputSource{NF, name}
-    "Variable dimensions"
-    dims::VD
+struct FieldTimeSeriesInputSource{NF, name, VL <: VarLocation, FTS <: AnyFieldTimeSeries{NF}, TT, UT} <: InputSource{NF, name}
+    "Variable location: spatial dimensions and the model domain the variable lives on"
+    loc::VL
 
     "Physical units"
     units::UT
@@ -189,16 +205,16 @@ struct FieldTimeSeriesInputSource{NF, name, VD <: VarDims, FTS <: AnyFieldTimeSe
     fts::FTS
 end
 
-function InputSource(fts::AnyFieldTimeSeries{NF}; name, reftime = first(fts.times), units = NoUnits) where {NF}
-    dims = vardims(fts)
+function InputSource(fts::AnyFieldTimeSeries{NF}; name, domain::Optional{VarDomain} = nothing, reftime = first(fts.times), units = NoUnits) where {NF}
+    loc = VarLocation(vardims(fts), domain)
     path = varpath(name)
-    return FieldTimeSeriesInputSource{NF, path, typeof(dims), typeof(fts), typeof(reftime), typeof(units)}(dims, units, reftime, fts)
+    return FieldTimeSeriesInputSource{NF, path, typeof(loc), typeof(fts), typeof(reftime), typeof(units)}(loc, units, reftime, fts)
 end
 
 # Forward to `InputSource(fts)` to avoid hitting static InputSource(grid, ::AbstractField) constructor
 InputSource(::AbstractGrid{NF}, fts::AnyFieldTimeSeries{NF}; kwargs...) where {NF} = InputSource(fts; kwargs...)
 
-variables(source::FieldTimeSeriesInputSource) = tuple(with_scope(Base.front(varpath(source)), input(varname(source), source.dims; units = source.units)))
+variables(source::FieldTimeSeriesInputSource) = tuple(with_scope(Base.front(varpath(source)), input(varname(source), source.loc; units = source.units)))
 
 # to initialize just update the state once at the start time
 function initialize!(inputs, grid, clock, fields, source::FieldTimeSeriesInputSource)

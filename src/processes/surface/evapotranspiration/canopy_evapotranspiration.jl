@@ -76,15 +76,15 @@ end
 
 variables(::PALADYNCanopyEvapotranspiration{NF}) where {NF} = (
     # Skin-driven vapor conductances (independent of skin temperature; held fixed during the SEB solve)
-    auxiliary(:ground_evaporation_conductance, XY(); units = u"m/s", desc = "Ground evaporation vapor conductance"),
-    auxiliary(:canopy_evaporation_conductance, XY(); units = u"m/s", desc = "Canopy evaporation vapor conductance"),
-    auxiliary(:transpiration_conductance, XY(); units = u"m/s", desc = "Transpiration vapor conductance"),
+    auxiliary(:ground_evaporation_conductance, Ground(XY()); units = u"m/s", desc = "Ground evaporation vapor conductance"),
+    auxiliary(:canopy_evaporation_conductance, Canopy(XY()); units = u"m/s", desc = "Canopy evaporation vapor conductance"),
+    auxiliary(:transpiration_conductance, Canopy(XY()); units = u"m/s", desc = "Transpiration vapor conductance"),
     # Partitioned humidity fluxes (skin-driven terms refreshed from the converged skin temperature by the finalize pass)
-    auxiliary(:evaporation_canopy, XY(); desc = "Canopy evaporation flux in meters liquid water height", units = u"m/s"),
-    auxiliary(:evaporation_ground, XY(), units = u"m/s", desc = "Ground evaporation flux in meters liquid water height"),
-    auxiliary(:transpiration, XY(), units = u"m/s", desc = "Transpiration evaporation flux in meters liquid water height"),
-    input(:skin_temperature, XY(); units = u"°C", desc = "Skin temperature"),
-    input(:ground_temperature, XY(); default = NF(1), units = u"°C", desc = "Ground surface temperature"),
+    auxiliary(:evaporation_canopy, Canopy(XY()); desc = "Canopy evaporation flux in meters liquid water height", units = u"m/s"),
+    auxiliary(:evaporation_ground, Ground(XY()), units = u"m/s", desc = "Ground evaporation flux in meters liquid water height"),
+    auxiliary(:transpiration, Canopy(XY()), units = u"m/s", desc = "Transpiration evaporation flux in meters liquid water height"),
+    input(:skin_temperature, Surface(XY()); units = u"°C", desc = "Skin temperature"),
+    input(:ground_temperature, Ground(Top(z = Center())); default = NF(1), units = u"°C", desc = "Ground surface temperature"),
 )
 
 @propagate_inbounds function ground_evapotranspiration_flux(i, j, grid, fields, ::PALADYNCanopyEvapotranspiration)
@@ -184,9 +184,9 @@ Compute and store the skin-driven vapor conductances on `grid` for the given sch
     g_gnd, g_trp, g_can = compute_evapotranspiration_conductances(i, j, grid, fields, evapotranspiration, interception, constants, atmos, soil, vegetation, args...)
 
     # Store skin-driven vapor conductances in corresponding output Fields
-    out.ground_evaporation_conductance[i, j, 1] = g_gnd
-    out.canopy_evaporation_conductance[i, j, 1] = g_can
-    out.transpiration_conductance[i, j, 1] = g_trp
+    out.ground_evaporation_conductance[i, j, end] = g_gnd
+    out.canopy_evaporation_conductance[i, j, end] = g_can
+    out.transpiration_conductance[i, j, end] = g_trp
     return out
 end
 
@@ -246,9 +246,9 @@ for the given scheme `evapotranspiration` and process dependencies.
     # Rescale by snow-covered fraction (if applicable) and convert to liquid water flux
     f_snow = snow_cover_fraction(i, j, grid, fields, snow)
     f_bare = NF(1) - f_snow
-    out.evaporation_ground[i, j, 1] = f_bare * Qh_gnd * r
-    out.transpiration[i, j, 1] = f_bare * Qh_trp * r
-    out.evaporation_canopy[i, j, 1] = f_bare * Qh_can * r
+    out.evaporation_ground[i, j, end] = f_bare * Qh_gnd * r
+    out.transpiration[i, j, end] = f_bare * Qh_trp * r
+    out.evaporation_canopy[i, j, end] = f_bare * Qh_can * r
     return out
 end
 

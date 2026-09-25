@@ -76,10 +76,10 @@ if not defined for the given configuration.
 @inline get_closure(hydrology::SoilHydrology) = hydrology.closure
 
 variables(hydrology::SoilHydrology{NF}) where {NF} = (
-    auxiliary(:saturation_water_ice, XYZ(), bounds = UnitInterval, desc = "Saturation level of water and ice in the pore space"),
-    auxiliary(:water_table, XY(), units = u"m", desc = "Elevation of the water table in meters"),
-    auxiliary(:hydraulic_conductivity, XYZ(z = Face()), units = u"m/s", desc = "Hydraulic conductivity of soil volumes in m/s"),
-    input(:liquid_water_fraction, XYZ(), default = 1, bounds = UnitInterval, desc = "Fraction of unfrozen water in the pore space"),
+    auxiliary(:saturation_water_ice, Ground(XYZ()), bounds = UnitInterval, desc = "Saturation level of water and ice in the pore space"),
+    auxiliary(:water_table, Ground(XY()), units = u"m", desc = "Elevation of the water table in meters"),
+    auxiliary(:hydraulic_conductivity, Ground(XYZ(z = Face())), units = u"m/s", desc = "Hydraulic conductivity of soil volumes in m/s"),
+    input(:liquid_water_fraction, Ground(XYZ()), default = 1, bounds = UnitInterval, desc = "Fraction of unfrozen water in the pore space"),
 )
 
 function compute_water_table!(state, grid, hydrology::SoilHydrology)
@@ -173,7 +173,7 @@ Kernel function that diagnoses the water table at grid cell `i, j` given the cur
 @propagate_inbounds function compute_water_table!(water_table, i, j, grid, sat, ::SoilHydrology{NF}) where {NF}
     zs = znodes(ground_domain(grid), Center(), Center(), Face())
     # scan z axis starting from the bottom (index 1) to find first non-saturated grid cell
-    water_table[i, j, 1] = findfirst_z(i, j, <(one(NF)), zs, sat)
+    water_table[i, j, end] = findfirst_z(i, j, <(one(NF)), zs, sat)
     return nothing
 end
 
@@ -246,7 +246,7 @@ surface into the `surface_excess_water` pool owned by the given surface `runoff`
         runoff::AbstractSurfaceRunoff
     ) where {NF}
     surface_excess = redistribute_saturation_profile!(out.saturation_water_ice, i, j, grid, hydrology)
-    out.surface_excess_water[i, j, 1] += surface_excess
+    out.surface_excess_water[i, j, end] += surface_excess
     return nothing
 end
 

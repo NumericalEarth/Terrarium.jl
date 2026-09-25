@@ -1,5 +1,5 @@
 using Terrarium
-using Terrarium: Variables, Namespace, initialize!, interior, varname, matches_scope, with_scope
+using Terrarium: Variables, Namespace, XY, XYZ, initialize!, interior, varname, matches_scope, with_scope
 using Test
 
 @testset "Namespaced input sources" begin

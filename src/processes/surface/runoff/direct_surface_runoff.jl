@@ -64,9 +64,9 @@ end
 # Top-level interface methods
 
 variables(::DirectSurfaceRunoff) = (
-    prognostic(:surface_excess_water, XY(), units = u"m", desc = "Excess water at the soil surface in m³/m²"),
-    auxiliary(:surface_runoff, XY(), units = u"m/s", desc = "Total surface runoff"),
-    auxiliary(:infiltration, XY(), units = u"m/s", desc = "Infiltration flux"),
+    prognostic(:surface_excess_water, Ground(Top()), units = u"m", desc = "Excess water at the soil surface in m³/m²"),
+    auxiliary(:surface_runoff, Ground(Top()), units = u"m/s", desc = "Total surface runoff"),
+    auxiliary(:infiltration, Ground(Top()), units = u"m/s", desc = "Infiltration flux"),
 )
 
 @propagate_inbounds surface_excess_water(i, j, grid, fields, ::AbstractSurfaceRunoff) = fields.surface_excess_water[i, j]
@@ -117,7 +117,7 @@ surface hydrology tendencies, so that `surface_excess_water += ∂S∂t * Δt` d
     ) where {NF}
     S = surface_excess_water(i, j, grid, fields, runoff)
     D = compute_surface_drainage(runoff, S)
-    tendencies.surface_excess_water[i, j, 1] = -min(D, S)
+    tendencies.surface_excess_water[i, j, end] = -min(D, S)
     return tendencies
 end
 
@@ -143,15 +143,15 @@ end
         # First, compute rate of excess water removal (surface drainage)
         surface_drainage = compute_surface_drainage(runoff, excess_water)
         # Calculate infiltration
-        infil = out.infiltration[i, j, 1] = compute_infiltration(runoff, surface_drainage, sat_top, k_unsat)
+        infil = out.infiltration[i, j, end] = compute_infiltration(runoff, surface_drainage, sat_top, k_unsat)
     else
         # Case 2: No excess water -> rainfall is routed directly to infiltration
         surface_drainage = zero(NF)
-        infil = out.infiltration[i, j, 1] = compute_infiltration(runoff, influx, sat_top, k_unsat)
+        infil = out.infiltration[i, j, end] = compute_infiltration(runoff, influx, sat_top, k_unsat)
     end
 
     # Compute surface runoff
-    out.surface_runoff[i, j, 1] = compute_surface_runoff(runoff, influx, surface_drainage, infil)
+    out.surface_runoff[i, j, end] = compute_surface_runoff(runoff, influx, surface_drainage, infil)
     return out
 end
 

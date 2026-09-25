@@ -50,6 +50,15 @@ $(TYPEDFIELDS)
     @component timestepper::Timestepper = default_timestepper(eltype(grid))
 end
 
+"""
+    $SIGNATURES
+
+Construct a [`LandModel`](@ref) from the given `grid` with the model's multi-domain
+[`LandGrid`](@ref) constructed via [`create_land_grid`](@ref).
+"""
+LandModel(grid::AbstractGrid; kwargs...) = LandModel(create_land_grid(grid); kwargs...)
+LandModel(grid::AbstractLandGrid; kwargs...) = LandModel(; grid, kwargs...)
+
 function StateVariables(
         model::LandModel{NF};
         clock = Clock(time = zero(NF)),
@@ -97,8 +106,8 @@ function StateVariables(
 end
 
 interface_variables(::LandModel) = (
-    auxiliary(:soil_heat_flux, XY(); units = u"W/m^2", desc = "Blended heat flux into the soil top (snow base + bare ground)"),
-    auxiliary(:snow_surface_heat_flux, XY(); units = u"W/m^2", desc = "Conductive heat flux from the skin into the top of the snowpack (positive upward); drives the snowpack's own energy tendency"),
+    auxiliary(:soil_heat_flux, Ground(Top()); units = u"W/m^2", desc = "Blended heat flux into the soil top (snow base + bare ground)"),
+    auxiliary(:snow_surface_heat_flux, Snow(Top()); units = u"W/m^2", desc = "Conductive heat flux from the skin into the top of the snowpack (positive upward); drives the snowpack's own energy tendency"),
 )
 
 function initialize!(state, model::LandModel)
