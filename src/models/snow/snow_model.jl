@@ -12,11 +12,11 @@ $(TYPEDFIELDS)
 """
 @parameterized @kwdef struct SnowModel{
         NF,
-        GridType <: AbstractGrid{NF},
-        Snow <: AbstractSnow{NF},
+        GridType <: AbstractGrid,
+        Snow <: AbstractSnow,
         Atmosphere <: AbstractAtmosphere,
         Initializer <: AbstractInitializer,
-        Timestepper <: AbstractTimeStepper{NF},
+        Timestepper <: AbstractTimeStepper,
     } <: AbstractSnowModel{NF, GridType}
     "Spatial grid type"
     grid::GridType

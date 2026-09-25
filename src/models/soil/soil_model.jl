@@ -8,10 +8,10 @@ $(TYPEDFIELDS)
 """
 @parameterized @kwdef struct SoilModel{
         NF,
-        GridType <: AbstractGrid{NF},
-        Soil <: AbstractSoil{NF},
+        GridType <: AbstractGrid,
+        Soil <: AbstractSoil,
         Initializer <: AbstractInitializer,
-        Timestepper <: AbstractTimeStepper{NF},
+        Timestepper <: AbstractTimeStepper,
     } <: AbstractSoilModel{NF, GridType}
     "Spatial grid type"
     grid::GridType
