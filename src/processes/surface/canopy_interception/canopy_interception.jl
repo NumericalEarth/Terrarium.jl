@@ -78,7 +78,7 @@ variables(::PALADYNCanopyInterception) = (
     auxiliary(:canopy_water_interception, Canopy(XY()); desc = "Canopy rain interception rate", units = u"m/s"),
     auxiliary(:canopy_water_removal, Canopy(XY()); desc = "Canopy water removal rate", units = u"m/s"),
     auxiliary(:saturation_canopy_water, Canopy(XY()); desc = "Fraction of the canopy saturated with water"),
-    auxiliary(:rainfall_ground, Ground(XY()); desc = "Rainfall rate reaching the ground", units = u"m/s"),
+    auxiliary(:rainfall_ground, Ground(Top()); desc = "Rainfall rate reaching the ground", units = u"m/s"),
     input(:leaf_area_index, Canopy(XY()); desc = "Leaf Area Index", units = u"m^2/m^2"),
     input(:stem_area_index, Canopy(XY()); desc = "Stem Area Index", units = u"m^2/m^2"),
 )
