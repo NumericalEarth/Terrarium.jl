@@ -88,8 +88,9 @@ function test_skin_temperature_solve!(
     # computes: the atmosphere-side demand (R_net + H_s + H_l) inverted through the (unblended) ground and
     # snow-top conduction targets should reproduce the current skin temperature. Also check that the
     # *stored* `ground_heat_flux` is the explicit bare-ground conductive flux at that Ts (see the
-    # `ImplicitSkinTemperature`-specific `compute_ground_heat_flux` in skin_temperature.jl).
+    # `ImplicitSkinTemperature`-specific `compute_ground_heat_flux` in ground_heat_flux.jl).
     skinT = model.surface_energy_balance.skin_temperature
+    ghf = model.surface_energy_balance.ground_heat_flux
     snow = hasproperty(model, :snow) ? model.snow : nothing
     Tg, κg, Δzg = Terrarium.ground_thermal_interface(1, 1, grid, state, skinT)
     Ts = state.skin_temperature[1, 1]
@@ -98,7 +99,7 @@ function test_skin_temperature_solve!(
     R_net = state.surface_net_radiation[1, 1]
     H_s = state.sensible_heat_flux[1, 1]
     H_l = state.latent_heat_flux[1, 1]
-    Ts_implicit = Terrarium.compute_skin_temperature(1, 1, grid, state, skinT, model.constants, snow)
+    Ts_implicit = Terrarium.compute_skin_temperature(1, 1, grid, state, skinT, ghf, model.constants, snow)
     Ts_residual = Ts - Ts_implicit
     G_residual = G - G_gradient
 

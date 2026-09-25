@@ -18,7 +18,7 @@ The main advantage of indirect coupling is that the implementations of processes
 
 ### Example: Ground surface temperature
 
-A concrete example of indirect coupling in Terrarium is the `ground_temperature` variable which represents the temperature of the uppermost subsurface layer (not to be confused with [skin temperature](@ref "Skin temperature and ground heat flux")). The `ground_temperature` is defined as a derived auxiliary variable by [`SoilThermodynamics`](@ref), with the resulting `Field` being simply a view of the uppermost soil `temperature` layer:
+A concrete example of indirect coupling in Terrarium is the `ground_temperature` variable which represents the temperature of the uppermost subsurface layer (not to be confused with [skin temperature](@ref "Skin temperature")). The `ground_temperature` is defined as a derived auxiliary variable by [`SoilThermodynamics`](@ref), with the resulting `Field` being simply a view of the uppermost soil `temperature` layer:
 
 ```julia
 variables(energy::SoilThermodynamics) = (
