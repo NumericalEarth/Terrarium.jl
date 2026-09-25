@@ -1,4 +1,4 @@
-# Skin temperature and ground heat flux
+# Skin temperature
 
 ```@meta
 CurrentModule = Terrarium
@@ -45,7 +45,7 @@ which reduces to $T_s^\star = T_g - G^\star \Delta z_1 / (2\kappa_s)$ without sn
 ```math
 r(T_s) = T_s - T_s^\star
 ```
-The root $r(T_s) = 0$ is the skin temperature at which the conductive fluxes balance the radiative and turbulent fluxes, i.e. the solution of the surface energy balance. Note that the *stored* `ground_heat_flux` field is not $G^\star$ but the explicit conductive flux $G(T_s, T_g)$ evaluated at the converged $T_s$ — the two coincide only at convergence (see [`compute_ground_heat_flux`](@ref)).
+The root $r(T_s) = 0$ is the skin temperature at which the conductive fluxes balance the radiative and turbulent fluxes, i.e. the solution of the surface energy balance. Note that the *stored* `ground_heat_flux` field is not $G^\star$ but the explicit conductive flux $G(T_s, T_g)$ evaluated at the converged $T_s$; the two coincide only at convergence. Both the demand $G^\star$ and the stored flux are owned by the [ground heat flux](@ref ground_heat_flux_docs) sub-process.
 
 The solve is performed by [`solve_skin_temperature!`](@ref), which wraps [`compute_skin_temperature_residual!`](@ref) in an [`ObjectiveFunction`](@ref) targeting the `skin_temperature` field and hands it to the configured solver. The default solver, [`default_skin_temperature_solver`](@ref), is a Newton-Raphson ([`RootSolver`](@ref) provided by [RootSolvers.jl](https://github.com/CliMA/RootSolvers.jl)) with a fixed iteration budget of $n = 5$ to balance accuracy with GPU efficiency. The prognostic `skin_temperature` is seeded with the current `ground_temperature` by [`initialize!`](@ref) so that the iteration starts from a physically sensible guess close to the root. After the solve converges, the surface energy fluxes are recomputed from the final skin temperature.
 
@@ -55,7 +55,7 @@ The solve is performed by [`solve_skin_temperature!`](@ref), which wraps [`compu
 PrescribedSkinTemperature
 ```
 
-When the skin temperature is prescribed, it is supplied directly as the `skin_temperature` input field (for example by an external coupler) and no nonlinear solve is performed: [`solve_skin_temperature!`](@ref) is a no-op for [`PrescribedSkinTemperature`](@ref). The fused surface-energy-balance kernel then evaluates the radiative and turbulent fluxes from the prescribed skin temperature and closes the ground heat flux as the residual
+When the skin temperature is prescribed, it is supplied directly as the `skin_temperature` input field (for example by an external coupler) and no nonlinear solve is performed: [`solve_skin_temperature!`](@ref) is a no-op for [`PrescribedSkinTemperature`](@ref). The fused surface-energy-balance kernel then evaluates the radiative and turbulent fluxes from the prescribed skin temperature. Paired with [`DiagnosedGroundHeatFlux`](@ref), the ground heat flux is closed as the residual
 ```math
 G = R_{\text{net}} + H_s + H_l
 ```
@@ -65,26 +65,22 @@ This configuration can be used to defer the surface energy balance to an externa
 
 ```@docs; canonical = false
 initialize!(state, grid, ::ImplicitSkinTemperature, args...)
-compute_auxiliary!(state, grid, skinT::ImplicitSkinTemperature, seb::AbstractSurfaceEnergyBalance, args...)
 ```
 
 ## Methods
 
 ```@docs; canonical = false
-compute_ground_heat_flux_demand(::AbstractSkinTemperature, R_net, H_s, H_l)
-compute_ground_heat_flux!(state, grid, skinT::AbstractSkinTemperature, seb::AbstractSurfaceEnergyBalance)
+skin_temperature(i, j, grid, fields, ::AbstractSkinTemperature)
+ground_thermal_interface
+snow_thermal_interface
 default_skin_temperature_solver
 ```
 
 ## Kernel functions
 
 ```@docs; canonical = false
-compute_ground_heat_flux_demand(i, j, grid, fields, skinT::AbstractSkinTemperature, ::AbstractSurfaceEnergyBalance)
-compute_ground_heat_flux(i, j, grid, fields, skinT::PrescribedSkinTemperature, seb::AbstractSurfaceEnergyBalance)
-compute_ground_heat_flux(i, j, grid, fields, skinT::ImplicitSkinTemperature, ::AbstractSurfaceEnergyBalance)
-compute_ground_heat_flux!(out, i, j, grid, fields, skinT::AbstractSkinTemperature, seb::AbstractSurfaceEnergyBalance)
-compute_skin_temperature(i, j, grid, fields, skinT::ImplicitSkinTemperature{NF}, args...) where {NF}
-compute_skin_temperature(i, j, grid, fields, skinT::ImplicitSkinTemperature{NF}, constants::PhysicalConstants, snow::AbstractSnow) where {NF}
+compute_skin_temperature(i, j, grid, fields, skinT::ImplicitSkinTemperature{NF}, ghf::AbstractGroundHeatFlux, args...) where {NF}
+compute_skin_temperature(i, j, grid, fields, skinT::ImplicitSkinTemperature{NF}, ghf::AbstractGroundHeatFlux, constants::PhysicalConstants, snow::AbstractSnow) where {NF}
 compute_skin_temperature_residual!
 solve_skin_temperature!
 ```

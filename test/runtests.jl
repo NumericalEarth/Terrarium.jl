@@ -10,6 +10,7 @@ if FLAG_ENZYME_TESTS
         include("differentiability/soil_hydrology_diff.jl")
         include("differentiability/vegetation_model_diff.jl")
         include("differentiability/snow_model_diff.jl")
+        include("differentiability/prescribed_seb_diff.jl")
         include("checkpointing/autodiff.jl")
     end
 end

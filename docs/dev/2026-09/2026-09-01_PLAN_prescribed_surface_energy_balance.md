@@ -1,10 +1,11 @@
 # `PrescribedSurfaceEnergyBalance`: ground heat flux as a first-class SEB sub-process
 
-> Status: **planned**. Extracts the ground heat flux into its own surface-energy-balance
+> Status: **completed** (Terrarium.jl side). Extracts the ground heat flux into its own surface-energy-balance
 > sub-process, so that it (like the radiative and turbulent fluxes) has `Diagnosed` and
 > `Prescribed` implementations. `PrescribedSurfaceEnergyBalance` then becomes a type alias for a
 > `SurfaceEnergyBalance` whose four flux sub-processes are all prescribed, rather than a separate
-> no-op driver.
+> no-op driver. Implemented on `bg/ground-heat-flux`; the NumericalEarth extension follow-up (change 6)
+> and the coupled end-to-end run (verification 9) live in `NumericalEarth.jl` and remain outstanding.
 
 Date of initial draft: 2026-09-01
 
@@ -36,7 +37,25 @@ Revised after:
   the existing `Prescribed`/`Diagnosed` pairs for the radiative and turbulent fluxes.
   `PrescribedSurfaceEnergyBalance` becomes a type alias plus a convenience constructor. Re-baselined
   from `cc6b24090` onto `bg/var-domains` (`5b8bda663`), whose variable-domain API this design depends
-  on. *Awaiting human approval before implementation.*
+  on. *Approved by the author on 2026-09-25.*
+- **Rev 3 (2026-09-25):** Implementation notes, recorded during development on `bg/ground-heat-flux`
+  (branched from `bg/prescribed-seb` at `26c86d20e`). Three deviations from Rev 2:
+  1. **The demand dispatches on `AbstractGroundHeatFlux`, not only on `DiagnosedGroundHeatFlux`.**
+     Change 2 assigned the residual closure to `DiagnosedGroundHeatFlux` alone, but the implicit skin
+     temperature solve also needs the demand in order to invert its conduction relation. Putting an
+     indexed `compute_ground_heat_flux_demand(i, j, grid, fields, ghf)` on the abstract type, with the
+     prescribed method returning the supplied field, is what actually makes the `Implicit` +
+     `Prescribed` row of the change 5 table well posed; without it that row would silently invert
+     against `R_net + H_s + H_l` while storing an unrelated `G`. `compute_skin_temperature` therefore
+     gained a `ghf` argument after `skinT` (propagated to `compute_skin_temperature_residual!` and to
+     `diagnose_skin_temperature_residual`).
+  2. **`DiagnosedGroundHeatFlux` still dispatches on the skin temperature scheme.** Change 1 described
+     it as reproducing `G = R_net + H_s + H_l`, which is only the `PrescribedSkinTemperature` case;
+     `ImplicitSkinTemperature` stores the explicit conductive flux `2κ_g(T_g − T_s)/Δz_g`. Both
+     methods moved across unchanged, so behavior is preserved (verified bit for bit; see below).
+  3. **The documentation split into two pages.** `skin_temperature.md` is retitled "Skin temperature"
+     (its inbound `@ref`s updated) and the new `ground_heat_flux.md` carries the sub-process, its two
+     implementations, and the supported-combination table.
 
 ## Problem description
 
@@ -270,6 +289,10 @@ internally; trim to what the prescribed SEB and the hydrology actually read.
 
 ## Testing and verification
 
+> Outcome (2026-09-25): items 1-8 and 10 done and passing; items 6 and 9 are cross-repository and
+> remain outstanding. The full suite (`Pkg.test()`) and the Enzyme suite pass, and the draft doc build
+> reports no `docs_block` errors.
+
 1. **Default behavior is unchanged.** `SurfaceEnergyBalance(NF)` with the new
    `DiagnosedGroundHeatFlux` default must reproduce pre-refactor `ground_heat_flux` bit for bit on an
    existing standalone case. This is the main regression guard for the code move.
@@ -294,6 +317,41 @@ internally; trim to what the prescribed SEB and the hydrology actually read.
    cold-column minimum should track the delivered forcing instead of collapsing, and the stored
    `ground_heat_flux` should equal `R_net + H + LE` by construction.
 10. **Draft doc build** (`julia --project=docs docs/make.jl --local --draft`).
+
+### Verification results
+
+1. **Default behavior is unchanged — confirmed bit for bit.** A 30-step deterministic `LandModel` run
+   with the default SEB (`ImplicitSkinTemperature` + all fluxes diagnosed), dumping `ground_heat_flux`,
+   `skin_temperature`, `surface_net_radiation`, the turbulent fluxes, and the final `internal_energy`
+   profile, produces byte-identical output on `bg/ground-heat-flux` and on the `26c86d20e` baseline
+   (max absolute difference exactly `0.0` over 180 values).
+2. **No overwrite — confirmed.** `test/surface/ground_heat_flux.jl` sets `G = 25` W/m² alongside
+   deliberately inconsistent turbulent fluxes (`H_s = 111`, `H_l = 222`) and asserts the field is
+   unchanged through `compute_auxiliary!`, through `compute_boundary_conditions!`, and across a
+   `timestep!`, and that the soil-top energy BC is that very field.
+3. **Energy conservation — confirmed.** Over 20 steps at `Δt = 60` s with a prescribed constant
+   `G = 25` W/m², the column's integrated internal-energy change equals `−G·Δt·N` to within `1e-6`
+   relative tolerance (negative because all fluxes are positive upward).
+4. **Variable classification — confirmed.** `ground_heat_flux` is declared exactly once by each SEB
+   configuration, as an `AuxiliaryVariable` under `DiagnosedGroundHeatFlux` and an `InputVariable`
+   under `PrescribedGroundHeatFlux`; neither skin temperature scheme declares it any more.
+5. **Alias and constructor — confirmed**, together with each sub-process getter, so the test fails
+   loudly if the type parameter order and the field order drift apart again.
+6. *(NumericalEarth extension trim)* **Not done.** `NumericalEarthTerrariumExt` lives in
+   `NumericalEarth.jl`; this is a separate follow-up in that repository.
+7. **Type stability and allocations — confirmed** for all four combinations of change 5's table:
+   `solve_surface_energy_balance!` infers `Nothing` and allocates an identical 3504 bytes in every
+   case, and `compute_auxiliary!` allocates nothing. All four integrate to finite state.
+8. **Differentiability — confirmed.** `test/differentiability/prescribed_seb_diff.jl` takes a reverse
+   adjoint of a `timestep!` through a `PrescribedSurfaceEnergyBalance` with respect to the prescribed
+   `ground_heat_flux` and asserts the sensitivity is finite and strictly negative (a positive, upward
+   flux cools the column).
+9. *(Coupled end to end)* **Not done.** Requires the coupled `EarthSystemModel` and the extension
+   changes of item 6, both in `NumericalEarth.jl`.
+10. **Draft doc build — confirmed clean.** No `docs_block` errors remain. The build still terminates
+    on `:external_cross_references`, but only because the sandbox cannot reach the upstream
+    `objects.inv` inventories (Oceananigans, KernelAbstractions, SpeedyWeather, FreezeCurves,
+    Thermodynamics); every such failure is in a page this work does not touch.
 
 ## Documentation changes
 
