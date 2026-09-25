@@ -13,20 +13,20 @@ It is worth noting that tendencies are also treated internally as auxiliary vari
 however, they are assigned their own category here since they need to be handled separately
 by the timestepping scheme.
 """
-struct StateVariables{
+mutable struct StateVariables{
         NF,
         prognames, closurenames, auxnames, inputnames, nsnames,
         ProgFields, TendFields, AuxFields, InputFields, Namespaces,
         Cache,
         ClockType,
     } <: AbstractStateVariables
-    prognostic::NamedTuple{prognames, ProgFields}
-    tendencies::NamedTuple{prognames, TendFields}
-    auxiliary::NamedTuple{auxnames, AuxFields}
-    inputs::NamedTuple{inputnames, InputFields}
-    namespaces::NamedTuple{nsnames, Namespaces}
-    timestepper_cache::Cache
-    clock::ClockType
+    const prognostic::NamedTuple{prognames, ProgFields}
+    const tendencies::NamedTuple{prognames, TendFields}
+    const auxiliary::NamedTuple{auxnames, AuxFields}
+    const inputs::NamedTuple{inputnames, InputFields}
+    const namespaces::NamedTuple{nsnames, Namespaces}
+    const timestepper_cache::Cache
+    const clock::ClockType
 
     function StateVariables(
             ::Type{NF},
