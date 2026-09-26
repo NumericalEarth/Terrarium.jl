@@ -51,7 +51,7 @@ using Unitful: Units, Quantity, AbstractQuantity, NoUnits
 using Unitful: @u_str, uconvert, ustrip, upreferred
 
 # Parameter handling (imported from SpeedyWeatherInternals for now)
-using SpeedyWeatherInternals.ParameterEditing: ParameterEditing, ParameterTable, ComponentVector,
+using SpeedyWeatherInternals.ParameterEditing: ParameterEditing, ParameterTable, Axis, ComponentArray, ComponentVector,
     Positive, Nonnegative, Unbounded, parameters, @parameterized
 
 # Explicit imports
