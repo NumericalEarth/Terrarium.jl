@@ -77,6 +77,39 @@ Pad the grid `indices` to the three indices required to *write* to a
 @inline field_indices(indices::NTuple{2, Integer}) = (indices[1], indices[2], 1)
 @inline field_indices(indices::NTuple{1, Integer}) = (indices[1], 1, 1)
 
+# TODO: move these two `Tuple` methods upstream into SpeedyWeatherInternals.ParameterEditing.
+# `ParameterEditing` handles `NamedTuple`s but has no method for plain `Tuple`s, so parameters
+# nested inside one are silently dropped by `parameters` (falling through to the
+# `parameters(::Type{PT}, obj; kwargs...) = (;)` catch-all) and left untouched by `reconstruct`.
+# This affects any process holding its sub-components in a `Tuple`, e.g. the `horizons` of a
+# `SoilStratigraphy`. Elements are keyed by their 1-based index.
+function ParameterEditing.parameters(components::Tuple; kwargs...)
+    component_params = map(enumerate(components)) do (i, component)
+        Symbol(i) => ParameterEditing.parameters(component; kwargs...)
+    end
+    nonempty_params = filter(p -> length(p[2]) > 0, component_params)
+    return ParameterEditing.ParameterTable((; nonempty_params...))
+end
+
+# `ConstructionBase.setproperties` rejects a non-empty patch for a `Tuple`, so the generated
+# `reconstruct` cannot rebuild one; reconstruct each element by index instead and leave
+# elements absent from `values` untouched. Generated so that the key lookup happens at compile
+# time and the result stays type stable, mirroring `ParameterEditing.reconstruct`.
+@generated function ParameterEditing.reconstruct(components::Tuple, values::Union{NamedTuple, ComponentArray})
+    keysof(::Type{<:NamedTuple{keys}}) where {keys} = keys
+    keysof(::Type{<:ComponentArray{T, N, A, Tuple{Axis{coords}}}}) where {T, N, A, coords} = keys(coords)
+    value_keys = keysof(values)
+    element_calls = map(1:fieldcount(components)) do i
+        key = Symbol(i)
+        return if key in value_keys
+            :(ParameterEditing.reconstruct(components[$i], values.$key))
+        else
+            :(components[$i])
+        end
+    end
+    return :(tuple($(element_calls...)))
+end
+
 include("tuple_utils.jl")
 include("math.jl")
 include("time.jl")
