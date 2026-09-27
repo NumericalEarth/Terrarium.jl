@@ -5,6 +5,8 @@ Base type for snow areal-coverage parameterizations.
 """
 abstract type AbstractSnowCover{NF} end
 
+number_format(::Type{<:AbstractSnowCover{NF}}) where {NF} = NF
+
 """
     $TYPEDEF
 

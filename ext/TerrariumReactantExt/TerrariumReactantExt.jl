@@ -21,6 +21,11 @@ const RARCH = ReactantState
 
 @inline Terrarium.uses_reactant(::Terrarium.ReactantMarker) = true
 
+# Reactant wraps numbers in `TracedRNumber`/`ConcreteRNumber` when tracing or when the value lives
+# on the device, so `eltype` alone would report the wrapper rather than the underlying number
+# format. Unwrap it so that components constructed from traced values still resolve their `NF`.
+@inline Terrarium.number_format(typ::Type{<:Reactant.RNumber}) = Reactant.unwrapped_eltype(typ)
+
 # Land grids that live on the device.
 const ReactantLandGrid{NF, TX, TY, TZ} = AbstractLandGrid{NF, TX, TY, TZ, <:RARCH}
 const ReactantModel{NF} = AbstractModel{NF, <:ReactantLandGrid{NF}}
