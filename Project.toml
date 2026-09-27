@@ -28,11 +28,13 @@ Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [weakdeps]
 Checkpointing = "eb46d486-4f9c-4c3d-b445-a617f2a2f1ca"
+EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
 Rasters = "a3a2b9e3-a471-40c9-b274-f788e487c689"
 Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
 
 [extensions]
 TerrariumCheckpointingExt = "Checkpointing"
+TerrariumEnzymeExt = "EnzymeCore"
 TerrariumRastersExt = "Rasters"
 TerrariumReactantExt = "Reactant"
 
@@ -45,6 +47,7 @@ Dates = "1"
 DocStringExtensions = "0.9.5"
 DomainSets = "0.7, 0.8"
 Downloads = "1"
+EnzymeCore = "0.8"
 Flatten = "0.4"
 FreezeCurves = "0.9"
 Interpolations = "0.16"
