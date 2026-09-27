@@ -51,7 +51,7 @@ end
 #
 # Executing this for the first time, might take a few minutes. Subsequent executions will be very fast though.
 
-autodiff(set_runtime_activity(Reverse), layer_temperature, Active, Duplicated(integrator, dintegrator))
+@time autodiff(set_runtime_activity(Reverse), layer_temperature, Active, Duplicated(integrator, dintegrator))
 
 # Let's look at the results that were accumulated in our shadow memory `dintegrator` by Enzyme and plot them!
 
@@ -78,7 +78,13 @@ f2
 # ## Parameter sensitivities
 #
 # We can also compute sensitivities with respect to *model parameters* rather than initial
-# conditions. Since we are interested in only a single parameter — the soil quartz thermal
+# conditions. Which mode to use depends on how many parameters we are asking about: forward mode
+# costs one pass per parameter and is the natural choice for a single one, while reverse mode
+# returns the derivatives with respect to *all* parameters from a single pass. We do both below.
+#
+# ### Forward mode: a single parameter
+#
+# Since we are interested in only a single parameter here — the soil quartz thermal
 # conductivity ``\kappa_\text{quartz}`` — forward-mode AD is the natural choice: it
 # propagates one tangent vector forward through the computation in a single pass, without
 # the memory overhead of reverse mode.
@@ -144,5 +150,80 @@ Makie.scatterlines!(f5[1, 1], ∂T_∂κ_quartz, zs)
 f5
 
 # The behavior of the sensitivity is physically consistent: the higher the conductivity, the quicker the heating from above (with the surface temperature higher than the initial soil temperature) can propagate downwards. Logically, there is only sensitivity for layers that have already seen a change in temperature during this (short) time integration.
+
+# ### Reverse mode: the full parameter set
+#
+# Picking one parameter by hand does not scale to calibration, where we want the gradient with
+# respect to everything the model exposes. Terrarium collects the parameters of a model, including
+# those of all nested components, with `parameters`:
+
+params = Terrarium.parameters(model)
+
+# The result is a table of every parameter, its value, its bounds, and a description. To
+# differentiate with respect to them we need them as a flat vector, which `vec` provides as a
+# `ComponentVector`, i.e. a plain vector of values that still knows the name of each entry:
+
+θ = vec(params)
+parameter_names = Terrarium.ParameterEditing.labels(θ)
+
+# Now we define the quantity we want the sensitivities of: the mean soil temperature after 50 time
+# steps. The parameter vector enters the model through `reconstruct`, which rebuilds the model
+# components with the given values. This happens *inside* the differentiated function, which is
+# what allows Enzyme to track each parameter from the vector into the model components and back out
+# through the integration.
+
+function mean_temperature(θ, integrator, steps)
+    perturbed_model = Terrarium.ParameterEditing.reconstruct(integrator.model, θ)
+    perturbed = ModelIntegrator(
+        integrator.clock,
+        perturbed_model,
+        integrator.inputs,
+        integrator.state,
+        integrator.initializers,
+    )
+    run!(perturbed; steps)
+    return mean(interior(perturbed.state.temperature))
+end
+
+# `dθ` is the shadow in which Enzyme accumulates the gradient, one entry per parameter. Note that
+# we integrate without checkpointing here: rebuilding the model from a parameter vector inside the
+# differentiated function is currently incompatible with Checkpointing.jl, so keep the number of
+# time steps modest when differentiating with respect to parameters.
+
+dθ = make_zero(θ)
+dintegrator = make_zero(integrator)
+@time autodiff(
+    set_runtime_activity(Reverse),
+    mean_temperature,
+    Active,
+    Duplicated(θ, dθ),
+    Duplicated(integrator, dintegrator),
+    Const(50),
+)
+
+# A single reverse pass has given us all 19 derivatives. Parameters carry different units and span
+# several orders of magnitude, so comparing the raw derivatives is misleading; we instead scale each
+# one by its parameter value, giving the response to a *fractional* change in that parameter,
+# ``\theta_i \, \partial \bar{T} / \partial \theta_i``, in kelvin:
+
+scaled_sensitivities = θ .* dθ
+
+f6 = Makie.Figure(size = (900, 450))
+ax = Makie.Axis(
+    f6[1, 1],
+    ylabel = "Sensitivity θᵢ ∂T̄/∂θᵢ (K)",
+    xlabel = "Parameter",
+    xticks = (1:length(θ), replace.(parameter_names, "soil." => "")),
+    xticklabelrotation = π / 4,
+)
+Makie.scatterlines!(ax, 1:length(θ), Array(scaled_sensitivities))
+f6
+
+# The thermal parameters dominate, as expected for a purely conductive warming experiment: raising
+# any of the thermal conductivities warms the column faster, while raising the heat capacities slows
+# it down, which is exactly the sign pattern we see. The remaining parameters are identically zero
+# here, and that is informative rather than suspicious: the soil is unfrozen, so the ice properties
+# never enter; the hydrology is configured as `NoFlow`, so no water moves; and the soil carries no
+# organic fraction, so its organic properties have nothing to act on.
 #
 # These examples should just demonstrate the technical possibilities of Terrarium.jl in an easy and fast to compute setup, stay tuned for more complex examples.
