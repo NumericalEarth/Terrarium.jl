@@ -245,6 +245,10 @@ Convenience constructor for all `AbstractModel` types that accepts `grid` as a p
 """
 (::Type{Model})(grid::AbstractGrid; kwargs...) where {Model <: AbstractModel} = Model(; grid, kwargs...)
 
+# Number format disptaches
+number_format(::Type{<:AbstractModel{NF}}) where {NF} = NF
+number_format(::Type{<:AbstractProcess{NF}}) where {NF} = NF
+
 # Default parameters collection for processes
 function ParameterEditing.parameters(::Type{PT}, proc::AbstractProcess; kwargs...) where {PT <: ModelParameters.AbstractParam}
     proc_params = map(fieldnames(typeof(proc))) do name
@@ -253,10 +257,6 @@ function ParameterEditing.parameters(::Type{PT}, proc::AbstractProcess; kwargs..
     nonempty_params = filter(p -> length(p[2]) > 0, proc_params)
     return ParameterEditing.ParameterTable((; nonempty_params...))
 end
-
-# Default ConstructionBase override for processes and models
-ConstructionBase.constructorof(::Type{MT}) where {NF, MT <: Union{AbstractModel{NF}, AbstractProcess{NF}}} =
-    (args...) -> MT.name.wrapper(name, args...)
 
 function Base.show(io::IO, model::AbstractModel{NF}) where {NF}
     println(io, "$(nameof(typeof(model))){$NF} on $(architecture(get_grid(model)))")
