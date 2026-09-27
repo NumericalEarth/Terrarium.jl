@@ -38,7 +38,7 @@ Implementations of `AbstractModel` are required to implement, at minimum, three 
 Note that a default implementation of `variables` is provided which automatically collects all
 variables declared by `AbstractProcess`es defined as fields (properties) of `struct`s that subtype `AbstractModel`.
 """
-abstract type AbstractModel{NF, Grid <: AbstractLandGrid{NF}}  end
+abstract type AbstractModel{NF, Grid <: AbstractLandGrid{NF}} end
 
 # Method interface for AbstractModel and AbstractProcess
 
@@ -263,6 +263,10 @@ function ParameterEditing.parameters(proc::AbstractProcess; kwargs...)
     nonempty_params = filter(p -> length(p[2]) > 0, proc_params)
     return ParameterEditing.ParameterTable((; nonempty_params...))
 end
+
+# Default ConstructionBase override for processes and models
+ConstructionBase.constructorof(::Type{MT}) where {NF, MT <: Union{AbstractModel{NF}, AbstractProcess{NF}}} =
+    (args...) -> MT.name.wrapper(name, args...)
 
 function Base.show(io::IO, model::AbstractModel{NF}) where {NF}
     println(io, "$(nameof(typeof(model))){$NF} on $(architecture(get_grid(model)))")
