@@ -14,7 +14,7 @@ be constant across both space and time.
     "Thickness of the soil horizon in meters"
     @param thickness::NF
 
-    function ConstantSoilHorizon(name::Symbol, texture::SoilTexture, porosity::AbstractSoilPorosity, thickness::NF) where {NF}
+    function ConstantSoilHorizon(name::Symbol, porosity::AbstractSoilPorosity, texture::SoilTexture, thickness::NF) where {NF}
         return new{NF, name, typeof(porosity)}(porosity, texture, thickness)
     end
 end
@@ -25,7 +25,7 @@ function ConstantSoilHorizon(
         porosity = ConstantSoilPorosity(NF),
         thickness = one(NF)
     ) where {NF}
-    return ConstantSoilHorizon(name, texture, porosity, thickness)
+    return ConstantSoilHorizon(name, porosity, texture, thickness)
 end
 
 @inline soil_texture(i, j, grid, fields, horizon::ConstantSoilHorizon) = horizon.texture

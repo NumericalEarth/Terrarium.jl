@@ -254,6 +254,10 @@ function ParameterEditing.parameters(proc::AbstractProcess; kwargs...)
     return ParameterEditing.ParameterTable((; nonempty_params...))
 end
 
+# Default ConstructionBase override for processes and models
+ConstructionBase.constructorof(::Type{MT}) where {NF, MT <: Union{AbstractModel{NF}, AbstractProcess{NF}}} =
+    (args...) -> MT.name.wrapper(name, args...)
+
 function Base.show(io::IO, model::AbstractModel{NF}) where {NF}
     println(io, "$(nameof(typeof(model))){$NF} on $(architecture(get_grid(model)))")
     for name in propertynames(model)
