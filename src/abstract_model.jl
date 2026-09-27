@@ -256,9 +256,9 @@ process components to `create_land_grid`.
 (::Type{Model})(grid::AbstractGrid; kwargs...) where {Model <: AbstractModel} = Model(create_land_grid(grid); kwargs...)
 
 # Default parameters collection for processes
-function ParameterEditing.parameters(proc::AbstractProcess; kwargs...)
+function ParameterEditing.parameters(::Type{PT}, proc::AbstractProcess; kwargs...) where {PT <: ModelParameters.AbstractParam}
     proc_params = map(fieldnames(typeof(proc))) do name
-        name => ParameterEditing.parameters(getproperty(proc, name))
+        name => ParameterEditing.parameters(PT, getproperty(proc, name))
     end
     nonempty_params = filter(p -> length(p[2]) > 0, proc_params)
     return ParameterEditing.ParameterTable((; nonempty_params...))
