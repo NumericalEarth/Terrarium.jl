@@ -6,7 +6,7 @@ Model for surface hydrology processes.
 Properties:
 $TYPEDFIELDS
 """
-@parameterized @kwdef struct SurfaceHydrologyModel{
+@parameterized @kwdef mutable struct SurfaceHydrologyModel{
         NF,
         GridType <: AbstractGrid{NF},
         Atmosphere <: AbstractAtmosphere,

@@ -6,7 +6,7 @@ General implementation of a 1D column model of soil energy, water, and carbon tr
 Properties:
 $(TYPEDFIELDS)
 """
-@parameterized @kwdef struct SoilModel{
+@parameterized @kwdef mutable struct SoilModel{
         NF,
         GridType <: AbstractGrid,
         Soil <: AbstractSoil,

@@ -8,7 +8,7 @@ Multiple PFTs can be later handled with a `TiledVegetationModel` type that compo
 Properties:
 $TYPEDFIELDS
 """
-@parameterized @kwdef struct VegetationModel{
+@parameterized @kwdef mutable struct VegetationModel{
         NF,
         Vegetation <: AbstractVegetation{NF},
         Atmosphere <: AbstractAtmosphere{NF},
