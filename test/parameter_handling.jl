@@ -1,5 +1,5 @@
 using Terrarium
-using Terrarium: parameters, getproperties
+using Terrarium: parameters, getproperties, ParameterEditing
 using Test
 
 @testset "Collect parameters" begin
@@ -21,4 +21,23 @@ using Test
     integrator = initialize(model)
     updated_integrator = initialize(integrator, model_params)
     @test all(vec(parameters(integrator.model)) .≈ model_params)
+end
+
+@testset "Regression: Reconstruct snow parameters" begin
+    # `SingleLayerSnow` carries `NF` only via its supertype bound, so it needs an explicit
+    # `constructorof` method for `reconstruct` to be able to rebuild it.
+    grid = ColumnGrid(CPU(), Float64, ExponentialSpacing(Δz_min = 0.05, Δz_max = 100.0, N = 100))
+    snow = SingleLayerSnow(eltype(grid))
+    snow_params = vec(parameters(snow))
+    @test length(snow_params) > 0
+    # round-trip with modified values
+    updated_params = snow_params .* 1.05
+    updated_snow = ParameterEditing.reconstruct(snow, updated_params)
+    @test typeof(updated_snow) === typeof(snow)
+    @test all(vec(parameters(updated_snow)) .≈ updated_params)
+    # and as a component of a coupled model
+    model = LandModel(grid; snow, vegetation = nothing)
+    updated_model = ParameterEditing.reconstruct(model, ParameterEditing.ComponentVector(snow = updated_params))
+    @test typeof(updated_model) === typeof(model)
+    @test all(vec(parameters(updated_model.snow)) .≈ updated_params)
 end
