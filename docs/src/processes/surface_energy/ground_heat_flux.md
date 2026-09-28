@@ -13,7 +13,7 @@ using Terrarium
 
 ## Overview
 
-The **ground heat flux** $G$ (W/m²) is the energy flux across the top of the ground (soil) column. It is the term through which the surface energy balance drives the subsurface: without snow, the `ground_heat_flux` field *is* the Neumann boundary condition on the soil's internal energy (see [`SoilHeatFlux`](@ref)), and with snow it feeds the blended conductive flux across the snow base.
+The **ground heat flux** $G$ (W/m²) is the energy flux across the top of the ground (soil) column. It is the term through which the surface energy balance influences the heat balance of the soil. Without snow, the `ground_heat_flux` field is the Neumann boundary condition on the soil's internal energy (see [`SoilHeatFlux`](@ref)), and with snow it feeds the blended conductive flux across the snow base.
 
 Following the standard convention of Terrarium and Oceananigans, all surface energy fluxes are defined **positive upward**. A positive $G$ therefore removes energy from the ground column.
 
