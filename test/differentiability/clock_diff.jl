@@ -2,6 +2,7 @@ using Terrarium
 using Test
 
 using Checkpointing
+using Dates
 using Enzyme
 using Oceananigans.TimeSteppers: Clock, tick!
 
@@ -23,6 +24,15 @@ using Enzyme: Reverse, set_runtime_activity
     (_, dΔt), = Enzyme.autodiff(Reverse, squared_time, Active, Duplicated(clock, dclock), Active(2.0))
     @test dΔt ≈ 2 * (3.0 + 2.0)
     @test clock.iteration == 1
+
+    # A `DateTime` clock (as used when coupled to SpeedyWeather) has an integer-valued, inactive
+    # `time`; the rule must skip it rather than try to add a `DateTime` to a `Float64`.
+    last_Δt_squared(clock, Δt) = (tick!(clock, Δt); clock.last_Δt^2)
+    date_clock = Clock(time = DateTime(2024, 1, 1))
+    ddate_clock = Enzyme.make_zero(date_clock)
+    (_, dΔt_date), = Enzyme.autodiff(Reverse, last_Δt_squared, Active, Duplicated(date_clock, ddate_clock), Active(2.0))
+    @test dΔt_date ≈ 2 * 2.0
+    @test date_clock.time == DateTime(2024, 1, 1) + Millisecond(2000)
 
     # Checkpointed reverse mode through `run!` must compile and give a nonzero, finite adjoint.
     NF = Float32
