@@ -30,9 +30,10 @@
 #     measured attempt (2026-09-25; Julia 1.10.12, Enzyme 0.13.204, SpeedyWeather 0.22.1) got
 #     past Terrarium and failed inside SpeedyWeather, either with an `EnzymeInternalError` in
 #     `vertical_advection!` or with an Enzyme `TypeAnalysis` assertion. Since then this branch
-#     has made `StateVariables` and the model types mutable and added a `tick!` rule in
-#     `TerrariumEnzymeExt`, which shortened Terrarium-side compile times considerably, but the
-#     coupled step has not been re-measured. Details and the bisection numbers are in
+#     has made `StateVariables` and the model types mutable (a large compile-time win on the
+#     Terrarium side) and added a `tick!` reverse rule in `TerrariumEnzymeExt` that keeps the
+#     clock's integer counters out of Enzyme's analysis, but the coupled step has not been
+#     re-measured past that point. Details and the bisection numbers are in
 #     `docs/dev/2026-09/2026-09-24_NOTE_enzyme_landmodel_compile_time.md`.
 #
 #     Use Julia 1.10, keep the resolution and step count small, and treat everything after the
