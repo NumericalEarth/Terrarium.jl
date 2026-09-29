@@ -90,11 +90,11 @@ texture = soil_texture(i, j, grid, getproperty(fields, nameof(horizon)), horizon
 ```
 """
 @inline function soil_horizon(i, j, k, grid, fields, strat::SoilStratigraphy{NF}) where {NF}
-    fgrid = get_field_grid(grid)
+    ground_grid = ground_domain(grid)
     # get midpoint of current node at k
-    zₖ = znode(i, j, k, fgrid, Center(), Center(), Center())
+    zₖ = znode(i, j, k, ground_grid, Center(), Center(), Center())
     # initially set z to uppermost layer boundary
-    z = znode(i, j, fgrid.Nz + 1, fgrid, Center(), Center(), Face())
+    z = znode(i, j, ground_grid.Nz + 1, ground_grid, Center(), Center(), Face())
     # initialize result to first horizon (will be updated in loop)
     horizon = first(strat.horizons)
     for next in strat.horizons
@@ -119,11 +119,11 @@ is `getproperty(fields, nameof(horizon))`.
         args...;
         kwargs...
     )
-    fgrid = get_field_grid(grid)
+    ground_grid = ground_domain(grid)
     # midpoint of the current node at k
-    zₖ = znode(i, j, k, fgrid, Center(), Center(), Center())
+    zₖ = znode(i, j, k, ground_grid, Center(), Center(), Center())
     # uppermost layer boundary
-    z = znode(i, j, fgrid.Nz + 1, fgrid, Center(), Center(), Face())
+    z = znode(i, j, ground_grid.Nz + 1, ground_grid, Center(), Center(), Face())
     # Evaluate `func` and the thickness for every horizon up front via `fastmap`, which unrolls
     # the (heterogeneously typed) horizon tuple in a type-stable way. The resulting `(value,
     # thickness)` tuples are homogeneously typed, so the depth-based selection below is a plain,

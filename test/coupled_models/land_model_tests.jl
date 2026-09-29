@@ -29,6 +29,27 @@ using Oceananigans.BoundaryConditions: BoundaryCondition, Flux
     energy_top_bc = integrator.state.internal_energy.boundary_conditions.top
     @test isa(energy_top_bc, BoundaryCondition{<:Flux})
     @test energy_top_bc.condition == integrator.state.ground_heat_flux
+    # Check that ground evaporation is applied as a sink in the soil water tendency (issue #203).
+    # Compute the tendencies once with zero and once with nonzero ground evaporation; the difference
+    # in the top-layer saturation tendency must equal E / (Δz * porosity). The evaporation flux is set
+    # after the boundary conditions since the SEB solve recomputes it from the skin temperature.
+    state = integrator.state
+    function top_saturation_tendency(E)
+        Terrarium.reset_tendencies!(state)
+        compute_boundary_conditions!(state, land)
+        set!(state.evaporation_ground, E)
+        compute_tendencies!(state, land)
+        return Array(interior(state.tendencies.saturation_water_ice))[1, 1, end]
+    end
+    E = 2.0e-8 # m/s
+    dsat_no_ET = top_saturation_tendency(0.0)
+    dsat_ET = top_saturation_tendency(E)
+    Δz_top = Terrarium.Δzᵃᵃᶜ(1, 1, grid.Nz, grid)
+    strat = Terrarium.get_stratigraphy(soil)
+    bgc = Terrarium.get_biogeochemistry(soil)
+    por = Terrarium.porosity(1, 1, grid.Nz, grid, get_fields(state, strat, bgc), strat, bgc)
+    @test dsat_ET < dsat_no_ET
+    @test dsat_no_ET - dsat_ET ≈ E / (Δz_top * por)
     # Advance one timestep
     timestep!(integrator, 60.0)
     @test all(isfinite.(integrator.state.saturation_water_ice))

@@ -245,6 +245,16 @@ Convenience constructor for all `AbstractModel` types that accepts `grid` as a p
 """
 (::Type{Model})(grid::AbstractLandGrid; kwargs...) where {Model <: AbstractModel} = Model(; grid, kwargs...)
 
+"""
+    (::Type{Model})(grid::AbstractGrid; kwargs...) where {Model <: AbstractModel}
+
+Default constructor for all `AbstractModel` types that accepts an ordinary spatial discretization
+`grid` and builds the model's [`LandGrid`](@ref) from it via [`create_land_grid`](@ref). Models which
+resolve additional vertical domains should define their own constructor which passes the relevant
+process components to `create_land_grid`.
+"""
+(::Type{Model})(grid::AbstractGrid; kwargs...) where {Model <: AbstractModel} = Model(create_land_grid(grid); kwargs...)
+
 # Default parameters collection for processes
 function ParameterEditing.parameters(proc::AbstractProcess; kwargs...)
     proc_params = map(fieldnames(typeof(proc))) do name

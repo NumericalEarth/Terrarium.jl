@@ -35,7 +35,7 @@ Named tuple with fields: `skin_temperature`, `residual`, `net_radiation`, `laten
 """
 function test_skin_temperature_solve!(
         state,
-        grid::Terrarium.AbstractLandGrid{NF},
+        grid::Terrarium.AbstractGrid{NF},
         model::Terrarium.AbstractModel{NF};
         surface_shortwave_down,
         surface_longwave_down,
@@ -268,7 +268,7 @@ end
 end
 
 @testset "Implicit skin temperature: LandModel stress test" begin
-    grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.01))
+    grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.01, N = 100))
     NF = eltype(grid)
     # Soil + snow + surface energy/hydrology + prescribed vegetation
     seb = SurfaceEnergyBalance(NF)
@@ -405,7 +405,7 @@ end
 end
 
 # # For interactive testing
-# grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.01))
+# grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.01, N = 100))
 # NF = eltype(grid)
 # # Soil + snow + surface energy/hydrology + prescribed vegetation
 # skinT = ImplicitSkinTemperature(NF, solver = Terrarium.RootSolver(NF; max_iterations = 100))

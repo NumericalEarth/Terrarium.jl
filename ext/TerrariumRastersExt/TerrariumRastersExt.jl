@@ -81,6 +81,9 @@ function Terrarium.InputSource(
     return RasterInputSource(grid, source_grid, raster, dims(raster, Ti), name, units, reftime, extrapolation)
 end
 
+# Land grids delegate to the discretization of their ground domain, which carries the ring grid.
+Terrarium.InputSource(grid::Terrarium.AbstractLandGrid, raster::AbstractRaster; kwargs...) = Terrarium.InputSource(ground_domain(grid), raster; kwargs...)
+
 # Static (time-invariant) rasters reduce to a plain `FieldInputSource`, regridded only once into a `RingGrids.Field`.
 function RasterInputSource(
         grid::ColumnRingGrid{NF},
@@ -178,6 +181,9 @@ function update_from_raster!(field, grid, clock, source::RasterInputSource{NF}) 
         return set!(field, x_end[idxmap])
     end
 end
+
+# Land grids delegate to the discretization of their ground domain, which carries the ring grid.
+interpolate_to_grid(grid::Terrarium.AbstractLandGrid, source_grid::RingGrids.AbstractGrid, data::Raster) = interpolate_to_grid(ground_domain(grid), source_grid, data)
 
 function interpolate_to_grid(grid::ColumnRingGrid, source_grid::RingGrids.AbstractGrid, data::Raster)
     arch = architecture(grid)

@@ -51,7 +51,7 @@ end
 
 @testset "State variable initialization" begin
     grid = ColumnGrid(CPU(), DEFAULT_NF, ExponentialSpacing(N = 10))
-    model = StateVariablesTestTypes.TestModel(; grid)
+    model = StateVariablesTestTypes.TestModel(grid)
     state = StateVariables(model)
     # Check that all prognostic variables are defined correctly
     @test hasproperty(state, :progvar3D) && isa(state.prognostic.progvar3D, Field{Center, Center, Center})
@@ -75,7 +75,7 @@ end
 
 @testset "State variable utilities" begin
     grid = ColumnGrid(CPU(), DEFAULT_NF, ExponentialSpacing(N = 10))
-    model = StateVariablesTestTypes.TestModel(; grid)
+    model = StateVariablesTestTypes.TestModel(grid)
     state = StateVariables(model)
     for input in state.inputs
         set!(input, 1)

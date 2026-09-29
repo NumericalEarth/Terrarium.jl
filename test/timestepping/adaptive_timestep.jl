@@ -14,15 +14,15 @@ function reference_thermal_timescale(integrator)
     hydrology = Terrarium.get_hydrology(soil)
     strat = Terrarium.get_stratigraphy(soil)
     bgc = Terrarium.get_biogeochemistry(soil)
-    fgrid = Terrarium.get_field_grid(model.grid)
+    ground_grid = ground_domain(model.grid)
     fields = Terrarium.get_fields(state, energy, hydrology, strat, bgc)
-    Nx, Ny, Nz = size(fgrid)
+    Nx, Ny, Nz = size(ground_grid)
     τmin = Inf
     for k in 1:Nz, j in 1:Ny, i in 1:Nx
-        soilvol = Terrarium.soil_composition(i, j, k, fgrid, fields, strat, hydrology, bgc)
+        soilvol = Terrarium.soil_composition(i, j, k, ground_grid, fields, strat, hydrology, bgc)
         κ = Terrarium.compute_thermal_conductivity(energy.thermal_properties, soilvol)
         C = Terrarium.compute_heat_capacity(energy.thermal_properties, soilvol)
-        Δz = Terrarium.Δzᵃᵃᶜ(i, j, k, fgrid)
+        Δz = Terrarium.Δzᵃᵃᶜ(i, j, k, ground_grid)
         τmin = min(τmin, Δz^2 * C / κ)
     end
     return τmin
@@ -67,7 +67,7 @@ end
 end
 
 @testset "single-float32 numeric type" begin
-    grid = ColumnGrid(UniformSpacing{Float32}(Δz = 0.1f0, N = 10))
+    grid = ColumnGrid(UniformSpacing(Δz = 0.1f0, N = 10))
     model = SoilModel(grid)
     integrator = initialize(model)
     τ = cell_diffusion_timescale(integrator)

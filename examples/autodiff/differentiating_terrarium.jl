@@ -84,7 +84,7 @@ f2
 # the memory overhead of reverse mode.
 # As a consequence, there is no need to use Checkpointing.jl for this example.
 # To make sure that ``\kappa_\text{quartz}`` has a physical effect, we construct the model with a soil consisting of 100% sand.
-grid = ColumnGrid(arch, NF, UniformSpacing())
+grid = ColumnGrid(arch, NF, UniformSpacing(Δz = 0.1, N = 100))
 initializer = SoilInitializer(NF)
 text = SoilTexture(NF; sand = NF(1.0))
 strat = HomogeneousSoilStratigraphy(NF; texture = text)

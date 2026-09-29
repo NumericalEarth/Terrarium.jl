@@ -128,14 +128,14 @@ end
         soil_hydrology::AbstractSoilHydrology,
         snow::Optional{AbstractSnow} = nothing
     ) where {NF}
-    fgrid = get_field_grid(grid)
+    ground_grid = ground_domain(grid)
 
     # Get inputs. With snow, the surface water input is the snow-adjusted rainfall plus meltwater outflow
     # (the snow-covered fraction of rain is intercepted by the snowpack); without snow it is the ground rainfall.
     influx = soil_surface_water_flux(i, j, grid, fields, canopy_interception, snow)
     excess_water = surface_excess_water(i, j, grid, fields, runoff)
-    k_unsat = hydraulic_conductivity(i, j, fgrid.Nz, grid, fields, soil_hydrology)
-    sat_top = saturation_water_ice(i, j, fgrid.Nz, grid, fields, soil_hydrology)
+    k_unsat = hydraulic_conductivity(i, j, ground_grid.Nz, grid, fields, soil_hydrology)
+    sat_top = saturation_water_ice(i, j, ground_grid.Nz, grid, fields, soil_hydrology)
 
     if excess_water > zero(NF)
         # Case 1: Excess water present at the surface -> precipitation adds to excess water

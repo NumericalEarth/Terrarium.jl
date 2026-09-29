@@ -11,7 +11,7 @@ either `DiscreteForcing` or `ContinuousForcing`. Note that `target` and addition
 for interface consistency and are not passed through to `forcing`.
 """
 @propagate_inbounds function forcing(i, j, k, grid, clock, fields, forcing::AbstractForcing, target::AbstractProcess, args...)
-    return forcing(i, j, k, get_field_grid(grid), clock, fields)
+    return forcing(i, j, k, ground_domain(grid), clock, fields)
 end
 
 @inline function forcing(i, j, k, grid, clock, fields, ::Nothing, target::AbstractProcess, args...)

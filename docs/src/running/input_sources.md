@@ -44,7 +44,7 @@ For a [`ColumnRingGrid`](@ref), a [`RingGrids.Field`](@extref SpeedyWeather Ring
 
 ```julia
 albedo_ring = RingGrids.Field(albedo_data, global_grid)
-source = InputSource(snow_grid, albedo_ring; name = :albedo)
+source = InputSource(snow_domain, albedo_ring; name = :albedo)
 ```
 
 ### Time-varying `Field` inputs

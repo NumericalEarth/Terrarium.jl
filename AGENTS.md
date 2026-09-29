@@ -17,7 +17,7 @@ dynamics are allowed except in very special cases where they must be clearly doc
 
 - **Julia 1.10+** | CPU and GPU (CUDA)
 - **Key packages**: KernelAbstractions.jl, CUDA.jl, Enzyme.jl
-- **Style**: ExplicitImports.jl for source code; `using Terrarium` for examples/tests
+- **Style**: Explicit imports for source code; `using Terrarium` for examples/tests
 
 ## Testing
 

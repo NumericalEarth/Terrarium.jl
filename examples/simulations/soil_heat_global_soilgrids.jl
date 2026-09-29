@@ -142,7 +142,7 @@ simulation.output_writers[:temperature] = JLD2Writer(
     (; temperature = integrator.state.temperature);
     filename = output_file,
     schedule = TimeInterval(3600),
-    overwrite_existing = true,
+    overwrite_files = true,
 )
 
 @time run!(simulation)

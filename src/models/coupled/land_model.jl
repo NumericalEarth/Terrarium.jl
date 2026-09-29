@@ -140,7 +140,8 @@ end
 function compute_tendencies!(state, model::LandModel)
     grid = get_grid(model)
     compute_tendencies!(state, grid, model.surface_hydrology)
-    compute_tendencies!(state, grid, model.soil, model.constants)
+    # Pass the surface hydrology so that evapotranspiration is applied as a sink in the soil water tendency
+    compute_tendencies!(state, grid, model.soil, model.constants, model.surface_hydrology)
     # Snow tendencies after surface hydrology; no-op without snow (`nothing`)
     compute_tendencies!(state, grid, model.snow, model.constants, model.atmosphere)
     compute_tendencies!(state, grid, model.vegetation, model.constants, model.atmosphere)

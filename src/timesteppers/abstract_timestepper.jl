@@ -141,10 +141,10 @@ get_cache(cache::AbstractTimeStepperCache, ::AbstractTimeStepper) = cache
 Evaluate an explicit update `u += ∂u∂t*Δt` for the prognostic fields of `state` listed in `names` and
 their corresponding tendencies. By default, this is implemented as a simple Euler update `u += dudt*Δt`
 which can serve as a building block for more complex, multi-stage timesteppers. Where necessary,
-additional dispatches of `explicit_step_kernel!(field, tendency, ::AbstractLandGrid, ::TimeStepper, Δt)`
+additional dispatches of `explicit_step_kernel!(field, tendency, ::AbstractGrid, ::TimeStepper, Δt)`
 can be defined to implement more specialized time-stepping schemes.
 """
-function explicit_step!(state, grid::AbstractLandGrid, timestepper::AbstractTimeStepper, Δt, names::Tuple{Vararg{Symbol}})
+function explicit_step!(state, grid::AbstractGrid, timestepper::AbstractTimeStepper, Δt, names::Tuple{Vararg{Symbol}})
     # step only this namespace's prognostic variables that are also selected in `names`
     fastiterate(prognostic_names(state)) do name
         if name ∈ names
@@ -169,7 +169,7 @@ timestepping schemes as needed.
 function explicit_step!(
         field::AbstractField{LX, LY, LZ},
         tendency::AbstractField{LX, LY, LZ},
-        grid::AbstractLandGrid{NF},
+        grid::AbstractGrid{NF},
         timestepper::AbstractTimeStepper,
         Δt,
         args...
@@ -185,7 +185,7 @@ end
 function explicit_step!(
         field::AbstractField{LX, LY, Nothing},
         tendency::AbstractField{LX, LY, Nothing},
-        grid::AbstractLandGrid,
+        grid::AbstractGrid,
         timestepper::AbstractTimeStepper,
         Δt,
         args...

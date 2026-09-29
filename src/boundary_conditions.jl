@@ -27,23 +27,12 @@ Alias for `fill_halo_regions!(field, state.clock, state.inputs)`.
 end
 
 """
-    getbc(::Variable{name}, i::Integer, j::Integer, grid::Oceananigans.Grids.AbstractGrid, clock, fields) where {name}
+    getbc(::Variable{name}, i::Integer, j::Integer, grid::AbstractGrid, clock, fields) where {name}
 
 Implementation of `Oceananigans.BoundaryConditions.getbc` for variable placeholders that retrieves the input `Field` from
 `fields` and returns the value at the given index.
 """
-@inline function BoundaryConditions.getbc(::Variable{name}, i::Integer, j::Integer, grid::Oceananigans.Grids.AbstractGrid, clock, fields) where {name}
+@inline function BoundaryConditions.getbc(::Variable{name}, i::Integer, j::Integer, grid::AbstractGrid, clock, fields) where {name}
     field = getproperty(fields, name)
     return @inbounds field[i, j]
 end
-
-"""
-    compute_z_bcs!(tendency, progvar, grid::AbstractLandGrid, clock, fields)
-
-Convenience alias for `Oceananigans.BoundaryConditions.compute_z_bcs!` that adds flux BCs for `progvar`
-to its corresponding `tendency`.
-"""
-@inline function BoundaryConditions.compute_z_bcs!(tendency, progvar, grid::AbstractLandGrid, clock, fields)
-    return compute_z_bcs!(tendency, progvar, architecture(grid), clock, fields)
-end
-@inline BoundaryConditions.compute_z_bcs!(tendency, progvar, grid::AbstractLandGrid, state) = compute_z_bcs!(tendency, progvar, grid, state.clock, state.inputs)

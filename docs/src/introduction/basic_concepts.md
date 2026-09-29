@@ -27,7 +27,7 @@ grid = ColumnGrid(CPU(), Float32, vert)
 model = SoilModel(grid)
 ```
 
-Here we first specify the `grid` which defines the spatial discretization (a single rectangular `column`), device architecture, and number format (`Float32`) to be used by all model components. The spacing of the $N = 10$ vertical layers is set to be exponentially increasing from a minimum thickness of 10 cm at the surface; note that alternative options for the vertical discretization include [`UniformSpacing`](@ref) and [`PrescribedSpacing`](@ref). The `SoilModel` is then constructed directly from this `grid` using its default process configurations. Individual processes and parameterizations can also be constructed and passed in as keyword arguments, e.g,
+Here we first specify the `grid` which defines the spatial discretization (a single rectangular `column`), device architecture, and number format (`Float32`) to be used by all model components. The spacing of the $N = 10$ vertical layers is set to be exponentially increasing from a minimum thickness of 10 cm at the surface; the vertical discretization can alternatively be given as [`UniformSpacing`](@ref) for layers of constant thickness, or directly as any vector or range of cell interfaces. The `SoilModel` is then constructed directly from this `grid` using its default process configurations. Individual processes and parameterizations can also be constructed and passed in as keyword arguments, e.g,
 
 ```@example soil_quickstart
 hydrology = SoilHydrology(eltype(grid), RichardsEq())

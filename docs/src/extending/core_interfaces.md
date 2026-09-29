@@ -118,6 +118,8 @@ SoilModel(grid; soil = SoilEnergyWaterCarbon(eltype(grid)), ...)
 
 This is equivalent to `SoilModel(; grid, soil, ...)` and is the recommended calling convention for all model types.
 
+The `grid` field of every model is an [`AbstractLandGrid`](@ref), but the positional constructor also accepts an ordinary spatial discretization (any Oceananigans `AbstractGrid`, including [`ColumnGrid`](@ref) and [`ColumnRingGrid`](@ref)) and converts it via [`create_land_grid`](@ref). The default conversion builds a ground-only [`LandGrid`](@ref); models which resolve a vertical snow or canopy profile should define their own constructor that passes the relevant process components to `create_land_grid`.
+
 ### Required method implementations
 
 A concrete `AbstractModel` subtype must implement at minimum the same basic interface as `AbstractProcess`:

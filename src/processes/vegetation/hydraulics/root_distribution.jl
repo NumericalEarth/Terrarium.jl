@@ -48,15 +48,18 @@ variables(rootdist::StaticExponentialRootDistribution) = (
     $TYPEDEF
 
 Returns a `FunctionField` that lazily computes the static root distribution on a 1D column grid.
+
+The `FunctionField` takes `(x, z)` arguments, so this is restricted to land grids with a `Flat`
+lateral (`y`) dimension, i.e. those built on column discretizations.
 """
-function root_fraction(grid::AbstractColumnGrid, clock, fields, rootdist::StaticExponentialRootDistribution{NF}) where {NF}
-    fgrid = get_field_grid(grid)
+function root_fraction(grid::AbstractLandGrid{<:Any, <:Any, Flat}, clock, fields, rootdist::StaticExponentialRootDistribution{NF}) where {NF}
+    ground_grid = ground_domain(grid)
     # define pdf of root distribution as a continuous function of depth
-    ∂R∂z = FunctionField{Center, Center, Center}(fgrid, parameters = rootdist) do x, z, params
+    ∂R∂z = FunctionField{Center, Center, Center}(ground_grid, parameters = rootdist) do x, z, params
         root_density(params, z)
     end
     # scale by the layer thicknesses
-    Δz = zspacings(fgrid, Center(), Center(), Center())
+    Δz = zspacings(ground_grid, Center(), Center(), Center())
     R = ∂R∂z * Δz
     # and normalize
     R_norm = R / sum(R, dims = 3)

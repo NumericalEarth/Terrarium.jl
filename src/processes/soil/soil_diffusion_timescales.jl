@@ -26,10 +26,10 @@ function cell_diffusion_timescale(
     strat = get_stratigraphy(soil)
     hydrology = get_hydrology(soil)
     bgc = get_biogeochemistry(soil)
-    field_grid = get_field_grid(grid)
+    ground_grid = ground_domain(grid)
     fields = get_fields(state, energy, hydrology, strat, bgc)
     τ = KernelFunctionOperation{Center, Center, Center}(
-        compute_thermal_diffusion_timescale, field_grid, fields, energy, hydrology, strat, bgc
+        compute_thermal_diffusion_timescale, ground_grid, fields, energy, hydrology, strat, bgc
     )
     return minimum(τ)
 end
@@ -94,10 +94,10 @@ function cell_diffusion_timescale(
     ) where {NF}
     strat = get_stratigraphy(soil)
     bgc = get_biogeochemistry(soil)
-    field_grid = get_field_grid(grid)
+    ground_grid = ground_domain(grid)
     fields = get_fields(state, hydrology, strat, bgc)
     τ = KernelFunctionOperation{Center, Center, Center}(
-        compute_hydraulic_diffusion_timescale, field_grid, fields, hydrology, strat, bgc
+        compute_hydraulic_diffusion_timescale, ground_grid, fields, hydrology, strat, bgc
     )
     return minimum(τ)
 end

@@ -18,10 +18,9 @@ for a vanishing pack, while a genuinely thick pack still reports its own (longer
 timescale rather than being pinned to the floor.
 """
 function cell_diffusion_timescale(state, grid, snow::SingleLayerSnow, constants::PhysicalConstants)
-    field_grid = get_field_grid(grid)
     fields = get_fields(state, snow)
     τ = KernelFunctionOperation{Center, Center, Nothing}(
-        compute_snow_diffusion_timescale, field_grid, fields, snow, constants
+        compute_snow_diffusion_timescale, grid, fields, snow, constants
     )
     return minimum(τ)
 end

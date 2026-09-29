@@ -84,7 +84,7 @@ function hypotenuse(grid, clock, fields, ::Pythagoras)
     return hypotenuse
 end
 
-grid = ColumnGrid(CPU(), Float64, UniformSpacing(N = 1))
+grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 1))
 state = StateVariables(Pythagoras{Float64}(), grid)
 state.hypotenuse
 ```
@@ -104,7 +104,7 @@ As another more concrete example, consider the [`soil_moisture_limiting_factor`]
 
 ```julia
 function soil_moisture_limiting_factor(grid, clock, fields, ::FieldCapacityLimitedPAW)
-    Δz = zspacings(get_field_grid(grid), Center(), Center(), Center())
+    Δz = zspacings(ground_domain(grid), Center(), Center(), Center())
     β = Integral(fields.plant_available_water * fields.root_fraction / Δz, dims = 3)
     return Field(β)
 end
