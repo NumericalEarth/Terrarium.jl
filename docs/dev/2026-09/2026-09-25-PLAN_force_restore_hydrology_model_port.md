@@ -1,6 +1,6 @@
 # Porting DifferentiableEvaporation to Terrarium: a force-restore hydrology model
 
-> Status: **planned**. Rev 15 (PR 12 added: grids without vertical resolution) is the current revision; nothing is implemented yet.
+> Status: **planned**. Rev 16 (consistency pass over the whole document) is the current revision; nothing is implemented yet.
 
 Date of initial draft: 2026-09-25
 
@@ -30,7 +30,7 @@ Clarifications given while drafting:
 ## Revision log
 
 1. **Rev 0 (2026-09-25)**: Initial draft.
-2. **Rev 1 (2026-09-28)**: Aligned with open PR #200 (`AbstractGroundHeatFlux` as an SEB sub-process). The plan no longer introduces its own ground-heat-flux abstraction or `PrescribedGroundHeatFlux`. `SantanelloFriedlGroundHeatFlux` subtypes PR #200's type, PR 5a depends on #200 being merged, and open question Q12 (energy container) is added. The net-radiation gap is unchanged, since PR #200 does not touch the radiative fluxes.
+2. **Rev 1 (2026-09-28)**: Aligned with open PR #200 (`AbstractGroundHeatFlux` as an SEB sub-process). The plan no longer introduces its own ground-heat-flux abstraction or `PrescribedGroundHeatFlux`. `SantanelloFriedlGroundHeatFlux` subtypes PR #200's type, PR 5a (now PR 9) depends on #200 being merged, and open question Q12 (energy container) is added. The net-radiation gap is unchanged, since PR #200 does not touch the radiative fluxes.
    > Given your net radiation critique: consider that https://github.com/NumericalEarth/Terrarium.jl/pull/200 is in the making
 3. **Rev 2 (2026-09-29)**: Incorporates the review below.
    > - Add Insolation.jl as it is required to calculate the solar time. However as for the use of Thermodynamics.jl, we need to find a way to override the use of ClimaParams.jl and instead our own minimal set of constants needed to do the calculation of solar time
@@ -51,7 +51,7 @@ Clarifications given while drafting:
 
    Changes:
    - **Insolation.jl becomes a root dependency** (explicitly requested; this overrides the AGENTS.md pitfall 13 default). Solar time is computed in-kernel, and Terrarium supplies its own `OrbitalConstants` in place of ClimaParams (new PR 8).
-   - **`PrescribedNetRadiation` is its own small follow-up PR** to #200 (PR 7). Users are told to supply R_n in Terrarium's positive-upward convention; old Q3 is removed.
+   - **`PrescribedNetRadiation` is its own small follow-up PR** to #200 (PR 7). Users are told to supply R_n in Terrarium's positive-upward convention; Q3 is resolved.
    - **Lambert–Beer becomes a util plus a refactor of all existing uses** (PR 2).
    - **Jarvis**: the vegetation-type constructor is dropped in favour of single default values. PFT-dependent values (IFS Table 8.1) are deferred to `PlantTraits` (future work).
    - ~~**Δ** is replaced by Thermodynamics' `∂q_vap_sat_∂T`, converted to constant pressure. Penman–Monteith is written in specific-humidity form.~~ *(Superseded by Rev 3.)*
@@ -105,6 +105,16 @@ Clarifications given while drafting:
     > Look at https://github.com/NumericalEarth/Terrarium.jl/pull/204, this fixes the issue with ET for landmodel
 16. **Rev 15 (2026-09-29)**: Adds PR 12, grids without vertical resolution (z-less `ColumnGrid`/`ColumnRingGrid` constructors, plus one `XYZ`-on-`Flat` rejection), after #193 and #194. PR 6 gains a depth-free single-horizon `with_soil_horizon` method for such grids, and the example uses the z-less grid.
     > I think it is important for the user here that when using this model, it does not make sense for them to set a vertical resolution. So there should be a convient way to construct a ColumnGrid or ColumnRingGrid that has no vertical resolution. I suppose this is best fit as a separate PR, following up pr 193 and 194?
+17. **Rev 16 (2026-09-29)**: Consistency pass; removed leftovers from superseded revisions. Specifically:
+    - Naming marked as accepted (review row 5, composition, PR 2).
+    - Removed the reference to PR 1 smooth limiters (row 13) and the ε/`w⁺` f_wet text (superseded by Rev 10).
+    - Dropped w_res from the reused hydraulics (θ_res = 0, Rev 13).
+    - The De Ridder drainage is now written with b = k/c (Rev 7) and its equilibrium statement corrected.
+    - Bergström uses the generic `relative_root_zone_wetness`.
+    - PR dependencies no longer reference the removed PR 1, and PR 2's file list matches its design (`vegetation_base.jl`).
+    - Clarified the sign notation in the order of operations.
+    - Corrected the Rev 1/Rev 2 cross-references (PR 5a is now PR 9; Q3 is resolved, not removed).
+    > Check that the entire plan document is consistent (no internal contradictions)
 
 ## Problem description
 
@@ -171,7 +181,7 @@ Three more defects in the original code surfaced while cross-reading it. The por
   - `porosity(i, j, k, grid, fields, strat, bgc)` requires a biogeochemistry argument, because it blends mineral and organic porosity using the organic fraction.
 - **No smoothing utilities.** Terrarium has no smooth min/max/clamp or smooth limiter functions (`src/utils/` has `math.jl`, `kernel_utils.jl` and others, none of which provide them). Existing code uses hard `max`/`min`/`clamp`, e.g. snow meltwater outflow and `FieldCapacityLimitedPAW`.
 - **Grids and models.**
-  - XY-only models are supported (`examples/extending/linear_ode_exp_growth.jl`, `simple_snow_ddm.jl`). A `ColumnGrid` still needs Nz ≥ 1.
+  - XY-only models are supported (`examples/extending/linear_ode_exp_growth.jl`, `simple_snow_ddm.jl`). A `ColumnGrid` still needs a vertical coordinate (Nz ≥ 1); PR 12 adds grids without vertical resolution.
   - **`AbstractHydrologyModel` is an existing type** (`src/models/abstract_types.jl:38`, "Base type for surface hydrology models", listed in `docs/src/extending/core_interfaces.md`). It currently has **no concrete subtype**.
   - The dead `src/models/surface/surface_hydrology_model.jl` is never included and subtypes a non-existent `AbstractSurfaceHydrologyModel`.
 - **Timestepping and clock.**
@@ -195,7 +205,7 @@ Three more defects in the original code surfaced while cross-reading it. The por
 | 2 | Net radiation via `PrescribedRadiativeFluxes`, or just an `InputSource` | ❌ | Neither works as-is: the existing type derives R_n from upward fluxes. Add a `PrescribedNetRadiation <: AbstractRadiativeFluxes` with input `surface_net_radiation` as a small follow-up PR to #200 (PR 7). G is a *parameterization*, not an input: add `SantanelloFriedlGroundHeatFlux <: AbstractGroundHeatFlux` (PR #200's type). |
 | 3 | `k_ext` already in `PlantTraits`; Lambert–Beer not yet implemented | ⚠️ | Lambert–Beer *is* implemented, but inline in three places, one with a duplicated `k_ext`. A small separate PR (PR 2) adds a util and refactors all three uses. |
 | 4 | G: unsure whether in Terrarium; Insolation.jl for solar time | ✅ | G belongs in Terrarium: it partitions the available energy and depends on w₁ and f_veg (model state). Insolation.jl becomes a root dependency with Terrarium-owned orbital constants in place of ClimaParams. Solar time is computed **in-kernel** (PR 8, with caveats listed there). |
-| 5 | `ThreeSourceEvapotranspiration <: AbstractEvapotranspiration`; PM + Lhomme in `evapotranspiration/`; Bigleaf as test reference | ✅ (naming open) | Agree on the location and on Bigleaf as a **test-only** reference (`test/Project.toml`). Name suggestion: `ShuttleworthWallaceEvapotranspiration`, since "three-source" is not a standard term and Lhomme calls it "multi-source" (Q1). |
+| 5 | `ThreeSourceEvapotranspiration <: AbstractEvapotranspiration`; PM + Lhomme in `evapotranspiration/`; Bigleaf as test reference | ✅ | Agree on the location and on Bigleaf as a **test-only** reference (`test/Project.toml`). Named `ShuttleworthWallaceEvapotranspiration` (accepted in Rev 11), since "three-source" is not a standard term and Lhomme calls it "multi-source". |
 | 6 | VPD_m computed inside the ET scheme, not in atmosphere | ✅ | VPD_m is a diagnostic of the series-resistance network. |
 | 7 | r_aa via `NeutralStabilityAerodynamics <: AbstractAerodynamics` | ✅ | The neutral log-profile bulk transfer coefficient `k²/ln²((z_a−d)/z₀ₘ)` *is* a drag coefficient, so it fits the existing `drag_coefficient` interface. Existing schemes (bare-ground ET, SEB turbulent fluxes) get it for free. |
 | 8 | Roughness as a new field of `SurfaceHydrology`; maybe move aerodynamics to surface | ⚠️ → dedicated PR | Not a `SurfaceHydrology` field: that struct is shared by every `LandModel`, and rₐ is also used by the SEB. Instead, **PR 4 relocates the whole aerodynamics family** (the current drag-coefficient scheme, the neutral scheme and roughness) out of `atmosphere/`, with its own plan document for the ownership question. |
@@ -203,10 +213,10 @@ Three more defects in the original code surfaced while cross-reading it. The por
 | 10 | Soil β reuses `ground_evaporation_resistance_factor` via a new soil dispatch; "first try β × potential evaporation" | ✅ reuse, ❌ β × E_p | Multiplying β onto a Penman flux breaks the Lhomme closed form: λE_total = λE_t + λE_i + λE_s only holds if the *same* r_ss enters the total and the components. The original code already does this correctly. Keep `r_ss = r_as(1/β − 1)`, written in **conductance form** so that β → 0 (and LAI → 0 for r_sc) stays finite and differentiable. |
 | 11 | `JarvisStomatalConductance <: AbstractStomatalConductance`; soil constraint usable with Richards and force-restore | ✅ | Output `canopy_water_conductance` (a conductance, as Medlyn does) so it is a drop-in for the existing interface; this also avoids the `r_smin/LAI` singularity. f₂ reads `soil_moisture_limiting_factor`, so it automatically works with `FieldCapacityLimitedPAW` (Richards) and with a new XY PAW for force-restore. Single default parameter values for now; PFT-dependent values belong in `PlantTraits` (future work). |
 | 12 | `PrescribedVegetation` with `PrescribedPhenology`, no photosynthesis, `RootDistribution` unclear, `PlantTraits` reused | ✅ | Verified: `photosynthesis = nothing` and `root_distribution = nothing` both work. Roots are implicit in d₂, so use no root distribution plus a new bulk root-zone PAW. |
-| 13 | `DeRidderInterception <: AbstractCanopyInterception`; new methods for saturation fraction and removal; reuse PALADYN partitioning with "α to zero", SAI = 0 | ✅ type, ⚠️ PALADYN reuse | To get `I = f_veg·P` from PALADYN, α_int must be **1**, not 0 (α_int = 0 switches interception off). Better: give DeRidder its own interception function, using the reusable smooth limiters from PR 1. Reuse `compute_precip_ground` (P − I + R) and the generic function names. Units: wᵣ is kg m⁻², Terrarium's `canopy_water` is m. c = 0.2 kg m⁻² per LAI = 2×10⁻⁴ m equals PALADYN's `W_can_max`. |
+| 13 | `DeRidderInterception <: AbstractCanopyInterception`; new methods for saturation fraction and removal; reuse PALADYN partitioning with "α to zero", SAI = 0 | ✅ type, ⚠️ PALADYN reuse | To get `I = f_veg·P` from PALADYN, α_int must be **1**, not 0 (α_int = 0 switches interception off). Better: give DeRidder its own interception function. Reuse `compute_precip_ground` (P − I + R) and the generic function names. Units: wᵣ is kg m⁻², Terrarium's `canopy_water` is m. c = 0.2 kg m⁻² per LAI = 2×10⁻⁴ m equals PALADYN's `W_can_max`. |
 | 14 | `SurfaceHydrology` with the three new options | ✅ | The existing `compute_auxiliary!` order (interception → ET → runoff) fits. `vegetation` must be forwarded to interception, which PR 2 does anyway. |
 | 15 | New soil, not `SoilEnergyWaterCarbon`: e.g. `ForceRestoreWater`, state as one 2-layer XYZ field or two XY fields | ✅ new soil, **two XY prognostics** | In ISBA-2L the layers **overlap**: w₂ is the bulk water content of 0…d₂, *including* the surface layer (hence I_s and E_s appear in both equations). A 2-cell grid with interfaces [−d₂, −d₁, 0] implies non-overlapping cells of thickness d₁ and d₂ − d₁. Every θ·Δz-based piece of machinery would then be wrong (mass, the forcing ÷ Δz, the root-fraction integral). Force-restore is also not a spatial discretization, so no vertical operator applies. |
-| 16 | Subtype `AbstractSoilHydraulics` with C₁, C₂, C₃ and a "none" unsaturated K | ❌ | `AbstractSoilHydraulics` is the Richards-flavoured hydraulic-conductivity interface; a dummy `UnsatK` is a smell. Keep the ISBA coefficients in a separate `ForceRestoreCoefficients` struct with a pedotransfer constructor. **Reuse** the existing hydraulics only for what they already provide: w_fc, w_wp and w_res via `field_capacity`/`wilting_point`. |
+| 16 | Subtype `AbstractSoilHydraulics` with C₁, C₂, C₃ and a "none" unsaturated K | ❌ | `AbstractSoilHydraulics` is the Richards-flavoured hydraulic-conductivity interface; a dummy `UnsatK` is a smell. Keep the ISBA coefficients in a separate `ForceRestoreCoefficients` struct with a pedotransfer constructor. **Reuse** the existing hydraulics only for what they already provide: w_fc and w_wp via `field_capacity`/`wilting_point`. |
 | 17 | `ForceRestoreVerticalFlow <: AbstractVerticalFlow` inside `SoilHydrology`, tendencies in `soil_hydrology.jl` | ⚠️ | `SoilHydrology`'s other slots (saturation closure, XYZ variables, `vwc_forcing`) are Richards-specific. Use a standalone `ForceRestoreSoilHydrology <: AbstractSoilHydrology` in its own file, mirroring `soil_hydrology_rre.jl`. |
 | 18 | Wrap everything in a new model (`ForceRestoreHydrologyModel` / `SimpleHydrologyModel`) | ✅ | This is required anyway: the combination-equation ET eliminates the skin temperature, so it cannot be combined with `LandModel`'s SEB solve. Subtype the **existing** `AbstractHydrologyModel`, which then gets its first concrete subtype. The dead `SurfaceHydrologyModel` is left for a separate cleanup PR. |
 
@@ -241,7 +251,7 @@ Items missing from the manual and addressed below: units and signs, VPD versus s
 end
 ```
 
-All names are working names (Q1). Where `aerodynamics` lives (a model field, as sketched, or elsewhere) is decided in PR 4. There is no snow component: precipitation is treated as liquid `rainfall`, which is a documented limitation.
+Names follow Q1 (accepted in Rev 11). Where `aerodynamics` lives (a model field, as sketched, or elsewhere) is decided in PR 4. There is no snow component: precipitation is treated as liquid `rainfall`, which is a documented limitation.
 
 ### Order of operations
 
@@ -249,12 +259,12 @@ All names are working names (Q1). Where `aerodynamics` lives (a model field, as 
 1. `atmosphere`: no-op.
 2. `soil`: C₁, C₂, w₁,eq, D₁, K₂ (and the drainage flux).
 3. `vegetation` (`PrescribedVegetation`'s own order): PAW(soil) → phenology (LAI) → Jarvis `canopy_water_conductance`.
-4. `surface_energy_balance`: R_n (input) → t_sol (in-kernel, Insolation) → G(w₁, f_veg, t_sol) → A, A_c = R_n,c, A_s = R_n,s − G.
+4. `surface_energy_balance`: R_n (input) → t_sol (in-kernel, Insolation) → G(w₁, f_veg, t_sol) → A, A_c = R_n,c, A_s = R_n,s − G (textbook downward-positive notation; stored positive upward, see Units).
 5. `surface_hydrology`: interception (f_wet, I, D_c, P_s) → ET (resistances, λE_total, VPD_m, λE_t, λE_i, λE_s, H) → runoff (Q_s, infiltration).
 
 `compute_tendencies!`: `surface_hydrology` (canopy water) → `soil` (w₁, w₂).
 
-Coupling is entirely through the shared-field mechanism: one process's `input` is satisfied by another process's `auxiliary`, with no boundary conditions and no `LandModel` changes. The soil declares `infiltration`, `evaporation_ground` and `transpiration` as inputs (default 0), so the force-restore soil can also run standalone in a `SoilModel` with prescribed fluxes.
+Coupling is entirely through the shared-field mechanism: one process's `input` is satisfied by another process's `auxiliary`, and no boundary conditions are needed. The soil declares `infiltration`, `evaporation_ground` and `transpiration` as inputs (default 0), so the force-restore soil can also run standalone in a `SoilModel` with prescribed fluxes.
 
 For consistency with PR #204, `ForceRestoreHydrologyModel.compute_tendencies!` calls the soil as `compute_tendencies!(state, grid, soil, constants, surface_hydrology)`, with `surface_hydrology = nothing` as the standalone default. The force-restore soil needs E_s and E_t **separately** (E_s enters both w₁ and w₂, E_t only w₂). It therefore reads the `evaporation_ground` and `transpiration` fields, rather than the summed `ground_evapotranspiration_flux` used by the Richards forcing.
 
@@ -279,7 +289,7 @@ This plan uses **no smoothing**: thresholds are hard (`max`, `min`, `clamp`, `if
 
 #### 2. Lambert–Beer util and refactor
 
-- `lambert_beer_cover_fraction(k, area_index) = 1 − exp(−k·area_index)` (name open) goes in `src/utils/math.jl`, with a pointwise wrapper `canopy_cover_fraction(i, j, grid, fields, vegetation)` in `vegetation_base.jl`. It uses `vegetation.traits.extinction_coefficient` and `fields.leaf_area_index`, and returns zero for `vegetation = nothing`, following `vegetation_area_fraction`.
+- `lambert_beer_cover_fraction(k, area_index) = 1 − exp(−k·area_index)` goes in `src/utils/math.jl`, with a pointwise wrapper `canopy_cover_fraction(i, j, grid, fields, vegetation)` in `vegetation_base.jl`. It uses `vegetation.traits.extinction_coefficient` and `fields.leaf_area_index`, and returns zero for `vegetation = nothing`, following `vegetation_area_fraction`.
 - Refactor the three existing uses (PALADYN interception, Medlyn g₀, PALADYN rₐ_can) to call it:
   - **Remove the duplicated `PALADYNCanopyInterception.k_ext`** in favour of `PlantTraits.extinction_coefficient`. This is a breaking parameter removal.
   - Forward `vegetation` to the interception in `SurfaceHydrology.compute_auxiliary!`.
@@ -432,8 +442,8 @@ This PR gets its own plan document (`docs/dev/YYYY-MM/…_PLAN_surface_aerodynam
   - `canopy_capacity_per_lai` c = 2×10⁻⁴ m;
   - `wetness_exponent = 2/3` (Deardorff 1978).
 - Same variable names as PALADYN: prognostic `canopy_water`, auxiliaries `canopy_water_interception`, `canopy_water_removal` (D_c), `saturation_canopy_water` (f_wet) and `rainfall_ground` (P_s).
-- `I = f_veg·P` and `D_c = (1 − f_veg)·P·(exp(wᵣ/(2c)) − 1)` (De Ridder 2001). There are **no limiter kernels** (Rev 5).
-  - The drainage is self-limiting at capacity. Without evaporation, I = D_c gives exp(wᵣ/(2c)) = 1/(1 − f_veg) = exp(k_ext·LAI), so wᵣ,eq = 2c·k_ext·LAI. That equals wᵣ,max = c·LAI exactly for k_ext = 0.5, which is why the original upper-bound kernel is redundant.
+- `I = f_veg·P` and `D_c = (1 − f_veg)·P·(exp(b·wᵣ) − 1)` with b = k_ext/c (De Ridder 2001; b = 1/(2c) for k_ext = ½, see below). There are **no limiter kernels** (Rev 5).
+  - The drainage is self-limiting at capacity. Without evaporation, I = D_c gives exp(b·wᵣ) = 1/(1 − f_veg) = exp(k_ext·LAI), so wᵣ,eq = k_ext·LAI/b = c·LAI = wᵣ,max. This is why the original upper-bound kernel is redundant. With the published b = 1/(2c) this holds only for k_ext = ½.
   - **The ½ is not a free choice** (De Ridder 2001, Appendix A). Rain is treated as vertical beams hitting randomly located leaves with a *uniform leaf angle distribution*. An infinitesimal layer of cumulative LAI Δλ then intercepts a fraction Δλ/2, giving the throughfall 1 − f = e^(−L/2) (Eq. 6). The same ½ reappears in the storage equation ∂φ/∂t = −(1/(2c))·R·φ (Eq. 11) and hence in the Rutter drainage coefficient b = 1/(2c) (Eqs. 39–41).
   - Redoing the derivation with a general interception fraction k per unit LAI (my generalization; the paper only treats k = ½) gives 1 − f = e^(−kL) and b = k/c, so the no-evaporation equilibrium is wᵣ = cL for **any** k. The published b = 1/(2c) is this with k = ½.
   - **Decision (Rev 7): b = k/c with k = `PlantTraits.extinction_coefficient`**, the same k as in f_veg. This reduces exactly to De Ridder for the default k = 0.5 and keeps throughfall and drainage mutually consistent.
@@ -449,8 +459,6 @@ This PR gets its own plan document (`docs/dev/YYYY-MM/…_PLAN_surface_aerodynam
   - `max(wᵣ, 0)` keeps an explicit-step undershoot away from `x^(2/3)`, which would otherwise throw a `DomainError` in the kernel.
   - `min(·, 1)` is needed without the upper-bound kernel, so that (1 − f_wet) stays non-negative in λE_t.
   - Known risk: d f_wet/d wᵣ is infinite at wᵣ = 0, e.g. for a dry initial canopy, which can give non-finite Enzyme gradients there. PR 0 and PR 10 check whether this matters in practice.
-  - For wᵣ ≫ ε this is Deardorff's (wᵣ/wᵣ,max)^(2/3), which evaporates retained water almost in finite time. Within ε of zero it becomes linear, so the right-hand side is Lipschitz and differentiable.
-  - `w⁺` keeps negative overshoot away from `x^(2/3)`, which would otherwise throw a `DomainError`. The cap at 1 matters once the upper-bound kernel is gone, because otherwise (1 − f_wet) could go negative in λE_t.
 
 **`ShuttleworthWallaceEvapotranspiration{NF, GroundResistance} <: AbstractEvapotranspiration{NF}`** (`evapotranspiration/shuttleworth_wallace_evapotranspiration.jl`):
 - Parameters: `kB⁻¹ = ln(10)` and **`attenuation_factor` η = 3** (exponential decay of the in-canopy eddy diffusivity; Bonan's terminology).
@@ -469,7 +477,7 @@ This PR gets its own plan document (`docs/dev/YYYY-MM/…_PLAN_surface_aerodynam
 - `ground_evapotranspiration_flux` returns E_s + E_t.
 
 **`BergstromSurfaceRunoff{NF, Exponent} <: AbstractSurfaceRunoff{NF}`** (`runoff/bergstrom_surface_runoff.jl`):
-- `Q_s = (w₂/w_sat)^p·P_s`, with `infiltration = P_s − Q_s`. The ratio is taken against the maximum storage, following HBV, where FC is the "maximum soil moisture storage" and a model parameter (Seibert 2005), and SINDBAD's wSoil_max. In the exact ODE, w_sat is an invariant upper bound: at w₂ = w_sat the infiltration is zero, so dw₂/dt ≤ 0. Only an explicit step can overshoot. No cap is applied (Rev 10). PR 0 checks whether overshoot occurs at the chosen Δt.
+- `Q_s = relative_root_zone_wetness^p·P_s` (= (w₂/w_sat)^p·P_s for the force-restore soil), with `infiltration = P_s − Q_s`. The ratio is taken against the maximum storage, following HBV, where FC is the "maximum soil moisture storage" and a model parameter (Seibert 2005), and SINDBAD's wSoil_max. In the exact ODE, w_sat is an invariant upper bound: at w₂ = w_sat the infiltration is zero, so dw₂/dt ≤ 0. Only an explicit step can overshoot. No cap is applied (Rev 10). PR 0 checks whether overshoot occurs at the chosen Δt.
 - Exponent options (Trautmann et al. 2022):
   - `ConstantInfiltrationExponent(p = 2)`;
   - `VegetationInfiltrationExponent(s = 3)`, with p = s·f_veg.
@@ -483,15 +491,15 @@ A sequence of focused PRs, tracked in one GitHub issue (see "Tracking"). Each PR
 |---|---|---|---|---|
 | **0** (outside Terrarium) | Patch the original EvaporationModel with the agreed fixes (C₁, Santanello–Friedl on R_ns, runoff on P_s with w₂/w_sat, canopy limiter kernels removed, f_wet with hard bounds, β cap). Generate reference trajectories with fixed-step Heun on the synthetic forcing and 10 days of BE-Bra. Find the stable Δt for the corrected C₁. **Run with the hard-threshold formulations of this plan** (no `smooth_*`, no canopy kernels). A failure here is the only trigger for introducing smoothing. | DifferentiableEvaporation repo | — | the original ODE |
 | ~~1~~ | *(Removed in Rev 10: smoothing is future work)* | — | — | — |
-| **2** | Lambert–Beer util + refactor of the 3 existing uses; remove duplicated `k_ext`; forward `vegetation` to interception | `utils/math.jl`, `vegetation/plant_traits.jl`, `canopy_interception/canopy_interception.jl`, `stomatal_conductance/medlyn_stomatal_conductance.jl`, `evapotranspiration/canopy_evapotranspiration.jl`, `surface/surface_hydrology.jl` | — | bit-for-bit `LandModel` regression |
+| **2** | Lambert–Beer util + refactor of the 3 existing uses; remove duplicated `k_ext`; forward `vegetation` to interception | `utils/math.jl`, `vegetation/vegetation_base.jl`, `canopy_interception/canopy_interception.jl`, `stomatal_conductance/medlyn_stomatal_conductance.jl`, `evapotranspiration/canopy_evapotranspiration.jl`, `surface/surface_hydrology.jl` | — | bit-for-bit `LandModel` regression |
 | **3** | Combination-equation building blocks (Δ = de_s/dT, PM in vapour-pressure form, Lhomme, VPD_m) | `thermodynamics/thermodynamics.jl`, `evapotranspiration/penman_monteith.jl` | — | unit tests vs Bigleaf |
 | **4** | Aerodynamics relocation + `NeutralAerodynamics` + canopy roughness (**own plan doc**) | `surface/aerodynamics/*`, `atmosphere/*`, all rₐ call sites | — | Bigleaf tests; bit-for-bit `LandModel` regression |
 | **5** | `JarvisStomatalConductance` | `vegetation/stomatal_conductance/jarvis_stomatal_conductance.jl` | — | `VegetationModel` with `photosynthesis = nothing` and existing Richards soil PAW |
-| **6** | Force-restore soil, `BulkRootZonePAW`, β dispatch, soil coupling functions, `porosity(…, ::Nothing)` | `soil/soil_force_restore.jl`, `soil/hydrology/soil_hydrology_force_restore.jl`, `soil/stratigraphy/soil_stratigraphy.jl`, `vegetation/hydraulics/plant_available_water.jl`, `evapotranspiration/ground_resistance_factor.jl` | 1 | `SoilModel` with prescribed infiltration/ET inputs |
+| **6** | Force-restore soil, `BulkRootZonePAW`, β dispatch, soil coupling functions, `porosity(…, ::Nothing)` | `soil/soil_force_restore.jl`, `soil/hydrology/soil_hydrology_force_restore.jl`, `soil/stratigraphy/soil_stratigraphy.jl`, `vegetation/hydraulics/plant_available_water.jl`, `evapotranspiration/ground_resistance_factor.jl` | — (the single-horizon `with_soil_horizon` method is only needed with 12) | `SoilModel` with prescribed infiltration/ET inputs |
 | **#200** (external) | Ground heat flux as an SEB sub-process | — | — | — |
 | **7** | `PrescribedNetRadiation` | `surface/radiative_fluxes.jl` | #200 | SEB unit tests |
 | **8** | Insolation.jl dependency, `OrbitalConstants`, in-kernel `SolarTime` | `Project.toml`, `processes/constants.jl`, new solar-time file | — | comparison vs Insolation's exported `DateTime` API and NOAA values; Float32 run |
-| **9** | `SantanelloFriedlGroundHeatFlux`, `NetRadiationEnergyBalance`, `DeRidderCanopyInterception`, `BergstromSurfaceRunoff`, `ShuttleworthWallaceEvapotranspiration` (may split in two) | `surface/ground_heat_flux.jl`, `surface/net_radiation_energy_balance.jl`, `canopy_interception/deridder_canopy_interception.jl`, `runoff/bergstrom_surface_runoff.jl`, `evapotranspiration/shuttleworth_wallace_evapotranspiration.jl` | 1–8 | kernel-function unit tests |
+| **9** | `SantanelloFriedlGroundHeatFlux`, `NetRadiationEnergyBalance`, `DeRidderCanopyInterception`, `BergstromSurfaceRunoff`, `ShuttleworthWallaceEvapotranspiration` (may split in two) | `surface/ground_heat_flux.jl`, `surface/net_radiation_energy_balance.jl`, `canopy_interception/deridder_canopy_interception.jl`, `runoff/bergstrom_surface_runoff.jl`, `evapotranspiration/shuttleworth_wallace_evapotranspiration.jl` | 2–8 (and #200 via 7) | kernel-function unit tests |
 | **10** | `ForceRestoreHydrologyModel`, example, reference comparison, Enzyme test | `models/hydrology/force_restore_hydrology_model.jl`, `models/models.jl`, `src/Terrarium.jl` (exports), `examples/simulations/force_restore_column.jl` | 9 (12 for the example's grid) | full model |
 | **12** (own plan doc; after #194) | Grids **without vertical resolution**: z-less `ColumnGrid` and `ColumnRingGrid` constructors | `grids/column_grid.jl`, `grids/column_ring_grid.jl`, `grids/grid_utils.jl`, `grids/land_grid.jl` | #193 (merged), #194 | XY-only model on both grids |
 
@@ -580,7 +588,7 @@ Every PR adds exports for new public types, explicit imports, and `@kwdef`/`@par
   1. regularize C₁ via the hard floor at w_wp (chosen), or a physical dry-soil formulation later;
   2. adaptive stepping via a `cell_diffusion_timescale`-style method;
   3. an implicit/IMEX treatment of w₁ (no implicit stepper exists yet).
-- **Santanello–Friedl is discontinuous at solar midnight.** t_sol wraps from +12 h to −12 h, and because t_g ≠ 86400 s the cosine does not match across the wrap, so G jumps by c_g·R_n,s·Δcos. The formulation is a daytime one. Document it, and consider smoothing, or weighting by a daylight indicator, if it hurts gradients.
+- **Santanello–Friedl is discontinuous at solar midnight.** t_sol wraps from +12 h to −12 h, and because t_g ≠ 86400 s the cosine does not match across the wrap, so G jumps by c_g·R_n,s·Δcos. The formulation is a daytime one. Document it; if it hurts gradients, smoothing or a daylight weighting is future work.
 - **Canopy stiffness under heavy rain.** De Ridder (2001) notes that forward Euler requires Δt ≪ t_c = cL/(f·R₀), the time to fill the canopy. His discrete alternative (Eq. 36) integrates over the step analytically, which is a discrete-time update and not allowed in Terrarium. For c = 0.2 kg m⁻², L = 3 and 10 mm h⁻¹ of rain, t_c ≈ 5 min, so this can bind the time step during intense rain. It may also explain the instabilities that originally motivated the canopy kernels (Q7).
 - **Hard thresholds and explicit time-stepping.** Hard `max`/`min`/`clamp` make the model non-differentiable at the thresholds (C₁ floor, K₂ onset, f_wet bounds, Jarvis clamps, Lee–Pielke β), which can roughen calibration objective functions (Kavetski & Kuczera 2007). Explicit steps can also overshoot bounds. Both are accepted for this plan; smoothing is future work.
 - Neutral stability only (no Monin–Obukhov).
