@@ -92,7 +92,7 @@ SoilTexture(::Type{NF}, ::Val{:clayloam}) where {NF} = SoilTexture(NF, sand = 0.
 @kernel function normalize_texture_kernel!(sand, silt, clay, default::SoilTexture)
     i, j = @index(Global, NTuple)
     total = sand[i, j] + silt[i, j] + clay[i, j]
-    sand[i, j, 1] = ifelse(isnan(total), default.sand, sand[i, j] / total)
-    silt[i, j, 1] = ifelse(isnan(total), default.silt, silt[i, j] / total)
-    clay[i, j, 1] = ifelse(isnan(total), default.clay, clay[i, j] / total)
+    sand[i, j, end] = ifelse(isnan(total), default.sand, sand[i, j] / total)
+    silt[i, j, end] = ifelse(isnan(total), default.silt, silt[i, j] / total)
+    clay[i, j, end] = ifelse(isnan(total), default.clay, clay[i, j] / total)
 end

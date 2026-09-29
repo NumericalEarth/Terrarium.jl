@@ -66,7 +66,7 @@ function Terrarium.InputSources(dataset::SoilGrids2, grid::ColumnRingGrid, horiz
             ring_field = RingGrids.on_architecture(arch, RingGrids.FullClenshawField(interior(var_field)[:, (end - 1):-1:2, end - idx + 1], input_as = Matrix))
             target_field = RingGrids.Field(grid.rings)
             RingGrids.interpolate!(target_field, ring_field)
-            layer_inputs[var] = InputSource(grid, Field(target_field, grid); name = horizon => var)
+            layer_inputs[var] = InputSource(grid, Field(target_field, grid); name = horizon => var, domain = Terrarium.Ground())
         end
         # Ensure that mineral texture components with each horizon sum to unity
         Terrarium.normalize_texture!(layer_inputs[:sand_fraction].field, layer_inputs[:silt_fraction].field, layer_inputs[:clay_fraction].field)

@@ -55,10 +55,10 @@ function PrescribedSoilHorizon(::Type{NF}, name::Symbol; porosity = ConstantSoil
 end
 
 variables(horizon::PrescribedSoilHorizon{NF}) where {NF} = (
-    input(:sand_fraction, XY(), default = one(NF), bounds = UnitInterval, desc = "Mass fraction of sand in soil matrix"),
-    input(:silt_fraction, XY(), bounds = UnitInterval, desc = "Mass fraction of silt in soil matrix"),
-    input(:clay_fraction, XY(), bounds = UnitInterval, desc = "Mass fraction of clay in soil matrix"),
-    input(:thickness, XY(), default = horizon.default_thickness, bounds = Nonnegative, desc = "Thickness of soil horizon"),
+    input(:sand_fraction, Ground(XY()), default = one(NF), bounds = UnitInterval, desc = "Mass fraction of sand in soil matrix"),
+    input(:silt_fraction, Ground(XY()), bounds = UnitInterval, desc = "Mass fraction of silt in soil matrix"),
+    input(:clay_fraction, Ground(XY()), bounds = UnitInterval, desc = "Mass fraction of clay in soil matrix"),
+    input(:thickness, Ground(XY()), default = horizon.default_thickness, bounds = Nonnegative, desc = "Thickness of soil horizon"),
 )
 
 @inline function soil_texture(i, j, grid, fields, horizon::PrescribedSoilHorizon{NF}) where {NF}

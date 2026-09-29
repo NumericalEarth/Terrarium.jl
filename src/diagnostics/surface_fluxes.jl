@@ -12,7 +12,7 @@ function diagnose_skin_temperature_residual(
     )
     return kernel_operation2D(state, model.grid, seb.skin_temperature, model.constants, snow) do i, j, grid, fields, skinT::ImplicitSkinTemperature, args...
         Ts_implicit = compute_skin_temperature(i, j, grid, fields, skinT, args...)
-        Ts_prev = state.skin_temperature[i, j, 1]
+        Ts_prev = state.skin_temperature[i, j, end]
         return Ts_prev - Ts_implicit
     end
 end

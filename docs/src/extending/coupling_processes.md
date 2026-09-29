@@ -22,8 +22,8 @@ A concrete example of indirect coupling in Terrarium is the `ground_temperature`
 
 ```julia
 variables(energy::SoilThermodynamics) = (
-    prognostic(:internal_energy, XYZ(); closure = energy.closure, units = u"J/m^3", desc = "Internal energy of the soil volume, including both latent and sensible components"),
-    auxiliary(:ground_temperature, XY(), ground_temperature, energy, units = u"°C", desc = "Temperature of the uppermost ground or soil grid cell in °C"),
+    prognostic(:internal_energy, Ground(XYZ()); closure = energy.closure, units = u"J/m^3", desc = "Internal energy of the soil volume, including both latent and sensible components"),
+    auxiliary(:ground_temperature, Ground(Top(z = Center())), ground_temperature, energy, units = u"°C", desc = "Temperature of the uppermost ground or soil grid cell in °C"),
 )
 
 function ground_temperature(grid, clock, fields, energy::SoilThermodynamics)
@@ -36,7 +36,7 @@ end
 This `ground_temperature` is then consumed by several other processes such as the [surface energy balance](@ref surface_energy_balance_docs), [ evapotranspiration](@ref "Evapotranspiration"), and the vegetation stress factors computed for [autotrophic respiration](@ref "Autotrophic respiration"). These processes can simply declare `ground_temperature` as an input variable:
 
 ```julia
-input(:ground_temperature, XY(), default = 10.0, units = u"°C")
+input(:ground_temperature, Ground(Top(z = Center())), default = 10.0, units = u"°C")
 ```
 
 When used standalone, processes declaring `ground_temperature` as an input in this manner will allocate it as an independent input `Field` (here with a uniform initial value of 10°C across space). This can be very helpful for isolated testing of such components under a range of different input values for `ground_temperature`.
@@ -124,7 +124,7 @@ As an example, consider the `compute_auxiliary!` method for [`PALADYNCanopyEvapo
 function compute_auxiliary!(state, grid,
         evap::PALADYNCanopyEvapotranspiration,
         canopy_interception::AbstractCanopyInterception,  # 1. sibling (surface hydrology)
-        atmos::AbstractAtmosphere,                        # 2. atmosphere
+        atmos::AbstractAtmosphere,                        # 2. atmospheric inputs
         constants::PhysicalConstants,                     # 3. constants
         soil::Optional{AbstractSoil} = nothing            # 4. foreign (soil)
     )

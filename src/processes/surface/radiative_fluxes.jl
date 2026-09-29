@@ -17,9 +17,9 @@ PrescribedRadiativeFluxes(::Type{NF}) where {NF} = PrescribedRadiativeFluxes{NF}
 ## Top-level interface methods
 
 variables(::PrescribedRadiativeFluxes) = (
-    input(:surface_shortwave_up, XY(), units = u"W/m^2", desc = "Outgoing (upwelling) shortwave radiation"),
-    input(:surface_longwave_up, XY(), units = u"W/m^2", desc = "Outgoing (upwelling) longwave radiation"),
-    auxiliary(:surface_net_radiation, XY(), units = u"W/m^2", desc = "Net outgoing (positive up) radiation"),
+    input(:surface_shortwave_up, Surface(XY()), units = u"W/m^2", desc = "Outgoing (upwelling) shortwave radiation"),
+    input(:surface_longwave_up, Surface(XY()), units = u"W/m^2", desc = "Outgoing (upwelling) longwave radiation"),
+    auxiliary(:surface_net_radiation, Surface(XY()), units = u"W/m^2", desc = "Net outgoing (positive up) radiation"),
 )
 
 """ $TYPEDSIGNATURES """
@@ -61,7 +61,7 @@ Compute net radiation and store in auxiliary fields at a grid point.
         args...
     )
     # Compute and store net radiation
-    out.surface_net_radiation[i, j, 1] = compute_surface_net_radiation(i, j, grid, fields, rad, atmos)
+    out.surface_net_radiation[i, j, end] = compute_surface_net_radiation(i, j, grid, fields, rad, atmos)
     return out
 end
 
@@ -129,9 +129,9 @@ end
 ## Top-level interface methods
 
 variables(::DiagnosedRadiativeFluxes) = (
-    auxiliary(:surface_shortwave_up, XY(), units = u"W/m^2", desc = "Outgoing (upwelling) shortwave radiation"),
-    auxiliary(:surface_longwave_up, XY(), units = u"W/m^2", desc = "Outgoing (upwelling) longwave radiation"),
-    auxiliary(:surface_net_radiation, XY(), units = u"W/m^2", desc = "Net radiation budget"),
+    auxiliary(:surface_shortwave_up, Surface(XY()), units = u"W/m^2", desc = "Outgoing (upwelling) shortwave radiation"),
+    auxiliary(:surface_longwave_up, Surface(XY()), units = u"W/m^2", desc = "Outgoing (upwelling) longwave radiation"),
+    auxiliary(:surface_net_radiation, Surface(XY()), units = u"W/m^2", desc = "Net radiation budget"),
 )
 
 """ $TYPEDSIGNATURES """
@@ -191,12 +191,12 @@ end
 
     # Compute and store outgoing fluxes
     outgoing_fluxes = compute_surface_upwelling_radiation(i, j, grid, fields, rad, skinT, abd, consts, atmos)
-    surface_shortwave_up[i, j, 1] = outgoing_fluxes.surface_shortwave_up
-    surface_longwave_up[i, j, 1] = outgoing_fluxes.surface_longwave_up
+    surface_shortwave_up[i, j, end] = outgoing_fluxes.surface_shortwave_up
+    surface_longwave_up[i, j, end] = outgoing_fluxes.surface_longwave_up
 
     # Compute and store net radiation
     fields = merge(fields, (; surface_shortwave_up, surface_longwave_up))
-    out.surface_net_radiation[i, j, 1] = compute_surface_net_radiation(i, j, grid, fields, rad, atmos)
+    out.surface_net_radiation[i, j, end] = compute_surface_net_radiation(i, j, grid, fields, rad, atmos)
     return out
 end
 

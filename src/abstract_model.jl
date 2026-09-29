@@ -38,7 +38,7 @@ Implementations of `AbstractModel` are required to implement, at minimum, three 
 Note that a default implementation of `variables` is provided which automatically collects all
 variables declared by `AbstractProcess`es defined as fields (properties) of `struct`s that subtype `AbstractModel`.
 """
-abstract type AbstractModel{NF, Grid <: AbstractLandGrid{NF}}  end
+abstract type AbstractModel{NF, Grid <: AbstractGrid}  end
 
 # Method interface for AbstractModel and AbstractProcess
 
@@ -165,7 +165,7 @@ Note that this is a type-stable, `@generated` function that is compiled for each
 end
 
 """
-    get_grid(model::AbstractModel)::AbstractLandGrid
+    get_grid(model::AbstractModel)::AbstractGrid
 
 Return the spatial grid associated with the given `model`.
 """
@@ -239,21 +239,11 @@ defined by the coupling interface for the process type.
 invclosure!(state, grid, closure::AbstractClosureRelation, ::AbstractProcess, args...) = nothing
 
 """
-    (::Type{Model})(grid::AbstractLandGrid; kwargs...) where {Model <: AbstractModel}
+    (::Type{Model})(grid::AbstractGrid; kwargs...) where {Model <: AbstractModel}
 
 Convenience constructor for all `AbstractModel` types that accepts `grid` as a positional argument.
 """
-(::Type{Model})(grid::AbstractLandGrid; kwargs...) where {Model <: AbstractModel} = Model(; grid, kwargs...)
-
-"""
-    (::Type{Model})(grid::AbstractGrid; kwargs...) where {Model <: AbstractModel}
-
-Default constructor for all `AbstractModel` types that accepts an ordinary spatial discretization
-`grid` and builds the model's [`LandGrid`](@ref) from it via [`create_land_grid`](@ref). Models which
-resolve additional vertical domains should define their own constructor which passes the relevant
-process components to `create_land_grid`.
-"""
-(::Type{Model})(grid::AbstractGrid; kwargs...) where {Model <: AbstractModel} = Model(create_land_grid(grid); kwargs...)
+(::Type{Model})(grid::AbstractGrid; kwargs...) where {Model <: AbstractModel} = Model(; grid, kwargs...)
 
 # Default parameters collection for processes
 function ParameterEditing.parameters(proc::AbstractProcess; kwargs...)

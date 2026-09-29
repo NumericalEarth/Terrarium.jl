@@ -182,6 +182,32 @@ function explicit_step!(
     return nothing
 end
 
+"""
+Alias for a `Field` restricted to a single vertical index, i.e. one declared at the [`Top`](@ref) or
+[`Bottom`](@ref) of a domain. Such a field carries a `Center` or `Face` vertical location, so it is
+not distinguishable from a fully resolved (`XYZ`) field by its location parameters alone; the
+`indices` type parameter is what separates the two.
+"""
+const VerticallySlicedField{LX, LY, LZ} = Field{LX, LY, LZ, <:Any, <:Any, Tuple{Colon, Colon, UnitRange{Int}}}
+
+# A vertically sliced field occupies exactly one `k`, so it is stepped by a 2D kernel which resolves
+# that index with `end`. Launching the 3D kernel over the full column would index outside the slice.
+function explicit_step!(
+        field::VerticallySlicedField{LX, LY, LZ},
+        tendency::VerticallySlicedField{LX, LY, LZ},
+        grid::AbstractGrid{NF},
+        timestepper::AbstractTimeStepper,
+        Δt,
+        args...
+    ) where {LX, LY, LZ, NF}
+    Δt = convert_dt(NF, Δt)
+    launch!(
+        grid, XY, explicit_step_slab_kernel!,
+        field, tendency, timestepper, Δt, args...
+    )
+    return nothing
+end
+
 function explicit_step!(
         field::AbstractField{LX, LY, Nothing},
         tendency::AbstractField{LX, LY, Nothing},
@@ -223,7 +249,22 @@ end
     u = field
     ∂u∂t = tendency
     @inbounds let Δt = convert(eltype(tendency), Δt)
-        u[i, j, 1] += ∂u∂t[i, j] * Δt
+        u[i, j, end] += ∂u∂t[i, j] * Δt
+    end
+end
+
+@kernel function explicit_step_slab_kernel!(
+        field,
+        grid,
+        tendency,
+        ::AbstractTimeStepper,
+        Δt
+    )
+    i, j = @index(Global, NTuple)
+    u = field
+    ∂u∂t = tendency
+    @inbounds let Δt = convert(eltype(tendency), Δt)
+        u[i, j, end] += ∂u∂t[i, j, end] * Δt
     end
 end
 

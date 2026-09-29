@@ -95,13 +95,13 @@ with the bulk density `ρ_snow`.
 # Process methods
 
 variables(snow::SingleLayerSnow) = (
-    prognostic(:snow_energy, XY(); closure = get_closure(snow), units = u"J/m^2", desc = "Depth-integrated (column) internal energy of the snowpack relative to water at 0°C"),
-    prognostic(:snow_water_equivalent, XY(); units = u"m", desc = "Snow water equivalent (ice + retained liquid)"),
-    auxiliary(:snow_depth, XY(); units = u"m", desc = "Snow layer depth"),
-    auxiliary(:snow_cover_fraction, XY(); bounds = UnitInterval, desc = "Sub-grid snow-covered area fraction"),
-    input(:surface_heat_flux, XY(); units = u"W/m^2", desc = "Net heat flux at the snow surface (positive upward)"),
-    input(:basal_heat_flux, XY(); units = u"W/m^2", desc = "Conductive heat flux at the snow base (positive upward, soil → snow)"),
-    input(:sublimation, XY(); units = u"m/s", desc = "Sublimation/evaporation rate from the snow surface (SWE)"),
+    prognostic(:snow_energy, Snow(XY()); closure = get_closure(snow), units = u"J/m^2", desc = "Depth-integrated (column) internal energy of the snowpack relative to water at 0°C"),
+    prognostic(:snow_water_equivalent, Snow(XY()); units = u"m", desc = "Snow water equivalent (ice + retained liquid)"),
+    auxiliary(:snow_depth, Snow(XY()); units = u"m", desc = "Snow layer depth"),
+    auxiliary(:snow_cover_fraction, Snow(XY()); bounds = UnitInterval, desc = "Sub-grid snow-covered area fraction"),
+    input(:surface_heat_flux, Snow(Top()); units = u"W/m^2", desc = "Net heat flux at the snow surface (positive upward)"),
+    input(:basal_heat_flux, Snow(Bottom()); units = u"W/m^2", desc = "Conductive heat flux at the snow base (positive upward, soil → snow)"),
+    input(:sublimation, Snow(Top()); units = u"m/s", desc = "Sublimation/evaporation rate from the snow surface (SWE)"),
 )
 
 """
@@ -158,8 +158,8 @@ mass and energy balances (see [`compute_snow_water_tendency`](@ref) and [`comput
         atmos::AbstractAtmosphere,
         constants::PhysicalConstants
     )
-    tendencies.snow_water_equivalent[i, j, 1] += compute_snow_water_tendency(i, j, grid, fields, snow, atmos)
-    tendencies.snow_energy[i, j, 1] += compute_snow_energy_tendency(i, j, grid, fields, snow, atmos, constants)
+    tendencies.snow_water_equivalent[i, j, end] += compute_snow_water_tendency(i, j, grid, fields, snow, atmos)
+    tendencies.snow_energy[i, j, end] += compute_snow_energy_tendency(i, j, grid, fields, snow, atmos, constants)
     return nothing
 end
 """
@@ -175,8 +175,8 @@ Compute the snow depth, cover fraction, and thermal conductivity at grid cell `i
     W_snow = fields.snow_water_equivalent[i, j]
     ρ_w = constants.material.density_water
     ρ_snow = compute_snow_density(i, j, grid, fields, snow.density)
-    out.snow_depth[i, j, 1] = compute_snow_depth(snow, W_snow, ρ_snow, ρ_w)
-    out.snow_cover_fraction[i, j, 1] = compute_snow_cover_fraction(snow.cover, W_snow)
+    out.snow_depth[i, j, end] = compute_snow_depth(snow, W_snow, ρ_snow, ρ_w)
+    out.snow_cover_fraction[i, j, end] = compute_snow_cover_fraction(snow.cover, W_snow)
     return nothing
 end
 

@@ -35,8 +35,8 @@ SoilThermodynamics(
 Adapt.@adapt_structure SoilThermodynamics
 
 variables(energy::SoilThermodynamics) = (
-    prognostic(:internal_energy, XYZ(); closure = energy.closure, units = u"J/m^3", desc = "Internal energy of the soil volume, including both latent and sensible components"),
-    auxiliary(:ground_temperature, XY(), ground_temperature, energy, units = u"°C", desc = "Temperature of the uppermost ground or soil grid cell in °C"),
+    prognostic(:internal_energy, Ground(XYZ()); closure = energy.closure, units = u"J/m^3", desc = "Internal energy of the soil volume, including both latent and sensible components"),
+    auxiliary(:ground_temperature, Ground(Top(z = Center())), ground_temperature, energy, units = u"°C", desc = "Temperature of the uppermost ground or soil grid cell in °C"),
 )
 
 # Field constructor for ground_temperature that returns a view of the uppermost soil layer

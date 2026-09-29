@@ -18,8 +18,8 @@ PrescribedSkinTemperature(::Type{NF}; kwargs...) where {NF} = PrescribedSkinTemp
 ## Top-level interface methods
 
 variables(::PrescribedSkinTemperature) = (
-    auxiliary(:ground_heat_flux, XY(), units = u"W/m^2", desc = "Ground heat flux"),
-    input(:skin_temperature, XY(), units = u"°C", desc = "Longwave emission temperature of the land surface in °C"),
+    auxiliary(:ground_heat_flux, Ground(Top()), units = u"W/m^2", desc = "Ground heat flux"),
+    input(:skin_temperature, Surface(XY()), units = u"°C", desc = "Longwave emission temperature of the land surface in °C"),
 )
 
 @inline compute_auxiliary!(state, grid, ::PrescribedSkinTemperature, args...) = nothing
@@ -123,9 +123,9 @@ end
 ## Top-level interface methods
 
 variables(::ImplicitSkinTemperature) = (
-    prognostic(:skin_temperature, XY(), units = u"°C", desc = "Longwave emission temperature of the land surface in °C"),
-    auxiliary(:ground_heat_flux, XY(), units = u"W/m^2", desc = "Ground heat flux"),
-    input(:ground_temperature, XY(), units = u"°C", desc = "Temperature of the uppermost ground or soil grid cell in °C"),
+    prognostic(:skin_temperature, Surface(XY()), units = u"°C", desc = "Longwave emission temperature of the land surface in °C"),
+    auxiliary(:ground_heat_flux, Ground(Top()), units = u"W/m^2", desc = "Ground heat flux"),
+    input(:ground_temperature, Ground(Top(z = Center())), units = u"°C", desc = "Temperature of the uppermost ground or soil grid cell in °C"),
 )
 
 """
@@ -227,7 +227,7 @@ Per-cell mutating variant used by the fused surface-energy-balance kernel: store
 into the auxiliary output field `out`.
 """
 @propagate_inbounds function compute_ground_heat_flux!(out, i, j, grid, fields, skinT::AbstractSkinTemperature, seb::AbstractSurfaceEnergyBalance)
-    out.ground_heat_flux[i, j, 1] = compute_ground_heat_flux(i, j, grid, fields, skinT, seb)
+    out.ground_heat_flux[i, j, end] = compute_ground_heat_flux(i, j, grid, fields, skinT, seb)
     return nothing
 end
 
@@ -241,9 +241,9 @@ special case (`f_snow = 0`) of the snow-aware method below; it is a separate met
 """
 @inline function compute_skin_temperature(i, j, grid, fields, skinT::ImplicitSkinTemperature{NF}, args...) where {NF}
     # Get inputs
-    R_net = fields.surface_net_radiation[i, j, 1]
-    H_s = fields.sensible_heat_flux[i, j, 1]
-    H_l = fields.latent_heat_flux[i, j, 1]
+    R_net = fields.surface_net_radiation[i, j, end]
+    H_s = fields.sensible_heat_flux[i, j, end]
+    H_l = fields.latent_heat_flux[i, j, end]
     G₀ = compute_ground_heat_flux_demand(skinT, R_net, H_s, H_l)
     Tg, κg, Δzg = ground_thermal_interface(i, j, grid, fields, skinT)
     Ts = Tg - G₀ * Δzg / (2 * κg)
@@ -264,9 +264,9 @@ atmosphere-side demanded flux `G` (`= R_net + H_s + H_l`), by equating `G` to th
         snow::AbstractSnow
     ) where {NF}
     # Get inputs
-    R_net = fields.surface_net_radiation[i, j, 1]
-    H_s = fields.sensible_heat_flux[i, j, 1]
-    H_l = fields.latent_heat_flux[i, j, 1]
+    R_net = fields.surface_net_radiation[i, j, end]
+    H_s = fields.sensible_heat_flux[i, j, end]
+    H_l = fields.latent_heat_flux[i, j, end]
     G₀ = compute_ground_heat_flux_demand(skinT, R_net, H_s, H_l)
     Tg, κg, Δzg = ground_thermal_interface(i, j, grid, fields, skinT)
     Tsnow, κsnow, dsnow = snow_thermal_interface(i, j, grid, fields, snow, constants)
@@ -300,7 +300,7 @@ atmosphere-side demanded flux `G_demand = R_net(Ts_prev) + H(Ts_prev) + LE(Ts_pr
     # into `ground_heat_flux`); `snow` partitions the latent flux by snow-covered fraction
     compute_surface_energy_fluxes!(out, i, j, grid, fields, seb, constants, atmos, hydrology, snow)
     Ts_implicit = compute_skin_temperature(i, j, grid, fields, skinT, constants, snow)
-    Ts_prev = out.skin_temperature[i, j, 1]
+    Ts_prev = out.skin_temperature[i, j, end]
     return Ts_prev - Ts_implicit
 end
 

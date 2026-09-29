@@ -41,7 +41,7 @@ Compute the continuous density function of the root distirbution as a function o
 end
 
 variables(rootdist::StaticExponentialRootDistribution) = (
-    auxiliary(:root_fraction, XYZ(), root_fraction, rootdist), # Static root fraction defined as function
+    auxiliary(:root_fraction, Ground(XYZ()), root_fraction, rootdist), # Static root fraction defined as function
 )
 
 """
@@ -52,7 +52,7 @@ Returns a `FunctionField` that lazily computes the static root distribution on a
 The `FunctionField` takes `(x, z)` arguments, so this is restricted to land grids with a `Flat`
 lateral (`y`) dimension, i.e. those built on column discretizations.
 """
-function root_fraction(grid::AbstractLandGrid{<:Any, <:Any, Flat}, clock, fields, rootdist::StaticExponentialRootDistribution{NF}) where {NF}
+function root_fraction(grid::AbstractGrid{<:Any, <:Any, Flat}, clock, fields, rootdist::StaticExponentialRootDistribution{NF}) where {NF}
     ground_grid = ground_domain(grid)
     # define pdf of root distribution as a continuous function of depth
     ∂R∂z = FunctionField{Center, Center, Center}(ground_grid, parameters = rootdist) do x, z, params

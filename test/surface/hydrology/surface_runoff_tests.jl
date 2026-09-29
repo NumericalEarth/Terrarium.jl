@@ -67,7 +67,7 @@ end
     S = 0.1
     set!(state.surface_excess_water, S)
     Terrarium.compute_tendencies!(state, grid, runoff)
-    ∂S∂t = Array(state.tendencies.surface_excess_water)[1, 1, 1]
+    ∂S∂t = Array(interior(state.tendencies.surface_excess_water))[1, 1, 1]
     # The tendency is a negative removal rate, -min(D, S), so the pool is drawn down
     @test ∂S∂t ≈ -min(S / runoff.τ_r, S)
     @test ∂S∂t < 0
@@ -77,7 +77,7 @@ end
     state = StateVariables(runoff, grid)
     set!(state.surface_excess_water, S)
     Terrarium.compute_tendencies!(state, grid, runoff)
-    ∂S∂t = Array(state.tendencies.surface_excess_water)[1, 1, 1]
+    ∂S∂t = Array(interior(state.tendencies.surface_excess_water))[1, 1, 1]
     @test ∂S∂t ≈ -S
 
     # An empty pool has no tendency

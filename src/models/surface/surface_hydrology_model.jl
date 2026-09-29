@@ -8,7 +8,7 @@ $TYPEDFIELDS
 """
 @parameterized @kwdef struct SurfaceHydrologyModel{
         NF,
-        GridType <: AbstractLandGrid{NF},
+        GridType <: AbstractGrid{NF},
         Atmosphere <: AbstractAtmosphere,
         CanopyHydrology <: AbstractCanopyInterception,
         CanopyET <: AbstractEvapotranspiration,

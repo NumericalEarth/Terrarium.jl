@@ -141,7 +141,7 @@ function test_model(config::Symbol; nsteps = NSTEPS, rtol = RTOL, atol = ATOL, N
     @testset "$name" begin
         # Regression guard: Test that the Reactant model and grid types are correct
         @testset "Reactant model and grid types" begin
-            @test typeof(Terrarium.get_grid(rea.model)) <: ReactantExt.ReactantLandGrid
+            @test typeof(Terrarium.get_grid(rea.model)) <: ReactantExt.ReactantGrid
             @test typeof(rea.model) <: ReactantExt.ReactantModel
             @test typeof(rea) <: ReactantExt.ReactantIntegrator
         end
