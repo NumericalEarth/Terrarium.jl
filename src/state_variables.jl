@@ -85,22 +85,29 @@ function Oceananigans.TimeSteppers.update_state!(state::StateVariables, model::A
     return nothing
 end
 
+# Zero a single state field.
+#
+# The underlying array is filled directly rather than going through `set!`, which additionally
+# applies the field's boundary conditions. Halo values are about to be recomputed by
+# `initialize!` anyway, and `set!` drags the boundary-condition machinery of every field into the
+# call. Unrolled over all of a state's fields that exceeds the size of Enzyme's type analysis and
+# makes `reset!` undifferentiable (`EnzymeNoTypeError`), even though each individual `set!` is
+# fine on its own.
+#
+# Not every entry is necessarily a `Field`, so dispatch on the entry type rather than branching
+# on it.
+# TODO: technically we should apply auxiliary variable initializers here rather than zeroing.
+reset_field!(field::Field) = (fill!(parent(field), zero(eltype(field))); return nothing)
+reset_field!(field) = nothing
+
 """
 Reset all `Field`s in `state` to zero.
 """
 function Oceananigans.TimeSteppers.reset!(state::StateVariables)
-    # reset all prognostic fields
-    fastiterate(state.prognostic) do field
-        set!(field, zero(eltype(field)))
-    end
-    fastiterate(state.auxiliary) do field
-        # TODO: technically we should apply auxiliary variable initializers here
-        isa(field, Field) && set!(field, zero(eltype(field)))
-    end
-    # reset all tendency fields
-    fastiterate(state.tendencies) do field
-        set!(field, zero(eltype(field)))
-    end
+    # reset all prognostic, auxiliary, and tendency fields
+    fastiterate(reset_field!, state.prognostic)
+    fastiterate(reset_field!, state.auxiliary)
+    fastiterate(reset_field!, state.tendencies)
     # recurse over namespaces
     return fastiterate(state.namespaces) do ns
         reset!(ns)
@@ -112,9 +119,7 @@ Reset all tendencies in `state` to zero.
 """
 function reset_tendencies!(state::StateVariables)
     # reset all tendency fields
-    fastiterate(state.tendencies) do field
-        set!(field, zero(eltype(field)))
-    end
+    fastiterate(reset_field!, state.tendencies)
     # recurse over namespaces
     return fastiterate(state.namespaces) do ns
         reset_tendencies!(ns)
