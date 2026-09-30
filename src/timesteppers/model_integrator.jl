@@ -109,7 +109,7 @@ function Oceananigans.Simulations.run!(
         period::Union{Period, Nothing} = nothing,
         Δt = default_dt(timestepper(integrator)),
         checkpointing = false,
-        show_progress = false
+        show_progress::Union{Bool, Val{true}, Val{false}} = Val(false),
     ) where {NF}
     Δt = convert_dt(NF, Δt)
     if !isnothing(period) && convert_dt(NF, period) < Δt
@@ -134,15 +134,41 @@ integrators override this method in `TerrariumReactantExt`, compiling the loop i
 traced program in which `checkpointing` selects the reverse-mode-AD checkpointing scheme
 (`false`, or a scheme such as `Reactant.Periodic(n)`).
 """
-function run_timesteps!(integrator::ModelIntegrator, Δt, steps, checkpointing = false; show_progress = false)
-    if show_progress
-        @showprogress "Integrating $(nameof(typeof(integrator.model))) for $steps steps" for _ in 1:steps
-            timestep!(integrator, Δt, finalize = false)
-        end
-    else
-        for _ in 1:steps
-            timestep!(integrator, Δt, finalize = false)
-        end
+function run_timesteps!(
+        integrator::ModelIntegrator, Δt, steps, checkpointing = false;
+        show_progress::Union{Bool, Val{true}, Val{false}} = Val(false),
+    )
+    return run_timesteps!(integrator, Δt, steps, checkpointing, as_val(show_progress))
+end
+
+# Normalize `show_progress` to a `Val` so the caller below dispatches on it instead of branching
+# on a runtime `Bool`. This matters for Enzyme: a runtime `if show_progress` branch keeps the
+# `@showprogress`/`ProgressMeter` code path (see below) reachable in the differentiated call
+# graph even when `show_progress` is always `false`, because the boolean is not provably
+# constant across this non-inlined call boundary. When SpeedyWeather is also loaded, that code
+# path resolves (via SpeedyWeather's global `ProgressMeter.speedstring` extension) to code that
+# reads mutable global `Ref`s and fails Enzyme's strict-aliasing type analysis — unrelated to
+# anything physical, but fatal to compilation. Dispatching on `Val{true}`/`Val{false}` instead
+# means only the method matching the caller's concrete type is ever compiled or differentiated;
+# the other one is never part of the call graph at all. `Val(false)` as the *keyword default*
+# (not `false`) is what makes this reliable: it is a literal expression substituted verbatim by
+# Julia's keyword-argument sugar at any call site that omits `show_progress`, so callers that
+# never ask for a progress bar get an unambiguous `Val{false}`, not a `Bool` whose constant-ness
+# depends on inference heuristics.
+@inline as_val(x::Val) = x
+@inline as_val(x::Bool) = Val(x)
+
+function run_timesteps!(integrator::ModelIntegrator, Δt, steps, checkpointing, ::Val{true})
+    @showprogress "Integrating $(nameof(typeof(integrator.model))) for $steps steps" for _ in 1:steps
+        timestep!(integrator, Δt, finalize = false)
+    end
+    compute_auxiliary!(integrator.state, integrator.model)
+    return nothing
+end
+
+function run_timesteps!(integrator::ModelIntegrator, Δt, steps, checkpointing, ::Val{false})
+    for _ in 1:steps
+        timestep!(integrator, Δt, finalize = false)
     end
     compute_auxiliary!(integrator.state, integrator.model)
     return nothing

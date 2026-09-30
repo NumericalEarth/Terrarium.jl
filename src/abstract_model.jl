@@ -38,7 +38,7 @@ Implementations of `AbstractModel` are required to implement, at minimum, three 
 Note that a default implementation of `variables` is provided which automatically collects all
 variables declared by `AbstractProcess`es defined as fields (properties) of `struct`s that subtype `AbstractModel`.
 """
-abstract type AbstractModel{NF, Grid <: AbstractLandGrid{NF}}  end
+abstract type AbstractModel{NF, Grid <: AbstractLandGrid{NF}} end
 
 # Method interface for AbstractModel and AbstractProcess
 
@@ -255,10 +255,14 @@ process components to `create_land_grid`.
 """
 (::Type{Model})(grid::AbstractGrid; kwargs...) where {Model <: AbstractModel} = Model(create_land_grid(grid); kwargs...)
 
+# Number format disptaches
+number_format(::Type{<:AbstractModel{NF}}) where {NF} = NF
+number_format(::Type{<:AbstractProcess{NF}}) where {NF} = NF
+
 # Default parameters collection for processes
-function ParameterEditing.parameters(proc::AbstractProcess; kwargs...)
+function ParameterEditing.parameters(::Type{PT}, proc::AbstractProcess; kwargs...) where {PT <: ModelParameters.AbstractParam}
     proc_params = map(fieldnames(typeof(proc))) do name
-        name => ParameterEditing.parameters(getproperty(proc, name))
+        name => ParameterEditing.parameters(PT, getproperty(proc, name))
     end
     nonempty_params = filter(p -> length(p[2]) > 0, proc_params)
     return ParameterEditing.ParameterTable((; nonempty_params...))

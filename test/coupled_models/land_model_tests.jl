@@ -3,6 +3,8 @@ using Test
 
 using Oceananigans.BoundaryConditions: BoundaryCondition, Flux
 
+import RingGrids
+
 @testset "LandModel: Soil, no vegetation" begin
     grid = ColumnGrid(CPU(), ExponentialSpacing(Δz_max = 1.0, N = 50))
     swrc = VanGenuchten(α = 2.0, n = 2.0)
@@ -250,4 +252,35 @@ end
     analytic = [S₀ * (1 - Δt / τ)^n for n in 0:5]
     @test all(isapprox.(pools, analytic; rtol = 1.0e-9))
     @test all(isfinite.(state.saturation_water_ice))
+end
+
+# `ColumnGrid` is an alias for an Oceananigans `RectilinearGrid`, so the testsets above exercise
+# Oceananigans' own grid metrics. `ColumnRingGrid` is a grid *wrapper* and must forward those
+# metrics itself; when it did not, every `LandModel` on a ring grid failed on the first timestep
+# with a `MethodError` on `Δxᶜᵃᵃ`, because the surface energy balance imposes a flux boundary
+# condition and Oceananigans divides the flux by the cell area.
+@testset "LandModel: ColumnRingGrid" begin
+    rings = RingGrids.FullGaussianGrid(4)
+    mask = RingGrids.Field(rings)
+    mask .= 1
+    grid = ColumnRingGrid(CPU(), Float64, ExponentialSpacing(Δz_max = 1.0, N = 10), rings, mask .> 0)
+    soil = SoilEnergyWaterCarbon(eltype(grid); hydrology = SoilHydrology(eltype(grid), RichardsEq()))
+    land = LandModel(grid; soil, vegetation = nothing)
+    integrator = initialize(
+        land; initializers = (
+            temperature = (x, z) -> 5.0 - 0.02 * z,
+            saturation_water_ice = (x, z) -> 0.5,
+        )
+    )
+    state = integrator.state
+    # The surface energy balance is coupled through a flux boundary condition, which is what needs
+    # the cell metrics of the wrapped grid.
+    @test isa(state.internal_energy.boundary_conditions.top, BoundaryCondition{<:Flux})
+    # One column per unmasked ring grid point
+    @test size(interior(state.temperature), 1) == sum(mask .> 0)
+
+    timestep!(integrator, 60.0)
+    @test all(isfinite.(state.temperature))
+    @test all(isfinite.(state.saturation_water_ice))
+    @test all(isfinite.(state.ground_heat_flux))
 end

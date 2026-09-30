@@ -118,6 +118,23 @@ Oceananigans.Grids.rname(grid::ColumnRingGrid) = Oceananigans.Grids.rname(getfie
 @inline Oceananigans.Grids.ηnode(i, j, k, grid::ColumnRingGrid, ℓx, ℓy, ℓz) = ηnode(i, j, k, getfield(grid, :grid), ℓx, ℓy, ℓz)
 @inline Oceananigans.Grids.rnode(i, j, k, grid::ColumnRingGrid, ℓx, ℓy, ℓz) = rnode(i, j, k, getfield(grid, :grid), ℓx, ℓy, ℓz)
 
+# Oceananigans' grid metrics dispatch on the concrete grid type: `Δxᶜᵃᵃ` and friends have methods for
+# `RectilinearGrid`, `LatitudeLongitudeGrid`, and so on, but no generic fallback. A grid *wrapper*
+# must therefore forward them explicitly; Oceananigans does the same for its own wrapper in
+# `src/ImmersedBoundaries/immersed_grid_metrics.jl`. Only the one-dimensional spacings need
+# forwarding, because the 2D and 3D spacings, areas, and volumes are all defined generically in
+# terms of them. Without this, anything that needs a cell metric fails with a `MethodError`, most
+# visibly the flux boundary conditions of the surface energy balance, which divide by the cell area.
+for Δ in (:Δxᶜᵃᵃ, :Δxᶠᵃᵃ, :Δyᵃᶜᵃ, :Δyᵃᶠᵃ, :Δzᵃᵃᶜ, :Δzᵃᵃᶠ, :Δrᵃᵃᶜ, :Δrᵃᵃᶠ)
+    @eval @inline Oceananigans.Operators.$Δ(i, j, k, grid::ColumnRingGrid) = Oceananigans.Operators.$Δ(i, j, k, getfield(grid, :grid))
+end
+
+# Vertical spacings are additionally queried with vectors of indices (e.g. when Oceananigans
+# computes spacings over a whole field), which the scalar signatures above do not cover.
+for Δ in (:Δzᵃᵃᶜ, :Δzᵃᵃᶠ, :Δrᵃᵃᶜ, :Δrᵃᵃᶠ)
+    @eval @inline Oceananigans.Operators.$Δ(i::AbstractArray, j::AbstractArray, k::AbstractArray, grid::ColumnRingGrid) = Oceananigans.Operators.$Δ(i, j, k, getfield(grid, :grid))
+end
+
 # See the corresponding note for land grids in `grids.jl`: Oceananigans accesses grid dimensions and
 # discretization data as struct fields, so forward anything that is not one of our own fields.
 @inline Base.getproperty(grid::ColumnRingGrid, name::Symbol) = hasfield(typeof(grid), name) ? getfield(grid, name) : getproperty(getfield(grid, :grid), name)
