@@ -1,10 +1,11 @@
 # Enzyme compile time of `LandModel` time steps blocks coupled Speedy + Terrarium adjoints
 
 > Status: **investigation note** (not an implementation plan). Records a measured AD limitation, the
-> bisection that located it, and two small source changes that came out of it. The coupled
-> SpeedyWeather + Terrarium adjoint still does not compile.
+> bisection that located it, and the source changes that came out of it. **Resolved**: the coupled
+> SpeedyWeather + Terrarium adjoint compiles and is validated against finite differences; see the
+> resolution section at the end.
 
-Date: 2026-09-24 (measurements), updated 2026-09-25 (source changes, coupled-step follow-up)
+Date: 2026-09-24 (measurements), updated 2026-09-25 (source changes), 2026-09-29 (resolution)
 
 Base revision: 3eb7cff52 (`main`), worktree `../Terrarium-speedy-ad`, branch `bg/speedy-enzyme-lateral-coupling`
 
@@ -169,3 +170,55 @@ the atmospheric transport the experiment exists to measure.
   and reducing the aggregate size of what is passed into the fused SEB kernel.
 - A smooth `SFCC` freeze curve dispatched in the energy closure would remove the `FreeWater` plateau
   that zeroes sensitivities at 0 °C; it is exported but not wired in.
+
+## Resolution (2026-09-29)
+
+The coupled T21 / 5-layer / 4-soil-layer adjoint compiles in ~30 min and is correct. Validation on
+8 coupled steps, `Float32`, finite differences on `internal_energy` (ε = 2e5 and 2e6 J/m³):
+
+| quantity | adjoint | finite difference |
+|---|---|---|
+| ∂T/∂U, target column (16.4°E, 52.6°N) | 5.268e-8 | 5.263e-8 / 5.258e-8 |
+| ∂T/∂U, column 552 km away | 3.62e-10 | 3.69e-10 |
+
+The largest sensitivity over all 745 land columns is the target itself; the median remote value is
+1.6e-12. The lateral coupling through the atmosphere is real and about 0.7 % of the local response
+after two hours at the nearest column.
+
+Three independent problems stood between the 2026-09-25 state and this result:
+
+1. **Enzyme release bug (fixed upstream, PR 3709).** With Enzyme 0.13.205 the reverse pass crashed
+   at runtime (`MethodError(Core.Compiler.widenconst, (3337,))` inside inference, then a segfault)
+   from `runtime_generic_rev` through Oceananigans' `set!`/`AbstractOperations` path. The PR build
+   (`3425f78`, "Do not fold loads of non-const globals on Julia 1.10") compiles and runs. The
+   `TypeAnalysis` `ty == ty2` assertion from 2026-09-25 is what the same run hits on Oceananigans
+   0.113.1, so 0.113.4 + PR Enzyme is the working stack.
+2. **Un-zeroed Terrarium shadow (the wrong gradient).** SpeedyWeather's view-preserving
+   `Enzyme.make_zero(::Variables)` does `deepcopy(prev)` and zeroes only the leaf types it knows;
+   its catch-all `_make_zero_view!(x) = nothing` left `vars.prognostic.land.terrarium` as an exact
+   copy of the primal state (verified: max |shadow U| = max |U| = 3.4e7). Enzyme then accumulated the
+   true adjoint on top of it, which is why every column showed |∂T/∂U| of 1e6 to 1e8 and why the
+   numbers were bit-identical across every code change tried (skin-temperature scheme, checkpointing,
+   `Const(model)`, clock adaption, a `set!` rewrite in the ext). Fix: `make_zero!` the Terrarium
+   shadow after `make_zero(vars)` (in the script), and in SpeedyWeather make the catch-all call
+   `Enzyme.make_zero!(x)`. Standalone Terrarium probes never showed this because they never went
+   through SpeedyWeather's `make_zero`.
+3. **Oceananigans 0.113.2 CPU kernel-argument adaption (standalone `LandModel` only).**
+   `convert_to_device(::CPU, args) = Adapt.adapt(CPU(), args)` rebuilds the mutable `Clock` as a
+   NamedTuple `(time, last_Δt, last_stage_Δt, iteration, stage)` on every CPU launch, and Enzyme
+   fails with `NoShadowError` on that `{float, float, float, i64, i64}` in `fill_halo`. A
+   standalone `LandModel` with a floating-point clock therefore does not compile on 0.113.2+.
+   `Adapt.adapt_structure(::CPU, clock::Clock) = clock` restores the identical gradient
+   (3.1110247e-7, FD 3.1147e-7 / 3.1103e-7) and compiles 5× faster than 0.113.1 (133 s vs. 700 s),
+   because the field stripping the same change introduced is good for Enzyme; only the clock is a
+   problem. The coupled model uses a `DateTime` clock and is unaffected. Where the fix should live
+   (upstream Oceananigans, or Terrarium not passing the raw `Clock` into launches) is undecided.
+
+Eliminated as causes by direct test, each leaving the result unchanged: the `tick!` rules, mutable
+model types, checkpointed vs. plain `run!`, the `Δt` argument form, source at `04249f8ee` vs. `HEAD`,
+`PrescribedSkinTemperature`, `Const(model)`, the ext's `ModelIntegrator` rebuild and
+`run!(period)`, the ring grid, and the `DateTime` clock (all validated correct standalone).
+
+Also fixed on the way: the `tick!` reverse rule added a `DateTime` shadow to a `Float64` (fixed in
+`48a12ae93`). SpeedyWeather's own adjoint (default land, no Terrarium) was validated at the same
+resolution: 0.4458 vs. FD 0.4456 / 0.4444 on `soil_temperature`, neighbour 1.29e-3 vs. 1.25e-3.

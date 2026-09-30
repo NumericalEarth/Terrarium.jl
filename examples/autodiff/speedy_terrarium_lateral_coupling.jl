@@ -23,21 +23,29 @@
 # structure of ``\mathbf{g}`` says how far and in which direction it reaches. Reverse mode is
 # the natural choice: one scalar output, ``N_\text{land}`` inputs, one adjoint pass.
 #
-# !!! warning "Research script; the adjoint has not been seen to compile"
-#     Everything up to the `autodiff` call (coupled model, spin-up, target selection, the
-#     finite-difference check) runs as written. The `autodiff` call itself has not yet completed
-#     on any configuration tried, down to T9 with one atmospheric and two soil layers. The last
-#     measured attempt (2026-09-25; Julia 1.10.12, Enzyme 0.13.204, SpeedyWeather 0.22.1) got
-#     past Terrarium and failed inside SpeedyWeather, either with an `EnzymeInternalError` in
-#     `vertical_advection!` or with an Enzyme `TypeAnalysis` assertion. Since then this branch
-#     has made `StateVariables` and the model types mutable (a large compile-time win on the
-#     Terrarium side) and added a `tick!` reverse rule in `TerrariumEnzymeExt` that keeps the
-#     clock's integer counters out of Enzyme's analysis, but the coupled step has not been
-#     re-measured past that point. Details and the bisection numbers are in
-#     `docs/dev/2026-09/2026-09-24_NOTE_enzyme_landmodel_compile_time.md`.
+# !!! note "Status and requirements"
+#     This is a research script, not a doc-built example. As of 2026-09-29 the full T21 adjoint
+#     below compiles in about 30 min (Julia 1.10.12) and its gradient has been validated against
+#     finite differences on an 8-step integration: ∂T/∂U at the target column 5.268e-8 vs.
+#     5.263e-8 (ε = 2e5 J/m³), and at a column 552 km away 3.62e-10 vs. 3.69e-10, with every
+#     other column's sensitivity smaller than the target's. The lateral coupling is real and
+#     measurable. Three things are required to get there:
 #
-#     Use Julia 1.10, keep the resolution and step count small, and treat everything after the
-#     `autodiff` call as the intended analysis rather than a result.
+#     * **Enzyme at or after PR 3709** (`EnzymeAD/Enzyme.jl#3709`, "Do not fold loads of
+#       non-const globals on Julia 1.10"); the 0.13.205 release crashes in the reverse pass.
+#     * **`make_zero!` on the Terrarium shadow** after `make_zero(vars)`: SpeedyWeather's
+#       view-preserving `make_zero(::Variables)` copies the primal and zeroes only the leaf
+#       types it knows, so without this the Terrarium state's shadow starts as a copy of the
+#       state and the "gradient" is garbage of order 1e6 to 1e8. Done below; a SpeedyWeather-side
+#       fix (zeroing foreign leaves with `Enzyme.make_zero!`) makes it redundant once merged.
+#     * A `DateTime` clock, which the coupled model uses. A standalone Terrarium `LandModel`
+#       with a floating-point clock on Oceananigans ≥ 0.113.2 additionally needs
+#       `Adapt.adapt_structure(::CPU, clock::Clock) = clock`, because CPU kernel launches now
+#       adapt the clock into a NamedTuple Enzyme has no shadow for.
+#
+#     Compile-time bisection and the history of these findings are in
+#     `docs/dev/2026-09/2026-09-24_NOTE_enzyme_landmodel_compile_time.md`. `SingleLayerSnow`
+#     remains the dominant Terrarium-side compile cost, so the script runs with `snow = nothing`.
 #
 # ## Setup
 
@@ -52,7 +60,7 @@ using Terrarium
 using Checkpointing
 using Dates
 using Enzyme
-using Enzyme: Reverse, make_zero, set_runtime_activity
+using Enzyme: Reverse, make_zero, make_zero!, set_runtime_activity
 using Printf
 
 using CairoMakie
@@ -185,6 +193,10 @@ const i_target = nearest_land_column(13.4, 52.5, unfrozen_columns)
 # Great-circle distance from the target to every other land column, reused below.
 distance_from_target = [great_circle_distance(londs_land[i_target], latds_land[i_target], londs_land[j], latds_land[j]) for j in 1:N_land]
 
+# Figures and the raw sensitivity field are written here (git-ignored).
+output_dir = mkpath(joinpath(@__DIR__, "outputs"))
+target_marker!(fig::Figure) = scatter!(content(fig[1, 1]), [londs_land[i_target]], [latds_land[i_target]]; marker = :xcross, markersize = 18, color = :black, strokecolor = :white, strokewidth = 1)
+
 # ## The differentiated function
 #
 # The time loop is driven by hand rather than through `Speedy.run!`, which also does output,
@@ -231,6 +243,11 @@ scheme = Revolve(N_steps)
 # atmospheric initial conditions alike. `dmodel` catches parameter sensitivities we do not use.
 
 dvars = make_zero(vars)
+# SpeedyWeather's `make_zero(::Variables)` builds the shadow as a `deepcopy` (to keep the fused-buffer
+# views) and then zeroes only the SpeedyWeather leaf types it knows about. The Terrarium
+# `StateVariables` nested at `prognostic.land.terrarium` is not one of them and would be left as a
+# copy of the primal state, which Enzyme then accumulates the adjoint on top of. Zero it explicitly.
+make_zero!(dvars.prognostic.land.terrarium)
 dmodel = make_zero(model)
 
 @info "Computing the adjoint (this will take a while to compile)"
@@ -248,64 +265,122 @@ dvars_materialized = Speedy.materialize_views(dvars)
 # Easy to get wrong: the soil **prognostic** is `internal_energy`; `temperature` is
 # *diagnostic*, recomputed from it every step, so its ``t_0`` shadow is not an initial-condition
 # sensitivity (perturbing it changes nothing, the first `compute_auxiliary!` overwrites it). The
-# gradient we want is the one accumulated in `internal_energy`, in K/(J m⁻³). Multiplying by
-# the volumetric heat capacity ``C = \partial U/\partial T`` would turn it into a sensitivity to
-# an initial *temperature* field; we keep the energy form, which is exactly what Enzyme returns.
+# gradient Enzyme returns is the one accumulated in `internal_energy`, in K/(J m⁻³), for every
+# soil layer of every column.
 
-∂T_∂U₀_surface = Array(interior(dvars_materialized.prognostic.land.terrarium.internal_energy)[:, 1, end])
+∂T_∂U₀ = Array(interior(dvars_materialized.prognostic.land.terrarium.internal_energy)[:, 1, :])   # (N_land, Nz)
+∂T_∂U₀_surface = ∂T_∂U₀[:, end]
 
-# Scatter the land-column vector back onto the ring grid (`NaN` over ocean) for plotting.
-∂T_∂U₀_field = RingGrids.Field(∂T_∂U₀_surface, land_grid; fill_value = NaN)
+# A joule per cubic meter is a very small amount of energy (warming wet soil by 1 K takes
+# ``C ≈ 2–4 × 10⁶`` J/m³), so the energy form is hard to read. Multiplying by a volumetric heat
+# capacity ``C = ∂U/∂T`` gives the sensitivity to the initial *temperature* in K/K. The exact
+# ``C`` varies by cell with composition and phase (and is undefined on the 0 °C plateau); the
+# differences are a factor of two at most, so a single constant, the heat capacity of water, is
+# used everywhere. Read the K/K numbers as "per kelvin of a water-like soil".
+heat_capacity = SoilHeatCapacities(NF).water
+∂T_∂T₀ = ∂T_∂U₀ .* heat_capacity                       # (N_land, Nz), K/K
+∂T_∂T₀_surface = ∂T_∂T₀[:, end]
+# Response to warming the *whole* initial column of `j` by 1 K: the column's memory, rather than
+# that of its top 5 cm alone.
+∂T_∂T₀_column = vec(sum(∂T_∂T₀; dims = 2))
+
+# Write the raw fields first (one row per land column), so nothing downstream can lose them.
+open(joinpath(output_dir, "sensitivity.csv"), "w") do io
+    print(io, "column,lond,latd,distance_km")
+    for k in 1:Nz; print(io, ",dT_dU0_layer$k"); end
+    for k in 1:Nz; print(io, ",heat_capacity_layer$k"); end
+    for k in 1:Nz; print(io, ",dT_dT0_layer$k"); end
+    println(io, ",dT_dT0_column")
+    for j in 1:N_land
+        @printf(io, "%d,%.6f,%.6f,%.2f", j, londs_land[j], latds_land[j], distance_from_target[j])
+        for k in 1:Nz; @printf(io, ",%.8e", ∂T_∂U₀[j, k]); end
+        for k in 1:Nz; @printf(io, ",%.8e", heat_capacity); end
+        for k in 1:Nz; @printf(io, ",%.8e", ∂T_∂T₀[j, k]); end
+        @printf(io, ",%.8e\n", ∂T_∂T₀_column[j])
+    end
+end
+
+# Scatter a land-column vector back onto the ring grid (`NaN` over ocean) for plotting.
+to_map(v) = RingGrids.Field(v, land_grid; fill_value = NaN)
+# Divergent colormap, symmetric about zero, so sign is readable at a glance.
+symmetric_range(v) = (m = maximum(abs, filter(!isnan, v)); (-m, m))
 
 sens_fig = heatmap(
-    ∂T_∂U₀_field,
-    title = "∂T_soil(target, 24 h) / ∂U(j, 0), surface layer",
+    to_map(∂T_∂T₀_surface),
+    colormap = Makie.Reverse(:RdBu), colorrange = symmetric_range(to_map(∂T_∂T₀_surface)),
+    title = "∂T_soil(target, 24 h) / ∂T_soil(j, 0), surface layer  (K / K)",
     size = (900, 450),
 )
+target_marker!(sens_fig)
+save(joinpath(output_dir, "sensitivity_surface_KperK.png"), sens_fig)
+sens_fig
 
 # The self-sensitivity dominates by orders of magnitude and flattens the colorbar, so plot
-# again on a symmetric log scale. The floor is relative to the self-sensitivity, since the
-# absolute scale (~10⁻⁷ to 10⁻⁶ K/(J m⁻³)) is just the inverse heat capacity.
-self_sensitivity = abs(∂T_∂U₀_surface[i_target])
+# again on a symmetric log scale, with the floor relative to the self-sensitivity.
+self_sensitivity = abs(∂T_∂T₀_surface[i_target])
 symlog(x, floor_value) = sign(x) * log10(1 + abs(x) / floor_value)
-∂T_∂U₀_symlog = RingGrids.Field(symlog.(∂T_∂U₀_surface, 1.0e-4 * self_sensitivity), land_grid; fill_value = NaN)
 
 sens_log_fig = heatmap(
-    ∂T_∂U₀_symlog,
-    title = "Same sensitivity, symmetric log scale",
+    to_map(symlog.(∂T_∂T₀_surface, 1.0e-4 * self_sensitivity)),
+    colormap = Makie.Reverse(:RdBu), colorrange = symmetric_range(to_map(symlog.(∂T_∂T₀_surface, 1.0e-4 * self_sensitivity))),
+    title = "Same, symmetric log₁₀ scale (floor 10⁻⁴ × self)",
     size = (900, 450),
 )
+target_marker!(sens_log_fig)
+save(joinpath(output_dir, "sensitivity_surface_symlog.png"), sens_log_fig)
+sens_log_fig
+
+# The column-integrated version: what a uniform 1 K anomaly through the whole initial soil
+# column of `j` does to the target's surface temperature a day later.
+column_fig = heatmap(
+    to_map(symlog.(∂T_∂T₀_column, 1.0e-4 * abs(∂T_∂T₀_column[i_target]))),
+    colormap = Makie.Reverse(:RdBu), colorrange = symmetric_range(to_map(symlog.(∂T_∂T₀_column, 1.0e-4 * abs(∂T_∂T₀_column[i_target])))),
+    title = "∂T_soil(target, 24 h) / ∂T_soil(j, 0), whole column, symmetric log₁₀ (K / K)",
+    size = (900, 450),
+)
+target_marker!(column_fig)
+save(joinpath(output_dir, "sensitivity_column_symlog.png"), column_fig)
+column_fig
 
 # ## Quantifying the lateral coupling
 #
 # Two numbers summarize how much of the derivative is *not* local: the remote fraction (share
-# of total absolute sensitivity away from the target) and the decay with distance.
+# of total absolute sensitivity away from the target) and the decay with distance. Both use the
+# K/K surface field.
 
-total_sensitivity = sum(abs, ∂T_∂U₀_surface)
+valid = 1:N_land
+total_sensitivity = sum(abs, ∂T_∂T₀_surface[valid])
 remote_fraction = (total_sensitivity - self_sensitivity) / total_sensitivity
 
 @printf(
-    "self sensitivity          : %12.6e\nremote sensitivity (Σ|·|) : %12.6e\nremote fraction           : %8.4f %%\n",
-    self_sensitivity, total_sensitivity - self_sensitivity, 100 * remote_fraction,
+    "self sensitivity (K/K)        : %12.6e\nremote sensitivity Σ|·| (K/K) : %12.6e\nremote fraction               : %8.4f %%\ncolumn-integrated self (K/K)  : %12.6e\n",
+    self_sensitivity, total_sensitivity - self_sensitivity, 100 * remote_fraction, ∂T_∂T₀_column[i_target],
 )
 
-# Absolute sensitivity binned by great-circle distance from the target.
+# Absolute sensitivity against great-circle distance from the target, every column as a point
+# and the mean per distance bin on top. Bin *means* rather than sums, so the curve is not
+# dominated by how many columns happen to fall in each bin.
 
-edges = [0.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 20000.0]
-bin_centers = [(edges[b] + edges[b + 1]) / 2 for b in 1:(length(edges) - 1)]
-binned = map(1:(length(edges) - 1)) do b
-    in_bin = findall(j -> edges[b] <= distance_from_target[j] < edges[b + 1], 1:N_land)
-    return isempty(in_bin) ? 0.0 : sum(abs, ∂T_∂U₀_surface[in_bin])
+edges = [250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 20000.0]
+bin_centers = [sqrt(edges[b] * edges[b + 1]) for b in 1:(length(edges) - 1)]
+bin_means = map(1:(length(edges) - 1)) do b
+    in_bin = filter(j -> edges[b] <= distance_from_target[j] < edges[b + 1], valid)
+    return isempty(in_bin) ? NaN : sum(abs, ∂T_∂T₀_surface[in_bin]) / length(in_bin)
 end
 
+remote_columns = filter(!=(i_target), valid)
 decay_fig = Figure()
-Axis(
+decay_ax = Axis(
     decay_fig[1, 1],
     xlabel = "Great-circle distance from target (km)",
-    ylabel = "Σ |∂T_target/∂U₀| in bin",
-    yscale = log10,
+    ylabel = "|∂T_target/∂T₀(j)|, surface layer  (K / K)",
+    xscale = log10, yscale = log10,
 )
-barplot!(decay_fig[1, 1], bin_centers, max.(binned, 1.0e-16))
+scatter!(decay_ax, distance_from_target[remote_columns], max.(abs.(∂T_∂T₀_surface[remote_columns]), 1.0e-12); markersize = 5, color = (:steelblue, 0.6), label = "land columns")
+scatterlines!(decay_ax, bin_centers, bin_means; color = :black, markersize = 12, label = "bin mean")
+hlines!(decay_ax, [self_sensitivity]; color = :red, linestyle = :dash, label = "self sensitivity")
+axislegend(decay_ax, position = :rt)
+save(joinpath(output_dir, "sensitivity_decay.png"), decay_fig)
 decay_fig
 
 # ## The atmospheric pathway
@@ -325,9 +400,13 @@ l = Speedy.which_prognostic_step(vars.grid.temperature, model.time_stepping, Spe
 
 air_fig = heatmap(
     ∂T_∂Tair₀,
-    title = "∂T_soil(target, 24 h) / ∂T_air(j, lowest level, 0)",
+    colormap = Makie.Reverse(:RdBu), colorrange = symmetric_range(Array(∂T_∂Tair₀)),
+    title = "∂T_soil(target, 24 h) / ∂T_air(j, lowest level, 0)  (K / K)",
     size = (900, 450),
 )
+target_marker!(air_fig)
+save(joinpath(output_dir, "sensitivity_air_temperature.png"), air_fig)
+air_fig
 
 # ## Validating a remote sensitivity
 #
@@ -343,8 +422,15 @@ air_fig = heatmap(
 Finite-difference check of ``∂T_target/∂U₀(j_probe)`` by re-running the forward model.
 
 The perturbation goes on the prognostic `internal_energy`; the default `ε` of 2 × 10⁵ J/m³ is
-roughly 0.1 K for a typical volumetric heat capacity of 2–3 × 10⁶ J/(m³ K). In `Float32` the
-forward differences are near round-off, so this is an order-of-magnitude check.
+roughly 0.1 K for a typical volumetric heat capacity of 2–3 × 10⁶ J/(m³ K).
+
+Over a short window this agrees with the adjoint to a few percent (8 steps: self 5.27e-8 vs.
+5.26e-8, a column 552 km away 3.62e-10 vs. 3.69e-10). Over the full 24 h it does not: in
+`Float32` the two forward runs diverge through the atmosphere by far more than the remote
+signal (a 24 h probe gave 4.6e-8 against an adjoint of 2.0e-10, i.e. a 0.1 K remote
+perturbation "moving" the target by more than its own initial condition does), so the
+finite difference measures perturbation growth, not the derivative. Validate with a short
+`N_steps`, or in `Float64`; the adjoint itself is the trustworthy number at 24 h.
 """
 function finite_difference_sensitivity(j_probe, ε = NF(2.0e5))
     perturbed = deepcopy(vars_initial)
@@ -358,7 +444,6 @@ end
 
 # Probe the strongest remote sensitivity, which has the best signal-to-noise ratio against
 # the finite-difference error.
-remote_columns = filter(!=(i_target), 1:N_land)
 j_probe = remote_columns[argmax(abs.(∂T_∂U₀_surface[remote_columns]))]
 
 @info "Finite-difference probe" j_probe distance_km = distance_from_target[j_probe]
