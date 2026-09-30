@@ -104,7 +104,7 @@ end
 #
 @kernel function compute_snow_flux!(tend, grid, fields, snow_melt)
     i, j = @index(Global, NTuple)
-    tend.snow_storage[i, j] = compute_snow_flux_tendency(i, j, grid, fields, snow_melt)
+    tend.snow_storage[i, j, end] = compute_snow_flux_tendency(i, j, grid, fields, snow_melt)
 end
 #
 Terrarium.compute_auxiliary!(state, model::SnowModel) = nothing
