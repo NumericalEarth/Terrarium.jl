@@ -41,7 +41,7 @@ Construct a `SurfaceEnergyBalance` with number format `NF`. The defaults reprodu
 land model configuration: an implicitly solved skin temperature with all surface fluxes diagnosed
 internally.
 
-Not every combination of `skin_temperature` and `ground_heat_flux` is well posed; the supported
+Not every combination of `skin_temperature` and `ground_heat_flux` is valid; the supported
 pairs are documented on the surface energy balance documentation page.
 """
 function SurfaceEnergyBalance(
