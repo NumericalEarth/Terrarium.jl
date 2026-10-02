@@ -77,9 +77,9 @@ compute_ground_heat_flux!(state, grid, ::PrescribedGroundHeatFlux, args...)
 ## Kernel functions
 
 ```@docs; canonical = false
-compute_ground_heat_flux_demand(i, j, grid, fields, ghf::DiagnosedGroundHeatFlux)
-compute_ground_heat_flux_demand(i, j, grid, fields, ::PrescribedGroundHeatFlux)
-compute_ground_heat_flux(i, j, grid, fields, ghf::DiagnosedGroundHeatFlux, ::PrescribedSkinTemperature, ::AbstractSurfaceEnergyBalance)
+compute_ground_heat_flux_demand(i, j, grid, fields, ghf::DiagnosedGroundHeatFlux, seb::AbstractSurfaceEnergyBalance)
+compute_ground_heat_flux_demand(i, j, grid, fields, ghf::PrescribedGroundHeatFlux, ::AbstractSurfaceEnergyBalance)
+compute_ground_heat_flux(i, j, grid, fields, ghf::DiagnosedGroundHeatFlux, ::PrescribedSkinTemperature, seb::AbstractSurfaceEnergyBalance)
 compute_ground_heat_flux(i, j, grid, fields, ::DiagnosedGroundHeatFlux, skinT::ImplicitSkinTemperature, ::AbstractSurfaceEnergyBalance)
 compute_ground_heat_flux!(out, i, j, grid, fields, ghf::DiagnosedGroundHeatFlux, skinT::AbstractSkinTemperature, seb::AbstractSurfaceEnergyBalance)
 compute_ground_heat_flux!(out, i, j, grid, fields, ::PrescribedGroundHeatFlux, ::AbstractSkinTemperature, ::AbstractSurfaceEnergyBalance)

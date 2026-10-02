@@ -139,10 +139,10 @@ This is the no-snow special case (`f_snow = 0`) of the snow-aware method below; 
 @inline function compute_skin_temperature(
         i, j, grid, fields,
         skinT::ImplicitSkinTemperature{NF},
-        ghf::AbstractGroundHeatFlux,
+        seb::AbstractSurfaceEnergyBalance,
         args...
     ) where {NF}
-    G₀ = compute_ground_heat_flux_demand(i, j, grid, fields, ghf)
+    G₀ = compute_ground_heat_flux_demand(i, j, grid, fields, get_ground_heat_flux(seb), seb)
     Tg, κg, Δzg = ground_thermal_interface(i, j, grid, fields, skinT)
     Ts = Tg - G₀ * Δzg / (2 * κg)
     return Ts
@@ -159,11 +159,11 @@ area-weighted sum of the *unblended* ground and snow-top conductive fluxes,
 @inline function compute_skin_temperature(
         i, j, grid, fields,
         skinT::ImplicitSkinTemperature{NF},
-        ghf::AbstractGroundHeatFlux,
+        seb::AbstractSurfaceEnergyBalance,
         constants::PhysicalConstants,
         snow::AbstractSnow
     ) where {NF}
-    G₀ = compute_ground_heat_flux_demand(i, j, grid, fields, ghf)
+    G₀ = compute_ground_heat_flux_demand(i, j, grid, fields, get_ground_heat_flux(seb), seb)
     Tg, κg, Δzg = ground_thermal_interface(i, j, grid, fields, skinT)
     Tsnow, κsnow, dsnow = snow_thermal_interface(i, j, grid, fields, snow, constants)
     f_snow = snow_cover_fraction(i, j, grid, fields, snow)
@@ -198,7 +198,7 @@ atmosphere-side demanded flux supplied by the ground heat flux sub-process (see
     # explicit ground-conduction flux, stored into `ground_heat_flux`); `snow` partitions the latent
     # flux by snow-covered fraction
     compute_surface_energy_fluxes!(out, i, j, grid, fields, seb, constants, atmos, hydrology, snow)
-    Ts_implicit = compute_skin_temperature(i, j, grid, fields, skinT, get_ground_heat_flux(seb), constants, snow)
+    Ts_implicit = compute_skin_temperature(i, j, grid, fields, skinT, seb, constants, snow)
     Ts_prev = out.skin_temperature[i, j, end]
     return Ts_prev - Ts_implicit
 end

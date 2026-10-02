@@ -79,8 +79,8 @@ default_skin_temperature_solver
 ## Kernel functions
 
 ```@docs; canonical = false
-compute_skin_temperature(i, j, grid, fields, skinT::ImplicitSkinTemperature{NF}, ghf::AbstractGroundHeatFlux, args...) where {NF}
-compute_skin_temperature(i, j, grid, fields, skinT::ImplicitSkinTemperature{NF}, ghf::AbstractGroundHeatFlux, constants::PhysicalConstants, snow::AbstractSnow) where {NF}
+compute_skin_temperature(i, j, grid, fields, skinT::ImplicitSkinTemperature{NF}, seb::AbstractSurfaceEnergyBalance, args...) where {NF}
+compute_skin_temperature(i, j, grid, fields, skinT::ImplicitSkinTemperature{NF}, seb::AbstractSurfaceEnergyBalance, constants::PhysicalConstants, snow::AbstractSnow) where {NF}
 compute_skin_temperature_residual!
 solve_skin_temperature!
 ```

@@ -86,13 +86,20 @@ The ground heat flux is a prescribed input variable, so there is nothing to diag
 
 Compute the ground heat flux *demand* at grid cell `i, j`: the flux implied by the radiative budget and
 the turbulent fluxes, `G = R_net + H_s + H_l`. This is the quantity the implicit skin temperature solve
-inverts its conduction relation against.
+inverts its conduction relation against. The radiative and turbulent flux terms are read through the
+accessors of the `seb` sub-processes that own them.
 """
-@propagate_inbounds function compute_ground_heat_flux_demand(i, j, grid, fields, ghf::DiagnosedGroundHeatFlux)
-    # Get individual flux terms
-    R_net = fields.surface_net_radiation[i, j, end]
-    H_s = fields.sensible_heat_flux[i, j, end]
-    H_l = fields.latent_heat_flux[i, j, end]
+@propagate_inbounds function compute_ground_heat_flux_demand(
+        i, j, grid, fields,
+        ghf::DiagnosedGroundHeatFlux,
+        seb::AbstractSurfaceEnergyBalance
+    )
+    # Get individual flux terms from the sub-processes that declare them
+    rad = get_radiative_fluxes(seb)
+    turb = get_turbulent_fluxes(seb)
+    R_net = surface_net_radiation(i, j, grid, fields, rad)
+    H_s = sensible_heat_flux(i, j, grid, fields, turb)
+    H_l = latent_heat_flux(i, j, grid, fields, turb)
     # Compute ground heat flux
     G₀ = compute_ground_heat_flux_demand(ghf, R_net, H_s, H_l)
     return G₀
@@ -104,7 +111,8 @@ end
 When the ground heat flux is prescribed, the demand *is* the prescribed flux; the surface energy budget
 is not re-closed from the radiative and turbulent terms.
 """
-@propagate_inbounds compute_ground_heat_flux_demand(i, j, grid, fields, ::PrescribedGroundHeatFlux) = fields.ground_heat_flux[i, j, end]
+@propagate_inbounds compute_ground_heat_flux_demand(i, j, grid, fields, ghf::PrescribedGroundHeatFlux, ::AbstractSurfaceEnergyBalance) =
+    ground_heat_flux(i, j, grid, fields, ghf)
 
 """
     $TYPEDSIGNATURES
@@ -127,9 +135,9 @@ For `PrescribedSkinTemperature`, set the ground heat flux directly to the demand
         i, j, grid, fields,
         ghf::DiagnosedGroundHeatFlux,
         ::PrescribedSkinTemperature,
-        ::AbstractSurfaceEnergyBalance
+        seb::AbstractSurfaceEnergyBalance
     )
-    return compute_ground_heat_flux_demand(i, j, grid, fields, ghf)
+    return compute_ground_heat_flux_demand(i, j, grid, fields, ghf, seb)
 end
 
 """
