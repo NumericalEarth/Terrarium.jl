@@ -8,7 +8,7 @@ upward (aligned with `+z`), the energy arriving at the skin from below must bala
 turbulent losses above, so the atmosphere-side *demand* is the residual `G = R_net + H_s + H_l`.
 
 How that demand is realized depends on the skin temperature scheme: [`PrescribedSkinTemperature`](@ref)
-has no conduction target of its own and stores the demand directly, whereas
+does not calculate `G` as a conductive flux and stores the demand, whereas
 [`ImplicitSkinTemperature`](@ref) stores the explicit conductive flux `2κ_g (T_g - T_s) / Δz_g`
 evaluated at the current skin temperature, which coincides with the demand only at convergence.
 """
@@ -27,7 +27,7 @@ variables(::DiagnosedGroundHeatFlux) = (
 
 Ground heat flux `G` supplied externally as an input variable, for example assembled by a coupler from
 the atmosphere-side surface energy budget. Nothing is computed: `compute_ground_heat_flux!` is a no-op,
-so whatever was written into the `ground_heat_flux` field survives to the ground (soil) top boundary
+so whatever was written into the `ground_heat_flux` is passed on directly the ground (soil) top boundary
 condition. The same positive-upward convention applies as for [`DiagnosedGroundHeatFlux`](@ref).
 
 Note that with all four surface fluxes prescribed, the residual identity `G = R_net + H_s + H_l` is

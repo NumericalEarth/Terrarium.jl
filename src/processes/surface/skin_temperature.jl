@@ -131,7 +131,7 @@ end
     $TYPEDSIGNATURES
 
 Invert the (linear) ground-only conduction relation for the implicit skin temperature `Ts` given the
-atmosphere-side demanded flux `G` (see [`compute_ground_heat_flux_demand`](@ref)): `Ts = Tg − G/(2κg/Δzg)`.
+atmosphere-side demanded flux `G*` (see [`compute_ground_heat_flux_demand`](@ref)): `Ts = Tg − G*/(2κg/Δzg)`.
 This is the no-snow special case (`f_snow = 0`) of the snow-aware method below; it is a separate method
 (rather than a default `snow = nothing`) purely so it can skip the unused
 `snow_thermal_interface`/`snow_cover_fraction` calls.

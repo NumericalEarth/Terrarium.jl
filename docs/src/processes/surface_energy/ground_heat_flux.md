@@ -21,7 +21,7 @@ The quantity that the rest of the surface energy balance *demands* of the ground
 ```math
 G^\star = R_{\text{net}} + H_s + H_l
 ```
-where $R_{\text{net}}$ is the net radiation budget, $H_s$ is the sensible heat flux, and $H_l$ is the latent heat flux. How that demand is realized, and whether it is imposed at all, is the responsibility of the [`AbstractGroundHeatFlux`](@ref) sub-process.
+where $G^\star$ is the ground heat flux *demanded* by the SEB, $R_{\text{net}}$ is the net radiation budget, $H_s$ is the sensible heat flux, and $H_l$ is the latent heat flux. How that demand is realized, and whether it is imposed at all, is the responsibility of the [`AbstractGroundHeatFlux`](@ref) sub-process.
 
 ```@docs; canonical = false
 AbstractGroundHeatFlux
@@ -50,14 +50,14 @@ variables(DiagnosedGroundHeatFlux(Float32))
 PrescribedGroundHeatFlux
 ```
 
-[`PrescribedGroundHeatFlux`](@ref) declares `ground_heat_flux` as an *input* variable and computes nothing. Whatever is written into the field, typically by an external coupler that owns the atmosphere-land interface, survives untouched through `compute_auxiliary!` and reaches the ground boundary condition. This is the configuration that makes [`PrescribedSurfaceEnergyBalance`](@ref) possible; see [Surface energy balance](@ref surface_energy_balance_docs) for the supported combinations.
+[`PrescribedGroundHeatFlux`](@ref) declares `ground_heat_flux` as an *input* variable and computes nothing. Whatever is written into the field (e.g. by a land-atmosphere coupler),  is not modified by  `compute_auxiliary!`. This is the configuration that makes [`PrescribedSurfaceEnergyBalance`](@ref) possible; see [Surface energy balance](@ref surface_energy_balance_docs) for the supported combinations.
 
 ```@example ghf
 variables(PrescribedGroundHeatFlux(Float32))
 ```
 
 !!! warning "Over-determination"
-    Nothing enforces $G = R_{\text{net}} + H_s + H_l$ when the ground heat flux is prescribed alongside prescribed radiative and turbulent fluxes. It is the caller's responsibility to supply a mutually consistent set; Terrarium will happily integrate an inconsistent one.
+    Nothing enforces $G = R_{\text{net}} + H_s + H_l$ when the ground heat flux is prescribed alongside prescribed radiative and turbulent fluxes. It is the user's responsibility to supply a mutually consistent set. 
 
 ## Process interface
 
