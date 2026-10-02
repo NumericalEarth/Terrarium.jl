@@ -152,7 +152,10 @@ include("surface/skin_temperature.jl")
 export PrescribedTurbulentFluxes, DiagnosedTurbulentFluxes
 include("surface/turbulent_fluxes.jl")
 
-export SurfaceEnergyBalance
+export PrescribedGroundHeatFlux, DiagnosedGroundHeatFlux
+include("surface/ground_heat_flux.jl")
+
+export SurfaceEnergyBalance, PrescribedSurfaceEnergyBalance
 include("surface/surface_energy_balance.jl")
 
 export NoCanopyInterception, PALADYNCanopyInterception

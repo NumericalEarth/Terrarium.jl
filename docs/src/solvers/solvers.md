@@ -6,7 +6,7 @@ CurrentModule = Terrarium
 
 ## Overview
 
-Some land processes such as the implicit [skin temperature](@ref "Skin temperature and ground heat flux"), require solving pointwise nonlinear algebraic equations. To keep the numerics of such routines modular, device-agnostic, and differentiable, Terrarium provides a barebones interface for solving scalar optimization problems consisting of an *objective function* and a set of interchangeable *solvers*.
+Some land processes such as the implicit [skin temperature](@ref "Skin temperature"), require solving pointwise nonlinear algebraic equations. To keep the numerics of such routines modular, device-agnostic, and differentiable, Terrarium provides a barebones interface for solving scalar optimization problems consisting of an *objective function* and a set of interchangeable *solvers*.
 
 The general problem is to find values of a target field that drives a residual `F(x)` to zero,
 ```math

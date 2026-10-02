@@ -237,6 +237,7 @@ makedocs(
                 "Radiative fluxes" => "processes/surface_energy/radiative_fluxes.md",
                 "Turbulent fluxes" => "processes/surface_energy/turbulent_fluxes.md",
                 "Skin temperature" => "processes/surface_energy/skin_temperature.md",
+                "Ground heat flux" => "processes/surface_energy/ground_heat_flux.md",
                 "Albedo and emissivity" => "processes/surface_energy/albedo.md",
             ],
             "Coupling to atmosphere" => [
