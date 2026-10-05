@@ -35,9 +35,9 @@ AbstractGroundHeatFlux
 DiagnosedGroundHeatFlux
 ```
 
-[`DiagnosedGroundHeatFlux`](@ref) closes the surface energy balance internally. What is stored depends on the accompanying skin temperature scheme:
+[`DiagnosedGroundHeatFlux`](@ref) closes the surface energy balance internally. How the corresponding heat flux is calculated depends on the associated skin temperature scheme:
 
-- With [`PrescribedSkinTemperature`](@ref), there is no separate conduction target, so the stored flux *is* the demand, $G = G^\star = R_{\text{net}} + H_s + H_l$.
+- With [`PrescribedSkinTemperature`](@ref), there is no separate conduction target, so the ground heat flux is simply equal to the demand, $G = G^\star = R_{\text{net}} + H_s + H_l$.
 - With [`ImplicitSkinTemperature`](@ref), the stored flux is the explicit bare-ground conductive flux evaluated at the current skin temperature, $G = 2\kappa_s (T_g - T_s) / \Delta z_1$. This coincides with the demand only at convergence of the skin temperature solve (see [Skin temperature](@ref "Skin temperature")).
 
 ```@example ghf
@@ -56,8 +56,8 @@ PrescribedGroundHeatFlux
 variables(PrescribedGroundHeatFlux(Float32))
 ```
 
-!!! warning "Over-determination"
-    Nothing enforces $G = R_{\text{net}} + H_s + H_l$ when the ground heat flux is prescribed alongside prescribed radiative and turbulent fluxes. It is the user's responsibility to supply a mutually consistent set. 
+!!! warning "Consistency of energy balance"
+    [`PrescribedGroundHeatFlux`](@ref) is primarily intended for use with external land surface couplers. Thus, the energy balance $G = R_{\text{net}} + H_s + H_l$ is not enforced when the ground heat flux is prescribed alongside prescribed radiative and turbulent fluxes. It is the caller's responsibility to specify a consistent energy balance. Furthermore, use of [`PrescribedGroundHeatFlux`](@ref) with snow and canopy processes is not tested and may yield inconsistent results.
 
 ## Process interface
 
