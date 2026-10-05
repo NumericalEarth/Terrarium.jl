@@ -71,7 +71,6 @@ compute_auxiliary!(state, grid, ghf::AbstractGroundHeatFlux, seb::AbstractSurfac
 ground_heat_flux(i, j, grid, fields, ::AbstractGroundHeatFlux)
 compute_ground_heat_flux_demand(::DiagnosedGroundHeatFlux, R_net, H_s, H_l)
 compute_ground_heat_flux!(state, grid, ghf::AbstractGroundHeatFlux, skinT::AbstractSkinTemperature, seb::AbstractSurfaceEnergyBalance)
-compute_ground_heat_flux!(state, grid, ::PrescribedGroundHeatFlux, args...)
 ```
 
 ## Kernel functions
@@ -82,5 +81,4 @@ compute_ground_heat_flux_demand(i, j, grid, fields, ghf::PrescribedGroundHeatFlu
 compute_ground_heat_flux(i, j, grid, fields, ghf::DiagnosedGroundHeatFlux, ::PrescribedSkinTemperature, seb::AbstractSurfaceEnergyBalance)
 compute_ground_heat_flux(i, j, grid, fields, ::DiagnosedGroundHeatFlux, skinT::ImplicitSkinTemperature, ::AbstractSurfaceEnergyBalance)
 compute_ground_heat_flux!(out, i, j, grid, fields, ghf::DiagnosedGroundHeatFlux, skinT::AbstractSkinTemperature, seb::AbstractSurfaceEnergyBalance)
-compute_ground_heat_flux!(out, i, j, grid, fields, ::PrescribedGroundHeatFlux, ::AbstractSkinTemperature, ::AbstractSurfaceEnergyBalance)
 ```
