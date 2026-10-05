@@ -87,14 +87,20 @@ end
 
 Compute tendencies for soil energy, water, and carbon state variables on `grid`
 based on the given values in `constants`.
+
+An optional `surface_hydrology` process may be supplied (by the coupled `LandModel`) so that its
+evapotranspiration scheme (`get_evapotranspiration`) is applied as a sink term in the soil
+water tendency. Without it (standalone soil), no evapotranspiration is removed from the soil.
 """
 function compute_tendencies!(
         state, grid,
         soil::SoilEnergyWaterCarbon,
-        constants::PhysicalConstants
+        constants::PhysicalConstants,
+        surface_hydrology::Optional{AbstractSurfaceHydrology} = nothing
     )
+    evapotranspiration = isnothing(surface_hydrology) ? nothing : get_evapotranspiration(surface_hydrology)
     # TODO: consider implementing fused kernel here?
-    compute_tendencies!(state, grid, soil.hydrology, soil, constants)
+    compute_tendencies!(state, grid, soil.hydrology, soil, constants, evapotranspiration)
     compute_tendencies!(state, grid, soil.biogeochem, soil, constants)
     compute_tendencies!(state, grid, soil.energy, soil, constants)
     return nothing

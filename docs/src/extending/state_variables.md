@@ -34,17 +34,20 @@ Most state variables will thus be defined by implementation of `AbstractProcess`
 struct MyProcess{NF} <: Terrarium.AbstractProcess{NF} end
 
 Terrarium.variables(::MyProcess) = (
-    Terrarium.prognostic(:progvar, XYZ()),
-    Terrarium.auxiliary(:auxvar, XYZ()),
-    Terrarium.auxiliary(:bc, XY()),
+    Terrarium.prognostic(:progvar, Ground(XYZ())),
+    Terrarium.auxiliary(:auxvar, Ground(XYZ())),
+    Terrarium.auxiliary(:top_flux, Ground(Top())),
+    Terrarium.auxiliary(:bottom_flux, Ground(Bottom())),
     Terrarium.input(:input, XY())
 )
 ```
-This will result in a total of five state variables being allocated upon initialization: one input variable, two auxiliary variables named `auxvar` and `bc` and one prognostic variable named `progvar` along with its corresponding tendency variable which is created automatically. The second argument to the variable metadata constructors `prognostic` and `auxiliary` is a [`VarLocation`](@ref) which specifies the spatial domain and dimensions of the variable on the grid. The inner [`VarDims`](@ref) marker [`XYZ()`](@ref) corresponds to a 3D `Field` which varies both laterally and with depth, while [`XY()`](@ref) corresponds to a 2D field discretized only along the lateral X and Y dimensions.
+This will result in a total of five state variables being allocated upon initialization: one input variable, two auxiliary variables named `auxvar` and `bc` and one prognostic variable named `progvar` along with its corresponding tendency variable which is created automatically. The second argument to the variable metadata constructors `prognostic` and `auxiliary` is a [`VarDims`](@ref) or [`VarLocation`](@ref) which specifies the dimensions, and optionally domain, of the variable in space. Variables with dimensions [`XYZ()`](@ref) are allocated a 3D `Field` varying both laterally in the X and Y dimensions as well as with elevation/depth `Z`, while [`XY()`](@ref) corresponds to a 2D "reduced" `Field` discretized only along the lateral X and Y dimensions.
 
-The outer [`VarDomain`](@ref) indicates the spatial domain on which the variables should be discretized. Currently, Terrarium defines five `VarDomain`s: `Ground`, `Snow`, `Canopy`, `Surface`, and `Atmosphere`, with the first three mapping to distinct vertical discretizations in [`LandGrid`](@ref) for the three domains. The [`Surface`](@ref) domain refers to the interface between the land and atmosphere, and [`Atmosphere`](@ref) to the atmospheric forcings a land model reads rather than computes. Neither is discretized vertically, so their variables must be declared with dimensions `XY`.
+Both `XY` and `XYZ` are aliases for [`VarDims`](@ref) and accept keyword arguments `x`, `y`, and `z`, each of which can be set to one of [`Center`](@extraref Oceananigans.Fields.Center), [`Face`](@extraref Oceananigans.Fields.Face), or a prespecified [`Coordinate`](@ref). `Center` and `Face` declare the variable's discretized location along Oceananigans' staggered finite volume grids (i.e. cell centers vs. faces) while `Coordinate` restricts the variable to a specific point along the axis. This point may be represented either by a hardcoded integer index (not generally recommended for values $>1$) or a function `f(axis)` that computes the index dynamically from the given `axis` at `Field` construction time. Terrarium provides convenience dispatches covering two common cases: [`Top`](@ref) and [`Bottom`](@ref) which correspond to `XY` fields located respectively at the top or bottom of the vertical domain. This is the suitable for choice for fluxes which are applied as boundary conditions to another `Field`, as implied above by `top_flux` and `bottom_flux`.
 
-A variable may also be declared with bare dimensions and no domain at all, e.g. `prognostic(:u, XY())`. Such a declaration indicates that the code is agnostic to where the variable lives: it is compatible with any domain and will automatically promote the domain to match conflicting definitions of the same variable. [`InputSource`](@ref) defaults to using `domain = nothing` unless otherwise specified by the caller.
+The outer [`VarDomain`](@ref), `Ground` in the above example, indicates the spatial domain on which the variables should be discretized. Currently, Terrarium defines five `VarDomain`s: `Ground`, `Snow`, `Canopy`, `Surface`, and `Atmosphere`, with the first three mapping to distinct vertical discretizations in [`LandGrid`](@ref)s. In contrast, the [`Surface`](@ref) domain refers to the interface between the land and atmosphere, while [`Atmosphere`](@ref) is reserved for atmospheric forcing variables. Neither is discretized vertically, so their variables must be declared with dimensions `XY`.
+
+A variable may also be declared with bare dimensions and no domain at all, as show above for the `input` variable. Such a declaration indicates that the code is agnostic to where the variable lives: it is compatible with any domain and will automatically promote the domain to match conflicting definitions of the same variable. [`InputSource`](@ref)s always default to assigning their declared input variables `domain = nothing` unless otherwise specified.
 
 ## Merging and promotion rules
 

@@ -10,6 +10,7 @@ module TerrariumReactantExt
 
 using Terrarium
 using Reactant
+using Reactant: TracedRNumber
 using Oceananigans
 
 using Oceananigans.Architectures: ReactantState, CPU, architecture, on_architecture
@@ -24,6 +25,11 @@ const RARCH = ReactantState
 # Grids and models that live on the device
 const ReactantGrid{NF, TX, TY, TZ, ST} = AbstractGrid{NF, TX, TY, TZ, <:RARCH, ST}
 const ReactantModel{NF} = AbstractModel{NF, <:ReactantGrid}
+
+# Inside the compiled stepping loop `clock.time` is a `TracedRNumber`, and it reaches host-level input
+# code through `timestamp`/`convert_dt` (e.g. `FieldTimeSeriesInputSource.update_inputs!`). The generic
+# `convert(NF, Δt)` cannot produce a concrete `NF` from a traced value, so emit a traced conversion instead.
+Terrarium.convert_dt(::Type{NF}, Δt::TracedRNumber) where {NF <: Number} = TracedRNumber{NF}(Δt)
 
 include("grids.jl")
 include("transfer.jl")

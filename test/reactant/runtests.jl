@@ -39,6 +39,9 @@ include("setup.jl")
     test_model(:soil_heat_global)
     test_model(:snow_column)                  # standalone single-layer snow (closure + tendencies)
     test_model(:land_soil_snow)
+    test_model(:vegetation_column)            # standalone PrescribedVegetation, constant LAI
+    test_model(:vegetation_column_lai_cycle)  # …with a cyclical FieldTimeSeries LAI input interpolated in the traced loop
+    test_model(:land_default)                 # default LandModel: soil + snow + vegetation (NewtonSolver skin temperature)
 end
 
 include("autodiff.jl")

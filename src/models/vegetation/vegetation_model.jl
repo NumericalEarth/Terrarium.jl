@@ -12,9 +12,9 @@ $TYPEDFIELDS
         NF,
         Vegetation <: AbstractVegetation{NF},
         Atmosphere <: AbstractAtmosphere{NF},
-        GridType <: AbstractGrid{NF},
+        GridType <: AbstractGrid,
         Initializer <: AbstractInitializer,
-        Timestepper <: AbstractTimeStepper{NF},
+        Timestepper <: AbstractTimeStepper,
     } <: AbstractVegetationModel{NF, GridType}
     "Spatial grid type"
     grid::GridType

@@ -117,33 +117,37 @@ end
     FieldTimeSeries(
         grid::AbstractGrid,
         loc::VarLocation,
-        times=eltype(grid)[]
+        times=eltype(grid)[];
+        kwargs...
     )
 
 Construct a `FieldTimeSeries` on the domain discretization of `grid` selected by `loc`, with the
-given `times`.
+given `times`.  Additional keyword arguments (e.g. `time_indexing = Cyclical()` for a periodically
+repeating climatology) are forwarded to the Oceananigans `FieldTimeSeries` constructor.
 """
 function Oceananigans.FieldTimeSeries(
         grid::AbstractLandGrid,
         loc::VarLocation,
-        times = eltype(grid)[]
+        times = eltype(grid)[];
+        kwargs...
     )
-    return create_field_time_series(variable_grid(grid, loc), loc, architecture(grid), times)
+    return create_field_time_series(variable_grid(grid, loc), loc, architecture(grid), times; kwargs...)
 end
 
 # As for `Field`: a plain grid resolves no domain.
 function Oceananigans.FieldTimeSeries(
         grid::AbstractGrid,
         loc::VarLocation,
-        times = eltype(grid)[]
+        times = eltype(grid)[];
+        kwargs...
     )
-    return create_field_time_series(grid, loc, architecture(grid), times)
+    return create_field_time_series(grid, loc, architecture(grid), times; kwargs...)
 end
 
-Oceananigans.FieldTimeSeries(grid::AbstractGrid, dims::VarDims, times = eltype(grid)[]) =
-    FieldTimeSeries(grid, VarLocation(dims), times)
+Oceananigans.FieldTimeSeries(grid::AbstractGrid, dims::VarDims, times = eltype(grid)[]; kwargs...) =
+    FieldTimeSeries(grid, VarLocation(dims), times; kwargs...)
 
-function create_field_time_series(domain::AbstractGrid, loc::VarLocation, arch, times)
+function create_field_time_series(domain::AbstractGrid, loc::VarLocation, arch, times; kwargs...)
     dims = vardims(loc)
-    return FieldTimeSeries(location(dims), domain, on_architecture(arch, times); indices = indices(domain, dims))
+    return FieldTimeSeries(location(dims), domain, on_architecture(arch, times); indices = indices(domain, dims), kwargs...)
 end
