@@ -259,6 +259,10 @@ Each document should be prefaced by the following template:
 
 Date of initial draft: YYYY-MM-dd
 
+Author: <Name of model and version (if known)>, <harness name and version (if known)>
+
+Reviewer: <Name of human reviewer> (<reviewer email address>)
+
 Base revision: <SHA1 of HEAD when plan was drafted>
 
 ## Originating prompt
@@ -269,16 +273,23 @@ Base revision: <SHA1 of HEAD when plan was drafted>
 
 > User prompts here
 
-N.B: Make sure that each revision is given a number and a date.
-
 ## Problem description
 
 ## Background
 
 ```
 
-The revision log should, to the greatest extent possible, briefly summarize changes to the plan that are made on-the-fly during development. Make sure that each revision is given a number and a date.
-**A human must approve each revision before implementation**.
+Notes on filling in the template (these notes are guidance about the template; do not copy them into
+the plan document itself):
+
+- Leave the `Reviewer` field blank until a human has approved the plan, then fill in both name and
+  email after approval. Where the reviewer is the repository owner, `git config user.name` and
+  `git config user.email` are an acceptable source for those values.
+- The revision log should, to the greatest extent possible, briefly summarize changes to the plan
+  that are made on-the-fly during development. Give each revision a number and a date, and record
+  the model name and version (if known) for that revision, since a plan may be revised by a
+  different model than the one that drafted it. **A human must approve each revision before
+  implementation**.
 
 Write plan prose with a line break at the end of every sentence (one sentence per line) rather than wrapping at an arbitrary column width.
 This keeps diffs readable when individual sentences are revised.
