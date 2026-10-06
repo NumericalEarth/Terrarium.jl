@@ -301,7 +301,6 @@ the plan document itself):
 
 Write plan prose with a line break at the end of every sentence (one sentence per line) rather than wrapping at an arbitrary column width.
 This keeps diffs readable when individual sentences are revised.
-
 The remainder of the plan document may be adapted on a case-by-case basis but should generally follow this structure:
 
 ```md
