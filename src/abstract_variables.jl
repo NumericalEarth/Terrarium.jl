@@ -236,12 +236,21 @@ Retrieve the physical units for the given variable.
 @inline varunits(var::AbstractVariable) = var.units
 @inline varunits(::Type{<:AbstractVariable{name, VL, UT}}) where {name, VL, UT} = UT
 
-# Test equality between variables by their names, dimensions, domains, and physical units
+"""
+    $SIGNATURES
+
+Retrieve the custom element type of the `Field` for the given variable, or `nothing` if it uses the default
+element type of the grid.
+"""
+function vareltype end
+
+# Test equality between variables by their names, dimensions, domains, physical units, and element types
 Base.:(==)(var1::AbstractVariable, var2::AbstractVariable) =
     varname(var1) == varname(var2) &&
     vardims(var1) == vardims(var2) &&
     vardomain(var1) == vardomain(var2) &&
-    varunits(var1) == varunits(var2)
+    varunits(var1) == varunits(var2) &&
+    vareltype(var1) == vareltype(var2)
 
 function Base.summary(var::AbstractVariable)
     unitstr = varunits(var) == NoUnits ? "-" : varunits(var)
@@ -261,8 +270,13 @@ struct Variable{name, VL, UT} <: AbstractVariable{name, VL, UT}
     "Physical units"
     units::UT
 
-    Variable(name::Symbol, loc::VarLocation, units::Units = NoUnits) = new{name, typeof(loc), typeof(units)}(loc, units)
+    "Element type of the `Field` allocated for this variable; `nothing` uses the grid's default (scalar) element type"
+    eltype::Union{Nothing, DataType}
+
+    Variable(name::Symbol, loc::VarLocation, units::Units = NoUnits; eltype::Union{Nothing, DataType} = nothing) = new{name, typeof(loc), typeof(units)}(loc, units, eltype)
 end
+
+@inline vareltype(var::Variable) = var.eltype
 
 """
     $TYPEDEF
@@ -287,6 +301,7 @@ abstract type AbstractProcessVariable{name, VL, UT} <: AbstractVariable{name, VL
 @inline vardims(pv::AbstractProcessVariable) = vardims(pv.var)
 @inline vardomain(pv::AbstractProcessVariable) = vardomain(pv.var)
 @inline varunits(pv::AbstractProcessVariable) = varunits(pv.var)
+@inline vareltype(pv::AbstractProcessVariable) = vareltype(pv.var)
 
 function Base.show(io::IO, ::MIME"text/plain", var::AbstractVariable)
     units = varunits(var)
@@ -482,7 +497,7 @@ end
 function Variables(vars::Tuple{Vararg{Union{AbstractProcessVariable, Namespace}}})
     # partition variables into prognostic, auxiliary, input, and namespace groups;
     # duplicates within each group are automatically merged
-    varmeta(var::AbstractVariable) = (varname(var), vardims(var), varunits(var))
+    varmeta(var::AbstractVariable) = (varname(var), vardims(var), varunits(var), vareltype(var))
     varmeta(ns::Namespace) = varname(ns)
     # The domain is compared separately from the rest of the metadata because a domainless
     # declaration is compatible with any domain rather than equal to it.
@@ -697,16 +712,16 @@ would say nothing. Prefer stating the domain in any model which runs on an
 [`AbstractLandGrid`](@ref): there the domain is a real choice, and a reader of the declaration
 should not have to infer it.
 """
-@inline var(name::Symbol, loc::VarLocation, units::Units = NoUnits) = Variable(name, loc, units)
+@inline var(name::Symbol, dims::VarDims, units::Units = NoUnits; eltype = nothing) = Variable(name, VarLocation(dims), units; eltype)
 
-@inline var(name::Symbol, dims::VarDims, units::Units = NoUnits) = Variable(name, VarLocation(dims), units)
+@inline var(name::Symbol, loc::VarLocation, units::Units = NoUnits; eltype = nothing) = Variable(name, loc, units; eltype)
 
 """
     $SIGNATURES
 
 Convenience constructors for `PrognosticVariable`.
 """
-@inline prognostic(name::Symbol, loc::Union{VarDims, VarLocation}; units = NoUnits, closure = nothing, bounds = Unbounded, desc = "") = prognostic(var(name, loc, units); closure, bounds, desc)
+@inline prognostic(name::Symbol, loc::Union{VarDims, VarLocation}; units = NoUnits, eltype = nothing, closure = nothing, bounds = Unbounded, desc = "") = prognostic(var(name, loc, units; eltype); closure, bounds, desc)
 @inline prognostic(var::Variable; closure = nothing, bounds = Unbounded, desc = "") = PrognosticVariable(var, closure, tendency(var), bounds, desc)
 
 """
@@ -714,7 +729,7 @@ Convenience constructors for `PrognosticVariable`.
 
 Convenience constructor method for `AuxiliaryVariable`.
 """
-@inline auxiliary(name::Symbol, loc::Union{VarDims, VarLocation}, ctor = nothing, params = nothing; units = NoUnits, bounds = Unbounded, desc = "") = auxiliary(var(name, loc, units), ctor, params; bounds, desc)
+@inline auxiliary(name::Symbol, loc::Union{VarDims, VarLocation}, ctor = nothing, params = nothing; units = NoUnits, eltype = nothing, closure = nothing, bounds = Unbounded, desc = "") = auxiliary(var(name, loc, units; eltype), ctor, params; bounds, desc)
 @inline auxiliary(var::Variable, ::Nothing, ::Nothing; bounds = Unbounded, desc = "") = AuxiliaryVariable(var, nothing, bounds, desc)
 @inline auxiliary(var::Variable, ctor::Function, params; bounds = Unbounded, desc = "") = AuxiliaryVariable(var, (_, grid, clock, fields) -> ctor(grid, clock, fields, params), bounds, desc)
 # `KernelFunction` constructors (from `kernel`) are callable structs, not `Function`s; they define
@@ -726,7 +741,7 @@ Convenience constructor method for `AuxiliaryVariable`.
 
 Convenience constructor method for `InputVariable`.
 """
-@inline input(name::Symbol, loc::Union{VarDims, VarLocation}; default = nothing, units = NoUnits, bounds = Unbounded, desc = "") = input(var(name, loc, units); default, bounds, desc)
+@inline input(name::Symbol, loc::Union{VarDims, VarLocation}; default = nothing, units = NoUnits, eltype = nothing, bounds = Unbounded, desc = "") = input(var(name, loc, units; eltype); default, bounds, desc)
 @inline input(var::Variable; default = nothing, bounds = Unbounded, desc = "") = InputVariable(var, default, bounds, desc)
 
 """
@@ -735,7 +750,7 @@ Convenience constructor method for `InputVariable`.
 Creates an `AuxiliaryVariable` for the tendency of a prognostic variable with the given name, dimensions, and physical units.
 This constructor is primarily used internally by other constructors and does not usually need to be called by implementations of `variables`.
 """
-@inline tendency(var::Variable) = auxiliary(varname(var), varloc(var), units = upreferred(varunits(var)) / u"s")
+@inline tendency(var::Variable) = auxiliary(varname(var), vardims(var), units = upreferred(varunits(var)) / u"s", eltype = vareltype(var))
 
 """
     $SIGNATURES

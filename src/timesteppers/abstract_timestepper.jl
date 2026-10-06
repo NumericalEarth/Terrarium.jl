@@ -233,7 +233,7 @@ end
     i, j, k = @index(Global, NTuple)
     u = field
     ∂u∂t = tendency
-    @inbounds let Δt = convert(eltype(tendency), Δt)
+    @inbounds let Δt = convert(eltype(eltype(tendency)), Δt) # eltype of a scalar type is itself, so this also handles e.g. `SVector` element types
         u[i, j, k] += ∂u∂t[i, j, k] * Δt
     end
 end
@@ -248,8 +248,8 @@ end
     i, j = @index(Global, NTuple)
     u = field
     ∂u∂t = tendency
-    @inbounds let Δt = convert(eltype(tendency), Δt)
-        u[i, j, end] += ∂u∂t[i, j] * Δt
+    @inbounds let Δt = convert(eltype(eltype(tendency)), Δt) # eltype of a scalar type is itself, so this also handles e.g. `SVector` element types
+        u[i, j, 1] += ∂u∂t[i, j] * Δt
     end
 end
 
@@ -263,8 +263,8 @@ end
     i, j = @index(Global, NTuple)
     u = field
     ∂u∂t = tendency
-    @inbounds let Δt = convert(eltype(tendency), Δt)
-        u[i, j, end] += ∂u∂t[i, j, end] * Δt
+    @inbounds let Δt = convert(eltype(eltype(tendency)), Δt) # eltype of a scalar type is itself, so this also handles e.g. `SVector` element types
+        u[i, j, end] += ∂u∂t[i, j] * Δt
     end
 end
 

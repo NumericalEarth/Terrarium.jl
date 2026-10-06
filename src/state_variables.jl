@@ -85,21 +85,30 @@ function Oceananigans.TimeSteppers.update_state!(state::StateVariables, model::A
     return nothing
 end
 
+# Extra positional arguments for `Field` construction carrying a variable's custom element type, if any.
+field_eltype_args(var) = isnothing(vareltype(var)) ? () : (vareltype(var),)
+
+# Set `field` to zero. Non-`Number` element types (e.g. `SVector`) are wrapped in a `Ref` so `set!` does not broadcast them as arrays.
+function zero!(field)
+    z = zero(eltype(field))
+    return set!(field, isa(z, Number) ? z : Ref(z))
+end
+
 """
 Reset all `Field`s in `state` to zero.
 """
 function Oceananigans.TimeSteppers.reset!(state::StateVariables)
     # reset all prognostic fields
     fastiterate(state.prognostic) do field
-        set!(field, zero(eltype(field)))
+        zero!(field)
     end
     fastiterate(state.auxiliary) do field
         # TODO: technically we should apply auxiliary variable initializers here
-        isa(field, Field) && set!(field, zero(eltype(field)))
+        isa(field, Field) && zero!(field)
     end
     # reset all tendency fields
     fastiterate(state.tendencies) do field
-        set!(field, zero(eltype(field)))
+        zero!(field)
     end
     # recurse over namespaces
     return fastiterate(state.namespaces) do ns
@@ -113,7 +122,7 @@ Reset all tendencies in `state` to zero.
 function reset_tendencies!(state::StateVariables)
     # reset all tendency fields
     fastiterate(state.tendencies) do field
-        set!(field, zero(eltype(field)))
+        zero!(field)
     end
     # recurse over namespaces
     return fastiterate(state.namespaces) do ns
@@ -473,7 +482,7 @@ function initialize(
         return fields[name]
     else
         bcs = get(boundary_conditions, name, nothing)
-        field = Field(grid, varloc(var), bcs)
+        field = Field(grid, varloc(var), bcs, field_eltype_args(var)...)
         # if field is an input variable and has a default value/initializer, call set! on it
         if isa(var, InputVariable) && !isnothing(var.default)
             set!(field, var.default)
@@ -501,7 +510,7 @@ function initialize(
     elseif isnothing(var.ctor)
         # retrieve boundary condition (if any) and create Field
         bcs = get(boundary_conditions, name, nothing)
-        return Field(grid, varloc(var), bcs)
+        return Field(grid, varloc(var), bcs, field_eltype_args(var)...)
     else
         # invoke field constructor if specified
         return var.ctor(var, grid, clock, NamedTuple(fields))
