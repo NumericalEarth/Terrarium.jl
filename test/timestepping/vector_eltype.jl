@@ -5,7 +5,7 @@ using Test
 # Variables with a custom `eltype` (here a per-cell SVector), mixed with scalar variables,
 # integrated by ForwardEuler: du/dt = -k .* u with k = (0.1, 0.2, 0.3).
 
-@kwdef struct VecModel{NF, Grid <: Terrarium.AbstractLandGrid{NF}, I, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
+@kwdef struct VecModel{NF, Grid <: Terrarium.AbstractGrid{NF}, I, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
     grid::Grid
     initializer::I = DefaultInitializer(eltype(grid))
     timestepper::TS = ForwardEuler(eltype(grid))
