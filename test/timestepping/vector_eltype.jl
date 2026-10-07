@@ -26,12 +26,12 @@ function Terrarium.compute_tendencies!(state, model::VecModel{NF}) where {NF}
 end
 
 @testset "Variables with custom eltype" begin
-    @test Terrarium.vareltype(Terrarium.prognostic(:u, XY())) === nothing
+    @test Base.eltype(Terrarium.prognostic(:u, XY())) === nothing
     pv = Terrarium.prognostic(:u, XY(); eltype = SVector{3, Float64})
-    @test Terrarium.vareltype(pv) === SVector{3, Float64}
-    @test Terrarium.vareltype(pv.tendency) === SVector{3, Float64} # tendency inherits eltype
-    @test Terrarium.vareltype(Terrarium.auxiliary(:a, XY(); eltype = SVector{2, Float64})) === SVector{2, Float64}
-    @test Terrarium.vareltype(Terrarium.input(:i, XY(); eltype = SVector{2, Float64})) === SVector{2, Float64}
+    @test Base.eltype(pv) === SVector{3, Float64}
+    @test Base.eltype(pv.tendency) === SVector{3, Float64} # tendency inherits eltype
+    @test Base.eltype(Terrarium.auxiliary(:a, XY(); eltype = SVector{2, Float64})) === SVector{2, Float64}
+    @test Base.eltype(Terrarium.input(:i, XY(); eltype = SVector{2, Float64})) === SVector{2, Float64}
     # same name/dims/units but different eltype are not the same variable
     @test Terrarium.var(:x, XY()) != Terrarium.var(:x, XY(); eltype = SVector{2, Float64})
 end

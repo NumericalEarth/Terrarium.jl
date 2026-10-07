@@ -236,13 +236,6 @@ Retrieve the physical units for the given variable.
 @inline varunits(var::AbstractVariable) = var.units
 @inline varunits(::Type{<:AbstractVariable{name, VL, UT}}) where {name, VL, UT} = UT
 
-"""
-    $SIGNATURES
-
-Retrieve the custom element type of the `Field` for the given variable, or `nothing` if it uses the default
-element type of the grid.
-"""
-function vareltype end
 
 # Test equality between variables by their names, dimensions, domains, physical units, and element types
 Base.:(==)(var1::AbstractVariable, var2::AbstractVariable) =
@@ -250,7 +243,7 @@ Base.:(==)(var1::AbstractVariable, var2::AbstractVariable) =
     vardims(var1) == vardims(var2) &&
     vardomain(var1) == vardomain(var2) &&
     varunits(var1) == varunits(var2) &&
-    vareltype(var1) == vareltype(var2)
+    Base.eltype(var1) == Base.eltype(var2)
 
 function Base.summary(var::AbstractVariable)
     unitstr = varunits(var) == NoUnits ? "-" : varunits(var)
@@ -276,7 +269,7 @@ struct Variable{name, VL, UT} <: AbstractVariable{name, VL, UT}
     Variable(name::Symbol, loc::VarLocation, units::Units = NoUnits; eltype::Union{Nothing, DataType} = nothing) = new{name, typeof(loc), typeof(units)}(loc, units, eltype)
 end
 
-@inline vareltype(var::Variable) = var.eltype
+@inline Base.eltype(var::Variable) = var.eltype
 
 """
     $TYPEDEF
@@ -301,7 +294,7 @@ abstract type AbstractProcessVariable{name, VL, UT} <: AbstractVariable{name, VL
 @inline vardims(pv::AbstractProcessVariable) = vardims(pv.var)
 @inline vardomain(pv::AbstractProcessVariable) = vardomain(pv.var)
 @inline varunits(pv::AbstractProcessVariable) = varunits(pv.var)
-@inline vareltype(pv::AbstractProcessVariable) = vareltype(pv.var)
+@inline Base.eltype(pv::AbstractProcessVariable) = Base.eltype(pv.var)
 
 function Base.show(io::IO, ::MIME"text/plain", var::AbstractVariable)
     units = varunits(var)
@@ -497,7 +490,7 @@ end
 function Variables(vars::Tuple{Vararg{Union{AbstractProcessVariable, Namespace}}})
     # partition variables into prognostic, auxiliary, input, and namespace groups;
     # duplicates within each group are automatically merged
-    varmeta(var::AbstractVariable) = (varname(var), vardims(var), varunits(var), vareltype(var))
+    varmeta(var::AbstractVariable) = (varname(var), vardims(var), varunits(var), Base.eltype(var))
     varmeta(ns::Namespace) = varname(ns)
     # The domain is compared separately from the rest of the metadata because a domainless
     # declaration is compatible with any domain rather than equal to it.
@@ -750,7 +743,7 @@ Convenience constructor method for `InputVariable`.
 Creates an `AuxiliaryVariable` for the tendency of a prognostic variable with the given name, dimensions, and physical units.
 This constructor is primarily used internally by other constructors and does not usually need to be called by implementations of `variables`.
 """
-@inline tendency(var::Variable) = auxiliary(varname(var), vardims(var), units = upreferred(varunits(var)) / u"s", eltype = vareltype(var))
+@inline tendency(var::Variable) = auxiliary(varname(var), vardims(var), units = upreferred(varunits(var)) / u"s", eltype = Base.eltype(var))
 
 """
     $SIGNATURES

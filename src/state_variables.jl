@@ -86,7 +86,7 @@ function Oceananigans.TimeSteppers.update_state!(state::StateVariables, model::A
 end
 
 # Extra positional arguments for `Field` construction carrying a variable's custom element type, if any.
-field_eltype_args(var) = isnothing(vareltype(var)) ? () : (vareltype(var),)
+field_eltype(grid, var) = isnothing(Base.eltype(var)) ? Base.eltype(grid) : Base.eltype(var)
 
 # Set `field` to zero. Non-`Number` element types (e.g. `SVector`) are wrapped in a `Ref` so `set!` does not broadcast them as arrays.
 function zero!(field)
@@ -482,7 +482,7 @@ function initialize(
         return fields[name]
     else
         bcs = get(boundary_conditions, name, nothing)
-        field = Field(grid, varloc(var), bcs, field_eltype_args(var)...)
+        field = Field(grid, varloc(var), bcs, field_eltype(grid, var))
         # if field is an input variable and has a default value/initializer, call set! on it
         if isa(var, InputVariable) && !isnothing(var.default)
             set!(field, var.default)
@@ -510,7 +510,7 @@ function initialize(
     elseif isnothing(var.ctor)
         # retrieve boundary condition (if any) and create Field
         bcs = get(boundary_conditions, name, nothing)
-        return Field(grid, varloc(var), bcs, field_eltype_args(var)...)
+        return Field(grid, varloc(var), bcs, field_eltype(grid, var))
     else
         # invoke field constructor if specified
         return var.ctor(var, grid, clock, NamedTuple(fields))
