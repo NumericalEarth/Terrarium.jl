@@ -10,7 +10,7 @@ surface energy balance and the snow→soil conduction.
 Properties:
 $(TYPEDFIELDS)
 """
-@parameterized @kwdef struct SnowModel{
+@parameterized @kwdef mutable struct SnowModel{
         NF,
         GridType <: AbstractGrid,
         Snow <: AbstractSnow,

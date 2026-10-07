@@ -5,6 +5,8 @@ Base type for snow hydraulic properties and parameterization schemes.
 """
 abstract type AbstractSnowHydraulics{NF} end
 
+number_format(::Type{<:AbstractSnowHydraulics{NF}}) where {NF} = NF
+
 """
     $TYPEDEF
 

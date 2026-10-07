@@ -7,7 +7,7 @@ is mostly intended for testing but could also be used for simple energy
 balance calculations from prescribed meteorological and ground temperature
 conditions.
 """
-@parameterized @kwdef struct SurfaceEnergyModel{
+@parameterized @kwdef mutable struct SurfaceEnergyModel{
         NF,
         GridType <: AbstractGrid{NF},
         SEB <: AbstractSurfaceEnergyBalance,
