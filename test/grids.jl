@@ -3,7 +3,7 @@ using Test
 
 import Oceananigans
 import Oceananigans: CenterField, Center, Face, set!, interior
-import Oceananigans.Grids: RectilinearGrid, z_domain, halo_size, total_size, nodes, xnodes, znodes, isrectilinear
+import Oceananigans.Grids: RectilinearGrid, LatitudeLongitudeGrid, Bounded, z_domain, halo_size, total_size, nodes, xnodes, znodes, isrectilinear
 import Terrarium.RingGrids
 import Terrarium.RingGrids: FullHEALPixGrid, get_npoints
 
@@ -401,4 +401,120 @@ end
     @test get_grid(LandModel(column_grid; vegetation = nothing)) isa LandGrid
     @test ground_domain(get_grid(LandModel(column_grid; vegetation = nothing))) === column_grid
     @test get_grid(LandModel(land_grid; vegetation = nothing)) === land_grid
+end
+
+"""
+Build a small lat-lon grid for testing. The horizontal extent is kept tiny so that the tests stay
+cheap; the latitudinal range is wide enough that the horizontal metrics vary noticeably between
+rows, which is the main thing that distinguishes a `LatitudeLongitudeGrid` from a `ColumnGrid`.
+"""
+test_latlon_grid(NF = Float64; Nx = 2, Ny = 3, Nz = 5) = LatitudeLongitudeGrid(
+    CPU(), NF;
+    size = (Nx, Ny, Nz),
+    longitude = (0, 10),
+    latitude = (0, 60),
+    z = (-1, 0),
+    topology = (Bounded, Bounded, Bounded),
+)
+
+@testset "LatitudeLongitudeGrid interface" begin
+    grid = test_latlon_grid()
+    @test !Oceananigans.Grids.isrectilinear(grid)
+    @test size(grid) == (2, 3, 5)
+
+    # A lat-lon grid is an ordinary spatial discretization, so it may also serve as the ground
+    # domain of a land grid, which forwards the horizontal discretization unchanged.
+    land_grid = LandGrid(grid)
+    @test ground_domain(land_grid) === grid
+    @test size(land_grid) == size(grid)
+    @test eltype(land_grid) == eltype(grid)
+    @test halo_size(land_grid) == halo_size(grid)
+    @test !Oceananigans.Grids.isrectilinear(land_grid)
+    @test znodes(land_grid, Center()) ≈ znodes(grid, Center())
+    @test land_grid.Nx == grid.Nx
+    @test land_grid.Ny == grid.Ny
+
+    # Cell areas shrink towards the pole, so the horizontal metrics really are latitude dependent
+    # and are not silently replaced by those of a column grid.
+    Az_south = Oceananigans.Operators.Az(1, 1, 1, grid, Center(), Center(), Center())
+    Az_north = Oceananigans.Operators.Az(1, 3, 1, grid, Center(), Center(), Center())
+    @test Az_north < Az_south
+end
+
+@testset "SoilModel on a LatitudeLongitudeGrid" begin
+    grid = test_latlon_grid()
+    soil = SoilEnergyWaterCarbon(eltype(grid))
+    model = SoilModel(grid; soil)
+
+    # Single-domain models keep the discretization they are given.
+    @test get_grid(model) === grid
+
+    # Initializers of lateral position are evaluated as `f(x, y, z)` on a three-dimensional grid.
+    initializers = (
+        temperature = (x, y, z) -> 5.0 - 0.02 * z + 0.1 * y,
+        saturation_water_ice = (x, y, z) -> min(1, 0.8 - 0.05 * z),
+    )
+    integrator = initialize(model; initializers)
+    state = integrator.state
+
+    # Every prognostic and auxiliary field is allocated over the full horizontal extent.
+    @test size(state.temperature) == size(grid)
+    @test size(state.internal_energy) == size(grid)
+    @test size(state.saturation_water_ice) == size(grid)
+
+    # The initializer's latitudinal gradient is actually resolved; on a column grid all rows would
+    # be identical.
+    temperature = Array(interior(state.temperature))
+    @test temperature[1, 1, end] < temperature[1, end, end]
+
+    timestep!(integrator, 60.0)
+    @test all(isfinite.(interior(state.temperature)))
+    @test all(isfinite.(interior(state.internal_energy)))
+    @test all(isfinite.(interior(state.saturation_water_ice)))
+end
+
+@testset "LandModel on a LatitudeLongitudeGrid" begin
+    grid = test_latlon_grid()
+    land = LandModel(grid; vegetation = nothing)
+
+    # `LandModel` couples several vertical domains, so it wraps the discretization in a land grid.
+    land_grid = get_grid(land)
+    @test land_grid isa LandGrid
+    @test ground_domain(land_grid) === grid
+
+    initializers = (
+        temperature = (x, y, z) -> 5.0 - 0.02 * z,
+        saturation_water_ice = (x, y, z) -> min(1, 0.8 - 0.05 * z),
+    )
+    integrator = initialize(land; initializers)
+    state = integrator.state
+
+    @test size(state.internal_energy) == size(grid)
+    # Surface variables are horizontally resolved but vertically collapsed.
+    @test size(state.ground_heat_flux)[1:2] == size(grid)[1:2]
+
+    compute_boundary_conditions!(state, land)
+    timestep!(integrator, 60.0)
+    @test all(isfinite.(interior(state.internal_energy)))
+    @test all(isfinite.(interior(state.saturation_water_ice)))
+    @test all(isfinite.(interior(state.ground_heat_flux)))
+end
+
+@testset "Float32 LatitudeLongitudeGrid" begin
+    # The number format of the grid is propagated to the model state.
+    grid = test_latlon_grid(Float32)
+    @test eltype(grid) == Float32
+
+    model = SoilModel(grid)
+    integrator = initialize(
+        model; initializers = (
+            temperature = (x, y, z) -> 5.0f0 - 0.02f0 * z,
+            saturation_water_ice = (x, y, z) -> 0.5f0,
+        )
+    )
+    @test eltype(integrator.state.temperature) == Float32
+    @test eltype(integrator.state.internal_energy) == Float32
+
+    timestep!(integrator, 60.0f0)
+    @test all(isfinite.(interior(integrator.state.internal_energy)))
 end
