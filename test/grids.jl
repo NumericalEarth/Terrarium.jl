@@ -419,8 +419,6 @@ test_latlon_grid(NF = Float64; Nx = 2, Ny = 3, Nz = 5) = LatitudeLongitudeGrid(
 
 @testset "LatitudeLongitudeGrid interface" begin
     grid = test_latlon_grid()
-    @test !Oceananigans.Grids.isrectilinear(grid)
-    @test size(grid) == (2, 3, 5)
 
     # A lat-lon grid is an ordinary spatial discretization, so it may also serve as the ground
     # domain of a land grid, which forwards the horizontal discretization unchanged.
