@@ -118,6 +118,14 @@ Oceananigans.Grids.rname(grid::ColumnRingGrid) = Oceananigans.Grids.rname(getfie
 @inline Oceananigans.Grids.ηnode(i, j, k, grid::ColumnRingGrid, ℓx, ℓy, ℓz) = ηnode(i, j, k, getfield(grid, :grid), ℓx, ℓy, ℓz)
 @inline Oceananigans.Grids.rnode(i, j, k, grid::ColumnRingGrid, ℓx, ℓy, ℓz) = rnode(i, j, k, getfield(grid, :grid), ℓx, ℓy, ℓz)
 
+# Horizontal grid metrics. Oceananigans defines these four spacings per concrete grid type and derives
+# all areas and volumes from them, e.g. the `Az / volume` scaling of flux boundary conditions in
+# `compute_z_bcs!`. The vertical spacings need no forwarding since they read `grid.z`, which is
+# covered by the `getproperty` forwarding below.
+for Δ in (:Δxᶠᵃᵃ, :Δxᶜᵃᵃ, :Δyᵃᶠᵃ, :Δyᵃᶜᵃ)
+    @eval @inline Oceananigans.Operators.$Δ(i, j, k, grid::ColumnRingGrid) = Oceananigans.Operators.$Δ(i, j, k, getfield(grid, :grid))
+end
+
 # See the corresponding note for land grids in `grids.jl`: Oceananigans accesses grid dimensions and
 # discretization data as struct fields, so forward anything that is not one of our own fields.
 @inline Base.getproperty(grid::ColumnRingGrid, name::Symbol) = hasfield(typeof(grid), name) ? getfield(grid, name) : getproperty(getfield(grid, :grid), name)
