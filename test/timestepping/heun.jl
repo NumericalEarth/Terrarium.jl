@@ -146,3 +146,25 @@ end
     dt_heun = default_dt(integrator_heun)
     @test u_inner_heun[2] == (0.1 * dt_heun + (0.1 * dt_heun + 0.1) * dt_heun) / 2
 end
+
+# The cached fields must live on the state's grid object rather than on a copy of it: field operations
+# that combine state and cached fields compare grids, which is only cheap (and, under Reactant,
+# only traceable) when both refer to the identical grid.
+@testset "Heun cache shares the grid of the state" begin
+    grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 1))
+    model = NamespacedExpModel(grid; timestepper = Heun())
+    integrator = initialize(model; initializers = (u = 0.0, v = 0.1))
+    state = integrator.state
+    cache = state.timestepper_cache
+    @test cache isa Terrarium.HeunCache
+
+    for (cached, current) in (
+            (cache.prognostic.u, state.prognostic.u),
+            (cache.tendencies.u, state.tendencies.u),
+            (cache.namespaces.inner.prognostic.u, state.namespaces.inner.prognostic.u),
+            (cache.namespaces.inner.tendencies.u, state.namespaces.inner.tendencies.u),
+        )
+        @test cached.grid === current.grid
+        @test parent(cached) !== parent(current)
+    end
+end
