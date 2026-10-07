@@ -42,6 +42,9 @@ plots/
 # Scratchspace
 scratch/
 
+# Worktrees
+.worktrees/
+
 # Shell files
 .bashrc
 .bash_profile

@@ -21,7 +21,7 @@ Snow is represented in Terrarium as one or more vertical layers of an ice-water-
 In the [Land model](@ref "Land models") the snowpack couples to the surface energy balance and the soil:
 
 - The albedo and emissivity are blended between snow and bare ground by the snow-covered fraction ``f_\text{snow}`` (see [Albedo and emissivity](@ref)).
-- The skin-temperature conduction target is an ``f_\text{snow}``-weighted blend of the snow layer and the underlying ground (see [Skin temperature](@ref "Skin temperature and ground heat flux")).
+- The skin-temperature conduction target is an ``f_\text{snow}``-weighted blend of the snow layer and the underlying ground (see [Skin temperature](@ref "Skin temperature")).
 - The surface latent flux is partitioned by ``f_\text{snow}`` into ground/canopy evaporation (latent heat of vaporization) and snow sublimation (latent heat of sublimation).
 - The snow→soil basal conductive flux is blended into the soil-top boundary condition, and the meltwater outflow is routed into the [Surface runoff](@ref) water balance.
 
