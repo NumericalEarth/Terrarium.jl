@@ -203,7 +203,7 @@ Performance benchmarks live in `benchmark/` and are run manually, one architectu
 cd benchmark
 julia --project=. manual_benchmarking.jl                # CPU (auto-labelled cpu-arm or cpu-x86)
 julia --project=. manual_benchmarking.jl gpu            # CUDA GPU
-julia --project=. manual_benchmarking.jl reactant-cpu   # Reactant/XLA, CPU backend
+julia --project=. manual_benchmarking.jl reactant-cpu   # Reactant/XLA, CPU backend (auto-labelled reactant-cpu-arm or reactant-cpu-x86)
 julia --project=. manual_benchmarking.jl reactant-gpu   # Reactant/XLA, CUDA backend
 ```
 

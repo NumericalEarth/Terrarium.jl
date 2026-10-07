@@ -48,6 +48,13 @@ Base revision: e015a29db9d97090edfd112a5eea165640134404
 - 2026-08-09: dropped the yr⁻¹→s⁻¹ rescaling of the PALADYN rates from `:land` entirely.
   `compute_Λ_loc` converts `γL`/`γR`/`γS` upstream since `903530eb`, so the benchmark was applying
   that conversion a second time; `γv_min` is left at its default too. See defect 1 below.
+- 2026-10-07 (revision 6): Reactant CPU results are labelled by host CPU, `reactant-cpu-arm` or
+  `reactant-cpu-x86` (like `cpu-arm`/`cpu-x86`), so runs on different machines no longer overwrite each
+  other; the stored EPYC entry was renamed to `reactant-cpu-x86`. Under Reactant the land
+  configurations use the fixed-iteration `NewtonSolver` for the skin temperature, because the default
+  `RootSolver` cannot be raised to StableHLO; the other architectures keep the default solver. The
+  land configurations also needed the horizontal grid metrics of `ColumnRingGrid` to be forwarded to
+  its `RectilinearGrid` (fixed in `src/` on its own branch, `mg/fix-columnringgrid-metrics`).
 
 ## Problem description
 

@@ -26,7 +26,7 @@ From `benchmark/`:
 ```
 julia --project=. manual_benchmarking.jl                # CPU (auto-labelled cpu-arm or cpu-x86)
 julia --project=. manual_benchmarking.jl gpu            # CUDA GPU
-julia --project=. manual_benchmarking.jl reactant-cpu   # Reactant/XLA, CPU backend
+julia --project=. manual_benchmarking.jl reactant-cpu   # Reactant/XLA, CPU backend (auto-labelled reactant-cpu-arm or reactant-cpu-x86)
 julia --project=. manual_benchmarking.jl reactant-gpu   # Reactant/XLA, CUDA backend
 ```
 
@@ -36,7 +36,7 @@ A second argument controls the duration: `quick` (0.25x steps, sweeps capped at 
 
 Simulated years per wallclock day (SYPD) for each model configuration across horizontal resolutions, one column per architecture. `—` means the architecture has not been benchmarked yet, skipped that resolution, or failed to run that configuration (see the per-architecture sections for which). Comparison figures are on the documentation's Benchmarks page.
 
-| Configuration | Columns | cpu-x86 | gpu-nvidia | reactant-cpu | reactant-gpu |
+| Configuration | Columns | cpu-x86 | gpu-nvidia | reactant-cpu-x86 | reactant-gpu |
 | --- | --- | --- | --- | --- | --- |
 | land | 128 | 273 | 316 | — | — |
 | land | 512 | 76 | 316 | — | — |
@@ -297,7 +297,7 @@ Toolchain:
 | land | ForwardEuler | 3.75° | 4608 | 600 | 217 | 302 | 5.43 | 25.4 | 6.86 MiB |
 | land | Heun | 3.75° | 4608 | 600 | 217 | 97 | 17 | 8.12 | 6.86 MiB |
 
-## Architecture: `reactant-cpu`
+## Architecture: `reactant-cpu-x86`
 
 Created for Terrarium.jl v0.1.4 on Sun, 09 Aug 2026 20:12:54 in `default` mode (1x time steps, 1 thread(s)).
 
