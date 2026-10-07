@@ -249,7 +249,7 @@ end
     u = field
     ∂u∂t = tendency
     @inbounds let Δt = convert(eltype(eltype(tendency)), Δt) # eltype of a scalar type is itself, so this also handles e.g. `SVector` element types
-        u[i, j, 1] += ∂u∂t[i, j] * Δt
+        u[i, j, 1] += ∂u∂t[i, j, 1] * Δt
     end
 end
 
@@ -264,7 +264,7 @@ end
     u = field
     ∂u∂t = tendency
     @inbounds let Δt = convert(eltype(eltype(tendency)), Δt) # eltype of a scalar type is itself, so this also handles e.g. `SVector` element types
-        u[i, j, end] += ∂u∂t[i, j] * Δt
+        u[i, j, end] += ∂u∂t[i, j, end] * Δt
     end
 end
 
