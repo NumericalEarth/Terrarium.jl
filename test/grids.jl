@@ -2,7 +2,7 @@ using Terrarium
 using Test
 
 import Oceananigans
-import Oceananigans: CenterField, Center, set!, interior
+import Oceananigans: CenterField, Center, Face, set!, interior
 import Oceananigans.Grids: RectilinearGrid, z_domain, halo_size, total_size, nodes, xnodes, znodes, isrectilinear
 import Terrarium.RingGrids
 import Terrarium.RingGrids: FullHEALPixGrid, get_npoints
@@ -144,6 +144,13 @@ end
     @test rectilinear_grid.Ny == 1
     @test rectilinear_grid.Nz == 10
     @test z_domain(rectilinear_grid) == (-5.0, 0.0)
+
+    # Horizontal metrics are forwarded to the wrapped grid, so areas and volumes (e.g. the scaling of
+    # flux boundary conditions) agree with those of the RectilinearGrid
+    for loc in ((Center(), Center(), Center()), (Center(), Center(), Face()), (Face(), Center(), Center()))
+        @test Oceananigans.Operators.Az(3, 1, 2, grid, loc...) == Oceananigans.Operators.Az(3, 1, 2, rectilinear_grid, loc...)
+        @test Oceananigans.Operators.volume(3, 1, 2, grid, loc...) == Oceananigans.Operators.volume(3, 1, 2, rectilinear_grid, loc...)
+    end
 
     # Test RingGrids.Field to Oceananigans.Field conversion
     @testset "RingGrids to Oceananigans Field conversion" begin
