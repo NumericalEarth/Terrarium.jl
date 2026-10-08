@@ -22,7 +22,7 @@ end
 # TODO: should this be a process of its own?
 Base.@kwdef struct SoilCarbonTransport{NF}
     "Advection velocity, constant for now"
-    ω::NF = ustrip(u"m/s", 1u"mm/yr")
+    ω::NF = ustrip(u"m/s", 0.002u"mm/yr")
 
     "Diffusion coefficient, constant for now"
     D_b::NF = ustrip(u"m^2/s", 1u"cm^2/yr")
