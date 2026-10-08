@@ -1,57 +1,55 @@
 using Terrarium
 
-grid = ColumnGrid(CPU(), Float64, UniformSpacing(N = 1))
-biogeochem = OnePoolSoilCarbon(eltype(grid))
+dyear = 60.0 * 60.0 * 24.0 * 365.0
+yr_to_sec = 1/dyear
+const SIMSTOP = 2 * dyear
+
+grid = ColumnGrid(CPU(), Float64, UniformSpacing(N = 2))
+#carbon model
+soc_resp = Terrarium.SoilCarbonRespiration(eltype(grid))
+soc_transp = Terrarium.SoilCarbonTransport(eltype(grid))
+biogeochem = OnePoolSoilCarbon(eltype(grid); transport = soc_transp, respiration=soc_resp)
 soil = SoilEnergyWaterCarbon(eltype(grid); biogeochem) # coupled soil processes
 model = SoilModel(grid; soil) # soil model
 display(variables(model))
-initializers = (density_soc = 10.0, temperature = 5.0, saturation_water_ice = 1.0)
-integrator = initialize(model, ForwardEuler(eltype(grid)); initializers)
-timestep!(integrator)
+initializers = (;density_soc = 00.0, temperature = 20.0, saturation_water_ice = 1.0)
 
-dyear = 60.0 * 60.0 * 24.0 * 365.0
-t_F = 0:dyear:(10 * dyear)
-F = FieldTimeSeries(grid, XY(), t_F)
-F.data .= 0.3 / yr_to_sec .+ 0.001 .* randn(size(F));
+t_F = 0:dyear:SIMSTOP
 
-T = FieldTimeSeries(grid, XY(), t_F)
-T.data .= 10.0 .+ 2.0 .* randn(size(T));
+litter = FieldTimeSeries(grid, XY(), t_F)
+litter.data .= clamp.(0.5/dyear .+ 0.005/dyear .* randn(size(litter)), 0, 100)
 
-input = InputSource(; F, T)
+inputs = InputSources(
+    InputSource(grid, litter; units=u"kg/m^2/s", name = :litter),
+)
 
-model = OnePoolSoilCarbon(grid; initializer)
+bc = Terrarium.LitterfallFlux(biogeochem)
+integrator = initialize(model; inputs, initializers, boundary_conditions = bc)
 
-initializers = (C = 10.0,)
-integrator = initialize(model, ForwardEuler(Δt = dyear), input; initializers)
-
-out = run!(integrator, period = Day(365 * 10))
-
-out.state.C
-
-sim = Simulation(integrator; stop_time = 10 * dyear, Δt = dyear)
-run!(sim)
+sim = Simulation(integrator; stop_time = SIMSTOP, Δt = 60)
 
 using Oceananigans: TimeInterval, JLD2Writer
 using Oceananigans.Units: seconds
 
-# Reset the integrator to its initial state
-Terrarium.initialize!(integrator)
-
+const INTERVAL = Day(365)
 output_file = tempname()
 sim.output_writers[:snapshots] = JLD2Writer(
     integrator,
-    (C = integrator.state.C,);
+    (density_soc = integrator.state.density_soc,);
     filename = output_file,
     overwrite_existing = true,
-    schedule = TimeInterval(10seconds)
+    schedule = TimeInterval(Second(INTERVAL).value)
 )
 
 run!(sim)
 
+fts = FieldTimeSeries(output_file, "density_soc")
 
-fts = FieldTimeSeries(output_file, "C")
+density_soc = fts[end]
 
-C = fts[end]
-
-using Plots
-plot(1:length(fts), [fts[i][1, 1, 1] for i in 1:length(fts)])
+using CairoMakie
+fig = Figure(size=(600,400))
+ax = CairoMakie.Axis(fig[1,1])
+plot!(ax, Day(0):Day(INTERVAL):Day(Second(SIMSTOP)), [fts[i][1, 1, 1] for i in 1:length(fts)])
+plot!(ax, Day(0):Day(INTERVAL):Day(Second(SIMSTOP)), [fts[i][1, 1, 2] for i in 1:length(fts)])
+fig
