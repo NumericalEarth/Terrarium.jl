@@ -28,13 +28,6 @@ plot_land_field(field, z_idx = 1; kwargs...) = heatmap(RingGrids.Field(CPU(), in
 plot_speedy_field(field; kwargs...) = heatmap(on_architecture(CPU(), field); kwargs...)
 
 
-# To make the simulation a bit more interesting, we will use a spatially varying initial condition.
-# The climatology will be determined by latitude with a maximum of 20 °C at the equator and minimum of -20°C at
-# the poles, as provided by [`LatitudinalClimatology`](@ref), and the initial temperature profile is
-# linear in depth via [`QuasiThermalSteadyState`](@ref).
-climatology = LatitudinalClimatology(Float32)
-energy_initializer = QuasiThermalSteadyState(Float32; T₀ = climatology, Qgeo = 0.05f0)
-
 function Terrarium.InputSources(dataset::SoilGrids2, grid::ColumnRingGrid, horizons = (Symbol(:horizon, i) for i in 1:6); name = nameof(typeof(dataset)), verbose = true)
     soilgrids_vars = (:sand_fraction, :silt_fraction, :clay_fraction, :bulk_density)
     metadataset = MetadataSet(soilgrids_vars...; dataset)
@@ -79,6 +72,36 @@ strat = SoilGridsStratigraphy(eltype(land_grid); porosity)
 soil = SoilEnergyWaterCarbon(eltype(land_grid); strat)
 vegetation = PrescribedVegetation(eltype(land_grid))
 surface_energy_balance = SurfaceEnergyBalance(eltype(land_grid); albedo = DiagnosticAlbedo(eltype(land_grid)))
+
+# The initial soil temperature profiles are linear in depth via [`QuasiThermalSteadyState`](@ref), with the
+# surface temperature taken from SpeedyWeather's monthly land surface temperature climatology. We load it
+# directly from the SpeedyWeather assets, regrid it onto our ring grid, and average over the twelve months
+# to obtain the mean annual surface temperature in °C.
+lst_climatology = RingGrids.get_asset(
+    "data/boundary_conditions/land_surface_temperature.nc";
+    from_assets = true,
+    name = "lst",
+    ArrayType = RingGrids.FullGaussianField,
+    FileFormat = NCDataset,
+    output_grid = on_architecture(CPU(), ring_grid),
+)
+mean_lst = RingGrids.Field(on_architecture(CPU(), ring_grid))
+mean_lst.data .= vec(mean(lst_climatology.data, dims = 2)) .- 273.15f0 # K to °C
+
+# The climatology is undefined over the ocean, so some coastal land columns of our grid may not have a value
+# after regridding. For these, we fall back to a simple latitude-dependent climatology given by
+# [`LatitudinalClimatology`](@ref).
+_, ring_lat = RingGrids.get_lonlats(on_architecture(CPU(), ring_grid)) # in radians
+fallback = LatitudinalClimatology(Float32)
+missing_lst = .!isfinite.(mean_lst.data)
+mean_lst.data[missing_lst] .= fallback.(rad2deg.(ring_lat[missing_lst]))
+plot_speedy_field(mean_lst)
+
+# The initializer declares its surface temperature as the input variable `initial_surface_temperature`,
+# so we supply the regridded climatology as an [`InputSource`](@ref) with that name below. This keeps the
+# data with the inputs rather than in the (grid-agnostic) model.
+T₀_source = InputSource(land_grid, mean_lst; name = :initial_surface_temperature, domain = Terrarium.Ground(), units = u"°C")
+energy_initializer = QuasiThermalSteadyState(Float32; Qgeo = 0.05f0)
 initializer = SoilInitializer(eltype(land_grid); energy = energy_initializer, hydrology = DefaultInitializer(eltype(land_grid)))
 terrarium_model = Terrarium.LandModel(land_grid; vegetation, soil, surface_energy_balance, initializer)
 
@@ -87,7 +110,7 @@ initial_date = DateTime(2024)
 soilgrids_inputs = InputSources(SoilGrids2(), land_grid)
 lai_highveg_fts = FieldTimeSeries(cat(lai_highveg_fields..., dims = 2), land_grid, 0.0:1day:365day)
 lai_inputs = InputSource(lai_highveg_fts, name = :leaf_area_index, reftime = Speedy.DEFAULT_DATE; domain = Terrarium.Canopy())
-inputs = InputSources(lai_inputs, soilgrids_inputs.sources...) # combine input sources
+inputs = InputSources(T₀_source, lai_inputs, soilgrids_inputs.sources...) # combine input sources
 
 # Here we set the remaining initial conditions for the soil
 initializers = (
