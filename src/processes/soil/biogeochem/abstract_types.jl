@@ -22,4 +22,3 @@ a purely mineral soil. Implementations of `AbstractSoilBiogeochemistry` should o
 method; see `organic_fraction` for how ρ_soc is converted to the organic fraction of the soil matrix.
 """
 @inline density_soc(i, j, k, grid, fields, bgc::AbstractSoilBiogeochemistry{NF}) where {NF} = zero(NF)
-
