@@ -8,7 +8,7 @@ Represents an explicit formulation of the two-phase heat conduction operator in 
 ```
 where \$T\$ is temperature [K], \$U\$ is internal energy [J m⁻³], and \$\\kappa\$ is the thermal conductivity [W m K⁻¹].
 """
-@kwdef struct ExplicitTwoPhaseHeatConduction <: AbstractHeatOperator end
+@kwdef struct TwoPhaseHeatTransport <: AbstractHeatOperator end
 
 # Kernel functions
 
