@@ -277,7 +277,11 @@ N.B: Make sure that each revision is given a number and a date.
 
 ```
 
-The revision log should, to the greatest extent possible, briefly summarize changes to the plan that are made on-the-fly during development. Make sure that each revision is given a number and a date. **A human must approve each revision before implementation**.
+The revision log should, to the greatest extent possible, briefly summarize changes to the plan that are made on-the-fly during development. Make sure that each revision is given a number and a date.
+**A human must approve each revision before implementation**.
+
+Write plan prose with a line break at the end of every sentence (one sentence per line) rather than wrapping at an arbitrary column width.
+This keeps diffs readable when individual sentences are revised.
 
 The remainder of the plan document may be adapted on a case-by-case basis but should generally follow this structure:
 
