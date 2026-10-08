@@ -98,14 +98,14 @@ SoilCarbonTransport
 **Litter input.** Litterfall enters the uppermost soil layer through a flux boundary condition on `density_soc`, which reads the `litter` input variable (kg/m²/s). The bottom boundary has no flux. This boundary condition must be passed explicitly when initializing the model; see [`LitterfallFlux`](@ref) below.
 
 ```@docs; canonical = false
-OnePoolSoilCarbon
+SinglePoolSoilCarbon
 ```
 
 The following example sets up a soil model with one-pool soil carbon and a constant litter input of 0.5 kg/m²/yr:
 
 ```@example soilbgc
 grid = ColumnGrid(CPU(), Float64, UniformSpacing(N = 10))
-biogeochem = OnePoolSoilCarbon(eltype(grid))
+biogeochem = SinglePoolSoilCarbon(eltype(grid))
 soil = SoilEnergyWaterCarbon(eltype(grid); biogeochem)
 model = SoilModel(grid; soil)
 
@@ -123,13 +123,13 @@ integrator.state.density_soc
 
 ## [Process interface](@id soilbgc.dispatches)
 
-Dispatches for `OnePoolSoilCarbon`:
+Dispatches for `SinglePoolSoilCarbon`:
 ```@docs; canonical = false
-compute_auxiliary!(state, grid, soc::OnePoolSoilCarbon, soil::AbstractSoil, args...)
+compute_auxiliary!(state, grid, soc::SinglePoolSoilCarbon, soil::AbstractSoil, args...)
 
-compute_boundary_conditions!(state, grid, ::OnePoolSoilCarbon)
+compute_boundary_conditions!(state, grid, ::SinglePoolSoilCarbon)
 
-compute_tendencies!(state, grid, soc::OnePoolSoilCarbon, soil::AbstractSoil, args...)
+compute_tendencies!(state, grid, soc::SinglePoolSoilCarbon, soil::AbstractSoil, args...)
 ```
 
 ## Boundary conditions

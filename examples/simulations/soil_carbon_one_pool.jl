@@ -8,7 +8,7 @@ grid = ColumnGrid(CPU(), Float64, UniformSpacing(N = 2))
 #carbon model
 soc_resp = Terrarium.SoilCarbonRespiration(eltype(grid))
 soc_transp = Terrarium.SoilCarbonTransport(eltype(grid))
-biogeochem = OnePoolSoilCarbon(eltype(grid); transport = soc_transp, respiration = soc_resp)
+biogeochem = SinglePoolSoilCarbon(eltype(grid); transport = soc_transp, respiration = soc_resp)
 soil = SoilEnergyWaterCarbon(eltype(grid); biogeochem) # coupled soil processes
 model = SoilModel(grid; soil) # soil model
 display(variables(model))
