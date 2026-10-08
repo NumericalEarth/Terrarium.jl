@@ -1,12 +1,12 @@
 # Land surface refactor: unify the surface energy balance and evapotranspiration into `AbstractLandSurface`
 
-> Status: **planned**. Design drafted and awaiting human review; no implementation has started.
+> Status: **in progress**. Surface runoff is reassigned to the surface types (Rev 4) and the earlier move into `SoilHydrology` was reverted; Rev 5 (redesign of change 2 and resequencing) awaits approval before implementation continues.
 
 Date of initial draft: 2026-10-07
 
 Author: Claude Fable 5.1 (claude-fable-5-1), Claude Code (VS Code extension)
 
-Reviewer:
+Reviewer: Brian Groenke (brian.groenke@pik-potsdam.de)
 
 Base revision: `10f3e07a14c183a6d39eabcfcefee434bc558682` (tip of `bg/refactor-surface`)
 
@@ -72,22 +72,57 @@ Subsequent decisions from the same discussion:
 > I agree, but drop the source node marker for now, this seems a bit excessively complex. I suppose
 > future implementations of `AbstractSkin` could consider such a change.
 
+> I'm second guessing a bit the decision to move runoff to soil hydrology. Does this actually make sense?
+
+> I feel like runoff is not really on the same level of abstraction as ground, snow, vegetation, and
+> atmosphere, though? We could also keep it as part of the surface types? does that make any sense?
+
+> The other option would perhaps be to add "hydrology" (or again surface hydrology) as a top-level
+> component with runoff as one component. But then the question is what the scope of that type would be
+> since it nominally overlaps somewhat with ground/soil.
+
+> Ok move it back to the surface types and update the plan to reflect the reasoning of why moving it to
+> soil is problematic. Also add the discussion about a future top-level hydrology type.
+
 ## Revision log
 
-- **Rev 1 (2026-10-07, Claude Fable 5.1):** Initial draft.
-- **Rev 2 (2026-10-07, Claude Fable 5.1):** Surface roughness and the log-law aerodynamic resistance
-  are removed from scope as substantial new physics. The aerodynamic resistance still moves from the
-  atmosphere to the surface, but as `ConstantDragResistance` carrying the current drag coefficient, so
-  the refactor is bit-for-bit reproducible. The network surface types keep a `roughness` slot that is
-  `nothing` for now; the roughness design outline is kept under Future work. Flat
-  `radiative_fluxes`/`ground_heat_flux` fields confirmed over a nested `fluxes` struct.
-- **Rev 3 (2026-10-07, Claude Fable 5.1):** The skin temperature component is generalized to a
-  `skin::AbstractSkin` component responsible for the state (temperature and humidity) of the
-  atmosphere-facing node. The existing `ImplicitSkinTemperature` and `PrescribedSkinTemperature` are
-  its first implementations and imply saturation at the skin temperature. `skin_humidity` is added as a
-  diagnosed auxiliary. A per-path source node marker was considered and rejected as excessive for now;
-  the choice of node temperature per path remains hard-coded in each surface type. The joint
-  temperature/humidity skin solve and a soil vapor diffusion resistance are recorded under Future work.
+- **Rev 4 (2026-10-08, Claude Opus 5.5):** Surface runoff becomes a component of every surface type
+  instead of moving into `SoilHydrology` (change 7 rewritten, step 1 of the commit sequence dropped).
+  The move into `SoilHydrology` was implemented first and passed the full test suite, but it showed
+  that the soil never actually uses the runoff; see "Why not `SoilHydrology`" under change 7. That
+  implementation was reverted before commit. A top-level hydrology component was also considered and
+  deferred; see Future work. *Approved by Brian Groenke on 2026-10-08.*
+- **Rev 5 (2026-10-08, Claude Opus 5.5):** **Awaiting approval.** A proposed redesign of change 2 and a
+  resequencing of the commit sequence, both found while starting the resistance work. Not started.
+  1. *Change 2, shared resistances.* With resistances stored inside each `ResistancePath`, a resistance
+     that appears in several paths (the aerodynamic resistance appears in all three PALADYN paths) is
+     several independent objects. Parameter editing would then expose one drag coefficient per path for
+     what is physically a single resistance, and type-based deduplication in the kernel would silently
+     pick one of them if the values ever differed. Separately, `ParameterEditing.parameters` returns an
+     empty table for `Tuple` fields, so parameters inside a path tuple are invisible to parameter
+     editing and calibration regardless. Proposed fix: each resistance and conductance factor is stored
+     **once**, as a named `@component` field of the surface type (`aerodynamic_resistance`,
+     `ground_canopy_resistance`, `stomatal_resistance`, `ground_factor`, `wet_canopy_factor`), and the
+     topology is a separate, field-free object whose paths refer to those fields by name, for example
+     ```julia
+     ResistanceNetwork(
+         ground = (:ground_canopy_resistance, :aerodynamic_resistance) => :ground_factor,
+         canopy_evaporation = (:aerodynamic_resistance,) => :wet_canopy_factor,
+         transpiration = (:aerodynamic_resistance, :stomatal_resistance) => nothing,
+     )
+     ```
+     with the names held as type parameters so path evaluation still unrolls at compile time. Each named
+     resistance is evaluated once per cell, which is the deduplication the plan already asked for, now by
+     name instead of by type. Parameters work without any change to ParameterEditing. A host-side
+     constructor check verifies that every name in the network refers to an existing component.
+  2. *Resequencing.* As written, step 1 of the commit sequence migrates every
+     `aerodynamic_resistance(…, atmos)` caller before step 2 creates the surface types, so the new
+     resistance object has no home except temporary plumbing through the old
+     `SurfaceEnergyBalance`/`SurfaceHydrology` signatures that step 2 deletes again. Proposed: step 1
+     only adds the resistance and factor types, their kernel functions, and unit tests; the old types keep
+     using the atmosphere's `ConstantAerodynamics` unchanged. The callers switch, and
+     `ConstantAerodynamics` is removed from the atmosphere, in step 3 together with the switch of
+     `LandModel` to the surface types. The end state is unchanged.
 
 ## Problem description
 
@@ -174,9 +209,9 @@ Three concrete implementations:
 
 | Type | Vapor sources | Resistance paths | Components |
 |---|---|---|---|
-| `BareGround` | ground (at skin temperature) | `ground` | `radiative_fluxes`, `ground_heat_flux`, `albedo`, `skin`, `roughness` (`nothing`) |
+| `BareGround` | ground (at skin temperature) | `ground` | `radiative_fluxes`, `ground_heat_flux`, `albedo`, `skin`, `surface_runoff`, `roughness` (`nothing`) |
 | `CanopyGround` | ground (at ground temperature), wet canopy, dry canopy (both at skin temperature) | `ground`, `canopy_evaporation`, `transpiration` | as above, plus `canopy_interception` |
-| `PrescribedLandSurface` | none | none | `radiative_fluxes`, `ground_heat_flux`, `albedo`; skin temperature, sensible, and latent heat fluxes are inputs |
+| `PrescribedLandSurface` | none | none | `radiative_fluxes`, `ground_heat_flux`, `albedo`, `surface_runoff`; skin temperature, sensible, and latent heat fluxes are inputs |
 
 The `fluxes` container from the originating prompt is flattened to two fields, `radiative_fluxes` and
 `ground_heat_flux`, since the turbulent flux scheme no longer has a `Prescribed` variant on the network
@@ -355,26 +390,67 @@ for diagnostics.
   keeps the energy and water budgets mutually consistent. A prescribed `evapotranspiration` input is
   not added in this PR.
 
-### 7. Surface runoff moves to `SoilHydrology`
+### 7. Surface runoff becomes a component of the surface types
 
-`SoilHydrology` gains a `surface_runoff::AbstractSurfaceRunoff` field (default `DirectSurfaceRunoff`),
-and the `surface_excess_water` prognostic owned by the runoff scheme moves with it. The runoff files move
-from `src/processes/surface/runoff/` to `src/processes/soil/hydrology/runoff/`. `soil_coupled.jl`
-no longer needs `get_surface_runoff(surface_hydrology)`.
+Every `AbstractLandSurface` (`BareGround`, `CanopyGround`, and `PrescribedLandSurface`) carries a
+`surface_runoff::AbstractSurfaceRunoff` component (default `DirectSurfaceRunoff`). Like `albedo`, the
+radiative fluxes, and the ground heat flux, it is independent of the resistance network, so it appears
+on all three types and its shared methods are defined on the abstract type. It owns the
+`surface_excess_water` pool (ponded water at the ground surface) and the `surface_runoff` and
+`infiltration` auxiliaries, exactly as it does today inside `SurfaceHydrology`. The runoff files stay in
+`src/processes/surface/runoff/`.
 
-The water reaching the ground crosses the surface/soil interface through one new interface method on
-`AbstractLandSurface`:
+The surface's auxiliary pass runs the runoff in its own kernel launch after interception (on
+`CanopyGround`) and alongside the albedo, not inside the fused network kernel of change 5, so the
+kernel fusion problem from #192 does not return. The surface's tendencies include the drainage of the
+ponded water pool.
 
-```julia
-ground_water_influx(i, j, grid, fields, surface::AbstractLandSurface, atmos, snow)
-```
+The runoff has three narrow interfaces, which keep it relocatable (see Future work):
 
-returning rainfall for `BareGround`, throughfall (rainfall minus interception) for `CanopyGround`, and
-rainfall for `PrescribedLandSurface`. Snow-aware adjustments (meltwater, snowfall routed to the
-snowpack) stay where they are now in the runoff scheme.
+- It reads the water reaching the ground from the surface through one new interface method,
+  ```julia
+  ground_water_influx(i, j, grid, fields, surface::AbstractLandSurface, atmos, snow)
+  ```
+  returning rainfall for `BareGround`, throughfall (rainfall minus interception) for `CanopyGround`,
+  and rainfall for `PrescribedLandSurface`. Snow-aware adjustments (meltwater, snowfall routed to the
+  snowpack) stay where they are now in the runoff scheme.
+- It reads the top-layer hydraulic conductivity and saturation from the soil through the existing kernel
+  functions.
+- It writes `infiltration`, which the soil uses as its top boundary condition, as now.
+
+The soil closure keeps its optional surface argument and takes the runoff from it to route excess water
+into the ponded water pool. The choice between routing and discarding is made by dispatch on the
+surface argument (a method for `AbstractLandSurface` and one for `nothing`) rather than by an
+`isnothing` check.
 
 `ground_evapotranspiration_flux(i, j, grid, fields, surface)` is kept as the soil water sink interface,
 with the ET scheme argument replaced by the surface.
+
+**Why not `SoilHydrology`.** An earlier version of this plan moved the runoff into `SoilHydrology`. That version was implemented
+and passed the full test suite, but it showed that the soil never actually uses the runoff:
+
+- *The soil never runs it.* The runoff's auxiliary pass needs throughfall from interception and
+  snowmelt from the snowpack, so it has to run after both. `LandModel` therefore had to call it
+  directly, outside the soil's own call sequence.
+- *The soil never declares it.* Declaring the ponded water pool in standalone soil would add a
+  prognostic with no water input and no infiltration boundary condition, changing standalone behavior.
+  The runoff's variables therefore had to be declared by `LandModel` on the soil's behalf.
+- *It is inert in standalone soil.* It only became active when a surface was passed in, which
+  `SoilModel` never does.
+- *Its dependencies point at the surface.* Several land models group infiltration and runoff with soil
+  hydrology because infiltration capacity depends on the soil state. In those models the soil
+  hydrology also owns the water input. Here the input comes from the surface, which already owns the
+  rest of the precipitation partitioning (interception and throughfall), and ponded water is physically
+  surface storage, like canopy water.
+
+In effect it was a `LandModel`-level process stored inside the soil. Two pieces of that implementation
+carry over: the dispatch-based routing decision above, and a test that a standalone `SoilModel`
+declares no runoff state.
+
+**Why not a top-level component.** The components of `LandModel` (ground, snow, vegetation, atmosphere,
+and the surface) are compartments or interfaces between them; runoff is a process. A top-level
+hydrology component holding only runoff would mix those levels of abstraction and would own nothing the
+surface cannot own just as naturally. See Future work for when such a component would be warranted.
 
 ### 8. Interception stays with the canopy surface
 
@@ -429,27 +505,27 @@ The package is pre-1.0 and no deprecation shims are added. Downstream users know
 | `sensible_heat_flux`, `latent_heat_flux` | network types / `PrescribedLandSurface` | auxiliary / input |
 | radiative and ground heat flux variables | unchanged | unchanged |
 | `canopy_water`, interception auxiliaries | `CanopyGround.canopy_interception` | unchanged |
-| `surface_excess_water`, `surface_runoff`, `infiltration` | `SoilHydrology.surface_runoff` | unchanged kinds |
+| `surface_excess_water`, `surface_runoff`, `infiltration` | `surface_runoff` of every surface type | unchanged kinds |
 
 ### 12. Suggested commit sequence
 
 The change is large enough that it should be landed as a sequence of commits on one branch, each
 leaving the test suite green:
 
-1. Move surface runoff into `SoilHydrology` and add `ground_water_influx`. No behavior change.
-2. Introduce `AbstractResistance`, `AbstractAerodynamicResistance`, `AbstractConductanceFactor`, and
+1. Introduce `AbstractResistance`, `AbstractAerodynamicResistance`, `AbstractConductanceFactor`, and
    the concrete types; migrate `aerodynamic_resistance` callers; remove `ConstantAerodynamics`. No
    behavior change.
-3. Introduce `AbstractLandSurface`, `BareGround`, `CanopyGround`, and the fused kernel, side by side
-   with the old types. Add equivalence tests.
-4. Switch `LandModel`, the standalone models, snow interfaces, and diagnostics to the surface type.
-5. Add `PrescribedLandSurface`, delete the old types, update exports, docs, examples, and benchmarks.
+2. Introduce `AbstractLandSurface`, `BareGround`, and `CanopyGround` (including interception, surface
+   runoff, and `ground_water_influx`), and the fused kernel, side by side with the old types. Add
+   equivalence tests.
+3. Switch `LandModel`, the standalone models, snow interfaces, and diagnostics to the surface type.
+4. Add `PrescribedLandSurface`, delete the old types, update exports, docs, examples, and benchmarks.
 
-Alternatively, steps 1 and 2 can be separate PRs since they are independently reviewable.
+Alternatively, step 1 can be a separate PR since it is independently reviewable.
 
 ## Testing and verification
 
-- **Equivalence tests** (step 3, then kept): `BareGround` reproduces
+- **Equivalence tests** (step 2, then kept): `BareGround` reproduces
   `SurfaceEnergyBalance + BareGroundEvaporation` and `PALADYNCanopyGround` reproduces
   `SurfaceEnergyBalance + PALADYNCanopyEvapotranspiration` on the existing `LandModel` test
   configurations, for skin temperature, all four energy fluxes, and the three ET component fluxes.
@@ -465,8 +541,9 @@ Alternatively, steps 1 and 2 can be separate PRs since they are independently re
   the air humidity and saturation.
 - **Snow tests**: existing snow/SEB partitioning tests (`test/surface/skin_temperature.jl`,
   `test/surface/turbulent_fluxes.jl`) ported to the new types unchanged in their assertions.
-- **Runoff tests**: `test/surface/hydrology/surface_runoff_tests.jl` moves under `test/soil/` and
-  gains a test for `ground_water_influx` on both network types.
+- **Runoff tests**: `test/surface/hydrology/surface_runoff_tests.jl` stays with the surface tests and
+  gains tests for `ground_water_influx` on all three surface types, and a test that a standalone
+  `SoilModel` declares no runoff state.
 - **Conservation**: the existing coupled water and energy budget checks in
   `test/coupled_models/land_model_tests.jl` must still pass.
 - **Differentiability**: `test/differentiability/prescribed_seb_diff.jl` ported to
@@ -485,7 +562,8 @@ Alternatively, steps 1 and 2 can be separate PRs since they are independently re
   `BareGround`, `CanopyGround`, `PrescribedLandSurface`, resistances and factors, skin (temperature
   and humidity, with the node-temperature conventions of each surface type stated explicitly),
   radiative fluxes, ground heat flux, albedo, canopy interception.
-- `surface_runoff.md` moves under the soil hydrology section.
+- `surface_runoff.md` moves into the land surface section, with a short note on why runoff is a
+  surface component rather than part of the soil hydrology.
 - `docs/src/processes/atmosphere/atmosphere.md` loses the aerodynamics section.
 - `docs/src/models/land_model.md`, `docs/src/running/configuring.md`,
   `docs/src/extending/core_interfaces.md`, and `docs/src/extending/coupling_processes.md` updated
@@ -535,5 +613,18 @@ Alternatively, steps 1 and 2 can be separate PRs since they are independently re
   constructor check should require a non-`nothing` roughness when `LogLawDragResistance` appears in any
   path. Follow-ups on the
   same track: stability-corrected (Monin-Obukhov) resistance, vegetation-dependent roughness.
+- **Top-level hydrology component.** Soil handles vertical water movement within the column. A
+  top-level hydrology component would have a coherent scope of its own if it owned the water that
+  leaves or bypasses the column: surface runoff and ponded water at the top, subsurface drainage or
+  baseflow at the bottom, an aquifer or groundwater store below the soil with its own water table,
+  subgrid redistribution such as TOPMODEL-style saturation-excess runoff, and eventually lateral
+  routing between cells into rivers, lakes, or wetlands. Its overlap with the soil would be mostly at
+  boundaries: infiltration and drainage are the soil's top and bottom fluxes, which this component
+  would compute. The one real overlap is the water table, which the soil currently diagnoses from
+  saturation; an aquifer model would have to decide which component owns it. Criterion for creating
+  it: there is state that no compartment can naturally own, such as an aquifer store, river storage, or
+  anything that couples cells laterally. Ponded water does not meet that bar. Because the runoff keeps
+  the three narrow interfaces of change 7, moving it from the surface types into such a component
+  would be a relocation, not a redesign.
 - Blended canopy/ground albedo on `CanopyGround`.
 - Explicit snow source in the resistance network, should the area-fraction modifier prove limiting.
