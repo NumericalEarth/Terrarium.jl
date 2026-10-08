@@ -2,13 +2,13 @@
 # also, define abstract types for these parameter structs if there may be multiple implementations
 @kwdef struct SoilCarbonRespiration{NF}
     "Reference decomposition rate [1/s]"
-    k_ref::NF = ustrip(u"s^-1", 0.1u"yr^-1") 
+    k_ref::NF = ustrip(u"s^-1", 0.1u"yr^-1")
 
     "Temperature sensitivity of decomposition rate (Q10)"
-    Q10::NF = 2.0 
+    Q10::NF = 2.0
 
     "Reference temperature for k_ref [°C]"
-    T_ref::NF = 10.0 
+    T_ref::NF = 10.0
 end
 
 SoilCarbonRespiration(::Type{NF}; kwargs...) where {NF} = SoilCarbonRespiration{NF}(; kwargs...)
@@ -58,7 +58,7 @@ end
 variables(::OnePoolSoilCarbon) = (
     prognostic(:density_soc, XYZ(), units = u"kg/m^3"),
     auxiliary(:respiration_rate, XYZ(), units = u"kg/m^3/s"), # TODO: does this really need to be auxiliary?
-    input(:litter, XY(), units = u"kg/m^2/s"), 
+    input(:litter, XY(), units = u"kg/m^2/s"),
 )
 
 # Implementation of the SOC density getter method for the one-pool scheme;
