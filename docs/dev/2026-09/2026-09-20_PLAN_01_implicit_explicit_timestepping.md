@@ -417,7 +417,7 @@ Weaknesses:
 Both paths need the same changes to the core. These are the substantive refactoring items.
 
 - **R1. Term-level splitting through operator classes.** Give operators a `Timestepping` trait:
-  `timestepping(::ExplicitTwoPhaseHeatConduction) = Explicit()`, and new
+  `timestepping(::TwoPhaseHeatTransport) = Explicit()`, and new
   `ImplicitTwoPhaseHeatConduction <: AbstractHeatOperator` and `RichardsEq{ImplicitFlow}` (or a
   parallel `ImplicitRichardsEq`) with `Implicit()`. The process `compute_tendencies!` dispatches on
   the operator class so that implicit operators omit their interior diffusive flux. New kernel

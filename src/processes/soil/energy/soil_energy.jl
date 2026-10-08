@@ -26,7 +26,7 @@ end
 
 SoilThermodynamics(
     ::Type{NF};
-    operator::AbstractHeatOperator = ExplicitTwoPhaseHeatConduction(),
+    operator::AbstractHeatOperator = TwoPhaseHeatTransport(),
     closure::AbstractEnergyClosure = SoilEnergyTemperatureClosure(),
     thermal_properties::SoilThermalProperties{NF} = SoilThermalProperties(NF),
 ) where {NF} = SoilThermodynamics(operator, closure, thermal_properties)
