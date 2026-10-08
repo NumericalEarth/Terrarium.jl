@@ -29,7 +29,9 @@ Base revision: `ce9ae606ae39063f52bb0ef23a3328a8b1904055` (tip of `main`, branch
      Functions passed as defaults therefore take the horizontal coordinates only, e.g. `x -> ...` on a `ColumnGrid`.
   3. **`LatitudinalClimatology` takes latitude in degrees and supports `LatitudeLongitudeGrid`.** Geographic coordinates come from a unified interface: Oceananigans already provides `λnodes`/`φnodes` for `LatitudeLongitudeGrid`, and `ColumnRingGrid` now extends them to return the longitudes/latitudes (degrees) of its active columns.
      Both are re-exported.
-  4. **Parameters of initializers.** `ParameterEditing.parameters` is defined for `AbstractInitializer` (mirroring `AbstractProcess`), `Field`s used as initial values contribute no parameters, and the initializers define `ConstructionBase.constructorof` so that `reconstruct` preserves `NF`.
+  4. **Parameters of initializers.** The concrete soil initializers are declared with `@parameterized`: `SoilInitializer` marks its sub-initializers as `@component`, and the energy and hydrology initializers mark their initial values as `@param` with bounds where applicable.
+     `Field`s used as initial values contribute no parameters, and the initializers define `ConstructionBase.constructorof` so that `reconstruct` preserves `NF`.
+     The typed-dispatch fix for process parameter collection (`117bf3ff4`, from `bg/differentiability-examples`) is cherry-picked, since without it no process parameters were collected through a model `@component`.
   5. **Exports.** Abstract types (`AbstractInitializer`, `AbstractFieldInitializer`) are not exported; only `LatitudinalClimatology` is added to the exports.
   6. **Enzyme and Reactant tests are left to CI.** A new Reactant configuration `:soil_heat_global_initializer` is registered in `test/reactant/`, and the existing Enzyme soil energy test already builds its model with `SoilInitializer`; neither suite is run locally.
   7. **Hydrology inputs.** `ConstantSaturation` declares `initial_saturation`, and `SaturationWaterTable` declares `vadose_zone_saturation` and `water_table_depth`.

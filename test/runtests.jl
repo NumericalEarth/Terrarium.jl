@@ -32,6 +32,10 @@ if MAIN_TESTS
         include("initializers.jl")
     end
 
+    @testset "Parameter handling" begin
+        include("parameter_handling.jl")
+    end
+
     @testset "Boundary conditions" begin
         include("boundary_conditions.jl")
     end
