@@ -59,7 +59,7 @@ input = InputSource(grid, F; name = :F)</code></pre><pre><code class="nohighligh
 ├── StateVariables{Float64}(clock = Clock{Float64, Float64}(time=0 seconds, iteration=0, last_Δt=Inf days), prognostic = (:u,), auxiliary = (:c,), inputs = (:F,), namespaces = (), timestepper_cache = HeunCache)
 </code></pre><p>We can advance our model by one step via the <code>timestep!</code> method:</p><pre><code class="language-julia hljs">timestep!(integrator)
 
-integrator.state.u</code></pre><pre><code class="nohighlight hljs">1×1×1 Field{Center, Center, Nothing} reduced over dims = (3,) on Oceananigans.Grids.RectilinearGrid on CPU
+integrator.state.u</code></pre><pre><code class="nohighlight hljs">1×1×1 Field{Center, Center, Nothing} reduced over dims = (3,) on RectilinearGrid on CPU
 ├── grid: 1×1×1 RectilinearGrid{Float64, Periodic, Flat, Bounded} on CPU with 1×0×1 halo
 ├── boundary conditions: FieldBoundaryConditions
 │   └── west: Periodic, east: Periodic, south: Nothing, north: Nothing, bottom: Nothing, top: Nothing, immersed: Nothing
@@ -93,12 +93,12 @@ sim.output_writers[:snapshots] = JLD2Writer(
 run!(sim)
 @assert isfile(output_file) &quot;Output file does not exist!&quot;
 println(&quot;Simulation data saved to $(output_file)&quot;)</code></pre><pre><code class="nohighlight hljs">[ Info: Initializing simulation...
-[ Info:     ... simulation initialization complete (11.078 seconds)
+[ Info:     ... simulation initialization complete (7.236 seconds)
 [ Info: Executing initial time step...
-[ Info:     ... initial time step complete (2.182 seconds).
-[ Info: Simulation is stopping after running for 22.088 seconds.
+[ Info:     ... initial time step complete (1.268 seconds).
+[ Info: Simulation is stopping after running for 14.813 seconds.
 [ Info: Simulation time 5 minutes equals or exceeds stop time 5 minutes.
-Simulation data saved to /tmp/jl_UlaxC1Qn61/simulation.jld2
+Simulation data saved to /tmp/jl_EHcnI7cFsV/simulation.jld2
 </code></pre><p>Then load the output data and plot the results:</p><pre><code class="language-julia hljs">using CairoMakie
 import DisplayAs
 
@@ -111,9 +111,9 @@ Build Info:
   Official https://julialang.org release
 Platform Info:
   OS: Linux (x86_64-linux-gnu)
-  CPU: 4 × AMD EPYC 7763 64-Core Processor
+  CPU: 4 × AMD EPYC 9V45 96-Core Processor
   WORD_SIZE: 64
-  LLVM: libLLVM-18.1.7 (ORCJIT, znver3)
+  LLVM: libLLVM-18.1.7 (ORCJIT, znver5)
   GC: Built with stock GC
 Threads: 1 default, 1 interactive, 1 GC (on 4 virtual cores)
 Environment:
@@ -134,10 +134,10 @@ Pkg.status()</code></pre><pre><code class="nohighlight hljs">Status `~/work/Terr
   [98b081ad] Literate v2.21.0
   [85f8d34a] NCDatasets v0.14.15
   [904d977b] NumericalEarth v0.8.1
-  [9e8cae18] Oceananigans v0.113.5
+  [9e8cae18] Oceananigans v0.113.6
   [a3a2b9e3] Rasters v0.15.0
-  [d1845624] RingGrids v0.1.9
-  [80418d68] Terrarium v0.1.7 `~/work/Terrarium.jl/Terrarium.jl`
+  [d1845624] RingGrids v1.0.0
+  [80418d68] Terrarium v0.1.9-DEV `~/work/Terrarium.jl/Terrarium.jl`
   [b77e0a4c] InteractiveUtils v1.11.0
   [d6f4376e] Markdown v1.11.0
-</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../extending/coupling_processes/">« Coupling processes</a><a class="docs-footer-nextpage" href="../simple_snow_ddm/">Example: Degree-day snow melt model »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Wednesday 7 October 2026 09:31">Wednesday 7 October 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../extending/coupling_processes/">« Coupling processes</a><a class="docs-footer-nextpage" href="../simple_snow_ddm/">Example: Degree-day snow melt model »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Thursday 8 October 2026 17:53">Thursday 8 October 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
