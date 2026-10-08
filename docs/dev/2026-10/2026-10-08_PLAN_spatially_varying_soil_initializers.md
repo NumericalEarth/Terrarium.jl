@@ -1,6 +1,6 @@
 # Spatially varying soil initializers via input variables
 
-> Status: **planned**. Draft awaiting human review; nothing implemented yet.
+> Status: **completed**. Implemented on `bg/improved-init`; the full test suite passes locally, and the Enzyme and Reactant suites are left to CI.
 
 Date of initial draft: 2026-10-08
 
@@ -8,17 +8,31 @@ Base revision: `ce9ae606ae39063f52bb0ef23a3328a8b1904055` (tip of `main`, branch
 
 ## Originating prompt
 
-> We need to generalize the existing soil initializer to allow for spatially varying inputs. The idea
-> would be to declare corresponding input variables for T0 and Qgeo and then pass the struct values as
-> default value initializers. These initializers could also be functions or callable structs that contain
-> additional parameters, e.g. the periodic initialization used for soil temp and currently duplicated
-> across many examples. Draft an implementation plan and summarize your findings. Ask questions if needed.
+> We need to generalize the existing soil initializer to allow for spatially varying inputs. The idea would be to declare corresponding input variables for T0 and Qgeo and then pass the struct values as default value initializers. These initializers could also be functions or callable structs that contain additional parameters, e.g. the periodic initialization used for soil temp and currently duplicated across many examples. Draft an implementation plan and summarize your findings. Ask questions if needed.
 
 ## Revision log
 
 - **Rev 1 (2026-10-08):** Initial draft.
 - **Rev 2 (2026-10-08):** Open questions resolved by the author: variable names `initial_surface_temperature` and `geothermal_heat_flux` confirmed; hydrology initializers (change 5) are in scope; `LatitudinalClimatology(T_equator, ΔT)` is the only concrete field initializer and no generic function wrapper is added, since a plain function can be assigned directly to the initializer fields; `AbstractFieldInitializer` lives in core `src/initializers.jl`.
-  Implementation not yet approved.
+- **Rev 3 (2026-10-08):** Dropped the `set_default!` hook from change 2.
+  An `AbstractFieldInitializer` default is instead handled by a dispatch of `initialize(var::InputVariable, grid, ...)` on the default's type at `Field` construction.
+- **Rev 4 (2026-10-08):** Settled the role of `AbstractFieldInitializer` after questioning whether it duplicates the `initializers` keyword of `initialize`.
+  It does not: as a field of the model's `initializer` component it can carry `@param` fields that become model parameters, which closures and precomputed `Field`s cannot.
+  To make those parameters live, the model initializer re-evaluates `AbstractFieldInitializer` values at every `initialize!`, while all other default forms are applied once at `Field` construction.
+  The construction-time dispatch from Rev 3 is dropped again.
+  *Approved by the author on 2026-10-08.*
+- **Rev 5 (2026-10-08):** Implementation notes, recorded during development on `bg/improved-init`.
+  Deviations from Rev 4, each requested or agreed by the author during implementation:
+  1. **No dedicated kernels.** The initializers fill their prognostic fields with `set!(field, kernel(compute_..., init), state)`, using the existing `kernel`/`KernelFunction` utility in `src/utils/kernel_utils.jl`, which gained a `set!` dispatch for `KernelFunction`.
+     The kernel functions read their inputs from `fields` (e.g. `fields.initial_surface_temperature[i, j, 1]`) following the usual `compute_something(i, j, k, grid, fields, process)` convention.
+  2. **Input variables live on `Ground(XY())`, not `Ground(Top())`/`Ground(Bottom())`.** A windowed declaration of `geothermal_heat_flux` conflicts with the plain surface `Field` that an `InputSource` infers, so all initializer inputs are declared as 2D surface variables.
+     Functions passed as defaults therefore take the horizontal coordinates only, e.g. `x -> ...` on a `ColumnGrid`.
+  3. **`LatitudinalClimatology` takes latitude in degrees and supports `LatitudeLongitudeGrid`.** Geographic coordinates come from a unified interface: Oceananigans already provides `λnodes`/`φnodes` for `LatitudeLongitudeGrid`, and `ColumnRingGrid` now extends them to return the longitudes/latitudes (degrees) of its active columns.
+     Both are re-exported.
+  4. **Parameters of initializers.** `ParameterEditing.parameters` is defined for `AbstractInitializer` (mirroring `AbstractProcess`), `Field`s used as initial values contribute no parameters, and the initializers define `ConstructionBase.constructorof` so that `reconstruct` preserves `NF`.
+  5. **Exports.** Abstract types (`AbstractInitializer`, `AbstractFieldInitializer`) are not exported; only `LatitudinalClimatology` is added to the exports.
+  6. **Enzyme and Reactant tests are left to CI.** A new Reactant configuration `:soil_heat_global_initializer` is registered in `test/reactant/`, and the existing Enzyme soil energy test already builds its model with `SoilInitializer`; neither suite is run locally.
+  7. **Hydrology inputs.** `ConstantSaturation` declares `initial_saturation`, and `SaturationWaterTable` declares `vadose_zone_saturation` and `water_table_depth`.
 
 ## Problem description
 
@@ -87,12 +101,8 @@ Two further facts matter for the design:
 - Widen the `Def` type parameter of `InputVariable` (`src/abstract_variables.jl`) from `Union{Nothing, Number, Function}` to an unconstrained parameter.
   It remains concrete per instance.
   Document the accepted forms: `nothing`, a number, any argument accepted by `Oceananigans.set!` (functions of the node coordinates, arrays, `Field`s), or an `AbstractFieldInitializer` (below).
-- Introduce a small hook in `initialize(var, grid, clock, fields, bcs)` so that the default is applied through a single overloadable method instead of a bare `set!`:
-
-  ```julia
-  set_default!(field, grid, default) = set!(field, default)
-  set_default!(field, grid, ::Nothing) = nothing
-  ```
+- The generic default path (`set!(field, var.default)`) is unchanged, and no special case is needed at `Field` construction.
+  An `AbstractFieldInitializer` default is applied at construction through its own `set!` fallback (change 3) and then re-evaluated by the model initializer at every `initialize!` (change 4), so that its parameters take effect after `reconstruct`.
 
 ### 3. `AbstractFieldInitializer`: reusable, grid-aware, parameterized field initializers
 
@@ -100,34 +110,39 @@ Add to `src/initializers.jl`:
 
 ```julia
 """
-Base type for reusable initializers of a single `Field`. Implementations are callable structs that
-provide `initialize!(field, grid, init::AbstractFieldInitializer)`; the default evaluates `init` at
-the node coordinates via `set!`. They can be passed as `default` of an `input` variable, as an entry of
-the `initializers` NamedTuple of `initialize`, or as a parameter of a model initializer.
+Base type for reusable initializers of a single `Field`.
+Implementations provide `initialize!(field, grid, init::AbstractFieldInitializer)`; the default
+evaluates `init` at the node coordinates via `set!`.
+Field initializers held by a model initializer may declare `@param` fields, which are then exposed
+as model parameters and re-evaluated at every `initialize!`.
 """
 abstract type AbstractFieldInitializer end
 
 initialize!(field::AbstractField, grid::AbstractGrid, init::AbstractFieldInitializer) = set!(field, (coords...) -> init(coords...))
-set_default!(field, grid, init::AbstractFieldInitializer) = initialize!(field, grid, init)
+Oceananigans.set!(field::AbstractField, init::AbstractFieldInitializer) = initialize!(field, field.grid, init)
 ```
 
-and make the user-facing `initialize!(state, inits::NamedTuple)` path accept them as well (it currently calls `set!` directly, which would not know what to do with a callable struct).
+The `set!` extension makes a field initializer acceptable everywhere a `set!`-compatible value is, including input defaults and the `initializers` keyword, without further dispatch sites.
 Only one concrete implementation is in scope here, to replace the duplicated example code:
 
 ```julia
 """
 Latitude-dependent surface temperature climatology on a `ColumnRingGrid`:
-T(φ) = T_equator - |ΔT sin φ|. Evaluated per active land column.
+T(φ) = T_equator - |ΔT sin φ|.
+Evaluated per active land column.
 """
-@kwdef struct LatitudinalClimatology{NF} <: AbstractFieldInitializer
-    T_equator::NF = 20
-    ΔT::NF = 40
+@parameterized @kwdef struct LatitudinalClimatology{NF} <: AbstractFieldInitializer
+    @param T_equator::NF = 20
+    @param ΔT::NF = 40
 end
 (init::LatitudinalClimatology)(lat) = init.T_equator - abs(init.ΔT * sin(lat))
 function initialize!(field, grid::ColumnRingGrid, init::LatitudinalClimatology)
     # host-side: gather latitudes of active columns, evaluate, then set!(field, values)
 end
 ```
+
+Why this is not redundant with the `initializers` keyword of `initialize`: that keyword, like input defaults, accepts any `set!`-compatible value, but such values are opaque to `ParameterEditing`.
+A field initializer stored in the model's `initializer` component can carry `@param` fields, so `T_equator` and `ΔT` appear in `parameters(model)` and can be changed through `reconstruct` or differentiated.
 
 No generic wrapper around a user function is provided: a plain function of the node coordinates can be assigned directly to `T₀`/`Qgeo` (or to any `input` default), and the implementation must keep that path working.
 The `periodic_bc` *boundary* condition in the same examples (diurnal cycle shifted by longitude) is a boundary-condition concern and is left out of this plan; see "Future work".
@@ -154,6 +169,9 @@ variables(init::QuasiThermalSteadyState) = (
 ```
 
 `initialize!(state, model, init::QuasiThermalSteadyState)` then reads the two input fields and fills `temperature` with a kernel launched via `launch!`, `T[i, j, k] = T₀[i, j] - Qgeo[i, j] / k_eff * z_k`, instead of a host-side closure.
+Before launching the kernel, `initialize!` re-evaluates any `T₀`/`Qgeo` that is an `AbstractFieldInitializer` into its input field via `initialize!(field, grid, init)`, so that parameter changes made through `reconstruct` take effect.
+All other forms (numbers, functions, arrays, `Field`s) are applied only once, as construction-time defaults, and remain overridable by an `InputSource` of the same name.
+Supplying both a parameterized field initializer and an `InputSource` for the same variable is therefore not meaningful; the field initializer wins, and this is documented.
 This is GPU- and Reactant-native (no `set_to_function!` detour) and keeps `k_eff` as a scalar parameter.
 `ConstantSoilTemperature` gets the same treatment with only the `initial_surface_temperature` input.
 
@@ -184,7 +202,8 @@ Export `AbstractFieldInitializer` and `LatitudinalClimatology` from `src/models/
   - verify that `QuasiThermalSteadyState` with scalar `T₀`/`Qgeo` reproduces the current profile bit for bit (regression),
   - verify a column-varying `T₀` given as a function and as a `Field`,
   - verify that an `InputSource` named `geothermal_heat_flux` overrides the default and that the profile uses the overridden values, and
-  - verify that `initialize!(integrator)` (re-initialization) leaves the result unchanged.
+  - verify that `initialize!(integrator)` (re-initialization) leaves the result unchanged, and
+  - verify that `initialize(integrator, params)` with a changed `T_equator` of a `LatitudinalClimatology` re-evaluates the initial profile.
 - `test/state_variables.jl`: `variables(model)` includes the initializer's inputs; `DefaultInitializer` contributes none; mismatched units in an `InputSource` raise the existing conflict error.
 - `test/grids.jl` or a new `test/initializers.jl`: `LatitudinalClimatology` on a masked `ColumnRingGrid` assigns each active column the value at its latitude.
 - `test/differentiability/soil_energy_diff.jl`: run the Enzyme energy test with the new initializer to confirm the kernel-based `initialize!` is differentiable.
@@ -205,6 +224,7 @@ Export `AbstractFieldInitializer` and `LatitudinalClimatology` from `src/models/
 - `AbstractFieldInitializer` defaults are applied at `Field` construction (as all input defaults are today), i.e. before any `InputSource` runs, and only once.
   That is the desired order, but it means a default that depends on other inputs is not supported.
 - The `Variables` conflict rule requires matching units between an `InputSource` and the declared input; users must pass `units = u"W/m^2"` (resp. `u"°C"`) to the source.
+- An `AbstractFieldInitializer` held by the model initializer overrides an `InputSource` of the same name at every `initialize!` (by design, so its parameters are live).
 - `LandModel` with a `SoilInitializer` is not addressed here; whichever way `initialize!` dispatches for that combination today is unchanged.
 
 ## Future work

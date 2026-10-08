@@ -23,10 +23,11 @@ Variables are typically constructed using one of the convenience functions [`pro
 
 These variable definitions are purely symbolic; they do not hold any data and cannot be used for computation. Constructing [`StateVariables`](@ref) from a model, process, or [`Variables`](@ref) container (see following sections) results in corresponding [Fields](@ref) being allocated for each variable. 
 
-A default implementation of `variables` is provided for all [`AbstractModel`](@ref) and `AbstractCoupledProcesses` types that automatically collects variables from all [`AbstractProcess`](@ref) types defined therein:
+A default implementation of `variables` is provided for all [`AbstractModel`](@ref) and `AbstractCoupledProcesses` types that automatically collects variables from all [`AbstractProcess`](@ref) types defined therein. For models, any variables declared by the model's initializer are included as well:
 
 ```@docs; canonical = false
-variables(obj::Union{AbstractCoupledProcesses, AbstractModel})
+variables(obj::AbstractCoupledProcesses)
+variables(model::AbstractModel)
 ```
 
 Most state variables will thus be defined by implementation of `AbstractProcess`. As an example, suppose we are implementing a new process `MyProcess` and we want to define the necessary state variables. We do this by defining a new dispatch of the `variables` method:
