@@ -28,22 +28,12 @@ plot_land_field(field, z_idx = 1; kwargs...) = heatmap(RingGrids.Field(CPU(), in
 plot_speedy_field(field; kwargs...) = heatmap(on_architecture(CPU(), field); kwargs...)
 
 
-# To make the simulation a bit more interesting, we will use spatially periodic initial and boundary conditions.
+# To make the simulation a bit more interesting, we will use a spatially varying initial condition.
 # The climatology will be determined by latitude with a maximum of 20 °C at the equator and minimum of -20°C at
-# the poles.
-mean_annual_temperature(lat) = 20 - abs(40 * sin(lat)) # maximum at equator
-
-function initial_soil_temperature(grid)
-    _, grid_lat = RingGrids.get_lonlats(grid.rings) # in radians
-    grid_lat_masked = grid_lat[on_architecture(CPU(), grid.mask)]
-    function init(x, z)
-        latᵢ = grid_lat_masked[round(Int, x)]
-        T₀ = mean_annual_temperature(latᵢ)
-        T = T₀ - 0.05 * z
-        return T
-    end
-    return init
-end
+# the poles, as provided by [`LatitudinalClimatology`](@ref), and the initial temperature profile is
+# linear in depth via [`QuasiThermalSteadyState`](@ref).
+climatology = LatitudinalClimatology(Float32)
+energy_initializer = QuasiThermalSteadyState(Float32; T₀ = climatology, Qgeo = 0.05f0)
 
 function Terrarium.InputSources(dataset::SoilGrids2, grid::ColumnRingGrid, horizons = (Symbol(:horizon, i) for i in 1:6); name = nameof(typeof(dataset)), verbose = true)
     soilgrids_vars = (:sand_fraction, :silt_fraction, :clay_fraction, :bulk_density)
@@ -89,7 +79,8 @@ strat = SoilGridsStratigraphy(eltype(land_grid); porosity)
 soil = SoilEnergyWaterCarbon(eltype(land_grid); strat)
 vegetation = PrescribedVegetation(eltype(land_grid))
 surface_energy_balance = SurfaceEnergyBalance(eltype(land_grid); albedo = DiagnosticAlbedo(eltype(land_grid)))
-terrarium_model = Terrarium.LandModel(land_grid; vegetation, soil, surface_energy_balance)
+initializer = SoilInitializer(eltype(land_grid); energy = energy_initializer, hydrology = DefaultInitializer(eltype(land_grid)))
+terrarium_model = Terrarium.LandModel(land_grid; vegetation, soil, surface_energy_balance, initializer)
 
 # Prepare the input sources: first the SoilGrids data, then the LAI data for prescribed vegetation.
 initial_date = DateTime(2024)
@@ -98,9 +89,8 @@ lai_highveg_fts = FieldTimeSeries(cat(lai_highveg_fields..., dims = 2), land_gri
 lai_inputs = InputSource(lai_highveg_fts, name = :leaf_area_index, reftime = Speedy.DEFAULT_DATE; domain = Terrarium.Canopy())
 inputs = InputSources(lai_inputs, soilgrids_inputs.sources...) # combine input sources
 
-# Here we set our initial conditions for the soil
+# Here we set the remaining initial conditions for the soil
 initializers = (
-    temperature = initial_soil_temperature(land_grid),
     saturation_water_ice = 1.0, # fully saturated soil everywhere
 )
 

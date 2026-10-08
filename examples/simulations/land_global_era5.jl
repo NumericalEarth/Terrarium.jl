@@ -178,16 +178,17 @@ inputs = InputSources(
 t2m_mean = mean(t2m; dims = Ti)  # average over time axis
 t2m_mean_C = Terrarium.kelvin_to_celsius.(constants, t2m_mean)
 t2m_mean_field = RingGrids.Field(Array(reshape(t2m_mean_C, :)), Terrarium.native_grid(ERA5LandForcings()))
-t2m_mean_on_grid = RingGrids.interpolate(on_architecture(CPU(), grid.rings), t2m_mean_field)[land_mask_cpu]
+t2m_mean_on_grid = RingGrids.interpolate(on_architecture(CPU(), grid.rings), t2m_mean_field)
+T₀_field = Field(on_architecture(arch, t2m_mean_on_grid), grid) # surface field over the land columns
 
-function initial_soil_temperature(x, z)
-    T₀ = t2m_mean_on_grid[round(Int, x)]
-    T = T₀ - NF(0.05) * z
-    return T
-end
+# The regridded mean air temperature `Field` is passed directly as the surface temperature of
+# [`QuasiThermalSteadyState`](@ref); the geothermal gradient follows from `Qgeo / k_eff`. Since the
+# initializer is part of the model, we rebuild the `LandModel` with it.
+energy_initializer = QuasiThermalSteadyState(NF; T₀ = T₀_field, Qgeo = NF(0.05))
+initializer = SoilInitializer(NF; energy = energy_initializer, hydrology = DefaultInitializer(NF))
+land = LandModel(grid; soil, vegetation, snow, atmosphere, initializer)
 
 initializers = (
-    temperature = initial_soil_temperature,
     saturation_water_ice = (x, z) -> min(one(NF), NF(0.6) - NF(0.05) * z),
 )
 integrator = initialize(land; inputs, initializers)
