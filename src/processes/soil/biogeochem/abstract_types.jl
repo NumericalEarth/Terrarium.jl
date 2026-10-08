@@ -16,8 +16,10 @@ density_pure_soc(bgc::AbstractSoilBiogeochemistry) = bgc.ρ_org
 """
     density_soc(i, j, k, grid, fields, bgc::AbstractSoilBiogeochemistry{NF}) where {NF}
 
-Calculate the organic solid fraction based on the prescribed SOC and natural porosity/density of
-the organic material.
+Return the bulk soil organic carbon density ρ_soc (kg/m³) at index `i, j, k`, i.e. the mass of
+organic material per unit volume of soil. The default implementation returns zero, corresponding to
+a purely mineral soil. Implementations of `AbstractSoilBiogeochemistry` should override this
+method; see `organic_fraction` for how ρ_soc is converted to the organic fraction of the soil matrix.
 """
 @inline density_soc(i, j, k, grid, fields, bgc::AbstractSoilBiogeochemistry{NF}) where {NF} = zero(NF)
 

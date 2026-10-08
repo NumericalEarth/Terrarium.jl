@@ -19,6 +19,12 @@ end
 
 SoilCarbonRespiration(::Type{NF}; kwargs...) where {NF} = SoilCarbonRespiration{NF}(; kwargs...)
 
+"""
+    $TYPEDSIGNATURES
+
+Compute the decomposition (heterotrophic respiration) rate (kg/m³/s) of soil organic carbon with
+density `C` (kg/m³) at temperature `T` (°C), R = k_ref ⋅ Q10^((T - T_ref) / 10) ⋅ C.
+"""
 function compute_respiration_rate(resp::SoilCarbonRespiration{NF}, C, T) where {NF}
     (; k_ref, Q10, T_ref) = resp # unpack properties
     R = k_ref * Q10^((T - T_ref) / NF(10)) * C
@@ -76,6 +82,11 @@ variables(::OnePoolSoilCarbon) = (
 # this will be called by the other soil components to determine porosity
 @inline density_soc(i, j, k, grid, fields, bgc::OnePoolSoilCarbon) = fields.density_soc[i, j, k]
 
+"""
+    $TYPEDSIGNATURES
+
+Compute the soil organic carbon respiration rate in each soil layer.
+"""
 function compute_auxiliary!(state, grid, soc::OnePoolSoilCarbon, soil::AbstractSoil, args...)
     out = auxiliary_fields(state, soc)
     fields = get_fields(state, soc, soil; except = out)
@@ -83,12 +94,23 @@ function compute_auxiliary!(state, grid, soc::OnePoolSoilCarbon, soil::AbstractS
     return nothing
 end
 
+"""
+    $TYPEDSIGNATURES
+
+Fill the halo regions of `density_soc` and apply its boundary conditions (e.g. [`LitterfallFlux`](@ref))
+to the soil organic carbon tendency.
+"""
 function compute_boundary_conditions!(state, grid, ::OnePoolSoilCarbon)
     fill_halo_regions!(state.density_soc, state)
     compute_z_bcs!(state.tendencies.density_soc, state.density_soc, architecture(grid), state.clock, state.inputs)
     return nothing
 end
 
+"""
+    $TYPEDSIGNATURES
+
+Compute the tendency of the soil organic carbon density in each soil layer.
+"""
 function compute_tendencies!(state, grid, soc::OnePoolSoilCarbon, soil::AbstractSoil, args...)
     out = tendency_fields(state, soc)
     fields = get_fields(state, soc, soil)
@@ -98,6 +120,11 @@ end
 
 # Kernel functions
 
+"""
+    $TYPEDSIGNATURES
+
+Compute the respiration rate at index `i, j, k` and store it in `out.respiration_rate`.
+"""
 @propagate_inbounds function compute_respiration!(out, i, j, k, grid, fields, soc::OnePoolSoilCarbon{NF}, soil::AbstractSoil) where {NF}
     T = fields.temperature[i, j, k] # defined by soil energy balance
     C = fields.density_soc[i, j, k]
@@ -106,19 +133,30 @@ end
     return out
 end
 
+"""
+    $TYPEDSIGNATURES
+
+Compute the soil organic carbon tendency at index `i, j, k` and add it to `tend.density_soc`.
+"""
 @propagate_inbounds function compute_soc_tendency!(tend, i, j, k, grid, fields, soc::OnePoolSoilCarbon, soil::AbstractSoil)
     tend.density_soc[i, j, k] += compute_soc_tendency(i, j, k, grid, fields, soc, soil)
     return nothing
 end
 
 # TODO: the soil argument with the other soil processes is currently unused but I guess it will be used...?
+"""
+    $TYPEDSIGNATURES
+
+Compute the soil organic carbon tendency (kg/m³/s) at index `i, j, k`,
+∂C/∂t = -∂q_d/∂z - ∂q_a/∂z - R, where q_d and q_a are the diffusive and advective fluxes and R is
+the respiration rate. Litter inputs enter through the top boundary condition.
+"""
 @propagate_inbounds function compute_soc_tendency(i, j, k, grid, fields, soc::OnePoolSoilCarbon, soil::AbstractSoil)
     # Operators require the underlying Oceananigans grid
     field_grid = ground_domain(grid)
     decomposition = fields.respiration_rate[i, j, k]
     # Compute soil carbon flux
     # runic: off
-    diff_flux = ∂zᵃᵃᶜ(i, j, k, field_grid, compute_soc_diffusive_flux, fields, soc.transport)
     ∂C∂t = (
         - ∂zᵃᵃᶜ(i, j, k, field_grid, compute_soc_diffusive_flux, fields, soc.transport)
         - ∂zᵃᵃᶜ(i, j, k, field_grid, compute_soc_advective_flux, fields, soc.transport)
@@ -129,6 +167,12 @@ end
 end
 
 
+"""
+    $TYPEDSIGNATURES
+
+Compute the diffusive soil organic carbon flux q_d = -D_b ⋅ ∂C/∂z (kg/m²/s) at the lower cell face
+of index `i, j, k`.
+"""
 @propagate_inbounds function compute_soc_diffusive_flux(i, j, k, grid, fields, transport::SoilCarbonTransport)
     C = fields.density_soc
     # TODO: compute and interpolate conductvitiy to grid cell faces
@@ -139,6 +183,11 @@ end
     return q_d
 end
 
+"""
+    $TYPEDSIGNATURES
+
+Compute the advective soil organic carbon flux q_a = ω ⋅ C (kg/m²/s) at index `i, j, k`.
+"""
 @propagate_inbounds function compute_soc_advective_flux(i, j, k, grid, fields, transport::SoilCarbonTransport)
     C = fields.density_soc[i, j, k]
     # TODO: compute depth-varying advection; also use Oceananigans advection operator
