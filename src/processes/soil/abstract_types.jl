@@ -43,9 +43,8 @@ include("biogeochem/abstract_types.jl")
 
 include("hydrology/abstract_types.jl")
 
-<<<<<<< HEAD
 include("energy/abstract_types.jl")
-=======
+
 """
     compute_thermal_conductivity(i, j, k, grid, ::SoilEnergyBalance, args...)
 
