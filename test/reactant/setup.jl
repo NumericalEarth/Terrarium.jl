@@ -69,6 +69,20 @@ function build_model(::Val{:soil_heat_global}, arch, NF)
     return (; model, boundary_conditions = bcs, initializers = inits, Δt = NF(600))
 end
 
+# --- :soil_heat_global_initializer — SoilModel on a ColumnRingGrid with a model initializer ----
+# Initial temperature from `QuasiThermalSteadyState` with a `LatitudinalClimatology` surface
+# temperature, and saturation from `SaturationWaterTable`. Exercises the initializer input
+# variables and the `KernelFunction`-based `set!` on the Reactant backend.
+function build_model(::Val{:soil_heat_global_initializer}, arch, NF)
+    rings = RingGrids.FullGaussianGrid(4)
+    grid = ColumnRingGrid(arch, NF, UniformSpacing(Δz = NF(0.2), N = 20), rings)
+    energy = QuasiThermalSteadyState(NF; T₀ = LatitudinalClimatology(NF), Qgeo = NF(0.05))
+    hydrology = SaturationWaterTable(NF; water_table_depth = NF(2))
+    model = SoilModel(grid; initializer = SoilInitializer(NF; energy, hydrology))
+    bcs = PrescribedSurfaceTemperature(:T_ub, NF(1))
+    return (; model, boundary_conditions = bcs, initializers = (;), Δt = NF(600))
+end
+
 # --- :snow_column — minimal single-column standalone SnowModel --------------------------
 # Exercises the snow closure (energy↔temperature) and the mass/energy tendencies under Reactant.
 # Boundary heat fluxes and SWE/temperature are prescribed as constant input/initial fields.

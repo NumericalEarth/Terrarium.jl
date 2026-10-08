@@ -113,13 +113,22 @@ function compute_tendencies! end
 variables(::Any) = ()
 
 """
-    variables(obj::Union{AbstractCoupledProcesses, AbstractModel})
+    variables(obj::AbstractCoupledProcesses)
 
-Default implementation of [`variables`](@ref) for composite [`AbstractModel`](@ref) and
-[`AbstractCoupledProcesses`](@ref) types that automatically collects all variables from all processes defined
-as properties/fields on the given `obj`.
+Default implementation of [`variables`](@ref) for composite [`AbstractCoupledProcesses`](@ref) types
+that automatically collects all variables from all processes defined as properties/fields on the given `obj`.
 """
-variables(obj::Union{AbstractCoupledProcesses, AbstractModel}) = tuplejoin(fastmap(variables, processes(obj))...)
+variables(obj::AbstractCoupledProcesses) = tuplejoin(fastmap(variables, processes(obj))...)
+
+"""
+    variables(model::AbstractModel)
+
+Default implementation of [`variables`](@ref) for [`AbstractModel`](@ref) types that collects all
+variables from all processes defined as properties/fields on the given `model`, followed by any
+variables declared by its initializer (see [`get_initializer`](@ref)). Initializers may declare
+`input` variables for their parameters; see [`AbstractInitializer`](@ref).
+"""
+variables(model::AbstractModel) = tuplejoin(fastmap(variables, processes(model))..., variables(get_initializer(model)))
 
 # Fallback dispatches to make implementing compute_boundary_conditions! optional
 compute_boundary_conditions!(state, ::AbstractModel) = nothing

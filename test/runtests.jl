@@ -28,6 +28,10 @@ if MAIN_TESTS
         include("state_variables.jl")
     end
 
+    @testset "Initializers" begin
+        include("initializers.jl")
+    end
+
     @testset "Boundary conditions" begin
         include("boundary_conditions.jl")
     end
