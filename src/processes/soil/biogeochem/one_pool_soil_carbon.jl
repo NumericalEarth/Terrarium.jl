@@ -1,5 +1,11 @@
 # TODO: should this be a process of its own?
 # also, define abstract types for these parameter structs if there may be multiple implementations
+
+"""
+    $TYPEDEF
+
+Soil Carbon Respiration component for the Soil Carbon Model.
+"""
 @kwdef struct SoilCarbonRespiration{NF}
     "Reference decomposition rate [1/s]"
     k_ref::NF = ustrip(u"s^-1", 0.1u"yr^-1")
@@ -20,6 +26,11 @@ function compute_respiration_rate(resp::SoilCarbonRespiration{NF}, C, T) where {
 end
 
 # TODO: should this be a process of its own?
+"""
+    $TYPEDEF
+
+Soil Carbon Transport component with Bioturbation (Diffusion) and Advection terms for the Soil Carbon Model.
+"""
 Base.@kwdef struct SoilCarbonTransport{NF}
     "Advection velocity, constant for now"
     ω::NF = ustrip(u"m/s", 0.002u"mm/yr")
