@@ -263,6 +263,10 @@ function ParameterEditing.parameters(proc::AbstractProcess; kwargs...)
     return ParameterEditing.ParameterTable((; nonempty_params...))
 end
 
+# `Field`s used as initial values (e.g. in a `@param` field of an initializer) are state, not parameters;
+# without this, ParameterEditing would treat them as array-valued parameters since `AbstractField <: AbstractArray`.
+ParameterEditing.parameters(::Type{PT}, ::AbstractField; kwargs...) where {PT <: ParameterEditing.AbstractParam} = (;)
+
 function Base.show(io::IO, model::AbstractModel{NF}) where {NF}
     println(io, "$(nameof(typeof(model))){$NF} on $(architecture(get_grid(model)))")
     for name in propertynames(model)

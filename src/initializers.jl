@@ -103,16 +103,3 @@ end
 initialize!(field::AbstractField, ::LatitudeLongitudeGrid, init::LatitudinalClimatology) = set!(field, (λ, φ, args...) -> init(φ))
 
 initialize!(field::AbstractField, grid::AbstractLandGrid, init::LatitudinalClimatology) = initialize!(field, ground_domain(grid), init)
-
-# Parameters of initializers are collected from their fields, like for processes. Numbers become
-# parameters, parameterized field initializers contribute theirs, and functions contribute none.
-function ParameterEditing.parameters(::Type{PT}, init::AbstractInitializer; kwargs...) where {PT <: ParameterEditing.AbstractParam}
-    init_params = map(fieldnames(typeof(init))) do name
-        name => ParameterEditing.parameters(PT, getproperty(init, name); kwargs...)
-    end
-    nonempty_params = filter(p -> length(p[2]) > 0, init_params)
-    return ParameterEditing.ParameterTable((; nonempty_params...))
-end
-
-# `Field`s used as initial values are state, not parameters.
-ParameterEditing.parameters(::Type{PT}, ::AbstractField; kwargs...) where {PT <: ParameterEditing.AbstractParam} = (;)

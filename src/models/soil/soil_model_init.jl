@@ -3,20 +3,20 @@
 
 Initializer for coupled soil energy/hydrology/biogeochemistry models.
 """
-struct SoilInitializer{
+@parameterized struct SoilInitializer{
         NF,
         EnergyInit <: AbstractInitializer{NF},
         HydrologyInit <: AbstractInitializer{NF},
         BGCInit <: AbstractInitializer{NF},
     } <: AbstractInitializer{NF}
     "Soil energy/temperature state initializer"
-    energy::EnergyInit
+    @component energy::EnergyInit
 
     "Soil hydrology state initializer"
-    hydrology::HydrologyInit
+    @component hydrology::HydrologyInit
 
     "Soil biogeochemistry state initializer"
-    biogeochem::BGCInit
+    @component biogeochem::BGCInit
 end
 
 function SoilInitializer(
@@ -53,9 +53,9 @@ a field initializer is re-evaluated at every `initialize!` so that its parameter
 Properties:
 $TYPEDFIELDS
 """
-struct ConstantSoilTemperature{NF, T0} <: AbstractInitializer{NF}
+@parameterized struct ConstantSoilTemperature{NF, T0} <: AbstractInitializer{NF}
     "Initial surface temperature (°C)"
-    T₀::T0
+    @param T₀::T0
 end
 
 """
@@ -109,15 +109,15 @@ parameters take effect.
 Properties:
 $TYPEDFIELDS
 """
-struct QuasiThermalSteadyState{NF, T0, QG} <: AbstractInitializer{NF}
+@parameterized struct QuasiThermalSteadyState{NF, T0, QG} <: AbstractInitializer{NF}
     "Initial surface temperature (°C)"
-    T₀::T0
+    @param T₀::T0
 
     "Geothermal heat flux (W/m²)"
-    Qgeo::QG
+    @param Qgeo::QG
 
     "Bulk thermal conductivity (W/m/K)"
-    k_eff::NF
+    @param k_eff::NF bounds = Positive
 end
 
 """
@@ -201,9 +201,9 @@ for the accepted forms of the default.
 Properties:
 $TYPEDFIELDS
 """
-struct ConstantSaturation{NF, S} <: AbstractInitializer{NF}
+@parameterized struct ConstantSaturation{NF, S} <: AbstractInitializer{NF}
     "Initial water/ice saturation (-)"
-    sat::S
+    @param sat::S bounds = UnitInterval
 end
 
 ConstantSaturation(::Type{NF}; sat = one(NF)) where {NF} = ConstantSaturation{NF, typeof(sat)}(sat)
@@ -239,12 +239,12 @@ accepted forms of the defaults.
 Properties:
 $TYPEDFIELDS
 """
-struct SaturationWaterTable{NF, S, D} <: AbstractInitializer{NF}
+@parameterized struct SaturationWaterTable{NF, S, D} <: AbstractInitializer{NF}
     "Saturation in the vadose zone above the water table (-)"
-    vadose_zone_saturation::S
+    @param vadose_zone_saturation::S bounds = UnitInterval
 
     "Depth of the water table below the surface (m)"
-    water_table_depth::D
+    @param water_table_depth::D bounds = Nonnegative
 end
 
 function SaturationWaterTable(::Type{NF}; vadose_zone_saturation = convert(NF, 3 // 4), water_table_depth = NF(5)) where {NF}
