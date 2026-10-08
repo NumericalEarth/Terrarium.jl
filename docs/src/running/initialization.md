@@ -37,7 +37,7 @@ The keyword argument must be a `NamedTuple` where the keys correspond to the nam
 
 Reusable, parameterized initializers of a single `Field` subtype [`AbstractFieldInitializer`](@ref).
 They are accepted everywhere a `set!`-compatible value is: in the `initializers` keyword argument, as the default of an `input` variable, or as a parameter of a model initializer.
-In the latter case, their `@param` fields become parameters of the model and they are re-evaluated at every initialization.
+In the latter case, their `@param` fields become parameters of the model.
 
 ```@docs; canonical = false
 AbstractFieldInitializer

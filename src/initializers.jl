@@ -44,7 +44,7 @@ at the node coordinates of `field`, i.e. `init(coords...)`, via `set!`.
 A field initializer is accepted everywhere a `set!`-compatible value is: as the `default` of an `input`
 variable, as an entry of the `initializers` keyword argument of [`initialize`](@ref), or as a parameter
 of a model [`AbstractInitializer`](@ref). In the latter case it may declare `@param` fields, which are
-then exposed as model parameters, and the model initializer re-evaluates it at every `initialize!`.
+then exposed as model parameters.
 """
 abstract type AbstractFieldInitializer end
 
@@ -57,16 +57,6 @@ Initialize `field` on `grid` with the given field initializer. The default imple
 initialize!(field::AbstractField, grid::AbstractGrid, init::AbstractFieldInitializer) = set!(field, (coords...) -> init(coords...))
 
 Oceananigans.Fields.set!(field::Field, init::AbstractFieldInitializer) = initialize!(field, field.grid, init)
-
-"""
-    $TYPEDSIGNATURES
-
-Re-evaluate `init` into `field` if it is an [`AbstractFieldInitializer`](@ref); all other initial values
-(numbers, functions, arrays, `Field`s) are applied only once as construction-time defaults and are left
-untouched here so that they remain overridable by [`InputSource`](@ref)s.
-"""
-reinitialize!(field::AbstractField, init::AbstractFieldInitializer) = set!(field, init)
-reinitialize!(::AbstractField, ::Any) = nothing
 
 """
     $TYPEDEF

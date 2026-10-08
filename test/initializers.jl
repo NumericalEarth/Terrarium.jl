@@ -40,6 +40,20 @@ end
     @test interior(state.temperature) == T_before
 end
 
+@testset "Scalar initial values are parameters" begin
+    NF = Float32
+    grid = ColumnGrid(CPU(), NF, ExponentialSpacing(N = 10))
+    energy = QuasiThermalSteadyState(NF; T₀ = NF(1), Qgeo = NF(0.05))
+    integrator = initialize(SoilModel(grid; initializer = SoilInitializer(NF; energy)))
+    ps = vec(parameters(integrator.model))
+    ps.initializer.energy.T₀ = NF(4)
+    # the existing state is reused, so the new default must be re-applied on initialization
+    integrator = initialize(integrator, ps)
+    @test all(interior(integrator.state.initial_surface_temperature) .== NF(4))
+    z = znodes(integrator.state.temperature)
+    @test interior(integrator.state.temperature)[1, 1, :] ≈ NF(4) .- NF(0.05) .* z
+end
+
 @testset "Column-varying initial values" begin
     NF = Float32
     grid = ColumnGrid(CPU(), NF, ExponentialSpacing(N = 5), 3)
@@ -71,6 +85,13 @@ end
     @test all(interior(integrator.state.geothermal_heat_flux) .== NF(0.1))
     z = znodes(integrator.state.temperature)
     @test interior(integrator.state.temperature)[1, 1, :] ≈ -NF(0.1) .* z
+    # input sources also take precedence over field initializers
+    climatology_model = SoilModel(grid; initializer = SoilInitializer(NF; energy = QuasiThermalSteadyState(NF; T₀ = LatitudinalClimatology(NF))))
+    T₀_field = Field(grid, Terrarium.Ground(XY()))
+    set!(T₀_field, NF(3))
+    T₀_source = InputSource(grid, T₀_field; name = :initial_surface_temperature, domain = Terrarium.Ground(), units = u"°C")
+    integrator = initialize(climatology_model; inputs = InputSources(T₀_source))
+    @test all(interior(integrator.state.initial_surface_temperature) .== NF(3))
     # mismatched units are reported as a conflict
     bad_source = InputSource(grid, Qgeo_field; name = :geothermal_heat_flux, domain = Terrarium.Ground())
     @test_throws ErrorException initialize(model; inputs = InputSources(bad_source))

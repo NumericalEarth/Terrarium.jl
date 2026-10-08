@@ -117,6 +117,29 @@ function Oceananigans.TimeSteppers.reset!(state::StateVariables)
 end
 
 """
+    $TYPEDSIGNATURES
+
+Reset all input `Field`s in `state` to the defaults declared by the corresponding input variables in
+`vars` (see [`InputVariable`](@ref)), recursing into namespaces. Inputs without a default are left
+unchanged. This is called by `initialize!(::ModelIntegrator)` with the variables of the current model,
+before any [`InputSource`](@ref)s are applied, so that defaults always reflect the current model
+parameters while input sources take precedence over them.
+"""
+function reset_inputs!(state::StateVariables, vars::Variables)
+    for (name, var) in vars.inputs
+        if !isnothing(var.default) && hasproperty(getfield(state, :inputs), name)
+            set!(getproperty(getfield(state, :inputs), name), var.default)
+        end
+    end
+    for (name, ns) in vars.namespaces
+        if hasproperty(getfield(state, :namespaces), name)
+            reset_inputs!(getproperty(getfield(state, :namespaces), name), Variables(variables(ns)))
+        end
+    end
+    return nothing
+end
+
+"""
 Reset all tendencies in `state` to zero.
 """
 function reset_tendencies!(state::StateVariables)

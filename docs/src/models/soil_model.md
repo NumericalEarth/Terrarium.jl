@@ -87,9 +87,9 @@ The parameters of the energy and hydrology initializers are declared as `input` 
 | [`SaturationWaterTable`](@ref) | `vadose_zone_saturation`, `water_table_depth` (m) |
 
 Each value may therefore be a number, a function of the horizontal node coordinates, an array, a `Field`, or an [`AbstractFieldInitializer`](@ref).
-Plain values are applied once and can be overridden by an [`InputSource`](@ref) with the same name and units.
+These defaults are re-applied at every initialization, so changes to their parameters take effect, and an [`InputSource`](@ref) with the same name and units always takes precedence over them.
 Spatial data, such as a regridded climatology, should preferably be supplied this way rather than as a `Field` stored in the initializer: the initializer is part of the model, which should stay independent of any particular grid and free of state.
-Field initializers such as [`LatitudinalClimatology`](@ref) are re-evaluated at every initialization, so their parameters are exposed as model parameters.
+Field initializers such as [`LatitudinalClimatology`](@ref) expose their own parameters as model parameters.
 Note that `geothermal_heat_flux` is the same variable read by the [`GeothermalHeatFlux`](@ref) bottom boundary condition, so the initial profile and the boundary condition stay consistent.
 
 ```@example soilmodel

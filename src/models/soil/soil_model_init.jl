@@ -45,10 +45,9 @@ end
 Initializer for soil/ground temperature that sets the temperature profile of each column to the
 value of the `initial_surface_temperature` input variable, whose default is `T₀`.
 
-`T₀` may be a number, a function of the node coordinates, an array, a `Field`, or an
-[`AbstractFieldInitializer`](@ref). All but the last are applied once as the default of the input
-variable and can be overridden by an [`InputSource`](@ref) named `initial_surface_temperature`;
-a field initializer is re-evaluated at every `initialize!` so that its parameters take effect.
+`T₀` may be a number, a function of the horizontal node coordinates, an array, a `Field`, or an
+[`AbstractFieldInitializer`](@ref). It is re-applied as the default of the input variable at every
+initialization and can be overridden by an [`InputSource`](@ref) named `initial_surface_temperature`.
 
 Properties:
 $TYPEDFIELDS
@@ -74,7 +73,6 @@ variables(init::ConstantSoilTemperature) = (
 )
 
 function initialize!(state, model::AbstractModel, init::ConstantSoilTemperature)
-    reinitialize!(state.initial_surface_temperature, init.T₀)
     set!(state.temperature, kernel(compute_constant_temperature, init), state)
     return nothing
 end
@@ -101,10 +99,9 @@ The surface temperature and the geothermal heat flux are declared as the input v
 `initial_surface_temperature` (°C) and `geothermal_heat_flux` (W/m²) with defaults `T₀` and `Qgeo`.
 The latter is the same variable read by the [`GeothermalHeatFlux`](@ref) bottom boundary condition,
 so that the initial profile and the boundary condition are consistent. Each default may be a number,
-a function of the node coordinates, an array, a `Field`, or an [`AbstractFieldInitializer`](@ref).
-All but the last are applied once and can be overridden by an [`InputSource`](@ref) of the same name
-(with matching units); a field initializer is re-evaluated at every `initialize!` so that its
-parameters take effect.
+a function of the horizontal node coordinates, an array, a `Field`, or an [`AbstractFieldInitializer`](@ref).
+Defaults are re-applied at every initialization, so that changes to parameters take effect, and can be
+overridden by an [`InputSource`](@ref) of the same name (with matching units).
 
 Properties:
 $TYPEDFIELDS
@@ -138,8 +135,6 @@ variables(init::QuasiThermalSteadyState) = (
 )
 
 function initialize!(state, model::AbstractModel, init::QuasiThermalSteadyState)
-    reinitialize!(state.initial_surface_temperature, init.T₀)
-    reinitialize!(state.geothermal_heat_flux, init.Qgeo)
     set!(state.temperature, kernel(compute_quasi_steady_state_temperature, init), state)
     return nothing
 end
@@ -215,7 +210,6 @@ variables(init::ConstantSaturation) = (
 )
 
 function initialize!(state, model::AbstractModel, init::ConstantSaturation)
-    reinitialize!(state.initial_saturation, init.sat)
     set!(state.saturation_water_ice, kernel(compute_constant_saturation, init), state)
     return nothing
 end
@@ -259,8 +253,6 @@ variables(init::SaturationWaterTable) = (
 )
 
 function initialize!(state, model::AbstractModel, init::SaturationWaterTable)
-    reinitialize!(state.vadose_zone_saturation, init.vadose_zone_saturation)
-    reinitialize!(state.water_table_depth, init.water_table_depth)
     set!(state.saturation_water_ice, kernel(compute_water_table_saturation, init), state)
     return nothing
 end

@@ -39,6 +39,10 @@ Base revision: `ce9ae606ae39063f52bb0ef23a3328a8b1904055` (tip of `main`, branch
   A `Field` held by the initializer ties the (otherwise grid-agnostic, stateless) model to one grid and architecture.
   `Field`s remain accepted as initial values, and the soil model docs recommend input sources for data.
   The SpeedyWeather example now initializes from SpeedyWeather's monthly land surface temperature climatology, averaged over the year, with `LatitudinalClimatology` as a fallback for coastal columns without data.
+- **Rev 7 (2026-10-08):** Replaces the re-evaluation rule of Rev 4.
+  Instead of the model initializer re-evaluating field initializers (`reinitialize!`, now removed), `initialize!(::ModelIntegrator)` first resets every input field to the default declared by the current model's variables (`reset_inputs!`), then applies input sources, user initializers, and the model initializer.
+  Defaults of every form are therefore re-applied on each initialization, so all initializer parameters, including plain scalars, take effect through `initialize(integrator, params)`, and input sources always take precedence over defaults, including field initializers.
+  *Approved by the author on 2026-10-08.*
 
 ## Problem description
 
@@ -230,11 +234,13 @@ Export `AbstractFieldInitializer` and `LatitudinalClimatology` from `src/models/
 - `AbstractFieldInitializer` defaults are applied at `Field` construction (as all input defaults are today), i.e. before any `InputSource` runs, and only once.
   That is the desired order, but it means a default that depends on other inputs is not supported.
 - The `Variables` conflict rule requires matching units between an `InputSource` and the declared input; users must pass `units = u"W/m^2"` (resp. `u"°C"`) to the source.
-- An `AbstractFieldInitializer` held by the model initializer overrides an `InputSource` of the same name at every `initialize!` (by design, so its parameters are live).
+- Defaults are re-applied only by `initialize!(::ModelIntegrator)`; calling `initialize!(state, model)` directly on an existing state does not refresh input fields.
 - `LandModel` with a `SoilInitializer` is not addressed here; whichever way `initialize!` dispatches for that combination today is unchanged.
 
 ## Future work
 
+- Reorder `initialize!(::ModelIntegrator)` to run user `initializers` after the model initializer but before the process `initialize!` dispatches, so that explicit per-field values are not overwritten by model initializers.
+  This requires splitting the model initializer step out of each model's `initialize!(state, model)`; deferred by the author on 2026-10-08.
 - A reusable periodic *boundary condition* (`T₀(lat) + A sin(2π t / P - lon)`) to remove the matching `get_temperature_bc` duplication in the examples.
 - Applying auxiliary-variable initializers in `reset!` (existing TODO in `state_variables.jl`).
 
