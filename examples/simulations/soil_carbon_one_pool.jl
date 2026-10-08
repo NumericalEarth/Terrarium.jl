@@ -26,7 +26,7 @@ inputs = InputSources(
 bc = Terrarium.LitterfallFlux(biogeochem)
 integrator = initialize(model; inputs, initializers, boundary_conditions = bc)
 
-sim = Simulation(integrator; stop_time = SIMSTOP, Δt = 60)
+sim = Simulation(integrator; stop_time = SIMSTOP, Δt = 3600)
 
 using Oceananigans: TimeInterval, JLD2Writer
 using Oceananigans.Units: seconds
@@ -37,7 +37,7 @@ sim.output_writers[:snapshots] = JLD2Writer(
     integrator,
     (density_soc = integrator.state.density_soc,);
     filename = output_file,
-    overwrite_existing = true,
+    overwrite_files = true,
     schedule = TimeInterval(Second(INTERVAL).value)
 )
 
