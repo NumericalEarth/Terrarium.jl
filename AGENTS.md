@@ -30,8 +30,9 @@ dynamics are allowed except in very special cases where they must be clearly doc
   using TestEnv; TestEnv.activate()
   include("test/soil/soil_energy_tests.jl")
   ```
-- To run the full suite, use `julia --project=. -e 'using Pkg; Pkg.test()'` (Enzyme/AD tests run
-  via `Pkg.test(; test_args=["enzyme"])`).
+- To run the full suite, use `julia --project=. -e 'using Pkg; Pkg.test()'`.
+- **Never run the Enzyme (`Pkg.test(; test_args=["enzyme"])`) or Reactant (`test/reactant/`) test suites
+  locally unless explicitly requested**. These tests should be left to the CI/CD pipeline.
 - Julia errors and associated stack traces are often very long due to long type signatures. To
   mitigate this, always write test output to temporary files and analyze this output using `grep`
   and similar tools.
