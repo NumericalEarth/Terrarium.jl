@@ -88,6 +88,7 @@ The parameters of the energy and hydrology initializers are declared as `input` 
 
 Each value may therefore be a number, a function of the horizontal node coordinates, an array, a `Field`, or an [`AbstractFieldInitializer`](@ref).
 Plain values are applied once and can be overridden by an [`InputSource`](@ref) with the same name and units.
+Spatial data, such as a regridded climatology, should preferably be supplied this way rather than as a `Field` stored in the initializer: the initializer is part of the model, which should stay independent of any particular grid and free of state.
 Field initializers such as [`LatitudinalClimatology`](@ref) are re-evaluated at every initialization, so their parameters are exposed as model parameters.
 Note that `geothermal_heat_flux` is the same variable read by the [`GeothermalHeatFlux`](@ref) bottom boundary condition, so the initial profile and the boundary condition stay consistent.
 

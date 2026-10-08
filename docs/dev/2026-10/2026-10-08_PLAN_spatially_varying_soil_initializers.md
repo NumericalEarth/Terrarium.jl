@@ -33,6 +33,10 @@ Base revision: `ce9ae606ae39063f52bb0ef23a3328a8b1904055` (tip of `main`, branch
   5. **Exports.** Abstract types (`AbstractInitializer`, `AbstractFieldInitializer`) are not exported; only `LatitudinalClimatology` is added to the exports.
   6. **Enzyme and Reactant tests are left to CI.** A new Reactant configuration `:soil_heat_global_initializer` is registered in `test/reactant/`, and the existing Enzyme soil energy test already builds its model with `SoilInitializer`; neither suite is run locally.
   7. **Hydrology inputs.** `ConstantSaturation` declares `initial_saturation`, and `SaturationWaterTable` declares `vadose_zone_saturation` and `water_table_depth`.
+- **Rev 6 (2026-10-08):** Spatial data in the examples is supplied through `InputSource`s named `initial_surface_temperature` instead of as a `Field` stored in the initializer.
+  A `Field` held by the initializer ties the (otherwise grid-agnostic, stateless) model to one grid and architecture.
+  `Field`s remain accepted as initial values, and the soil model docs recommend input sources for data.
+  The SpeedyWeather example now initializes from SpeedyWeather's monthly land surface temperature climatology, averaged over the year, with `LatitudinalClimatology` as a fallback for coastal columns without data.
 
 ## Problem description
 
