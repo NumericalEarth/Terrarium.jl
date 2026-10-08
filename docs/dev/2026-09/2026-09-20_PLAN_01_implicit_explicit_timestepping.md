@@ -1,15 +1,21 @@
 # Implicit-explicit (IMEX) time stepping: Jacobian-free Newton–Krylov and Oceananigans-style tridiagonal solves
 
-> Status: **planned**. Assessment of two implicit paths (a fully coupled Jacobian-free Newton–Krylov
+> Status: **in progress** (approved at revision 4; Phase 1a core refactor started 2026-10-08). Assessment of two implicit paths (a fully coupled Jacobian-free Newton–Krylov
 > solver using Enzyme forward-mode JVPs, and an Oceananigans-style linearly implicit vertical
 > diffusion solve built on `BatchedTridiagonalSolver`), the refactoring of the timestepping core that
-> both need, and a phased implementation path. Recommendation: build the tridiagonal path first and
-> then add the Newton–Krylov path as a second implicit solver that reuses the tridiagonal operator as
-> its preconditioner. Awaiting human review; nothing has been implemented.
+> both need, and a phased implementation path. **Scope of this plan and PR: the tridiagonal path
+> (Path 2) and the core refactoring**, followed by feasibility spikes for the Newton–Krylov path.
+> Path 1 itself is assessed here but deferred in its entirety to a future plan and PR, where it will
+> reuse the Path 2 tridiagonal operator as its preconditioner. Revision 2 (2026-10-08) re-checked the
+> plan against the repository; revision 3 (2026-10-08) narrowed the scope as described. Awaiting
+> human review; nothing has been implemented.
 
 Date of initial draft: 2026-09-20
 
 Base revision: 096bacc882bf5b21950abb0bc639aa457adc30ba
+
+Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `bg/implicit-timestepping`,
+Terrarium 0.1.9-DEV, Oceananigans 0.113.5)
 
 ## Originating prompt
 
@@ -33,6 +39,32 @@ Base revision: 096bacc882bf5b21950abb0bc639aa457adc30ba
 ## Revision log
 
 > **Revision 1, 2026-09-20.** Initial draft. Not yet reviewed.
+>
+> **Revision 2, 2026-10-08.** Re-reviewed against the current repository (see "B0. Repository state
+> at revision 2"). Changes: the explicit heat operator was renamed to `TwoPhaseHeatTransport`
+> (commit `e9b9ef82a`); per reviewer feedback the operator types are left untouched and R1 instead
+> passes the resolved `Timestepping` trait into the soil energy and hydrology `compute_tendencies!`,
+> and the implicit entry point is named `implicit_step!`; Oceananigans is pinned at 0.113.5, so the compat item and the
+> `IMEXFluxBoundaryCondition` availability caveat are dropped; state fields may now live on plain
+> `AbstractGrid`s and may carry non-scalar element types, which adds two constraints to the implicit
+> caches (R5); the soil kernel fusion that R1 would have interacted with was abandoned; the ground
+> heat flux is now its own SEB sub-process, which is where the Phase 3 linearized surface flux hooks
+> in; the Reactant extension now converts the traced clock time, which R7 relies on. The
+> recommendation and phasing are unchanged. Not yet reviewed.
+>
+> **Revision 3, 2026-10-08.** Reviewer feedback: the implicit entry point is `implicit_step!`; the
+> operator types are left unchanged and the resolved `Timestepping` trait is passed into the soil
+> energy and hydrology `compute_tendencies!` instead; the finer `Implicit{…}` trait distinction is
+> deferred as a Path 1 consideration; the feasibility spikes (formerly Phase 0) move after the Path 2
+> implementation; and Path 1 is deferred in its entirety to a future plan and PR. Its assessment
+> and sketch stay in this document as the record for that future work. Decisions on the Enzyme weak
+> dependency and Krylov.jl are deferred with it.
+>
+> **Revision 4, 2026-10-08. Approved for implementation.** Reviewer decisions: scope (Path 2 and the
+> core refactoring in this PR, spikes in Phase 4, Path 1 deferred) approved; type names
+> `ImplicitEuler`, `AbstractImplicitSolver`, `TridiagonalPicard` approved; the implicit heat operator
+> uses a **regularized apparent heat capacity** for `FreeWater` (with a documented `ΔT_reg`
+> parameter) rather than requiring a smooth freeze curve.
 
 ## Problem description
 
@@ -56,6 +88,47 @@ be integrated implicitly while sources, boundary fluxes, vegetation, snow, and s
 explicit, on CPU, CUDA, and Reactant, without giving up Enzyme differentiability.
 
 ## Background
+
+### B0. Repository state at revision 2 (2026-10-08)
+
+Changes since the base revision that bear on this plan:
+
+- **Operator naming.** `ExplicitTwoPhaseHeatConduction` was renamed to `TwoPhaseHeatTransport`
+  (`src/processes/thermodynamics/heat_conduction.jl`). The operator types are not modified by this
+  plan; the explicit/implicit split is carried by the `Timestepping` trait passed into
+  `compute_tendencies!` (R1).
+- **Oceananigans 0.113.5** is pinned (`Project.toml` compat `0.113.5`, both Manifests). The
+  `BatchedTridiagonalSolver` constructor, `solve!`, `get_coefficient`, `KrylovSolver`,
+  `implicit_step!`, and `IMEXFluxBoundaryCondition` are all present with the signatures described in
+  B2 (verified in the 0.113.1 through 0.113.6 depot copies). No compat work remains.
+- **Grids.** `ModelIntegrator` and `StateVariables` no longer require an `AbstractLandGrid`; fields
+  are allocated on whatever grid is given, and `variable_grid`/`ground_domain` are identity on a plain
+  `AbstractGrid`. The tridiagonal scratch and coefficient buffers must therefore be allocated on
+  `ground_domain(get_grid(model))`, which covers both cases.
+- **Variable element types.** `Variable` gained an `eltype` (e.g. `SVector{3, NF}`), the explicit
+  step kernels convert `Δt` with `eltype(eltype(tendency))`, and `test/timestepping/vector_eltype.jl`
+  covers it. The implicit solvers are scalar only in this plan; the host-side constructor must reject
+  routing a non-scalar variable to the implicit sub-stepper.
+- **`Top()` semantics.** A `Top()` variable now defaults to `z = Face()` and resolves to `k = Nz + 1`;
+  `Top(z = Center())` gives the uppermost cell. The XY explicit kernel indexes `k = 1`. Any implicit
+  right-hand-side assembly that touches surface pools must follow these conventions.
+- **Kernel fusion.** The fused-kernels plan (rev 7) abandoned soil tendency fusion after
+  benchmarking and fuses auxiliaries only, so the implicit split of the soil tendency in R1 touches
+  only the per-process `compute_tendencies!` launches, not a fused kernel.
+- **Evapotranspiration sink.** `LandModel` now passes `surface_hydrology` into the soil
+  `compute_tendencies!`, so the evapotranspiration sink is an ordinary explicit source term in the
+  Richards tendency. It stays on the right-hand side in Path 2 and inside the residual in Path 1.
+- **Surface energy balance.** The ground heat flux is now a first-class SEB sub-process with
+  `Diagnosed` and `Prescribed` implementations (plan `2026-09-01_PLAN_prescribed_surface_energy_balance.md`,
+  completed). The Phase 3 linearized surface flux (`λ = ∂G/∂T_ground`) attaches to the `Diagnosed`
+  ground heat flux implementation.
+- **Reactant.** `TerrariumReactantExt` now defines `convert_dt` for a `TracedRNumber` clock time, and
+  the Reactant test registry gained time-varying input configurations. R7 (ticking the clock before a
+  residual evaluation) is therefore supported inside the compiled loop.
+- **Heun.** `HeunCache` allocates with `similar` rather than `deepcopy`; implicit caches should do the
+  same.
+- The `IMEX` routing tests now use plain `XY()` declarations on an `AbstractGrid`; the planned
+  rewrite of those tests under R3 applies to the current versions.
 
 ### B1. The current Terrarium timestepping system
 
@@ -121,7 +194,7 @@ Limitations of the present `IMEX` scaffolding that the new design has to fix:
 ### B2. What Oceananigans provides (investigation summary)
 
 Investigated against the local checkout at `e8975f17d` (2026-09-18) and cross-checked against the
-released 0.111.0 that Terrarium pins (`Manifest.toml`; compat `0.110.15, 0.111`).
+released 0.111.0 pinned at drafting time and, at revision 2, against the now-pinned 0.113.5.
 
 **Generic and directly reusable**
 
@@ -137,7 +210,7 @@ released 0.111.0 that Terrarium pins (`Manifest.toml`; compat `0.110.15, 0.111`)
   `abs(β) > 10 eps` guard skips the update when the system is not diagonally dominant. There are no
   CUDA-specific code paths; GPU support is entirely via `launch!`. The same pattern also underlies
   `ConjugateGradientPoissonSolver`'s `ColumnwiseTridiagonal*Diagonal` coefficients.
-- `Oceananigans.Solvers.KrylovSolver` (`src/Solvers/krylov_solver.jl`, present in 0.111.0): a
+- `Oceananigans.Solvers.KrylovSolver` (`src/Solvers/krylov_solver.jl`, present in 0.111.0 and 0.113.5): a
   Krylov.jl wrapper (`:cg`, `:gmres`, `:bicgstab`, `:fgmres`, ...) over a single `AbstractField`,
   with matrix-free `linear_operator(y, x, args...)` and optional preconditioner callables. The
   `KrylovField` vector wrapper (kdot, knorm, kaxpy on `Field`s) is the template for a multi-field
@@ -145,8 +218,7 @@ released 0.111.0 that Terrarium pins (`Manifest.toml`; compat `0.110.15, 0.111`)
 - `IMEXFluxBoundaryCondition(Fₑ, λ)` (`src/BoundaryConditions/implicit_explicit_flux_boundary_condition.jl`):
   an affine flux `J = Fₑ + λ φ_boundary` whose linear coefficient `λ` is folded into the boundary cell
   diagonal by `boundary_flux_diagonal`. This is a ready-made linearized surface flux coupling.
-  It is present in 0.111.0 (the pinned version) but absent in 0.110.15, which the compat entry still
-  admits; the lower compat bound is raised to `0.111` in Phase 1 (older versions need no support).
+  It is present in the pinned 0.113.5.
 - The vertically implicit coefficient construction in
   `src/TurbulenceClosures/vertically_implicit_diffusion_solver.jl` (`ivd_upper_diagonal`,
   `ivd_lower_diagonal`, `ivd_diagonal`, `implicit_linear_coefficient`): off-diagonals are
@@ -296,11 +368,11 @@ Risks and costs:
   only. Forward mode through KernelAbstractions kernels on CUDA relies on KernelAbstractions' Enzyme
   extension and CUDA.jl's, which are less exercised than the CPU path. The `RootSolver`
   (RootSolvers.jl) inside the surface energy balance has data-dependent loops, which Enzyme handles
-  but Reactant does not. A spike (Phase 0) must settle this before the path is committed to.
+  but Reactant does not. A Phase 4 spike must settle this before the path is committed to.
 - **Nested AD.** Differentiating a JFNK step in reverse mode for inverse modeling means reverse over
   forward. Enzyme LLVM supports this in principle, but it is a fragile combination; the correct
   long-term answer is a custom rule implementing the implicit-function-theorem adjoint (solve
-  `Jᵀ λ = ∂L/∂u`), which is Phase 5 work.
+  `Jᵀ λ = ∂L/∂u`), which belongs to the future Path 1 plan.
 - **Reactant.** Convergence-tested Newton and Krylov loops cannot be raised. Fixed-iteration variants
   (`NewtonKrylov{NF, newton_iterations, krylov_iterations}`) are needed, as `NewtonSolver` already
   demonstrates, and every host-side norm inside the compiled program becomes a synchronization
@@ -340,6 +412,15 @@ New files under `src/timesteppers/implicit/`:
   built from `fastiterate` and `launch!`, allocation free.
 - The tridiagonal preconditioner reuses Path 2's coefficient kernel functions and
   `BatchedTridiagonalSolver` unchanged.
+- **Trait distinction (deferred from R1).** The Newton residual needs the full tendency including
+  the interior diffusion term, whereas the Path 2 tendency omits it under `Implicit()`. The future
+  plan must decide how `compute_tendencies!` learns which it is: a parameterized trait such as
+  `Implicit{LinearlyImplicit}()` versus `Implicit{FullyImplicit}()` (preferred, since process methods
+  then dispatch on one argument), or a query `omits_interior_diffusion(::AbstractImplicitSolver)`
+  consulted when the model-level `compute_tendencies!` resolves the trait.
+
+This sketch, the assessment above, and the spikes of Phase 4 are the inputs to the future Path 1
+plan. Nothing in this section is implemented in the present PR.
 
 ## Approach 2: Oceananigans-style linearly implicit vertical diffusion
 
@@ -350,13 +431,19 @@ Per implicit variable and per stage (IMEX Euler with `ForwardEuler` as the expli
 1. `update_state!` once. Processes whose operator is marked implicit contribute **only their
    non-diffusive terms** to the tendency (sources, sinks, the two boundary-face fluxes via
    `compute_z_bcs!`), mirroring Oceananigans' zeroing of the interior explicit flux.
-2. Explicit predictor for all variables with the existing `explicit_step!` kernels:
-   `u* = uⁿ + Δt G^{exp}`.
+2. Explicit update for all variables with the existing `explicit_step!` kernels:
+   `u* = uⁿ + Δt G^{exp}`. For implicitly stepped variables this is not a predictor in the
+   predictor-corrector sense; `u*` is simply the right-hand side of the backward Euler system that
+   step 3 solves. The scheme is a straight implicit solve with one tendency evaluation per step; no
+   corrector pass follows. (The two-stage `Heun` pairing of Phase 3 is where a genuine
+   predictor-corrector structure appears.)
 3. For each implicit variable, `M ≥ 1` Picard iterations of: assemble lagged coefficients
    (`κ` or `K` at faces, `C_app` or `C = ∂θ/∂ψ` at centers), solve the tridiagonal system for the
    closure variable (`T` or `ψ`), update the prognostic conservatively from the implicit flux
    divergence, and re-evaluate the closure. `M = 1` is the linearly implicit scheme used by most
-   land surface models; `M = 2–3` is the Celia modified Picard for Richards.
+   land surface models; `M = 2–3` is the Celia modified Picard for Richards. The Picard loop is a
+   fixed-point iteration on the nonlinear coefficients within one backward Euler step, not a
+   multi-stage time scheme.
 4. Model post-step hooks and `closure!` as today.
 
 Coefficient assembly follows the Oceananigans `ivd_*` construction with the capacity on the
@@ -369,11 +456,29 @@ diag_k  = C_app,k − lower_k − upper_k
 rhs_k   = C_app,k Tⁿ_k + Δt G^{exp}_k
 ```
 
-The masked off-diagonals give a no-flux boundary; the actual boundary fluxes are already in
-`G^{exp}` through `compute_z_bcs!`. Value/gradient boundary conditions on the closure variable are
-not supported in the first version (Terrarium's soil boundary conditions are flux conditions in
-practice) and would need a Dirichlet row treatment later. With `IMEXFluxBoundaryCondition` the top
-flux can later be split into an explicit part and a `λ T_top` part folded into `diag_Nz`.
+**Flux boundary conditions are the primary case and are required from Phase 1.** In Terrarium they
+are attached to the conserved prognostic (`SoilHeatFlux` and `GeothermalHeatFlux` on
+`internal_energy`, `InfiltrationFlux` on `saturation_water_ice`) and `compute_z_bcs!` adds them into
+the tendency during `update_state!`. The implicit step takes that tendency as `G^{exp}`, so the
+ground heat flux enters the top row through the right-hand side while the masked off-diagonals keep
+the matrix itself flux-free, exactly as in Oceananigans. The R1 split must therefore omit only the
+*interior* diffusive flux under `Implicit()` and leave the `compute_z_bcs!` contributions in place;
+the conservation tests check this by requiring the column energy and water change to equal the
+integrated boundary fluxes. The boundary flux is evaluated at `tⁿ` (from the surface energy balance
+of that step) and held fixed over the step; Phase 3 adds the `λ T_top` linearization on top of this
+flux form for cases where the explicit surface coupling limits `Δt`. Value and gradient conditions are instead attached to the
+closure variables (`temperature`, `pressure_head`; e.g. `PrescribedSurfaceTemperature` and
+`PrescribedBottomTemperature` in `src/models/soil/soil_model_bcs.jl`) and reach the explicit operator
+through halo fills, which the implicit operator does not read. They are handled as follows:
+
+- A **gradient** condition on `T` at a boundary face is a known flux `−κ ∂T/∂z`, so it is added to
+  the right-hand side exactly like a flux condition (Phase 1).
+- A **value** condition `T_bc` at the top gives the boundary flux `κ (T_bc − T_Nz) / (Δz_Nz / 2)`,
+  which is affine in the unknown `T_Nz`: the coefficient `κ / (Δz_Nz / 2)` is folded into `diag_Nz`
+  and the `T_bc` part into the right-hand side (and symmetrically at the bottom). This is the same
+  structure as `IMEXFluxBoundaryCondition`, so it shares the boundary-diagonal code introduced in
+  Phase 3 for the linearized surface flux `λ T_top`. Until Phase 3, a value condition on a closure
+  variable routed to the implicit stepper is rejected in the host-side constructor.
 
 ### Reuse from Oceananigans
 
@@ -381,8 +486,8 @@ flux can later be split into an explicit part and a `λ T_top` part folded into 
 |---|---|
 | `BatchedTridiagonalSolver` | Used as-is, constructed on `ground_domain(grid)` with three Terrarium marker structs (`ImplicitDiffusionLowerDiagonal`, `ImplicitDiffusionDiagonal`, `ImplicitDiffusionUpperDiagonal`) and `Oceananigans.Solvers.get_coefficient` methods that call Terrarium kernel functions with `(fields, process, Δt, ...)` in `args`. Separate `rhs` field, never `ϕ === rhs` |
 | `ivd_upper_diagonal`, `ivd_lower_diagonal`, `ivd_diagonal` | Copied and adapted (capacity on the diagonal, Terrarium argument convention); not imported |
-| `implicit_step!(field, ::Nothing) = nothing` idiom | Adopted as `implicit_solve!(…, ::Nothing, …) = nothing` for processes with no implicit operator |
-| `IMEXFluxBoundaryCondition`, `boundary_flux_diagonal` | Phase 3 (available in the pinned 0.111.0) |
+| `implicit_step!(field, ::Nothing) = nothing` idiom | Adopted as `implicit_step!(…, ::Nothing, …) = nothing` for processes with no implicit operator |
+| `IMEXFluxBoundaryCondition`, `boundary_flux_diagonal` | Phase 3 (available in the pinned 0.113.5) |
 | `SplitRungeKuttaTimeStepper` stage pattern | Design template for the second-order IMEX (Phase 3), not imported |
 | `KrylovSolver` / `KrylovField` | Template for Path 1's multi-field Krylov vector |
 
@@ -393,7 +498,7 @@ Strengths:
 - **Proven and cheap**: one Thomas sweep per column per implicit variable, `O(Nz)` work, no
   reductions, no data-dependent loops. Fits the land grid (independent columns) perfectly.
 - **GPU and Reactant friendly**: fixed trip counts, no throw paths, no host synchronization; the
-  Reactant raise of the serial `k` loop needs verification (Phase 0) but has no structural blocker.
+  Reactant raise of the serial `k` loop is verified in Phase 2 and has no structural blocker.
 - **Enzyme friendly**: straight-line code per column, so reverse mode works without custom rules
   once the `ϕ === rhs` aliasing is avoided.
 - **No new dependencies** for the core.
@@ -416,39 +521,65 @@ Weaknesses:
 
 Both paths need the same changes to the core. These are the substantive refactoring items.
 
-- **R1. Term-level splitting through operator classes.** Give operators a `Timestepping` trait:
-  `timestepping(::TwoPhaseHeatTransport) = Explicit()`, and new
-  `ImplicitTwoPhaseHeatConduction <: AbstractHeatOperator` and `RichardsEq{ImplicitFlow}` (or a
-  parallel `ImplicitRichardsEq`) with `Implicit()`. The process `compute_tendencies!` dispatches on
-  the operator class so that implicit operators omit their interior diffusive flux. New kernel
-  function interface for implicit operators: `compute_implicit_diffusivity(i, j, k, grid, fields,
-  proc, args...)` (face), `compute_implicit_capacity(i, j, k, grid, fields, proc, args...)` (center),
-  and `compute_implicit_linear_coefficient` (for linear sinks, zero by default).
-- **R2. Variable routing derived from operators.** `timestepping(var, model, imex)` keeps its user
-  override role, but `SoilModel`/`LandModel` define it for `:internal_energy` and
-  `:saturation_water_ice` from the class of the corresponding operator, so a user only picks the
-  operator type and the implicit stepper.
+- **R1. Term-level splitting by passing the `Timestepping` trait into `compute_tendencies!`.**
+  The operator types are left unchanged. Instead, the resolved class of each prognostic variable,
+  which the `IMEXCache{classes}` type parameter already holds, is handed to the process tendency
+  methods: a type-stable helper `timestepping(state, var)` (or `timestepping(state, ::Val{name})`)
+  reads it from `state.timestepper_cache` and returns `Explicit()` when the cache is not an
+  `IMEXCache`. The model-level `compute_tendencies!(state, model::SoilModel)` and
+  `compute_tendencies!(state, model::LandModel)` resolve the trait for `:internal_energy` and
+  `:saturation_water_ice` and pass it down through `SoilEnergyWaterCarbon` to the soil energy and
+  hydrology `compute_tendencies!`, which dispatch on it: under `Implicit()` the interior diffusive
+  flux is omitted from the tendency (mirroring Oceananigans' vertically implicit closures) and only
+  the boundary-face fluxes and sources remain. Process methods default the trait argument to
+  `Explicit()`, so standalone use and the existing tests are unaffected. Only the trait is passed,
+  never the timestepper itself, so kernels stay free of `AbstractTimeStepper` objects (the trait is
+  `isbits`). New kernel function interface for implicit operators:
+  `compute_implicit_diffusivity(i, j, k, grid, fields, proc, args...)` (face),
+  `compute_implicit_capacity(i, j, k, grid, fields, proc, args...)` (center), and
+  `compute_implicit_linear_coefficient` (for linear sinks, zero by default).
+  Two clarifications on what "omit the interior diffusive flux" means:
+    - In this plan `Implicit()` always means the linearly implicit tridiagonal treatment, so the
+      interior diffusion term is omitted from the explicit tendency whenever the trait is
+      `Implicit()`. A fully implicit Newton solver would instead need the full right-hand side; how
+      the trait expresses that distinction is a Path 1 consideration (see Approach 1, Implementation
+      sketch) and is not part of this PR.
+    - Path 2 still evaluates the diffusive flux divergence once per Picard iteration, *after* the
+      tridiagonal solve and at the implicit closure variable (`T^{n+1}` or `ψ^{m+1}`), to update the
+      conserved prognostic. The existing flux-divergence kernel functions (`compute_energy_tendency`,
+      `compute_volumetric_water_content_tendency`) are refactored so that `compute_tendencies!` and
+      `implicit_step!` share them; the operator code is reused, it is only skipped inside
+      `compute_tendencies!`.
+- **R2. Routing has a single source of truth.** `timestepping(var, model, imex)` remains the only
+  place a variable is assigned to the implicit sub-stepper. `SoilModel`/`LandModel` define it as
+  `Implicit()` for `:internal_energy` and `:saturation_water_ice` whenever the model's timestepper
+  is an `AbstractIMEX` with an implicit sub-stepper, and users override it per variable if they want,
+  e.g., implicit heat but explicit water. The user therefore selects only the timestepper; no
+  operator or process type changes hands.
 - **R3. Single `update_state!` per stage, orchestrated by the IMEX.** `timestep!(integrator,
   ::AbstractIMEX, Δt)` performs `update_state!`, calls the explicit sub-stepper's stage for its names
-  *without* re-evaluating tendencies, then `implicit_solve!(integrator, implicit_ts, Δt, names)`.
+  *without* re-evaluating tendencies, then `implicit_step!(integrator, implicit_ts, Δt, names)`.
   This requires splitting the explicit steppers' `timestep!` into `explicit_stage!` (the update
   only) and the outer driver that calls `update_state!`, hooks, and `closure!`. The mock-based tests
   in `test/timestepping/imex.jl` are updated accordingly.
 - **R4. Stage hook for multi-stage explicit schemes.** Phase 1 supports only `ForwardEuler` as the
-  explicit partner (IMEX Euler). Phase 3 adds a per-stage `implicit_solve!` call inside `Heun` under
+  explicit partner (IMEX Euler). Phase 3 adds a per-stage `implicit_step!` call inside `Heun` under
   an IMEX (predictor stage with implicit correction, corrector with averaged explicit tendencies and
   a second implicit correction), following the Oceananigans "Euler from cached state with the stage
   `Δτ`" pattern.
 - **R5. Caches.** `initialize(ts, state, progvars, model)` already receives the model, so implicit
   caches can allocate the tridiagonal scratch on `ground_domain(get_grid(model))`, a right-hand-side
   field and coefficient buffers per implicit variable, and, for Path 1, the shadow state and Krylov
-  basis. All caches must be `Adapt`-able as `HeunCache` is.
+  basis. All caches must be `Adapt`-able as `HeunCache` is, allocate with `similar` as `HeunCache`
+  now does, work on a plain `AbstractGrid` as well as a `LandGrid`, and the host-side constructor
+  must reject implicit routing of variables with non-scalar element types (B0).
 - **R6. `Δt` plumbing.** `Δt` is passed down to the coefficient functions (via
   `BatchedTridiagonalSolver` `args`) rather than stored, matching Oceananigans and the existing
   `timestep!(integrator, ts, Δt, names)` signature.
 - **R7. Clock semantics.** Path 2 evaluates explicit terms at `tⁿ` (Oceananigans convention). Path 1
   evaluates the residual at `tⁿ⁺¹`, so the IMEX driver must be able to `tick!` before the residual
-  evaluation and the traced Reactant clock must tolerate that ordering. The single `tick!` in
+  evaluation and the traced Reactant clock must tolerate that ordering; the extension's `convert_dt`
+  for traced times (B0) makes input updates at a traced `tⁿ⁺¹` possible. The single `tick!` in
   `timestep!(integrator, ts, ::Timestepping, Δt)` moves into the IMEX driver.
 - **R8. Post-step hooks stay outside the solve.** `timestep!(state, model, ts, Δt)` (snow clamps) and
   `closure!` (including `adjust_saturation_profile!`) run after the implicit solve, never inside a
@@ -457,8 +588,9 @@ Both paths need the same changes to the core. These are the substantive refactor
   `Implicit()` so the `TimeStepWizard` no longer throttles `Δt` by the stiff limit; a later diagnostic
   may bound `Δt` by the Picard/Newton convergence instead. `is_adaptive` gets a definition
   (`true` for tolerance-controlled Newton variants) or is removed.
-- **R10. Naming.** The Terrarium function is `implicit_solve!` to avoid confusion with
-  `Oceananigans.TimeSteppers.implicit_step!`, which has a different signature.
+- **R10. Naming.** The Terrarium function is `implicit_step!`, defined as Terrarium's own function
+  (Terrarium imports `Oceananigans.TimeSteppers` selectively and does not import its
+  `implicit_step!`, so there is no method clash; the Oceananigans function keeps its own signature).
 
 Proposed user-facing API (both paths behind one implicit stepper with a pluggable solver):
 
@@ -469,8 +601,11 @@ ts = IMEX(ForwardEuler(NF), ImplicitEuler(NF; solver = TridiagonalPicard(iterati
 # Path 1: fully coupled Newton–Krylov, tridiagonal preconditioner, Enzyme or finite-difference JVP
 ts = IMEX(ForwardEuler(NF), ImplicitEuler(NF; solver = NewtonKrylov(jvp = EnzymeJVP(), preconditioner = TridiagonalPreconditioner())))
 
-soil = SoilEnergyWaterCarbon(NF; energy = SoilThermodynamics(NF; operator = ImplicitTwoPhaseHeatConduction()))
-model = SoilModel(grid; soil, timestepper = ts)
+# Operators and processes are unchanged; the IMEX routes soil energy and water to the implicit stepper (R2)
+model = SoilModel(grid; timestepper = ts)
+
+# Optional per-variable override: keep soil water explicit
+Terrarium.timestepping(::AbstractVariable{:saturation_water_ice}, ::SoilModel, ::AbstractIMEX) = Explicit()
 ```
 
 `ImplicitEuler` declares `timestepping(::ImplicitEuler) = Implicit()` and slots into the existing
@@ -479,41 +614,36 @@ and `NewtonKrylov` are its two implementations.
 
 ## Recommendation
 
-**Implement both, in sequence, as two solvers of the same `ImplicitEuler` stepper. Build Path 2 first.**
+**Implement Path 2 in this PR. Defer Path 1 to a future plan and PR, with both eventually exposed as
+solvers of the same `ImplicitEuler` stepper.**
 
 1. Path 2 is low risk, adds no dependencies, runs on all three backends with no structural obstacle,
    differentiates in reverse mode without custom rules, and removes the dominant stiffness (vertical
    diffusion in the soil column). It is the right default for users.
 2. Path 2 produces exactly the preconditioner that makes Path 1 practical. Without it, Path 1 would
-   spend tens of Krylov iterations per Newton step on diffusion-dominated columns.
+   spend tens of Krylov iterations per Newton step on diffusion-dominated columns, so Path 1 cannot
+   sensibly be built first.
 3. Path 1's feasibility hinges on questions that cannot be answered on paper: Enzyme forward mode
    through `update_state!` on CUDA, Enzyme forward inside a Reactant program, and nested reverse over
-   forward. These are settled by the Phase 0 spikes, and the Enzyme weak dependency needs a decision.
+   forward. The spikes of Phase 4 settle them once Path 2 exists to compare against, and their results
+   feed the future Path 1 plan together with the Enzyme weak-dependency and Krylov.jl decisions.
    Path 1 then becomes the advanced option for fully coupled freeze–thaw, saturated infiltration, and
    implicitly coupled surface energy balance, and the natural host for higher-order stiff schemes.
 
-If only one path can be funded, it is Path 2.
-
 ## Phased implementation
 
-**Phase 0: spikes (no production code).** Decide Path 1 scope and the Reactant story.
-
-- (a) Enzyme forward-mode JVP through `update_state!` for a `SoilModel` column on CPU; compare with
-  a finite-difference JVP.
-- (b) The same on CUDA.
-- (c) A `BatchedTridiagonalSolver` solve on a `ColumnRingGrid` compiled with `@compile raise = true`
-  under Reactant; measure compile time for `Nz = 10, 50`.
-- (d) Enzyme reverse mode through a `BatchedTridiagonalSolver` solve with a separate `rhs` field.
+Phases 1 through 4 are the scope of this PR. Path 1 is deferred to a future plan.
 
 **Phase 1: core refactor and implicit heat conduction (Path 2).**
 
 - R1–R3, R5–R10. `ImplicitEuler`, `AbstractImplicitSolver`, `TridiagonalPicard`, marker structs and
-  `get_coefficient` methods, `implicit_solve!`.
-- Raise the Oceananigans compat lower bound to `0.111` (drop `0.110.15`); no other dependency
-  changes in this phase.
-- `ImplicitTwoPhaseHeatConduction` with coefficient kernel functions; explicit tendency reduced to
+  `get_coefficient` methods, `implicit_step!`, the `timestepping(state, var)` helper.
+- Implicit heat conduction: `compute_tendencies!` for `SoilThermodynamics` dispatching on the trait,
+  coefficient kernel functions for `TwoPhaseHeatTransport`; explicit tendency reduced to
   boundary faces and sources; apparent heat capacity kernel function with a documented regularization
   parameter for `FreeWater` and the analytic `C_app` for `SFCC` curves; conservative energy update.
+- Flux boundary conditions (`SoilHeatFlux`, `GeothermalHeatFlux`) verified to enter the implicit
+  step through the right-hand side, with conservation tests against the integrated boundary fluxes.
 - `SoilModel` routing; tests; docs.
 
 **Phase 2: implicit Richards flow and the coupled land model.**
@@ -522,30 +652,40 @@ If only one path can be funded, it is Path 2.
   hydrostatic terms on the right-hand side, conservative saturation update, interaction with
   `adjust_saturation_profile!` (post-step) verified by mass balance.
 - `LandModel` routing (snow, vegetation, surface hydrology stay explicit); GPU tests; Reactant
-  registry configuration in `test/reactant/setup.jl` if Phase 0(c) passes.
+  registry configuration in `test/reactant/setup.jl` (the tridiagonal solve has fixed trip counts
+  and no throw paths, so no structural obstacle is expected; compile time is measured here).
 
 **Phase 3: second order and implicit surface coupling.**
 
 - R4: `Heun` as explicit partner with per-stage implicit corrections (IMEX trapezoidal).
 - `IMEXFluxBoundaryCondition` for the ground heat flux with `λ = ∂G/∂T_ground` from the skin
-  temperature solve.
+  temperature solve, attached to the `Diagnosed` ground heat flux sub-process of the SEB (B0).
+- Value boundary conditions on the closure variables under the implicit operator, sharing the
+  boundary-diagonal code with the IMEX flux condition.
 - Wizard diagnostics for implicit runs.
 
-**Phase 4: Newton–Krylov (Path 1).**
+**Phase 4: feasibility spikes for Path 1 (no production code).** Run after Path 2 is complete so the
+results can be compared against a working implicit stepper; recorded in the future Path 1 plan.
 
-- `NewtonKrylov` with `FiniteDifferenceJVP` in base, GMRES(m) (Krylov.jl if the dependency is
-  approved, otherwise the hand-written fixed-iteration version), `TridiagonalPreconditioner` reusing
-  Phase 1–2 coefficients, state-tree vector operations.
-- `TerrariumEnzymeExt` with `EnzymeJVP` (weak dependency, to be approved).
-- CPU/CUDA tests: JVP agreement, Newton convergence rates, agreement with Path 2 in the linear limit.
-
-**Phase 5: Reactant and AD for the implicit steppers.**
-
-- Fixed-iteration `NewtonKrylov` variant, raise tests.
-- Enzyme reverse tests for both solvers; implicit-function-theorem adjoint rule for `implicit_solve!`
-  if nested AD proves fragile.
+- (a) Enzyme forward-mode JVP through `update_state!` for a `SoilModel` column on CPU; compare with
+  a finite-difference JVP.
+- (b) The same on CUDA.
+- (c) Enzyme forward mode inside a Reactant-compiled program for the same JVP.
+- (d) Enzyme reverse mode through the Phase 1 `implicit_step!` (tridiagonal solve with a separate
+  `rhs` field), as a baseline for the nested-AD question.
 
 Each phase ends with the full test suite, the Enzyme test set, and a draft doc build.
+
+**Deferred to a future plan and PR (Path 1).** For the record, the work previously planned here:
+
+- `NewtonKrylov` with `FiniteDifferenceJVP` in base, GMRES(m) (Krylov.jl if the dependency is
+  approved, otherwise a hand-written fixed-iteration version), `TridiagonalPreconditioner` reusing
+  the Phase 1–2 coefficients, state-tree vector operations, and the trait distinction described in
+  the Approach 1 implementation sketch.
+- `TerrariumEnzymeExt` with `EnzymeJVP` (weak dependency, to be approved then).
+- CPU/CUDA tests: JVP agreement, Newton convergence rates, agreement with Path 2 in the linear limit.
+- Fixed-iteration `NewtonKrylov` variant for Reactant, raise tests, Enzyme reverse tests, and an
+  implicit-function-theorem adjoint rule for `implicit_step!` if nested AD proves fragile.
 
 ## Testing and verification
 
@@ -596,31 +736,32 @@ Each phase ends with the full test suite, the Enzyme test set, and a draft doc b
 - Only vertical diffusion in the soil is implicit in Phases 1–3. Snow, vegetation, surface
   hydrology, and the energy–water cross-couplings remain explicit, and the surface energy balance
   stays an explicit flux until Phase 3.
-- Value/gradient boundary conditions on the closure variables are not supported by the tridiagonal
-  operator in the first version.
+- Value conditions on the closure variables (`temperature`, `pressure_head`), such as
+  `PrescribedSurfaceTemperature`, are supported by the tridiagonal operator only from Phase 3; flux
+  conditions on the conserved prognostics and gradient conditions on the closure variables work from
+  Phase 1.
 - Path 1 on Reactant requires fixed iteration counts and is not adaptive; Path 1's Enzyme JVP
   requires a new weak dependency; nested AD through Path 1 is not guaranteed until the adjoint rule
-  of Phase 5 exists.
+  from the future Path 1 plan exists.
 - Adaptive `Δt` under Reactant remains out of scope, as in the adaptive-timestepping plan.
 
 ## Future work
 
-- Implicit-function-theorem adjoints for `implicit_solve!` (efficient inverse modeling through
+- Implicit-function-theorem adjoints for `implicit_step!` (efficient inverse modeling through
   implicit steps).
 - Stiffly accurate higher-order IMEX Runge–Kutta pairs (ARS(2,2,2), ARS(4,4,3)) on top of the stage
   hook.
 - Implicit treatment of snow energy and of the lateral/2D couplings if they are ever added.
 - A convergence-based step controller for the implicit solvers to replace the diffusive CFL wizard.
 
-## Decisions requested from the reviewer
+## Reviewer decisions
 
-1. Approve the phased sequencing (Path 2 first, Path 1 second, both exposed as solvers of
-   `ImplicitEuler`), or select only one.
-2. Enzyme (or EnzymeCore) as a `[weakdeps]` entry with `TerrariumEnzymeExt` for `EnzymeJVP`
-   (Phase 4).
-3. Krylov.jl as a direct dependency for Path 1's GMRES on CPU/CUDA, versus a hand-written
-   fixed-iteration GMRES(m) for all backends.
-4. The default treatment of `FreeWater` under the implicit heat operator: regularized apparent
-   capacity with a documented `ΔT_reg`, or requiring an `SFCC` curve and erroring otherwise in the
-   host-side constructor.
-5. Type names (`ImplicitEuler`, `TridiagonalPicard`, `NewtonKrylov`, `ImplicitTwoPhaseHeatConduction`).
+1. **Approved:** scope is Path 2 and the core refactoring in this PR (Phases 1–3), spikes in
+   Phase 4, Path 1 deferred to a future plan.
+2. **Decided:** `FreeWater` under the implicit heat operator uses a regularized apparent heat
+   capacity `C_app ≈ C + ρLθ / ΔT_reg` over a phase-change interval of width `ΔT_reg`, exposed as a
+   documented parameter of the implicit solver; `SFCC` curves use their analytic `C_app`.
+3. **Approved:** type names `ImplicitEuler`, `AbstractImplicitSolver`, `TridiagonalPicard`.
+
+Deferred with Path 1: Enzyme (or EnzymeCore) as a weak dependency with `TerrariumEnzymeExt`, and
+Krylov.jl as a direct dependency versus a hand-written fixed-iteration GMRES(m).
