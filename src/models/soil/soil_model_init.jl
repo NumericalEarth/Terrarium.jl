@@ -28,6 +28,8 @@ function SoilInitializer(
     return SoilInitializer(energy, hydrology, biogeochem)
 end
 
+variables(init::SoilInitializer) = tuplejoin(variables(init.energy), variables(init.hydrology), variables(init.biogeochem))
+
 function initialize!(state, model::AbstractModel, init::SoilInitializer)
     initialize!(state, model, init.hydrology)
     initialize!(state, model, init.biogeochem)
@@ -40,44 +42,119 @@ end
 """
     $TYPEDEF
 
-Initializer for soil/ground temperature that sets the temperature profile to a constant value.
+Initializer for soil/ground temperature that sets the temperature profile of each column to the
+value of the `initial_surface_temperature` input variable, whose default is `T₀`.
+
+`T₀` may be a number, a function of the node coordinates, an array, a `Field`, or an
+[`AbstractFieldInitializer`](@ref). All but the last are applied once as the default of the input
+variable and can be overridden by an [`InputSource`](@ref) named `initial_surface_temperature`;
+a field initializer is re-evaluated at every `initialize!` so that its parameters take effect.
 
 Properties:
 $TYPEDFIELDS
 """
-@kwdef struct ConstantSoilTemperature{NF} <: AbstractInitializer{NF}
-    T₀::NF = 0.0
+struct ConstantSoilTemperature{NF, T0} <: AbstractInitializer{NF}
+    "Initial surface temperature (°C)"
+    T₀::T0
 end
 
 """
-Creates a constant soil temperature initializer.
-"""
-ConstantSoilTemperature(::Type{NF}; kwargs...) where {NF} = ConstantSoilTemperature{NF}(; kwargs...)
+    $TYPEDSIGNATURES
 
-initialize!(state, ::AbstractModel, init::ConstantSoilTemperature) = set!(state.temperature, init.T₀)
+Creates a constant soil temperature initializer with the given surface temperature `T₀` (°C).
+"""
+ConstantSoilTemperature(::Type{NF}; T₀ = zero(NF)) where {NF} = ConstantSoilTemperature{NF, typeof(T₀)}(T₀)
+ConstantSoilTemperature(T₀::NF) where {NF <: AbstractFloat} = ConstantSoilTemperature{NF, NF}(T₀)
+
+# Preserve `NF` when reconstructing from parameters (see `ParameterEditing.reconstruct`)
+ConstructionBase.constructorof(::Type{<:ConstantSoilTemperature{NF}}) where {NF} = T₀ -> ConstantSoilTemperature{NF, typeof(T₀)}(T₀)
+
+variables(init::ConstantSoilTemperature) = (
+    input(:initial_surface_temperature, Ground(XY()), default = init.T₀, units = u"°C", desc = "Initial surface temperature of the soil column"),
+)
+
+function initialize!(state, model::AbstractModel, init::ConstantSoilTemperature)
+    reinitialize!(state.initial_surface_temperature, init.T₀)
+    set!(state.temperature, kernel(compute_constant_temperature, init), state)
+    return nothing
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Initial temperature at cell `(i, j, k)` taken from the `initial_surface_temperature` (°C) field.
+"""
+@propagate_inbounds compute_constant_temperature(i, j, k, grid, fields, ::ConstantSoilTemperature) = fields.initial_surface_temperature[i, j, 1]
 
 """
     $TYPEDEF
 
 Initializer that sets soil/ground temperature to a thermal quasi-steady state based on the given
-surface temperature, geothermal heat flux, and bulk (constant) thermal conductivity. Note that this is
-not a *true* thermal steady state, which would require iterative calculation of the thermal conductivity
-from the soil properties and initial temperature profile.
+surface temperature, geothermal heat flux, and bulk (constant) thermal conductivity:
+
+    T(z) = T₀ - Qgeo / k_eff * z
+
+with depth `z ≤ 0` (m). Note that this is not a *true* thermal steady state, which would require
+iterative calculation of the thermal conductivity from the soil properties and initial temperature profile.
+
+The surface temperature and the geothermal heat flux are declared as the input variables
+`initial_surface_temperature` (°C) and `geothermal_heat_flux` (W/m²) with defaults `T₀` and `Qgeo`.
+The latter is the same variable read by the [`GeothermalHeatFlux`](@ref) bottom boundary condition,
+so that the initial profile and the boundary condition are consistent. Each default may be a number,
+a function of the node coordinates, an array, a `Field`, or an [`AbstractFieldInitializer`](@ref).
+All but the last are applied once and can be overridden by an [`InputSource`](@ref) of the same name
+(with matching units); a field initializer is re-evaluated at every `initialize!` so that its
+parameters take effect.
 
 Properties:
 $TYPEDFIELDS
 """
-@kwdef struct QuasiThermalSteadyState{NF} <: AbstractInitializer{NF}
-    T₀::NF = 0.0
-    Qgeo::NF = 0.02
-    k_eff::NF = 1.0
+struct QuasiThermalSteadyState{NF, T0, QG} <: AbstractInitializer{NF}
+    "Initial surface temperature (°C)"
+    T₀::T0
+
+    "Geothermal heat flux (W/m²)"
+    Qgeo::QG
+
+    "Bulk thermal conductivity (W/m/K)"
+    k_eff::NF
 end
 
-QuasiThermalSteadyState(::Type{NF}; kwargs...) where {NF} = QuasiThermalSteadyState{NF}(; kwargs...)
+"""
+    $TYPEDSIGNATURES
 
-function initialize!(state, ::AbstractModel, init::QuasiThermalSteadyState)
-    set!(state.temperature, (x, z) -> init.T₀ - init.Qgeo / init.k_eff * z)
+Creates a quasi-steady-state soil temperature initializer with surface temperature `T₀` (°C),
+geothermal heat flux `Qgeo` (W/m²), and bulk thermal conductivity `k_eff` (W/m/K).
+"""
+function QuasiThermalSteadyState(::Type{NF}; T₀ = zero(NF), Qgeo = convert(NF, 1 // 50), k_eff = one(NF)) where {NF}
+    return QuasiThermalSteadyState{NF, typeof(T₀), typeof(Qgeo)}(T₀, Qgeo, convert(NF, k_eff))
+end
+
+ConstructionBase.constructorof(::Type{<:QuasiThermalSteadyState{NF}}) where {NF} = (T₀, Qgeo, k_eff) -> QuasiThermalSteadyState{NF, typeof(T₀), typeof(Qgeo)}(T₀, Qgeo, k_eff)
+
+variables(init::QuasiThermalSteadyState) = (
+    input(:initial_surface_temperature, Ground(XY()), default = init.T₀, units = u"°C", desc = "Initial surface temperature of the soil column"),
+    input(:geothermal_heat_flux, Ground(XY()), default = init.Qgeo, units = u"W/m^2", desc = "Geothermal heat flux at the bottom of the soil column"),
+)
+
+function initialize!(state, model::AbstractModel, init::QuasiThermalSteadyState)
+    reinitialize!(state.initial_surface_temperature, init.T₀)
+    reinitialize!(state.geothermal_heat_flux, init.Qgeo)
+    set!(state.temperature, kernel(compute_quasi_steady_state_temperature, init), state)
     return nothing
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Quasi-steady-state temperature `T₀ - Qgeo / k_eff * z` at cell `(i, j, k)` from the
+`initial_surface_temperature` (°C) and `geothermal_heat_flux` (W/m²) fields.
+"""
+@propagate_inbounds function compute_quasi_steady_state_temperature(i, j, k, grid, fields, init::QuasiThermalSteadyState)
+    z = znode(i, j, k, grid, Center(), Center(), Center())
+    T₀ = fields.initial_surface_temperature[i, j, 1]
+    Qgeo = fields.geothermal_heat_flux[i, j, 1]
+    return T₀ - Qgeo / init.k_eff * z
 end
 
 """
@@ -117,36 +194,86 @@ end
 """
     $TYPEDEF
 
-Initializer for soil water/ice sets the saturation profile to a constant value.
+Initializer for soil water/ice that sets the saturation profile of each column to the value of the
+`initial_saturation` input variable, whose default is `sat`. See [`QuasiThermalSteadyState`](@ref)
+for the accepted forms of the default.
 
 Properties:
 $TYPEDFIELDS
 """
-@kwdef struct ConstantSaturation{NF} <: AbstractInitializer{NF}
-    sat::NF = 1.0
+struct ConstantSaturation{NF, S} <: AbstractInitializer{NF}
+    "Initial water/ice saturation (-)"
+    sat::S
 end
 
-ConstantSaturation(::Type{NF}; kwargs...) where {NF} = ConstantSaturation{NF}(; kwargs...)
+ConstantSaturation(::Type{NF}; sat = one(NF)) where {NF} = ConstantSaturation{NF, typeof(sat)}(sat)
 
-initialize!(state, ::AbstractModel, init::ConstantSaturation) = set!(state.saturation_water_ice, init.sat)
+ConstructionBase.constructorof(::Type{<:ConstantSaturation{NF}}) where {NF} = sat -> ConstantSaturation{NF, typeof(sat)}(sat)
+
+variables(init::ConstantSaturation) = (
+    input(:initial_saturation, Ground(XY()), default = init.sat, bounds = UnitInterval, desc = "Initial water/ice saturation of the soil column"),
+)
+
+function initialize!(state, model::AbstractModel, init::ConstantSaturation)
+    reinitialize!(state.initial_saturation, init.sat)
+    set!(state.saturation_water_ice, kernel(compute_constant_saturation, init), state)
+    return nothing
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Initial saturation at cell `(i, j, k)` taken from the `initial_saturation` field.
+"""
+@propagate_inbounds compute_constant_saturation(i, j, k, grid, fields, ::ConstantSaturation) = fields.initial_saturation[i, j, 1]
 
 """
     $TYPEDEF
 
 Simple initialization scheme for soil/ground saturation that sets the initial water table at the
-given depth and the saturation level in all layers in the vadose (unsaturated) to a constant value.
+given depth and the saturation level in all layers in the vadose (unsaturated) zone to a constant value.
+Both are declared as the input variables `water_table_depth` (m) and `vadose_zone_saturation` (-)
+with defaults taken from the corresponding properties. See [`QuasiThermalSteadyState`](@ref) for the
+accepted forms of the defaults.
 
 Properties:
 $TYPEDFIELDS
 """
-@kwdef struct SaturationWaterTable{NF} <: AbstractInitializer{NF}
-    vadose_zone_saturation::NF = 0.75
-    water_table_depth::NF = 5.0
+struct SaturationWaterTable{NF, S, D} <: AbstractInitializer{NF}
+    "Saturation in the vadose zone above the water table (-)"
+    vadose_zone_saturation::S
+
+    "Depth of the water table below the surface (m)"
+    water_table_depth::D
 end
 
-SaturationWaterTable(::Type{NF}; kwargs...) where {NF} = SaturationWaterTable{NF}(; kwargs...)
+function SaturationWaterTable(::Type{NF}; vadose_zone_saturation = convert(NF, 3 // 4), water_table_depth = NF(5)) where {NF}
+    return SaturationWaterTable{NF, typeof(vadose_zone_saturation), typeof(water_table_depth)}(vadose_zone_saturation, water_table_depth)
+end
 
-function initialize!(state, ::AbstractModel, init::SaturationWaterTable{NF}) where {NF}
-    set!(state.saturation_water_ice, (x, z) -> z <= -init.water_table_depth ? one(NF) : init.vadose_zone_saturation)
+ConstructionBase.constructorof(::Type{<:SaturationWaterTable{NF}}) where {NF} = (sat, depth) -> SaturationWaterTable{NF, typeof(sat), typeof(depth)}(sat, depth)
+
+variables(init::SaturationWaterTable) = (
+    input(:vadose_zone_saturation, Ground(XY()), default = init.vadose_zone_saturation, bounds = UnitInterval, desc = "Initial saturation in the vadose zone above the water table"),
+    input(:water_table_depth, Ground(XY()), default = init.water_table_depth, units = u"m", bounds = Nonnegative, desc = "Initial depth of the water table below the surface"),
+)
+
+function initialize!(state, model::AbstractModel, init::SaturationWaterTable)
+    reinitialize!(state.vadose_zone_saturation, init.vadose_zone_saturation)
+    reinitialize!(state.water_table_depth, init.water_table_depth)
+    set!(state.saturation_water_ice, kernel(compute_water_table_saturation, init), state)
     return nothing
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Initial saturation at cell `(i, j, k)`: unity at and below the `water_table_depth`, otherwise the
+`vadose_zone_saturation`.
+"""
+@propagate_inbounds function compute_water_table_saturation(i, j, k, grid, fields, ::SaturationWaterTable)
+    z = znode(i, j, k, grid, Center(), Center(), Center())
+    depth = fields.water_table_depth[i, j, 1]
+    sat = fields.vadose_zone_saturation[i, j, 1]
+    return ifelse(z <= -depth, one(sat), sat)
 end
