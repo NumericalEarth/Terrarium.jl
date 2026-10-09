@@ -1,7 +1,7 @@
 using Terrarium
 using Terrarium: compute_kinetic_parameters, compute_Γ_star, compute_PAR, compute_APAR, compute_pres_i
 using Terrarium: compute_temperature_stress, compute_assimilation_factors, compute_Vc_max, compute_JE_JC
-using Terrarium: compute_Rd, compute_Ag, compute_respiration_assimilation, compute_photosynthesis
+using Terrarium: compute_Rd, compute_Ag, compute_GPP, compute_respiration_assimilation, compute_photosynthesis
 using Test
 
 @testset "Kinetic parameters" begin
@@ -266,7 +266,7 @@ end
 #     # TODO And can be negative?
 # end
 
-@testset "Photosynthesis (GPP and Rd)" begin
+@testset "Photosynthesis (An, Rd, and GPP)" begin
     photo = LUEPhotosynthesis()
     traits = PlantTraits()
     constants = MaterialConstants(Float64)
@@ -276,26 +276,29 @@ end
     λc = 0.5 # Mock value
     β = 1.0 # full soil moisture availability
 
-    # Test T_air < -3 (GPP and Rd should be 0)
+    # Test T_air < -3 (An and Rd should be 0)
     T_air = -5.0 # °C
     LAI = 5.0 # Mock value
-    GPP, Rd = compute_respiration_assimilation(photo, traits, constants, T_air, swdown, pres, co2, LAI, λc, β)
-    @test GPP == 0.0
+    Rd, An = compute_respiration_assimilation(photo, traits, constants, T_air, swdown, pres, co2, LAI, λc, β)
+    @test An == 0.0
     @test Rd == 0.0
 
-    # Test T_air > -3 and LAI=0 (GPP and Rd should be 0)
+    # Test T_air > -3 and LAI=0 (An and Rd should be 0)
     T_air = 20.0 # °C
     LAI = 0.0
-    GPP, Rd = compute_respiration_assimilation(photo, traits, constants, T_air, swdown, pres, co2, LAI, λc, β)
-    @test GPP == 0.0
+    Rd, An = compute_respiration_assimilation(photo, traits, constants, T_air, swdown, pres, co2, LAI, λc, β)
+    @test An == 0.0
     @test Rd == 0.0
 
-    # Test T_air > -3 and LAI > 0 (GPP and Rd should be finite)
+    # Test T_air > -3 and LAI > 0 (An and Rd should be finite)
     T_air = 20.0 # °C
     LAI = 5.0 # Mock value
-    GPP, Rd = compute_respiration_assimilation(photo, traits, constants, T_air, swdown, pres, co2, LAI, λc, β)
-    @test isfinite(GPP)
+    Rd, An = compute_respiration_assimilation(photo, traits, constants, T_air, swdown, pres, co2, LAI, λc, β)
+    @test isfinite(An)
     @test isfinite(Rd)
+    @test Rd > 0
+    GPP = compute_GPP(photo, An, Rd)
+    @test GPP ≈ (An + Rd) * 1.0e-3
 
-    # TODO GPP, Rd can be negative?
+    # TODO An, Rd can be negative?
 end

@@ -346,11 +346,11 @@ end
 """
     $TYPEDSIGNATURES
 
-Compute the Gross Primary Production rate [kgC/m²/s].
+Compute Gross Primary Production from net assimilation `An` and leaf respiration `Rd` [kgC/m²/s].
 """
-@inline function compute_GPP(::LUEPhotosynthesis{NF}, An::NF) where {NF}
+@inline function compute_GPP(::LUEPhotosynthesis{NF}, An::NF, Rd::NF) where {NF}
     # Convert from gC/m²/s to kgC/m²/s
-    GPP = An * NF(1.0e-3)
+    GPP = (An + Rd) * NF(1.0e-3)
     return GPP
 end
 
@@ -408,7 +408,7 @@ Returns instantaneous rates in [gC/m²/s] and [kgC/m²/s] for integration by the
     Rd, An = compute_respiration_assimilation(photo, traits, constants.material, T_air, swdown, pres, co2, LAI, λc, β)
 
     # Compute GPP, Gross Primary Production in [kgC/m²/s]
-    GPP = compute_GPP(photo, An)
+    GPP = compute_GPP(photo, An, Rd)
 
     return Rd, An, GPP
 end
