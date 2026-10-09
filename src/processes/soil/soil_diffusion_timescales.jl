@@ -59,13 +59,33 @@ end
     $TYPEDSIGNATURES
 
 Return the minimum diffusive timescale over the coupled soil processes as the minimum of the
-individual energy (heat conduction) and hydrology (Richards) timescales.
+individual energy (heat conduction) and hydrology (Richards) timescales. If the owning model's
+`timestepper` integrates `internal_energy` (`saturation_water_ice`) implicitly, i.e. heat conduction
+(Richards flow) is routed to the implicit sub-stepper of an [`AbstractIMEX`](@ref) timestepper, the
+energy (hydrology) timescale imposes no restriction and is `Inf`.
 """
-function cell_diffusion_timescale(state, grid, soil::SoilEnergyWaterCarbon, constants::PhysicalConstants)
-    τ_energy = cell_diffusion_timescale(state, grid, get_energy_balance(soil), soil, constants)
-    τ_water = cell_diffusion_timescale(state, grid, get_hydrology(soil), soil, constants)
+function cell_diffusion_timescale(
+        state, grid,
+        soil::SoilEnergyWaterCarbon,
+        constants::PhysicalConstants,
+        timestepper::Optional{AbstractTimeStepper} = nothing
+    )
+    energy_timestepping = timestepping(timestepper, state, Val(:internal_energy))
+    hydrology_timestepping = timestepping(timestepper, state, Val(:saturation_water_ice))
+    τ_energy = energy_diffusion_timescale(state, grid, soil, constants, energy_timestepping)
+    τ_water = hydrology_diffusion_timescale(state, grid, soil, constants, hydrology_timestepping)
     return min(τ_energy, τ_water)
 end
+
+# Explicit heat conduction is limited by its diffusive timescale; implicit heat conduction is not.
+energy_diffusion_timescale(state, grid, soil::AbstractSoil, constants, ::Explicit) =
+    cell_diffusion_timescale(state, grid, get_energy_balance(soil), soil, constants)
+energy_diffusion_timescale(state, grid, soil::AbstractSoil, constants, ::Implicit) = convert(eltype(grid), Inf)
+
+# Explicit Richards flow is limited by its diffusive timescale; implicit Richards flow is not.
+hydrology_diffusion_timescale(state, grid, soil::AbstractSoil, constants, ::Explicit) =
+    cell_diffusion_timescale(state, grid, get_hydrology(soil), soil, constants)
+hydrology_diffusion_timescale(state, grid, soil::AbstractSoil, constants, ::Implicit) = convert(eltype(grid), Inf)
 
 #####
 ##### Soil hydrology (Richards) timescale
@@ -121,19 +141,78 @@ conductivity (fully dry or frozen) impose no restriction and return `Inf`.
     soil = soil_composition(i, j, k, grid, fields, strat, hydrology, bgc)
     # hydraulic conductivity at the cell centre
     K = hydraulic_conductivity(get_hydraulic_properties(hydrology), soil)
-    # reconstruct the matric potential ψₘ = ψ - ψ_hydrostatic - ψ_elevation from the total head
-    ψ = fields.pressure_head[i, j, k]
-    z = znode(i, j, k, grid, Center(), Center(), Center())
-    z_ref = znode(i, j, grid.Nz + 1, grid, Center(), Center(), Face())
-    ψz = z - z_ref
-    z₀ = fields.water_table[i, j, end]
-    ψh = max(zero(z), z₀ - z)
-    ψm = ψ - ψh - ψz
-    # specific moisture capacity ∂θ/∂ψ (m⁻¹) from the analytic SWRC derivative
+    # specific moisture capacity ∂θ/∂ψ (m⁻¹) from the analytic SWRC derivative at the matric potential
+    ψm = compute_matric_potential(i, j, k, grid, fields)
     swrc = get_swrc(hydrology)
     por = porosity(i, j, k, grid, fields, strat, bgc)
     ∂θ∂ψ = convert(NF, swrc(FreezeCurves.derivative, ψm; θsat = por))
     # moisture diffusivity D = K / (∂θ/∂ψ) ⟹ τ = Δz² / D = Δz² (∂θ/∂ψ) / K
     Δz = Δzᵃᵃᶜ(i, j, k, grid)
     return ifelse(K > zero(K), Δz^2 * abs(∂θ∂ψ) / K, convert(NF, Inf))
+end
+
+#####
+##### Soil energy advection timescale
+#####
+
+"""
+    $TYPEDSIGNATURES
+
+Return the minimum advective timescale of the soil energy equation over the soil column, i.e. the
+advective Courant–Friedrichs–Lewy limit of the explicit, first-order upwind advection of sensible heat
+by the soil water flux (see [`advective_heat_flux`](@ref)). Without water flow (e.g. `NoFlow`
+hydrology) there is no advective restriction and the timescale is `Inf`.
+"""
+cell_advection_timescale(state, grid, soil::SoilEnergyWaterCarbon) =
+    cell_advection_timescale(state, grid, get_energy_balance(soil), get_hydrology(soil), get_stratigraphy(soil), get_biogeochemistry(soil))
+
+cell_advection_timescale(state, grid, energy::AbstractSoilThermodynamics, hydrology::AbstractSoilHydrology, args...) = convert(eltype(grid), Inf)
+
+"""
+    $TYPEDSIGNATURES
+
+Return the minimum over all cells of the advective timescale ``τ = C Δz / (C_w |q|)``
+([`compute_heat_advection_timescale`](@ref)) of the soil energy equation for a Richards-equation
+hydrology, where `q` is the Darcy flux through the faces of the cell.
+"""
+function cell_advection_timescale(
+        state, grid,
+        energy::SoilThermodynamics,
+        hydrology::SoilHydrology{NF, RichardsEq},
+        strat::AbstractStratigraphy,
+        bgc::AbstractSoilBiogeochemistry
+    ) where {NF}
+    ground_grid = ground_domain(grid)
+    fields = get_fields(state, energy, hydrology, strat, bgc)
+    τ = KernelFunctionOperation{Center, Center, Center}(
+        compute_heat_advection_timescale, ground_grid, fields, energy, hydrology, strat, bgc
+    )
+    return minimum(τ)
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Kernel function returning the advective timescale ``τ = C Δz / (C_w |q|)`` of the soil energy
+equation at cell `i, j, k`, where `C` is the bulk volumetric heat capacity of the cell, `C_w` the
+volumetric heat capacity of liquid water, and `|q|` the larger magnitude of the [`darcy_flux`](@ref)
+through the two faces of the cell. Since the upwind advective heat flux changes the temperature of a
+cell at the rate `C_w q / C` (m/s), this is the stability limit of the explicit first-order upwind
+advection. Cells without flow return `Inf`.
+"""
+@inline @propagate_inbounds function compute_heat_advection_timescale(
+        i, j, k, grid, fields,
+        energy::SoilThermodynamics,
+        hydrology::SoilHydrology{NF, RichardsEq},
+        strat::AbstractStratigraphy,
+        bgc::AbstractSoilBiogeochemistry
+    ) where {NF}
+    soil = soil_composition(i, j, k, grid, fields, strat, hydrology, bgc)
+    C = compute_heat_capacity(energy.thermal_properties, soil)
+    Cw = energy.thermal_properties.heat_capacities.water
+    ψ = fields.pressure_head
+    K = fields.hydraulic_conductivity
+    q = max(abs(darcy_flux(i, j, k, grid, ψ, K)), abs(darcy_flux(i, j, k + 1, grid, ψ, K)))
+    Δz = Δzᵃᵃᶜ(i, j, k, grid)
+    return ifelse(q > zero(q), C * Δz / (Cw * q), convert(NF, Inf))
 end
