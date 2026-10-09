@@ -69,28 +69,36 @@ end
         saturation_water_ice = fill(0.43f0, 1, 1, 5),
         hydraulic_conductivity = fill(4.0f-6, 1, 1, 6),
     )
-    out = (infiltration = zeros(Float32, 1, 1, 1),
-           surface_runoff = zeros(Float32, 1, 1, 1))
+    out = (
+        infiltration = zeros(Float32, 1, 1, 1),
+        surface_runoff = zeros(Float32, 1, 1, 1),
+    )
 
-    Terrarium.compute_surface_runoff!(out, 1, 1, grid, fields, runoff,
-                                      Terrarium.NoCanopyInterception(Float32),
-                                      SoilHydrology(Float32, NoFlow()))
+    Terrarium.compute_surface_runoff!(
+        out, 1, 1, grid, fields, runoff,
+        Terrarium.NoCanopyInterception(Float32),
+        SoilHydrology(Float32, NoFlow())
+    )
 
     @test out.infiltration[1, 1, 1] ≈ rainfall
     @test out.surface_runoff[1, 1, 1] ≈ drainage rtol = 1.0f-3
 
     # The seasonal replay reached this subnormal pool value; its drainage rounds to zero.
     fields.surface_excess_water[1, 1, 1] = 2.388f-42
-    Terrarium.compute_surface_runoff!(out, 1, 1, grid, fields, runoff,
-                                      Terrarium.NoCanopyInterception(Float32),
-                                      SoilHydrology(Float32, NoFlow()))
+    Terrarium.compute_surface_runoff!(
+        out, 1, 1, grid, fields, runoff,
+        Terrarium.NoCanopyInterception(Float32),
+        SoilHydrology(Float32, NoFlow())
+    )
     @test out.infiltration[1, 1, 1] ≈ rainfall
     @test iszero(out.surface_runoff[1, 1, 1])
 
     fields.surface_excess_water[1, 1, 1] = 1.0f-4
-    Terrarium.compute_surface_runoff!(out, 1, 1, grid, fields, runoff,
-                                      Terrarium.NoCanopyInterception(Float32),
-                                      SoilHydrology(Float32, NoFlow()))
+    Terrarium.compute_surface_runoff!(
+        out, 1, 1, grid, fields, runoff,
+        Terrarium.NoCanopyInterception(Float32),
+        SoilHydrology(Float32, NoFlow())
+    )
     @test out.infiltration[1, 1, 1] ≈ 1.0f-4 / runoff.τ_r
     @test out.surface_runoff[1, 1, 1] ≈ rainfall
 end
