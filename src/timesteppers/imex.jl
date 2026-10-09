@@ -1,17 +1,4 @@
 """
-    $TYPEDEF
-
-Base type for implicit-explicit (IMEX) time steppers. An `AbstractIMEX` integrates each prognostic variable
-with one of two sub-steppers depending on its [`timestepping`](@ref) class: variables of class [`Explicit`](@ref)
-are stepped by the explicit sub-stepper and those of class [`Implicit`](@ref) by the implicit sub-stepper.
-
-Concrete subtypes (e.g. [`IMEX`](@ref)) must provide the explicit and implicit sub-steppers via
-[`explicit_timestepper`](@ref) and [`implicit_timestepper`](@ref); most other behavior is defined here against
-`AbstractIMEX`.
-"""
-abstract type AbstractIMEX{NF} <: AbstractTimeStepper{NF} end
-
-"""
     explicit_timestepper(imex::AbstractIMEX)
 
 Return the explicit sub-stepper of the [`AbstractIMEX`](@ref) timestepper `imex`.
@@ -28,9 +15,11 @@ Return the implicit sub-stepper of the [`AbstractIMEX`](@ref) timestepper `imex`
 """
     $TYPEDEF
 
-Implicit-explicit (IMEX) time stepper that integrates each prognostic variable with one of two sub-steppers
-depending on its [`timestepping`](@ref) class: variables of class [`Explicit`](@ref) are stepped by `explicit`,
-and those of class [`Implicit`](@ref) by `implicit`.
+Implicit-explicit (IMEX) time stepper that integrates each prognostic variable according to its
+[`timestepping`](@ref) class: variables of class [`Explicit`](@ref) are stepped by `explicit` alone, and those
+of class [`Implicit`](@ref) receive the explicit stage for their explicitly treated terms followed by an
+[`implicit_step!`](@ref) of `implicit`. Only single-stage explicit schemes (currently [`ForwardEuler`](@ref))
+are supported as the explicit partner.
 
 Each variable's class is resolved from `timestepping(var, model, imex)`, which defaults to `Explicit()` for
 all variables. To integrate selected variables implicitly, specialize [`timestepping`](@ref) on the relevant
@@ -45,10 +34,10 @@ struct IMEX{
         E <: AbstractTimeStepper{NF},
         I <: AbstractTimeStepper{NF},
     } <: AbstractIMEX{NF}
-    "Sub-stepper for prognostic variables of class `Explicit` (should have `timestepping(explicit) == Explicit()`)"
+    "Sub-stepper for prognostic variables of class `Explicit` (must have `timestepping(explicit) === Explicit()`)"
     explicit::E
 
-    "Sub-stepper for prognostic variables of class `Implicit` (should have `timestepping(implicit) == Implicit()`)"
+    "Sub-stepper for prognostic variables of class `Implicit` (must have `timestepping(implicit) === Implicit()`)"
     implicit::I
 end
 
@@ -63,8 +52,6 @@ specializing [`timestepping`](@ref).
 IMEX(; explicit, implicit) = IMEX(explicit, implicit)
 
 default_dt(imex::AbstractIMEX) = default_dt(explicit_timestepper(imex))
-
-is_adaptive(imex::AbstractIMEX) = is_adaptive(explicit_timestepper(imex)) || is_adaptive(implicit_timestepper(imex))
 
 """
     $TYPEDEF
@@ -106,11 +93,48 @@ instances, in prognostic-variable order) held in the [`IMEXCache`](@ref) type pa
 """
 timestepping(::IMEXCache{classes}) where {classes} = classes
 
-# Build the IMEX cache: allocate each sub-stepper's cache and resolve every prognostic variable's class
-# (via `timestepping(var, model, imex)`), stored as the cache's type parameter.
+# Build the IMEX cache: resolve every prognostic variable's class (via `timestepping(var, model, imex)`),
+# stored as the cache's type parameter, and allocate each sub-stepper's cache for the variables routed to it.
 function initialize(imex::AbstractIMEX, state, progvars, model)
+    validate_timestepper(imex)
     classes = resolve_timestepping(imex, progvars, model)
-    return IMEXCache{classes}(initialize(explicit_timestepper(imex), state), initialize(implicit_timestepper(imex), state))
+    explicit_progvars = select_prognostic_variables(progvars, classes, Explicit())
+    implicit_progvars = select_prognostic_variables(progvars, classes, Implicit())
+    explicit_cache = initialize(explicit_timestepper(imex), state, explicit_progvars, model)
+    implicit_cache = initialize(implicit_timestepper(imex), state, implicit_progvars, model)
+    return IMEXCache{classes}(explicit_cache, implicit_cache)
+end
+
+"""
+    validate_timestepper(imex::AbstractIMEX)
+
+Host-side validation of an [`AbstractIMEX`](@ref) timestepper: the sub-steppers must be given in the
+order `IMEX(explicit, implicit)` (checked through their [`timestepping`](@ref) traits), and each
+sub-stepper must accept its role via `validate_timestepper(sub_stepper, imex)`.
+"""
+function validate_timestepper(imex::AbstractIMEX)
+    explicit = explicit_timestepper(imex)
+    implicit = implicit_timestepper(imex)
+    timestepping(explicit) === Explicit() || throw(
+        ArgumentError(
+            "the explicit sub-stepper of an `IMEX` must be an explicit timestepper, got $(nameof(typeof(explicit))); the sub-steppers are given in the order `IMEX(explicit, implicit)`"
+        )
+    )
+    timestepping(implicit) === Implicit() || throw(
+        ArgumentError(
+            "the implicit sub-stepper of an `IMEX` must be an implicit timestepper, got $(nameof(typeof(implicit))); the sub-steppers are given in the order `IMEX(explicit, implicit)`"
+        )
+    )
+    validate_timestepper(explicit, imex)
+    validate_timestepper(implicit, imex)
+    return nothing
+end
+
+# Host-side selection of the prognostic variables in `progvars` whose resolved class matches `class`,
+# returned as a `NamedTuple` in prognostic-variable order.
+function select_prognostic_variables(progvars, classes::Tuple, class::Timestepping)
+    selected = Tuple(name for (name, c) in zip(keys(progvars), classes) if c == class)
+    return NamedTuple{selected}(map(name -> progvars[name], selected))
 end
 
 # A sub-stepper of an IMEX reads its own slice of the cache, selected by its `timestepping` trait.
@@ -133,20 +157,40 @@ end
 """
     timestep!(integrator::ModelIntegrator, timestepper::AbstractIMEX, Δt)
 
-Advance the model forward by one timestep of size `Δt` using an [`AbstractIMEX`](@ref) timestepper. Each
-prognostic variable is routed to the explicit or implicit sub-stepper according to the resolved classes stored
-in the [`IMEXCache`](@ref) type; each sub-stepper fetches its own sub-cache via [`get_cache`](@ref). The clock
-is advanced once for the whole step.
+Advance the model forward by one IMEX Euler step of size `Δt` using an [`AbstractIMEX`](@ref)
+timestepper. The step consists of:
+
+1. a single `update_state!`, in which the tendencies of implicitly routed variables hold only their
+   explicitly treated terms (see [`timestepping(state, ::Val)`](@ref timestepping));
+2. [`update_cache!`](@ref) on the implicit sub-stepper's cache for the variables whose resolved class
+   in the [`IMEXCache`](@ref) is [`Implicit`](@ref), while their prognostic fields still hold `uⁿ`;
+3. the explicit sub-stepper's [`explicit_stage!`](@ref) applied to *all* prognostic variables, giving
+   `u* = uⁿ + Δt G_exp`, which for implicitly routed variables is the right-hand side of the implicit
+   system;
+4. [`implicit_step!`](@ref) of the implicit sub-stepper for these variables;
+5. the model hook `timestep!(state, model, timestepper, Δt)` followed by `closure!`;
+6. a single clock tick.
+
+Explicit terms are therefore evaluated at `tⁿ`.
 """
 function timestep!(integrator::ModelIntegrator, timestepper::AbstractIMEX, Δt)
-    cache = integrator.state.timestepper_cache
-    # type-stable split of the prognostic variables by their resolved class
-    explicit_names = prognostic_names(integrator.state, cache, Explicit())
-    implicit_names = prognostic_names(integrator.state, cache, Implicit())
-    isempty(explicit_names) || timestep!(integrator, explicit_timestepper(timestepper), Δt, explicit_names)
-    isempty(implicit_names) || timestep!(integrator, implicit_timestepper(timestepper), Δt, implicit_names)
+    (; state, model, inputs) = integrator
+    # type-stable selection of the implicitly routed prognostic variables
+    implicit_names = prognostic_names(state, state.timestepper_cache, Implicit())
+    # evaluate auxiliaries and (explicit) tendencies once for the whole step
+    update_state!(state, model, inputs; compute_tendencies = true)
+    # let the implicit sub-stepper store what it needs from uⁿ before the explicit stage overwrites it
+    implicit_cache = get_cache(state.timestepper_cache, implicit_timestepper(timestepper))
+    isempty(implicit_names) || update_cache!(implicit_cache, integrator, Δt, implicit_names)
+    # explicit stage for all prognostic variables: u* = uⁿ + Δt G_exp
+    explicit_stage!(integrator, explicit_timestepper(timestepper), Δt, prognostic_names(state))
+    # implicit solve for the implicitly routed variables, starting from u*
+    isempty(implicit_names) || implicit_step!(integrator, implicit_timestepper(timestepper), Δt, implicit_names)
+    # model-specific post-step corrections and closure relations
+    timestep!(state, model, timestepper, Δt)
+    closure!(state, model)
     # advance the clock once for the entire step
-    tick!(integrator.state.clock, Δt)
+    tick!(state.clock, Δt)
     return nothing
 end
 
@@ -155,4 +199,15 @@ end
 @generated function prognostic_names(::StateVariables{NF, prognames}, ::IMEXCache{classes}, ::Class) where {NF, prognames, classes, Class}
     selected = Symbol[name for (name, c) in zip(prognames, classes) if c isa Class]
     return Expr(:tuple, map(QuoteNode, selected)...)
+end
+
+# Compile-time lookup of the resolved class of the prognostic variable `name`; names that are not
+# top-level prognostic variables of `state` are not routed by the IMEX and hence `Explicit()`.
+# Under an IMEX, each variable's class is the one resolved in the IMEX cache held by `state`.
+@inline timestepping(::AbstractIMEX, state::StateVariables, name::Val) = timestepping(state, name)
+
+@generated function resolved_timestepping(::IMEXCache{classes}, ::StateVariables{NF, prognames}, ::Val{name}) where {classes, NF, prognames, name}
+    idx = findfirst(==(name), prognames)
+    class = isnothing(idx) ? Explicit() : classes[idx]
+    return :($class)
 end
