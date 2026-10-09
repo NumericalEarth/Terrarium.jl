@@ -41,6 +41,7 @@ land_sea_frac_field = RingGrids.FullGaussianGrid(Matrix(land_sea_frac), input_as
 land_mask = land_sea_frac_field .> 0.5
 grid = ColumnRingGrid(arch, NF, ExponentialSpacing(N = 30), land_mask.grid, land_mask)
 grid_lon, grid_lat = RingGrids.get_lonlats(grid.rings) # in radians
+grid_latd = rad2deg.(grid_lat) # latitude in degrees
 
 # ## Loading soil texture from SoilGrids 2.0
 # SoilGrids 2.0 provides global predictions of soil properties on a ~10 km grid for the six
@@ -85,29 +86,25 @@ DisplayAs.PNG(fig) #hide
 porosity = SoilPorositySURFEX(eltype(grid))
 strat = SoilGridsStratigraphy(eltype(grid); porosity)
 soil = SoilEnergyWaterCarbon(eltype(grid); strat)
-model = SoilModel(grid; soil)
 
 # We reuse the simple latitude-dependent climatology from the [global example](@ref soil_heat_global)
-# for the initial and boundary conditions.
-mean_annual_temperature(lat) = 20 - abs(40 * sin(lat))
+# for the initial and boundary conditions. The initial temperature profile is set by
+# [`QuasiThermalSteadyState`](@ref) with the climatology as its surface temperature.
+climatology = LatitudinalClimatology(NF)
+energy_initializer = QuasiThermalSteadyState(NF; T₀ = climatology, Qgeo = NF(0.05))
+initializer = SoilInitializer(NF; energy = energy_initializer, hydrology = DefaultInitializer(NF))
+model = SoilModel(grid; soil, initializer)
 
 lon_masked = grid_lon[land_mask]
-lat_masked = grid_lat[land_mask]
+latd_masked = grid_latd[land_mask]
 
-function initial_soil_temperature(x, z)
-    latᵢ = lat_masked[round(Int, x)]
-    T₀ = mean_annual_temperature(latᵢ)
-    T = T₀ - 0.05 * z
-    return T
-end
-
-function get_temperature_bc(lon::AbstractVector, lat::AbstractVector, amplitude = 10.0)
+function get_temperature_bc(lon::AbstractVector, latd::AbstractVector, amplitude = 10.0)
     lon_device = on_architecture(arch, NF.(lon))
-    lat_device = on_architecture(arch, NF.(lat))
+    lat_device = on_architecture(arch, NF.(latd))
     function periodic_bc(x::NF, t::NF) where {NF}
         lonₓ = lon_device[round(Int, x)]
         latₓ = lat_device[round(Int, x)]
-        T₀ = mean_annual_temperature(latₓ)
+        T₀ = climatology(latₓ)
         seconds_per_day = NF(24 * 3600)
         T = T₀ + NF(amplitude) * sin(2π * t / seconds_per_day - lonₓ)
         return T
@@ -115,12 +112,11 @@ function get_temperature_bc(lon::AbstractVector, lat::AbstractVector, amplitude 
     return periodic_bc
 end
 
-bc = PrescribedSurfaceTemperature(:T_ub, get_temperature_bc(lon_masked, lat_masked))
-inits = (temperature = initial_soil_temperature,)
+bc = PrescribedSurfaceTemperature(:T_ub, get_temperature_bc(lon_masked, latd_masked))
 
 # Initialize the model; the input sources are matched to the namespaced input variables of
 # the prescribed soil horizons.
-integrator = initialize(model, ForwardEuler(NF); inputs = soilgrids_inputs, boundary_conditions = bc, initializers = inits)
+integrator = initialize(model, ForwardEuler(NF); inputs = soilgrids_inputs, boundary_conditions = bc)
 
 # We can verify that the SoilGrids texture has been correctly assigned to the first horizon:
 sand1 = RingGrids.Field(arch, interior(integrator.state.namespaces.horizon1.sand_fraction), grid)

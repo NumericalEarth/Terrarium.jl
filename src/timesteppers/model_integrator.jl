@@ -160,6 +160,8 @@ function initialize!(integrator::ModelIntegrator)
     # reset state variables and clock
     reset!(integrator.state)
     reset!(integrator.clock)
+    # reset inputs to the defaults declared by the (possibly reconstructed) model
+    reset_inputs!(integrator.state, Variables(variables(integrator.model)))
     # set inputs based on updated clock/state
     initialize!(integrator.state, get_grid(integrator.model), integrator.inputs)
     # evaluate user-specified field initializers

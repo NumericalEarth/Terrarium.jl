@@ -118,6 +118,32 @@ Oceananigans.Grids.rname(grid::ColumnRingGrid) = Oceananigans.Grids.rname(getfie
 @inline Oceananigans.Grids.ηnode(i, j, k, grid::ColumnRingGrid, ℓx, ℓy, ℓz) = ηnode(i, j, k, getfield(grid, :grid), ℓx, ℓy, ℓz)
 @inline Oceananigans.Grids.rnode(i, j, k, grid::ColumnRingGrid, ℓx, ℓy, ℓz) = rnode(i, j, k, getfield(grid, :grid), ℓx, ℓy, ℓz)
 
+"""
+    $SIGNATURES
+
+Longitudes (degrees) of the active (masked) columns of `grid`, as a host `Vector` ordered like the
+horizontal index of the grid. This extends the Oceananigans accessor for curvilinear grids so that
+`λnodes`/`φnodes` give the geographic coordinates of a horizontal position on both a
+`LatitudeLongitudeGrid` and a `ColumnRingGrid`; on the latter, both are indexed by column.
+"""
+Oceananigans.Grids.λnodes(grid::ColumnRingGrid, ::CenterOrFace = Center(), args...; kwargs...) = first(active_column_lonlats(grid))
+
+"""
+    $SIGNATURES
+
+Latitudes (degrees) of the active (masked) columns of `grid`, as a host `Vector` ordered like the
+horizontal index of the grid. See [`λnodes`](@ref).
+"""
+Oceananigans.Grids.φnodes(grid::ColumnRingGrid, ::CenterOrFace = Center(), args...; kwargs...) = last(active_column_lonlats(grid))
+
+# Host-side gather of the (longitude, latitude) pairs of the active columns, in degrees.
+function active_column_lonlats(grid::ColumnRingGrid)
+    rings = on_architecture(CPU(), grid.rings)
+    mask = on_architecture(CPU(), grid.mask)
+    lond, latd = RingGrids.get_londlatds(rings)
+    return lond[mask], latd[mask]
+end
+
 # Horizontal grid metrics. Oceananigans defines these four spacings per concrete grid type and derives
 # all areas and volumes from them, e.g. the `Az / volume` scaling of flux boundary conditions in
 # `compute_z_bcs!`. The vertical spacings need no forwarding since they read `grid.z`, which is

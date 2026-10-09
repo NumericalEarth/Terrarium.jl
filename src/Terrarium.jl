@@ -22,8 +22,8 @@ using Oceananigans.Architectures: Architectures, AbstractArchitecture, CPU, GPU,
 using Oceananigans.Fields: Field, FunctionField, AbstractField, Center, Face, set!, compute!, interior, indices, location
 using Oceananigans.Forcings: Forcing, ContinuousForcing, DiscreteForcing
 using Oceananigans.Grids: AbstractGrid, RectilinearGrid, CallableDiscretization, ExponentialDiscretization,
-    Periodic, Flat, Bounded, halo_size, isrectilinear, nodes, topology, xnodes, ynodes, znodes, znode, zspacings,
-    ξnode, ηnode, rnode
+    LatitudeLongitudeGrid, Periodic, Flat, Bounded, halo_size, isrectilinear, nodes, topology,
+    xnodes, ynodes, znodes, λnodes, φnodes, znode, zspacings, ξnode, ηnode, rnode
 using Oceananigans.Operators: ∂zᵃᵃᶜ, ∂zᵃᵃᶠ, ℑzᵃᵃᶠ, Δzᵃᵃᶜ
 using Oceananigans.OutputReaders: FieldTimeSeries
 using Oceananigans.Simulations: Simulation, run!, timestepper, TimeStepWizard, conjure_time_step_wizard!, Callback, add_callback!
@@ -92,7 +92,7 @@ const CenterOrFace = Union{Center, Face}
 export Simulation, Clock, Field, FieldTimeSeries, KernelFunctionOperation, Center, Face
 export CPU, GPU, ReactantState, architecture, on_architecture
 export Value, Flux, Gradient, ValueBoundaryCondition, GradientBoundaryCondition, FluxBoundaryCondition, NoFluxBoundaryCondition
-export run!, time_step!, set!, reset!, compute!, interior, znodes, zspacings, location
+export run!, time_step!, set!, reset!, compute!, interior, znodes, λnodes, φnodes, zspacings, location
 export TimeStepWizard, conjure_time_step_wizard!, Callback, add_callback!, IterationInterval, TimeInterval
 
 # Re-export selected types from FreezeCurves
@@ -151,7 +151,7 @@ export StateVariables, get_fields
 include("state_variables.jl")
 
 # default initializers
-export DefaultInitializer
+export DefaultInitializer, LatitudinalClimatology
 include("initializers.jl")
 
 # boundary condition helper functions

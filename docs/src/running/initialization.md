@@ -33,9 +33,26 @@ As a general rule, these initializers are invoked in the order that they are lis
 
 The keyword argument must be a `NamedTuple` where the keys correspond to the name of the state variable and the values are either scalars, arrays matching the size of the model `grid`, or functions of the form `f(coords...)` where `coords` are the non-[`Flat`](@extref Oceananigans.Grids.Flat) dimensions of `grid`. For column-based grids, this is generally `f(x,z)` with `x` corresponding to a column index.
 
+## Field initializers
+
+Reusable, parameterized initializers of a single `Field` subtype [`AbstractFieldInitializer`](@ref).
+They are accepted everywhere a `set!`-compatible value is: in the `initializers` keyword argument, as the default of an `input` variable, or as a parameter of a model initializer.
+In the latter case, their `@param` fields become parameters of the model.
+
+```@docs; canonical = false
+AbstractFieldInitializer
+LatitudinalClimatology
+```
+
+Field initializers that depend on geographic position can use `λnodes` and `φnodes`, which return longitudes and latitudes (degrees) on both an Oceananigans `LatitudeLongitudeGrid` and a [`ColumnRingGrid`](@ref).
+On the latter, they are indexed by active column.
+
 ## Model initializers
 
 These `Initializer` types can be supplied to subtypes of [`AbstractModel`](@ref) during construction. Models can/should typically define corresponding [`AbstractInitializer`](@ref) types that represent common initialization strategies appropriate for the processes included in that model; e.g. the [`SoilModel`](@ref) defines [`SoilInitializer`](@ref) with process-specific initialization types like [`QuasiThermalSteadyState`](@ref) and [`SaturationWaterTable`](@ref).
+
+Model initializers may also implement [`variables`](@ref) to declare `input` variables for their parameters.
+These are collected by `variables(model)` alongside the process variables, which allows initial values to vary in space and to be supplied by [`InputSource`](@ref)s.
 
 ## Built-in initialization routines
 

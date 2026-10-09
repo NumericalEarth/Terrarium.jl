@@ -75,6 +75,31 @@ initializer = SoilInitializer(Float32;
 model = SoilModel(grid; initializer)
 ```
 
+### Spatially varying initial values
+
+The parameters of the energy and hydrology initializers are declared as `input` variables of the model, with the values given to the initializer as their defaults:
+
+| Initializer | Input variables |
+|:--|:--|
+| [`ConstantSoilTemperature`](@ref) | `initial_surface_temperature` (°C) |
+| [`QuasiThermalSteadyState`](@ref) | `initial_surface_temperature` (°C), `geothermal_heat_flux` (W/m²) |
+| [`ConstantSaturation`](@ref) | `initial_saturation` |
+| [`SaturationWaterTable`](@ref) | `vadose_zone_saturation`, `water_table_depth` (m) |
+
+Each value may therefore be a number, a function of the horizontal node coordinates, an array, a `Field`, or an [`AbstractFieldInitializer`](@ref).
+These defaults are re-applied at every initialization, so changes to their parameters take effect, and an [`InputSource`](@ref) with the same name and units always takes precedence over them.
+Spatial data, such as a regridded climatology, should preferably be supplied this way rather than as a `Field` stored in the initializer: the initializer is part of the model, which should stay independent of any particular grid and free of state.
+Field initializers such as [`LatitudinalClimatology`](@ref) expose their own parameters as model parameters.
+Note that `geothermal_heat_flux` is the same variable read by the [`GeothermalHeatFlux`](@ref) bottom boundary condition, so the initial profile and the boundary condition stay consistent.
+
+```@example soilmodel
+column_grid = ColumnGrid(arch, Float32, ExponentialSpacing(N = 10), 3) # three columns
+energy = QuasiThermalSteadyState(Float32; T₀ = x -> 2.0f0 * x, Qgeo = 0.05f0)
+model = SoilModel(column_grid; initializer = SoilInitializer(Float32; energy))
+integrator = initialize(model)
+interior(integrator.state.initial_surface_temperature)
+```
+
 ### Energy initializers
 
 ```@docs; canonical = false
@@ -93,6 +118,19 @@ PiecewiseLinearInitialSoilTemperature
 
 ```@docs; canonical = false
 SaturationWaterTable
+```
+
+```@docs; canonical = false
+ConstantSaturation
+```
+
+### Kernel functions
+
+```@docs; canonical = false
+compute_quasi_steady_state_temperature
+compute_constant_temperature
+compute_water_table_saturation
+compute_constant_saturation
 ```
 
 ### Fallback
