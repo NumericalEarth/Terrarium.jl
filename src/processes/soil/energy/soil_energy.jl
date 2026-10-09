@@ -2,7 +2,11 @@
     $TYPEDEF
 
 Standard implementation of the soil thermal dynamics accounting for freezing and thawing of pore water/ice.
-The `closure` field represents the temperature-energy closure \$U(T,\\phi)\$ which relates temperature to internal
+The internal energy `U` evolves by vertical heat conduction,
+
+    ∂U/∂t = ∂z(κ ∂z T),
+
+where `T` is temperature (°C) and `κ` the thermal conductivity (W/m/K). The `closure` field represents the temperature-energy closure \$U(T,\\phi)\$ which relates temperature to internal
 energy via an arbitrary set of additional parameters \$\\phi\$ which are determined by the model configuration.
 
 Properties:
@@ -10,13 +14,9 @@ $TYPEDFIELDS
 """
 struct SoilThermodynamics{
         NF,
-        HeatOperator <: AbstractHeatOperator,
         EnergyClosure <: AbstractEnergyClosure,
         ThermalProps <: SoilThermalProperties{NF},
     } <: AbstractSoilThermodynamics{NF}
-    "Heat transport operator"
-    operator::HeatOperator
-
     "Closure relating energy and temperature"
     closure::EnergyClosure
 
@@ -26,10 +26,9 @@ end
 
 SoilThermodynamics(
     ::Type{NF};
-    operator::AbstractHeatOperator = TwoPhaseHeatTransport(),
     closure::AbstractEnergyClosure = SoilEnergyTemperatureClosure(),
     thermal_properties::SoilThermalProperties{NF} = SoilThermalProperties(NF),
-) where {NF} = SoilThermodynamics(operator, closure, thermal_properties)
+) where {NF} = SoilThermodynamics(closure, thermal_properties)
 
 # TODO: Add base `AbstractParameterization` type and then (hopefully) remove
 Adapt.@adapt_structure SoilThermodynamics
