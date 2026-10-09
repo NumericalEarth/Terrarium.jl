@@ -50,3 +50,15 @@ Alias for `PrescribedGradient` representing a Neumann-type zero pressure gradien
 column, thereby allowing free drainage of water.
 """
 FreeDrainage() = (pressure_head = (bottom = GradientBoundaryCondition(0),),)
+
+# Carbon BCs
+
+"""
+Alias for `FluxBoundaryCondition` on `density_soc` with name `litter` representing litter fall inputs to top layer soil organic carbon.
+"""
+LitterfallFlux(bgc::AbstractSoilBiogeochemistry; kwargs...) = (
+    density_soc = (
+        top = FluxBoundaryCondition(litterfall_bc; discrete_form = true, kwargs...),
+        bottom = NoFluxBoundaryCondition(),
+    ),
+)
