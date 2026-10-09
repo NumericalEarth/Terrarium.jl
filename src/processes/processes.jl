@@ -62,6 +62,7 @@ include("soil/hydrology/soil_hydrology_rre.jl")
 
 export SoilSaturationPressureClosure
 include("soil/hydrology/soil_hydraulic_closures.jl")
+include("soil/hydrology/soil_hydrology_implicit.jl")
 
 export SoilThermalConductivities, SoilHeatCapacities, SoilThermalProperties, InverseQuadratic
 export compute_thermal_conductivity, heat_capacity
@@ -71,6 +72,7 @@ export SoilThermodynamics, SoilEnergyTemperatureClosure
 include("soil/energy/soil_energy.jl")
 
 include("soil/energy/soil_energy_closures.jl")
+include("soil/energy/soil_energy_implicit.jl")
 
 export SoilEnergyWaterCarbon
 include("soil/soil_coupled.jl")
