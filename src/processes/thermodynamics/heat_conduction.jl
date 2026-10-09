@@ -1,22 +1,9 @@
-"""
-    $TYPEDEF
-
-Represents an explicit formulation of the two-phase heat conduction operator in 1D:
-
-```math
-\\frac{\\partial U(T,\\phi)}{\\partial t} = \\boldsymbol{\\nabla} \\cdot \\left[ \\kappa(T) \\boldsymbol{\\nabla}_x T(x,t) \\right]
-```
-where \$T\$ is temperature [K], \$U\$ is internal energy [J m⁻³], and \$\\kappa\$ is the thermal conductivity [W m K⁻¹].
-"""
-@kwdef struct TwoPhaseHeatTransport <: AbstractHeatOperator end
-
 # Kernel functions
 
 """
     $TYPEDSIGNATURES
 
-Compute the internal energy tendency `∂U∂t` as the divergence of the diffusive heat flux for the
-explicit two-phase heat conduction operator.
+Compute the internal energy tendency `∂U∂t` as the divergence of the diffusive heat flux.
 """
 @propagate_inbounds function compute_energy_tendency(
         i, j, k, grid, fields,
