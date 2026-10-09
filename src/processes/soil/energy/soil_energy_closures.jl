@@ -65,12 +65,12 @@ end
         out, i, j, k, grid, fields,
         ::SoilEnergyTemperatureClosure,
         ::FreeWater,
-        energy::SoilThermodynamics{NF, OP, SoilEnergyTemperatureClosure},
+        energy::SoilThermodynamics{NF, SoilEnergyTemperatureClosure},
         hydrology::AbstractSoilHydrology,
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry,
         constants::PhysicalConstants
-    ) where {NF, OP}
+    ) where {NF}
     T = fields.temperature[i, j, k] # assumed given
     ρw = constants.material.density_water
     Lsl = constants.thermodynamics.latent_heat_fusion
