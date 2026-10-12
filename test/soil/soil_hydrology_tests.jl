@@ -230,12 +230,12 @@ end
         strat = HomogeneousSoilStratigraphy(eltype(grid); porosity = ConstantSoilPorosity(eltype(grid); mineral_porosity))
         bgc = ConstantSoilCarbonDensity(eltype(grid))
         hydrology = SoilHydrology(eltype(grid), RichardsEq())
-        infiltration_var = auxiliary(:infiltration, Terrarium.Ground(Terrarium.Top()), units = u"m/s", desc = "Infiltration flux")
-        # `strat`'s own variables (the per-horizon namespace `porosity_top` reaches into) must be part
-        # of the state too, not just `hydrology`'s.
-        vars = merge(Variables(hydrology), Variables(strat), Variables((infiltration_var,)))
-        state = StateVariables(vars, grid; boundary_conditions = InfiltrationFlux(strat, bgc))
         soil = SoilEnergyWaterCarbon(eltype(grid); strat, hydrology, biogeochem = bgc)
+        infiltration_var = auxiliary(:infiltration, Terrarium.Ground(Terrarium.Top()), units = u"m/s", desc = "Infiltration flux")
+        # state of the full soil (the hydrology closure moves the heat of redistributed water), plus the
+        # infiltration input of the boundary condition
+        vars = merge(Variables(soil), Variables((infiltration_var,)))
+        state = StateVariables(vars, grid; boundary_conditions = InfiltrationFlux(strat, bgc))
         set!(state.saturation_water_ice, (x, z) -> min(1, 0.8 - 0.05 * z))
         set!(state.infiltration, 2.0e-7)
         Terrarium.closure!(state, grid, get_closure(hydrology), hydrology, soil)
