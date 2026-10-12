@@ -59,10 +59,9 @@ end
     $TYPEDSIGNATURES
 
 Return the minimum diffusive timescale over the coupled soil processes as the minimum of the
-individual energy (heat conduction) and hydrology (Richards) timescales. If the owning model's
-`timestepper` integrates `internal_energy` (`saturation_water_ice`) implicitly, i.e. heat conduction
-(Richards flow) is routed to the implicit sub-stepper of an [`AbstractIMEX`](@ref) timestepper, the
-energy (hydrology) timescale imposes no restriction and is `Inf`.
+individual energy (heat conduction) and hydrology (Richards) timescales. If the model's `timestepper`
+integrates `internal_energy` (`saturation_water_ice`) implicitly (see [`AbstractIMEX`](@ref)), the
+energy (hydrology) timescale is `Inf`.
 """
 function cell_diffusion_timescale(
         state, grid,
@@ -77,12 +76,12 @@ function cell_diffusion_timescale(
     return min(τ_energy, τ_water)
 end
 
-# Explicit heat conduction is limited by its diffusive timescale; implicit heat conduction is not.
+# Explicit heat conduction is diffusively limited; implicit is not.
 energy_diffusion_timescale(state, grid, soil::AbstractSoil, constants, ::Explicit) =
     cell_diffusion_timescale(state, grid, get_energy_balance(soil), soil, constants)
 energy_diffusion_timescale(state, grid, soil::AbstractSoil, constants, ::Implicit) = convert(eltype(grid), Inf)
 
-# Explicit Richards flow is limited by its diffusive timescale; implicit Richards flow is not.
+# Explicit Richards flow is diffusively limited; implicit is not.
 hydrology_diffusion_timescale(state, grid, soil::AbstractSoil, constants, ::Explicit) =
     cell_diffusion_timescale(state, grid, get_hydrology(soil), soil, constants)
 hydrology_diffusion_timescale(state, grid, soil::AbstractSoil, constants, ::Implicit) = convert(eltype(grid), Inf)
@@ -158,13 +157,21 @@ end
 """
     $TYPEDSIGNATURES
 
-Return the minimum advective timescale of the soil energy equation over the soil column, i.e. the
-advective Courant–Friedrichs–Lewy limit of the explicit, first-order upwind advection of sensible heat
-by the soil water flux (see [`advective_heat_flux`](@ref)). Without water flow (e.g. `NoFlow`
-hydrology) there is no advective restriction and the timescale is `Inf`.
+Return the minimum advective timescale of the soil energy equation over the soil column: the advective
+CFL limit of the explicit first-order upwind advection of sensible heat by the soil water flux (see
+[`advective_heat_flux`](@ref)). It is `Inf` without water flow (e.g. `NoFlow` hydrology) and when the
+model's `timestepper` integrates `internal_energy` implicitly (the implicit operator is unconditionally
+stable).
 """
-cell_advection_timescale(state, grid, soil::SoilEnergyWaterCarbon) =
+function cell_advection_timescale(state, grid, soil::SoilEnergyWaterCarbon, timestepper::Optional{AbstractTimeStepper} = nothing)
+    energy_timestepping = timestepping(timestepper, state, Val(:internal_energy))
+    return energy_advection_timescale(state, grid, soil, energy_timestepping)
+end
+
+# Explicit heat advection is CFL limited; implicit is not.
+energy_advection_timescale(state, grid, soil::AbstractSoil, ::Explicit) =
     cell_advection_timescale(state, grid, get_energy_balance(soil), get_hydrology(soil), get_stratigraphy(soil), get_biogeochemistry(soil))
+energy_advection_timescale(state, grid, soil::AbstractSoil, ::Implicit) = convert(eltype(grid), Inf)
 
 cell_advection_timescale(state, grid, energy::AbstractSoilThermodynamics, hydrology::AbstractSoilHydrology, args...) = convert(eltype(grid), Inf)
 
@@ -172,8 +179,8 @@ cell_advection_timescale(state, grid, energy::AbstractSoilThermodynamics, hydrol
     $TYPEDSIGNATURES
 
 Return the minimum over all cells of the advective timescale ``τ = C Δz / (C_w |q|)``
-([`compute_heat_advection_timescale`](@ref)) of the soil energy equation for a Richards-equation
-hydrology, where `q` is the Darcy flux through the faces of the cell.
+([`compute_heat_advection_timescale`](@ref)) for a Richards-equation hydrology, with `q` the Darcy flux
+through the faces of the cell.
 """
 function cell_advection_timescale(
         state, grid,
@@ -193,12 +200,11 @@ end
 """
     $TYPEDSIGNATURES
 
-Kernel function returning the advective timescale ``τ = C Δz / (C_w |q|)`` of the soil energy
-equation at cell `i, j, k`, where `C` is the bulk volumetric heat capacity of the cell, `C_w` the
-volumetric heat capacity of liquid water, and `|q|` the larger magnitude of the [`darcy_flux`](@ref)
-through the two faces of the cell. Since the upwind advective heat flux changes the temperature of a
-cell at the rate `C_w q / C` (m/s), this is the stability limit of the explicit first-order upwind
-advection. Cells without flow return `Inf`.
+Kernel function returning the advective timescale ``τ = C Δz / (C_w |q|)`` at cell `i, j, k`, with `C`
+the bulk volumetric heat capacity of the cell, `C_w` that of liquid water, and `|q|` the larger magnitude
+of the [`darcy_flux`](@ref) through the two faces of the cell. This is the stability limit of the
+explicit upwind advection, which changes the cell temperature at the rate `C_w q / C` (m/s). Cells
+without flow return `Inf`.
 """
 @inline @propagate_inbounds function compute_heat_advection_timescale(
         i, j, k, grid, fields,
