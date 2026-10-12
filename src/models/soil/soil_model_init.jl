@@ -307,7 +307,7 @@ Oceananigans.Fields.set!(field::Field, measure::AbstractWaterContent) = set!(fie
 
 function initialize!(state, model::AbstractModel, init::SaturationWaterTable)
     # the additional kernel arguments (if any) are processes whose fields are needed, e.g. for the porosity
-    args = isa(init.vadose_zone_saturation, VolumetricWaterContent) ?  (get_stratigraphy(model.soil), get_biogeochemistry(model.soil)) : ()
+    args = isa(init.vadose_zone_saturation, VolumetricWaterContent) ? (get_stratigraphy(model.soil), get_biogeochemistry(model.soil)) : ()
     fields = get_fields(state, init, args...)
     set!(state.saturation_water_ice, kernel(compute_water_table_saturation, init, args...), fields)
     return nothing
