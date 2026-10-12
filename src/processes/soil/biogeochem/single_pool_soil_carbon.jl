@@ -1,0 +1,222 @@
+# TODO: should this be a process of its own?
+# also, define abstract types for these parameter structs if there may be multiple implementations
+
+"""
+    $TYPEDEF
+
+Soil Carbon Respiration component for the Soil Carbon Model.
+"""
+@kwdef struct SoilCarbonRespiration{NF}
+    "Reference decomposition rate [1/s]"
+    k_ref::NF = ustrip(u"s^-1", 0.1u"yr^-1")
+
+    "Temperature sensitivity of decomposition rate (Q10)"
+    Q10::NF = 2.0
+
+    "Reference temperature for k_ref [°C]"
+    T_ref::NF = 10.0
+end
+
+SoilCarbonRespiration(::Type{NF}; kwargs...) where {NF} = SoilCarbonRespiration{NF}(; kwargs...)
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the decomposition (heterotrophic respiration) rate (kg/m³/s) of soil organic carbon with
+density `C` (kg/m³) at temperature `T` (°C), R = k_ref ⋅ Q10^((T - T_ref) / 10) ⋅ C.
+"""
+function compute_respiration_rate(resp::SoilCarbonRespiration{NF}, C, T) where {NF}
+    (; k_ref, Q10, T_ref) = resp # unpack properties
+    R = k_ref * Q10^((T - T_ref) / NF(10)) * C
+    return R
+end
+
+# TODO: should this be a process of its own?
+"""
+    $TYPEDEF
+
+Soil Carbon Transport component with Bioturbation (Diffusion) and Advection terms for the Soil Carbon Model.
+"""
+Base.@kwdef struct SoilCarbonTransport{NF}
+    "Advection velocity, constant for now"
+    ω::NF = ustrip(u"m/s", 0.002u"mm/yr")
+
+    "Diffusion coefficient, constant for now"
+    D_b::NF = ustrip(u"m^2/s", 1u"cm^2/yr")
+end
+
+SoilCarbonTransport(::Type{NF}; kwargs...) where {NF} = SoilCarbonTransport{NF}(; kwargs...)
+
+"""
+    $TYPEDEF
+
+Represents a simple one pool soil carbon model.
+"""
+struct SinglePoolSoilCarbon{NF} <: AbstractSoilBiogeochemistry{NF}
+    "Paramteters for SOC transport"
+    transport::SoilCarbonTransport{NF}
+
+    "Decomposition dynamics / biogeochemistry"
+    respiration::SoilCarbonRespiration{NF}
+
+    "Pure organic matter density [kg/m^3]"
+    ρ_org::NF
+end
+
+function SinglePoolSoilCarbon(
+        ::Type{NF};
+        transport::SoilCarbonTransport = SoilCarbonTransport(NF),
+        respiration::SoilCarbonRespiration = SoilCarbonRespiration(NF),
+        ρ_org::NF = NF(1300.0) # kg/m^3
+    ) where {NF}
+    return SinglePoolSoilCarbon(transport, respiration, ρ_org)
+end
+
+variables(::SinglePoolSoilCarbon) = (
+    prognostic(:density_soc, XYZ(), units = u"kg/m^3"),
+    auxiliary(:respiration_rate, XYZ(), units = u"kg/m^3/s"), # TODO: does this really need to be auxiliary?
+    input(:litter, XY(), units = u"kg/m^2/s"),
+)
+
+# Implementation of the SOC density getter method for the one-pool scheme;
+# this will be called by the other soil components to determine porosity
+@inline density_soc(i, j, k, grid, fields, bgc::SinglePoolSoilCarbon) = fields.density_soc[i, j, k]
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the soil organic carbon respiration rate in each soil layer.
+"""
+function compute_auxiliary!(state, grid, soc::SinglePoolSoilCarbon, soil::AbstractSoil, args...)
+    out = auxiliary_fields(state, soc)
+    fields = get_fields(state, soc, soil; except = out)
+    launch!(grid, XYZ, compute_auxiliary_kernel!, out, fields, soc, soil)
+    return nothing
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Fill the halo regions of `density_soc` and apply its boundary conditions (e.g. [`LitterfallFlux`](@ref))
+to the soil organic carbon tendency.
+"""
+function compute_boundary_conditions!(state, grid, ::SinglePoolSoilCarbon)
+    fill_halo_regions!(state.density_soc, state)
+    compute_z_bcs!(state.tendencies.density_soc, state.density_soc, architecture(grid), state.clock, state.inputs)
+    return nothing
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the tendency of the soil organic carbon density in each soil layer.
+"""
+function compute_tendencies!(state, grid, soc::SinglePoolSoilCarbon, soil::AbstractSoil, args...)
+    out = tendency_fields(state, soc)
+    fields = get_fields(state, soc, soil)
+    launch!(grid, XYZ, compute_tendencies_kernel!, out, fields, soc, soil)
+    return nothing
+end
+
+# Kernel functions
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the respiration rate at index `i, j, k` and store it in `out.respiration_rate`.
+"""
+@propagate_inbounds function compute_respiration!(out, i, j, k, grid, fields, soc::SinglePoolSoilCarbon{NF}, soil::AbstractSoil) where {NF}
+    T = fields.temperature[i, j, k] # defined by soil energy balance
+    C = fields.density_soc[i, j, k]
+    # Compute respiration rate
+    out.respiration_rate[i, j, k] = compute_respiration_rate(soc.respiration, C, T)
+    return out
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the soil organic carbon tendency at index `i, j, k` and add it to `tend.density_soc`.
+"""
+@propagate_inbounds function compute_soc_tendency!(tend, i, j, k, grid, fields, soc::SinglePoolSoilCarbon, soil::AbstractSoil)
+    tend.density_soc[i, j, k] += compute_soc_tendency(i, j, k, grid, fields, soc, soil)
+    return nothing
+end
+
+# TODO: the soil argument with the other soil processes is currently unused but I guess it will be used...?
+"""
+    $TYPEDSIGNATURES
+
+Compute the soil organic carbon tendency (kg/m³/s) at index `i, j, k`,
+∂C/∂t = -∂q_d/∂z - ∂q_a/∂z - R, where q_d and q_a are the diffusive and advective fluxes and R is
+the respiration rate. Litter inputs enter through the top boundary condition.
+"""
+@propagate_inbounds function compute_soc_tendency(i, j, k, grid, fields, soc::SinglePoolSoilCarbon, soil::AbstractSoil)
+    # Operators require the underlying Oceananigans grid
+    field_grid = ground_domain(grid)
+    decomposition = fields.respiration_rate[i, j, k]
+    # Compute soil carbon flux
+    # runic: off
+    ∂C∂t = (
+        - ∂zᵃᵃᶜ(i, j, k, field_grid, compute_soc_diffusive_flux, fields, soc.transport)
+        - ∂zᵃᵃᶜ(i, j, k, field_grid, compute_soc_advective_flux, fields, soc.transport)
+        - decomposition
+    )
+    # runic: on
+    return ∂C∂t
+end
+
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the diffusive soil organic carbon flux q_d = -D_b ⋅ ∂C/∂z (kg/m²/s) at the lower cell face
+of index `i, j, k`.
+"""
+@propagate_inbounds function compute_soc_diffusive_flux(i, j, k, grid, fields, transport::SoilCarbonTransport)
+    C = fields.density_soc
+    # TODO: compute and interpolate conductvitiy to grid cell faces
+    # D_b = ℑzᵃᵃᶠ(i, j, k, grid, compute_soc_conductivity, fields, args...)
+    D_b = transport.D_b
+    ∇C = ∂zᵃᵃᶠ(i, j, k, grid, C)
+    q_d = - D_b * ∇C
+    return q_d
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the advective soil organic carbon flux q_a = ω ⋅ C (kg/m²/s) at index `i, j, k`.
+"""
+@propagate_inbounds function compute_soc_advective_flux(i, j, k, grid, fields, transport::SoilCarbonTransport)
+    C = fields.density_soc[i, j, k]
+    # TODO: compute depth-varying advection; also use Oceananigans advection operator
+    ω = transport.ω
+    q_a = ω * C
+    return q_a
+end
+
+# Kernels
+
+@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, soc::SinglePoolSoilCarbon, args...)
+    i, j, k = @index(Global, NTuple)
+    compute_respiration!(out, i, j, k, grid, fields, soc, args...)
+end
+
+@kernel inbounds = true function compute_tendencies_kernel!(out, grid, fields, soc::SinglePoolSoilCarbon, args...)
+    i, j, k = @index(Global, NTuple)
+    compute_soc_tendency!(out, i, j, k, grid, fields, soc, args...)
+end
+
+# BCS
+
+"""
+    $TYPEDSIGNATURES
+
+Discrete-form boundary-condition function (see [`LitterfallFlux`](@ref)), computes incoming litterfall carbon inputs to 
+the soil. Note that module computes infiltration as positive downward, so it is negated here since fluxes are by
+convention positive upward.
+"""
+@propagate_inbounds function litterfall_bc(i, j, grid, clock, fields)
+    return -fields.litter[i, j]
+end

@@ -79,6 +79,7 @@ Compute boundary conditions (and halo regions) for soil energy and hydrology.
 function compute_boundary_conditions!(state, grid, soil::SoilEnergyWaterCarbon)
     compute_boundary_conditions!(state, grid, soil.hydrology, soil.strat, soil.biogeochem)
     compute_boundary_conditions!(state, grid, soil.energy)
+    compute_boundary_conditions!(state, grid, soil.biogeochem)
     return nothing
 end
 
