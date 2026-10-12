@@ -1,6 +1,6 @@
 # Add support for implicit-explicit (IMEX) time stepping
 
-> Status: **in progress**. Phases 1–3 (implicit heat conduction, implicit Richards flow, energy advection, and the wizard diagnostics) and IMEX as the default of `SoilModel` and `LandModel` are implemented; the implicit snow meltwater drainage (revisions 20 and 21) is implemented, and Phase 4 (feasibility spikes for Path 1) remains.
+> Status: **in progress**. Phases 1–3 (implicit heat conduction, implicit Richards flow, energy advection, and the wizard diagnostics), IMEX as the default of `SoilModel` and `LandModel`, and the implicit snow meltwater drainage (revisions 20 and 21) are implemented; Phase 4 (feasibility spikes for Path 1) is deferred to future work (revision 22).
 
 Date of initial draft: 2026-09-20
 
@@ -416,6 +416,9 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 > With the same 31-day ERA5-Land setup (bare ground with snow, IMEX at 60 s as reference, both with implicit drainage), 900 s tracks the reference at all snow sites: minimum snow temperatures within 0.2 K, hourly RMS snow temperature 0.04–0.34 K (NE-US 0.14 K, 3.4 K before), final SWE within 0.26 mm, and hourly RMS ground heat flux 0.3–1.5 W/m².
 > At 1800 s, the cold packs without melt still fail (Yakutia −104.6 °C, Alaska −84.6 °C), confirming that the explicit snow heat conduction now limits the step.
 
+> **Revision 22, 2026-10-13. Approved. Scope reduction: Phase 4 deferred.**
+> Reviewer request: the feasibility spikes for Path 1 (Phase 4) are deferred to future work, together with Path 1 itself, so this PR ends with Phase 3 and revisions 19–21.
+
 ## Problem description
 
 Terrarium integrates every prognostic variable with fixed-step explicit schemes (`ForwardEuler`, `Heun`).
@@ -804,12 +807,7 @@ Path 1 is deferred to a future plan.
 - (Deferred to a future PR by revision 18: `IMEXFluxBoundaryCondition` for the ground heat flux, and value boundary conditions on the closure variables under the implicit operator.)
 - Wizard diagnostics for implicit runs: no throttling by implicit terms, and time scales of the remaining explicit terms (explicit energy advection, explicit water outflow that could overdraw a cell).
 
-**Phase 4: feasibility spikes for Path 1 (no production code).** Run after Path 2 is complete so the results can be compared against a working implicit stepper; recorded in the future Path 1 plan.
-
-- (a) Enzyme forward-mode JVP through `update_state!` for a `SoilModel` column on CPU; compare with a finite-difference JVP.
-- (b) The same on CUDA.
-- (c) Enzyme forward mode inside a Reactant-compiled program for the same JVP.
-- (d) Enzyme reverse mode through the Phase 1 `implicit_step!` (tridiagonal solve with a separate `rhs` field), as a baseline for the nested-AD question.
+**Phase 4: feasibility spikes for Path 1.** Deferred to future work by revision 22 (see Future work).
 
 Each phase ends with the full test suite, the Enzyme test set, and a draft doc build.
 
@@ -830,7 +828,7 @@ Each phase ends with the full test suite, the Enzyme test set, and a draft doc b
 - **Richards**: the Celia et al. (1990) infiltration test against a fine explicit reference, including a near-saturated column where explicit stepping is impractical.
 - **Routing**: `test/timestepping/imex.jl` updated for the single-`update_state!` orchestration; since revision 15 it also holds the routing and implicit cache and operator structure tests of the soil variables.
 - **Test layout (revision 15)**: the physics tests of the implicit soil processes live with the process tests, which `test/soil/soil_model_tests.jl` includes: implicit heat conduction and heat advection in `test/soil/soil_energy_tests.jl`, the implicit Richards equation in `test/soil/soil_hydrology_tests.jl`, and the Stefan benchmark in `test/soil/soil_freeze_thaw_tests.jl`; the `TridiagonalOperator` with upwind advection is tested in `test/solvers/test_solvers.jl`.
-- **JVP**: Enzyme versus finite-difference JVP agreement on `SoilModel` and `LandModel` (Phase 4).
+- **JVP**: Enzyme versus finite-difference JVP agreement on `SoilModel` and `LandModel` (Phase 4, deferred by revision 22).
 - **Differentiability**: `test/differentiability/` gains implicit `SoilModel` cases for both solvers; gradients cross-checked with FiniteDifferences as in the existing tests.
 - **Reactant**: `test/reactant/correctness.jl` gains implicit configurations; compiled results match the CPU run.
 - **GPU**: implicit configurations in the CUDA test set.
@@ -858,6 +856,8 @@ Each phase ends with the full test suite, the Enzyme test set, and a draft doc b
 - Adaptive `Δt` under Reactant remains out of scope, as in the adaptive-timestepping plan.
 
 ## Future work
+
+- Feasibility spikes for Path 1 (Phase 4, deferred by revision 22), to be recorded in the future Path 1 plan, with no production code: (a) Enzyme forward-mode JVP through `update_state!` for a `SoilModel` column on CPU, compared with a finite-difference JVP; (b) the same on CUDA; (c) Enzyme forward mode inside a Reactant-compiled program for the same JVP; (d) Enzyme reverse mode through the `implicit_step!` of `BackwardEuler` with `Picard` (tridiagonal solve with a separate `rhs` field), as a baseline for the nested-AD question.
 
 - Implicit-function-theorem adjoints for `implicit_step!` (efficient inverse modeling through implicit steps).
 - Implicit surface coupling: an `IMEXFluxBoundaryCondition` for the ground heat flux with `λ = ∂G/∂T_ground` from the skin temperature solve, attached to the `Diagnosed` ground heat flux sub-process of the SEB, deferred from Phase 3 by revision 18; first measure whether the explicit ground heat flux limits `Δt` of a `LandModel`.
