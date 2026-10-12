@@ -1,6 +1,6 @@
 # Add support for implicit-explicit (IMEX) time stepping
 
-> Status: **in progress**. Phases 1–3 (implicit heat conduction, implicit Richards flow, energy advection, and the wizard diagnostics) and IMEX as the default of `SoilModel` and `LandModel` are implemented; revision 20 (implicit snow meltwater drainage) awaits approval, and Phase 4 (feasibility spikes for Path 1) remains.
+> Status: **in progress**. Phases 1–3 (implicit heat conduction, implicit Richards flow, energy advection, and the wizard diagnostics) and IMEX as the default of `SoilModel` and `LandModel` are implemented; the implicit snow meltwater drainage (revisions 20 and 21) is implemented, and Phase 4 (feasibility spikes for Path 1) remains.
 
 Date of initial draft: 2026-09-20
 
@@ -342,7 +342,7 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 > At 10 min all snow sites track the reference: minimum snow temperatures within 2.4 K, final SWE within 0.3 mm, hourly RMS snow temperature 0.02–0.63 K and ground heat flux 0.2–5.4 W/m².
 > Follow-up (2026-10-12, reviewer request): the default of `SoilModel` follows `default_timestepping` of its hydrology, `IMEX` (Δt = 1 h) for Richards flow and `ForwardEuler(NF)` otherwise, so that the default `NoFlow` soil model keeps supporting value boundary conditions such as `PrescribedSurfaceTemperature`.
 
-> **Revision 20, 2026-10-12. Implicit snow meltwater drainage (pending approval).**
+> **Revision 20, 2026-10-12. Implicit snow meltwater drainage.**
 > Reviewer request: integrate the snow meltwater outflow implicitly under IMEX, so that a step can never drain more water than the pack holds as liquid.
 >
 > *Motivation.*
@@ -384,7 +384,7 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 > The `LandModel` default therefore stays at 15 min, and an implicit snow heat conduction (per-column backward Euler of `snow_energy` with the surface and soil temperatures at `tⁿ`, conservative with the soil if the snow-soil flux is recomputed after the snow solve) is added to Future work.
 >
 > *Testing.*
-> Unit tests of the snow implicit step: with many iterations the result satisfies the backward Euler equation to tolerance, and the default two iterations stay close to it; the ice content and `Ū` are unchanged; `θ_liq ≥ θ_c` after every iteration, including the first; a frozen pack is unchanged; a fully liquid pack drains `Δt K_sat` or tends to empty; Float32 type stability.
+> Unit tests of the snow implicit step: with many iterations the result satisfies the backward Euler equation to tolerance, and the default two iterations stay close to it; the ice content and `Ū` are unchanged; `θ_liq ≥ θ_c` after every iteration, including the first; a frozen pack is unchanged; a fully liquid pack drains exactly `Δt K_sat` or empties; Float32 type stability.
 > `SnowModel` with IMEX: a melting pack at 900 s and 3600 s stays within physical temperature bounds, and water and energy are conserved over a melt-out (snow plus drained water, with `meltwater_flux` counted as in transit).
 > `LandModel` with IMEX: water is conserved across a melt event (snow, soil, surface excess, runoff, and in-transit meltwater); the routing test of `imex.jl` gains `snow_water_equivalent`.
 > The 31-day ERA5-Land check at 900 s: the NE-US spike is gone, and all snow sites track the 60 s reference.
@@ -395,6 +395,26 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 >
 > *Known limitations.*
 > The one-step lag of the meltwater input to the soil; explicit stepping (`ForwardEuler`) keeps the overshoot, so explicit `LandModel` runs with melting snow need steps of the order of seconds near melt-out to be fully accurate; the snow heat conduction remains explicit.
+
+> **Revision 21, 2026-10-12. Approved. Newton linearization of the snow drainage.**
+> The lagged-coefficient Picard iteration of revision 20 does not converge at useful steps: with `Δt K_sat ≈ 5 m` at 900 s, the lagged coefficient `c` is huge just above the retention floor `B = W_i + W_c` and zero at it, so the iterates alternate between the two.
+> For a 20 mm pack with 10 mm of ice, the iterates are 10.7, 19.0, 10.7, 18.9 mm against the backward Euler solution of 11.9 mm, so the default two iterations drain almost nothing.
+> Each iteration instead linearizes by Newton's method in the liquid fraction, the modified Picard approach of [CeliaEtAl1990](@cite) applied to the stiff outflow term.
+> With `W = W_i / (1 − θ_liq)`, the step solves `G(θ) = W_i / (1 − θ) + Δt M_r(θ) − W⁺ = 0`, which is increasing and convex in `θ`, so a Newton step from any `θ ≥ θ*` lands in `[θ*, θ]`: the iterates approach the root monotonically from above, and no iterate drains more than the backward Euler solution.
+> The diagonal system of each iteration is `G′(θᵐ) θᵐ⁺¹ = G′(θᵐ) θᵐ − G(θᵐ)`, solved for the target `snow_liquid_fraction` (a new `implicit_variable` trait replaces the default target, the variable itself, of a variable without closure), followed by `implicit_update!` (`W = W_i / (1 − θ)`).
+> The iteration starts from `Wⁿ`, as for all implicit variables, which may lie below the root; the update therefore projects `θ` onto `θ ≤ θ⁺` (`W ≤ W⁺`), the upper end of the bracket, after which the iterates are monotone.
+> A fully liquid pack (`W_i = 0`, `θ = 1`) drains at the constant rate `M_r(1)` until it is empty, so its step takes the exact backward Euler solution `max(W⁺ − Δt M_r(1), 0)`, independent of the iteration count; this state occurs only briefly at the end of a melt-out, while partly frozen packs follow the Newton iteration.
+> With two iterations from `W⁺`, the example pack reaches 13.4 mm (6.6 of 8.1 mm drained); convergence is slowest for nearly liquid packs.
+> The hydraulics gain the derivative `compute_meltwater_outflow_derivative`, and `implicit_closure!` re-evaluates the snow closure.
+>
+> Implementation notes for revisions 20 and 21 (2026-10-13):
+> The snow hooks are in the new `src/processes/snow/snow_implicit.jl`, with the kernel functions `compute_snow_ice_content`, `compute_implicit_meltwater_coefficients!`, and `compute_implicit_snow_water_update!`; `DiagonalOperator` is exported, and the variable trait `implicit_target` (default: the variable itself) gives the target of a variable without closure.
+> The ice content is computed directly from `Ū⁺` and `W⁺`, and the Newton linearization point is the liquid fraction of the current iterate, bounded to `[0, θ⁺]`, so that the diagonal stays positive when the iterate `Wⁿ` lies below the ice content.
+> `compute_auxiliary!` and `compute_tendencies!` of `SingleLayerSnow` take the `timestepper` and resolve the class of `snow_water_equivalent`; under `Explicit()`, `compute_meltwater_flux!` stores `M_r(θⁿ)` in `meltwater_flux`, and `snow_meltwater_flux` (read by the snow tendency and the surface hydrology) always returns the stored field.
+> Fixed on the way: `add_scaled!` launched over all levels of the grid for fields without a vertical location, adding a 2D increment once per level (unused by 2D implicit variables until now); it now launches a 2D kernel for them.
+> The test helper of `snow_model_tests.jl` now runs the closure before `compute_auxiliary!`, as at the end of the previous step, since the explicit `meltwater_flux` is computed from the liquid fraction; the land model meltwater test checks the explicit coupling under `ForwardEuler` and the lagged coupling (`infiltration + surface_runoff = meltwater_flux`) after one IMEX step.
+> With the same 31-day ERA5-Land setup (bare ground with snow, IMEX at 60 s as reference, both with implicit drainage), 900 s tracks the reference at all snow sites: minimum snow temperatures within 0.2 K, hourly RMS snow temperature 0.04–0.34 K (NE-US 0.14 K, 3.4 K before), final SWE within 0.26 mm, and hourly RMS ground heat flux 0.3–1.5 W/m².
+> At 1800 s, the cold packs without melt still fail (Yakutia −104.6 °C, Alaska −84.6 °C), confirming that the explicit snow heat conduction now limits the step.
 
 ## Problem description
 

@@ -101,6 +101,7 @@ export SnowEnergyTemperatureClosure
 include("snow/energy/snow_energy_closures.jl")
 include("snow/energy/snow_energy.jl")
 include("snow/snow_diffusion_timescales.jl")
+include("snow/snow_implicit.jl")
 
 # Vegetation
 
