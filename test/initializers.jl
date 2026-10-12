@@ -58,8 +58,7 @@ end
     hydrology = SaturationWaterTable(NF; vadose_zone_saturation = VolumetricWaterContent(0.2), water_table_depth = 1.0)
     model = SoilModel(grid; soil, initializer = SoilInitializer(NF; hydrology))
     names = map(varname, input_variables(variables(model)))
-    @test :vadose_zone_water_content ∈ names
-    @test :vadose_zone_saturation ∉ names
+    @test :vadose_zone_saturation ∈ names
     integrator = initialize(model)
     z = znodes(integrator.state.saturation_water_ice)
     sat = interior(integrator.state.saturation_water_ice)[1, 1, :]

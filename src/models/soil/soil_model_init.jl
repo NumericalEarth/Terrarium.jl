@@ -73,7 +73,7 @@ variables(init::ConstantSoilTemperature) = (
 )
 
 function initialize!(state, model::AbstractModel, init::ConstantSoilTemperature)
-    set!(state.temperature, kernel(compute_constant_temperature, init), state)
+    set!(state.temperature, kernel(compute_constant_temperature, init), get_fields(state, init))
     return nothing
 end
 
@@ -135,7 +135,7 @@ variables(init::QuasiThermalSteadyState) = (
 )
 
 function initialize!(state, model::AbstractModel, init::QuasiThermalSteadyState)
-    set!(state.temperature, kernel(compute_quasi_steady_state_temperature, init), state)
+    set!(state.temperature, kernel(compute_quasi_steady_state_temperature, init), get_fields(state, init))
     return nothing
 end
 
@@ -210,7 +210,7 @@ variables(init::ConstantSaturation) = (
 )
 
 function initialize!(state, model::AbstractModel, init::ConstantSaturation)
-    set!(state.saturation_water_ice, kernel(compute_constant_saturation, init), state)
+    set!(state.saturation_water_ice, kernel(compute_constant_saturation, init), get_fields(state, init))
     return nothing
 end
 
@@ -228,7 +228,7 @@ Base type for marker types that indicate which physical quantity a given value o
 (and ice) content represents. Used by [`SaturationWaterTable`](@ref) to accept initial values
 either as saturation or as volumetric water content.
 """
-abstract type AbstractWaterContentMeasure end
+abstract type AbstractWaterContent end
 
 """
     $TYPEDEF
@@ -239,7 +239,7 @@ and ice (-), i.e. the volumetric water and ice content divided by the porosity.
 Properties:
 $TYPEDFIELDS
 """
-@parameterized struct Saturation{T} <: AbstractWaterContentMeasure
+@parameterized struct Saturation{T} <: AbstractWaterContent
     "Saturation of the pore space with water and ice (-)"
     @param value::T bounds = UnitInterval
 end
@@ -254,7 +254,7 @@ by dividing by the porosity of the soil.
 Properties:
 $TYPEDFIELDS
 """
-@parameterized struct VolumetricWaterContent{T} <: AbstractWaterContentMeasure
+@parameterized struct VolumetricWaterContent{T} <: AbstractWaterContent
     "Volumetric water and ice content (m³/m³)"
     @param value::T bounds = UnitInterval
 end
@@ -267,9 +267,10 @@ given depth and the water content in all layers in the vadose (unsaturated) zone
 
 The vadose zone water content is given as a [`Saturation`](@ref) or as a
 [`VolumetricWaterContent`](@ref); plain (unwrapped) values are interpreted as saturation. Volumetric water content is converted to saturation by dividing by the soil
-porosity at each grid cell (and capped at full saturation). It is declared as the input variable
-`vadose_zone_saturation` (-) or `vadose_zone_water_content` (m³/m³), respectively, and the
-water table depth as `water_table_depth` (m), with defaults taken from the corresponding properties.
+porosity at each grid cell (and capped at full saturation). The wrapped value is declared as the input
+variable `vadose_zone_saturation`, which therefore holds either the saturation (-) or the volumetric
+water content (m³/m³) as indicated by the marker type, and the water table depth as
+`water_table_depth` (m), with defaults taken from the corresponding properties.
 See [`QuasiThermalSteadyState`](@ref) for the accepted forms of the defaults.
 
 ```jldoctest
@@ -297,27 +298,18 @@ end
 ConstructionBase.constructorof(::Type{<:SaturationWaterTable{NF}}) where {NF} = (sat, depth) -> SaturationWaterTable{NF, typeof(sat), typeof(depth)}(sat, depth)
 
 variables(init::SaturationWaterTable) = (
-    vadose_zone_variable(init.vadose_zone_saturation),
+    input(:vadose_zone_saturation, Ground(XY()), default = init.vadose_zone_saturation, bounds = UnitInterval, desc = "Initial saturation or volumetric water content in the vadose zone above the water table"),
     input(:water_table_depth, Ground(XY()), default = init.water_table_depth, units = u"m", bounds = Nonnegative, desc = "Initial depth of the water table below the surface"),
 )
 
-# plain values are interpreted as saturation
-vadose_zone_variable(saturation) =
-    input(:vadose_zone_saturation, Ground(XY()), default = saturation, bounds = UnitInterval, desc = "Initial saturation in the vadose zone above the water table")
-
-vadose_zone_variable(measure::Saturation) =
-    input(:vadose_zone_saturation, Ground(XY()), default = measure.value, bounds = UnitInterval, desc = "Initial saturation in the vadose zone above the water table")
-
-vadose_zone_variable(measure::VolumetricWaterContent) =
-    input(:vadose_zone_water_content, Ground(XY()), default = measure.value, units = u"m^3/m^3", bounds = UnitInterval, desc = "Initial volumetric water and ice content in the vadose zone above the water table")
-
-# Additional kernel arguments needed to convert the vadose zone water content to saturation
-water_content_args(::AbstractModel, saturation) = ()
-water_content_args(model::AbstractModel, ::VolumetricWaterContent) = (get_stratigraphy(model.soil), get_biogeochemistry(model.soil))
+# Water content measures are set as their wrapped value, e.g. as defaults of input variables
+Oceananigans.Fields.set!(field::Field, measure::AbstractWaterContent) = set!(field, measure.value)
 
 function initialize!(state, model::AbstractModel, init::SaturationWaterTable)
-    args = water_content_args(model, init.vadose_zone_saturation)
-    set!(state.saturation_water_ice, kernel(compute_water_table_saturation, init, args...), state)
+    # the additional kernel arguments (if any) are processes whose fields are needed, e.g. for the porosity
+    args = isa(init.vadose_zone_saturation, VolumetricWaterContent) ?  (get_stratigraphy(model.soil), get_biogeochemistry(model.soil)) : ()
+    fields = get_fields(state, init, args...)
+    set!(state.saturation_water_ice, kernel(compute_water_table_saturation, init, args...), fields)
     return nothing
 end
 
@@ -337,17 +329,22 @@ end
 """
     $TYPEDSIGNATURES
 
-Saturation in the vadose zone at cell `(i, j, k)`. For a [`Saturation`](@ref) or a plain value it is
-read directly from the `vadose_zone_saturation` field; for a [`VolumetricWaterContent`](@ref) it is the
-`vadose_zone_water_content` divided by the soil porosity, `θ / ϕ`, capped at full saturation.
+Saturation in the vadose zone at cell `(i, j, k)` from the `vadose_zone_saturation` input field.
+For a [`Saturation`](@ref) or a plain value, the field holds the saturation and is returned directly;
+for a [`VolumetricWaterContent`](@ref), it holds the volumetric water content `θ`, which is divided by
+the soil porosity `ϕ` and capped at full saturation.
 """
 @propagate_inbounds compute_vadose_zone_saturation(i, j, k, grid, fields, saturation) = fields.vadose_zone_saturation[i, j, 1]
 
+@propagate_inbounds compute_vadose_zone_saturation(i, j, k, grid, fields, ::Saturation) = fields.vadose_zone_saturation[i, j, 1]
+
 @propagate_inbounds function compute_vadose_zone_saturation(
-        i, j, k, grid, fields, ::VolumetricWaterContent,
-        strat::AbstractStratigraphy, bgc::AbstractSoilBiogeochemistry
+        i, j, k, grid, fields,
+        ::VolumetricWaterContent,
+        strat::AbstractStratigraphy,
+        bgc::AbstractSoilBiogeochemistry
     )
-    θ = fields.vadose_zone_water_content[i, j, 1]
+    θ = fields.vadose_zone_saturation[i, j, 1]
     ϕ = porosity(i, j, k, grid, fields, strat, bgc)
     return min(θ / ϕ, one(θ))
 end

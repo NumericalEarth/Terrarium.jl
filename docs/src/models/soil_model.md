@@ -84,7 +84,7 @@ The parameters of the energy and hydrology initializers are declared as `input` 
 | [`ConstantSoilTemperature`](@ref) | `initial_surface_temperature` (°C) |
 | [`QuasiThermalSteadyState`](@ref) | `initial_surface_temperature` (°C), `geothermal_heat_flux` (W/m²) |
 | [`ConstantSaturation`](@ref) | `initial_saturation` |
-| [`SaturationWaterTable`](@ref) | `vadose_zone_saturation` or `vadose_zone_water_content` (m³/m³), `water_table_depth` (m) |
+| [`SaturationWaterTable`](@ref) | `vadose_zone_saturation` (saturation or volumetric water content, see below), `water_table_depth` (m) |
 
 Each value may therefore be a number, a function of the horizontal node coordinates, an array, a `Field`, or an [`AbstractFieldInitializer`](@ref).
 These defaults are re-applied at every initialization, so changes to their parameters take effect, and an [`InputSource`](@ref) with the same name and units always takes precedence over them.

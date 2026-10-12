@@ -47,6 +47,8 @@ Base revision: `ce9ae606ae39063f52bb0ef23a3328a8b1904055` (tip of `main`, branch
   `SaturationWaterTable` accepts its vadose zone water content either as saturation or as volumetric water content, by wrapping the value of `vadose_zone_saturation` in a marker type, `Saturation` (the default for plain values) or `VolumetricWaterContent`.
   The input variable is named after the marker (`vadose_zone_saturation` or `vadose_zone_water_content`), and volumetric water content is converted to saturation in the kernel by dividing by the soil porosity of the model's stratigraphy, capped at full saturation.
   The markers are `@parameterized`, so a numeric value remains a model parameter.
+- **Rev 9 (2026-10-12):** Requested directly by the author.
+  Plain values are no longer wrapped in `Saturation` by the constructor; `SaturationWaterTable` stores the value as given, and the variable declaration and the kernel function dispatch directly on `Saturation`, `VolumetricWaterContent`, or a plain value (interpreted as saturation).
 
 ## Problem description
 
