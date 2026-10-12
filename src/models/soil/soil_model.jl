@@ -25,8 +25,8 @@ $(TYPEDFIELDS)
     "State variable initializer"
     @component initializer::Initializer = DefaultInitializer(eltype(grid))
 
-    "Time stepper: a single `AbstractTimeStepper` (e.g. `ForwardEuler`, `Heun`) or an `IMEX` (default)"
-    @component timestepper::Timestepper = default_timestepper(SoilModel, eltype(grid))
+    "Time stepper: a single `AbstractTimeStepper` (e.g. `ForwardEuler`, `Heun`) or an `IMEX`; defaults to `IMEX` for Richards flow and `ForwardEuler` otherwise"
+    @component timestepper::Timestepper = default_timestepper(SoilModel, soil)
 end
 
 # Model interface methods
@@ -68,8 +68,13 @@ end
 
 # Time stepping
 
-# IMEX by default: implicit soil heat conduction (and Richards flow), explicit everything else, Δt = 1 h.
-default_timestepper(::Type{<:SoilModel}, ::Type{NF}) where {NF} = IMEX(ForwardEuler(NF; Δt = 3600), BackwardEuler(NF))
+# The default timestepper follows the default class of the soil water flow: IMEX (implicit heat conduction and
+# Richards flow, Δt = 1 h) if it is implicit, and ForwardEuler otherwise (e.g. `NoFlow`), which also supports
+# value boundary conditions.
+default_timestepper(::Type{<:SoilModel}, soil::AbstractSoil{NF}) where {NF} =
+    default_timestepper(SoilModel, NF, default_timestepping(get_hydrology(soil)))
+default_timestepper(::Type{<:SoilModel}, ::Type{NF}, ::Explicit) where {NF} = ForwardEuler(NF)
+default_timestepper(::Type{<:SoilModel}, ::Type{NF}, ::Implicit) where {NF} = IMEX(ForwardEuler(NF; Δt = 3600), BackwardEuler(NF))
 
 # Under an IMEX timestepper, soil heat conduction is implicit by default, and so is soil water flow if it
 # follows the Richards equation (see `default_timestepping`).

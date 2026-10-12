@@ -340,6 +340,7 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 > The cause is the explicit Darcy meltwater outflow: near melt-out, a 900 s step drains more mass than the pack holds as liquid (SWE 20.5 → 3.7 mm in one hour against 19.5 → 12.1 mm in the reference), and since meltwater leaves with zero enthalpy, the drained ice leaves its latent deficit in the remaining pack.
 > The wizard does not catch this: its snow diffusion timescale is about 2000 s at the conduction floor (2.5 cm), so it kept Δt = 900 s throughout, and it has no meltwater outflow timescale.
 > At 10 min all snow sites track the reference: minimum snow temperatures within 2.4 K, final SWE within 0.3 mm, hourly RMS snow temperature 0.02–0.63 K and ground heat flux 0.2–5.4 W/m².
+> Follow-up (2026-10-12, reviewer request): the default of `SoilModel` follows `default_timestepping` of its hydrology, `IMEX` (Δt = 1 h) for Richards flow and `ForwardEuler(NF)` otherwise, so that the default `NoFlow` soil model keeps supporting value boundary conditions such as `PrescribedSurfaceTemperature`.
 
 > **Revision 20, 2026-10-12. Implicit snow meltwater drainage (pending approval).**
 > Reviewer request: integrate the snow meltwater outflow implicitly under IMEX, so that a step can never drain more water than the pack holds as liquid.

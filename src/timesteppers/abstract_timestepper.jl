@@ -89,8 +89,9 @@ function default_dt end
     default_timestepper(::Type{<:AbstractModel}, ::Type{NF})
 
 Default `timestepper` for models: a single explicit [`ForwardEuler`](@ref) time stepper. Models may
-specialize the two-argument method on their type; `SoilModel` and `LandModel` default to
-`IMEX(ForwardEuler(NF; Δt = 1800), BackwardEuler(NF))`.
+specialize it on their type: `LandModel` defaults to `IMEX(ForwardEuler(NF; Δt = 900), BackwardEuler(NF))`,
+and `SoilModel` to `IMEX(ForwardEuler(NF; Δt = 3600), BackwardEuler(NF))` if its soil water flow follows the
+Richards equation and to `ForwardEuler(NF)` otherwise.
 """
 default_timestepper(::Type{NF}) where {NF} = ForwardEuler(NF)
 default_timestepper(::Type{<:AbstractModel}, ::Type{NF}) where {NF} = default_timestepper(NF)

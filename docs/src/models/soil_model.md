@@ -26,7 +26,7 @@ integrator = initialize(model)
 SoilModel
 ```
 
-By default, `SoilModel` is integrated with `IMEX(ForwardEuler(NF; Δt = 3600), BackwardEuler(NF))`, which treats soil heat conduction (and Richards-equation water flow) implicitly with a 1-hour time step. Value boundary conditions such as [`PrescribedSurfaceTemperature`](@ref) require an explicit timestepper, e.g. `SoilModel(grid; timestepper = ForwardEuler(NF))`. See [Time stepping](@ref) for details.
+The default timestepper of `SoilModel` depends on the soil hydrology. Without water flow (the default `NoFlow`), it is `ForwardEuler(NF)`. With Richards-equation water flow, it is `IMEX(ForwardEuler(NF; Δt = 3600), BackwardEuler(NF))`, which treats soil heat conduction and water flow implicitly with a 1-hour time step. Value boundary conditions such as [`PrescribedSurfaceTemperature`](@ref) require an explicit timestepper, e.g. `SoilModel(grid; soil, timestepper = ForwardEuler(NF))`. See [Time stepping](@ref) for details.
 
 ```@example soilmodel
 variables(model)

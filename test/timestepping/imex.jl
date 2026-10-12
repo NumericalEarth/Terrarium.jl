@@ -321,13 +321,14 @@ end
 
 @testset "Default timesteppers" begin
     grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 10))
-    # soil and land models default to IMEX with the step taken from the explicit partner
-    for (model, Δt) in ((SoilModel(grid), 3600), (LandModel(grid), 900))
+    # Richards soil and land models default to IMEX with the step taken from the explicit partner
+    richards_soil = SoilEnergyWaterCarbon(Float64; hydrology = SoilHydrology(Float64, RichardsEq()))
+    for (model, Δt) in ((SoilModel(grid; soil = richards_soil), 3600), (LandModel(grid), 900))
         @test model.timestepper isa IMEX{Float64, ForwardEuler{Float64}, <:BackwardEuler{Float64}}
         @test Terrarium.default_dt(model.timestepper) == Δt
     end
-    # all other models keep forward Euler
-    for model in (SnowModel(grid), VegetationModel(grid), SurfaceEnergyModel(grid))
+    # all other models, including a soil model without water flow (the default `NoFlow`), keep forward Euler
+    for model in (SoilModel(grid), SnowModel(grid), VegetationModel(grid), SurfaceEnergyModel(grid))
         @test model.timestepper isa ForwardEuler{Float64}
     end
 end
