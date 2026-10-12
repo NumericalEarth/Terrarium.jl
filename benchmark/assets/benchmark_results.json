@@ -701,12 +701,12 @@
     },
     "gpu-nvidia": {
         "meta": {
-            "machine_info": "```julia\njulia> versioninfo()\nJulia Version 1.12.2\nCommit ca9b6662be4 (2025-11-20 16:25 UTC)\nBuild Info:\n  Official https://julialang.org release\nPlatform Info:\n  OS: Linux (x86_64-linux-gnu)\n  CPU: 128 × AMD EPYC 9554 64-Core Processor\n  WORD_SIZE: 64\n  LLVM: libLLVM-18.1.7 (ORCJIT, znver4)\n  GC: Built with stock GC\nThreads: 1 default, 1 interactive, 1 GC (on 128 virtual cores)\nEnvironment:\n  LD_LIBRARY_PATH = /usr/local/lib:/usr/local/lib:\n```\n\n```julia\njulia> CUDA.versioninfo()\nCUDA toolchain: \n- runtime 13.3.0, artifact installation\n- driver 580.126.9 for 13.3\n- compiler 13.3.33, artifact installation\n\nCUDA libraries: \n- cuBLAS: 13.6.0\n- cuSPARSE: 12.8.2\n- cuSOLVER: 12.2.6\n- cuFFT: 12.3.0\n- cuRAND: 10.4.3\n- CUPTI: 2026.2.1 (API 13.3.1)\n- NVML: 13.0.0+580.126.9\n\nJulia packages: \n- CUDACore: 6.2.1\n- GPUArrays: 11.5.9\n- GPUCompiler: 1.23.0\n- KernelAbstractions: 0.9.42\n- CUDA_Driver_jll: 13.3.0+1\n- CUDA_Compiler_jll: 0.4.4+1\n- CUDA_Runtime_jll: 0.23.0+1\n- NVPTX_LLVM_Backend_jll: 22.1.7+1\n\nToolchain:\n- Julia: 1.12.2\n- LLVM: 18.1.7\n\n1 device:\n  0: NVIDIA H100 80GB HBM3 (sm_90, 77.995 GiB / 79.647 GiB available)\n     compiles to sm_90a / PTX 9.3 (LLVM: sm_90a / PTX 9.0)\n```\n",
+            "machine_info": "```julia\njulia> versioninfo()\nJulia Version 1.12.2\nCommit ca9b6662be4 (2025-11-20 16:25 UTC)\nBuild Info:\n  Official https://julialang.org release\nPlatform Info:\n  OS: Linux (x86_64-linux-gnu)\n  CPU: 128 × AMD EPYC 9554 64-Core Processor\n  WORD_SIZE: 64\n  LLVM: libLLVM-18.1.7 (ORCJIT, znver4)\n  GC: Built with stock GC\nThreads: 1 default, 1 interactive, 1 GC (on 128 virtual cores)\nEnvironment:\n  LD_LIBRARY_PATH = /usr/local/lib:/usr/local/lib:\n```\n\n```julia\njulia> CUDA.versioninfo()\nCUDA toolchain: \n- runtime 13.3.0, artifact installation\n- driver 580.126.9 for 13.3\n- compiler 13.3.33, artifact installation\n\nCUDA libraries: \n- cuBLAS: 13.6.0\n- cuSPARSE: 12.8.2\n- cuSOLVER: 12.2.6\n- cuFFT: 12.3.0\n- cuRAND: 10.4.3\n- CUPTI: 2026.2.1 (API 13.3.1)\n- NVML: 13.0.0+580.126.9\n\nJulia packages: \n- CUDACore: 6.2.2\n- GPUArrays: 11.5.16\n- GPUCompiler: 1.23.0\n- KernelAbstractions: 0.9.44\n- CUDA_Driver_jll: 13.3.1+0\n- CUDA_Compiler_jll: 0.4.4+1\n- CUDA_Runtime_jll: 0.23.0+1\n- NVPTX_LLVM_Backend_jll: 22.1.7+1\n\nToolchain:\n- Julia: 1.12.2\n- LLVM: 18.1.7\n\n1 device:\n  0: NVIDIA H100 80GB HBM3 (sm_90, 77.964 GiB / 79.647 GiB available)\n     compiles to sm_90a / PTX 9.3 (LLVM: sm_90a / PTX 9.0)\n```\n",
             "arch_type": "GPU{CUDABackend}",
             "threads": 1,
-            "terrarium_version": "0.1.4",
+            "terrarium_version": "0.1.9-DEV",
             "mode": "default",
-            "timestamp": "Sun, 09 Aug 2026 20:02:07",
+            "timestamp": "Fri, 09 Oct 2026 11:37:19",
             "timestep_multiplier": 1
         },
         "overview": {
@@ -723,26 +723,26 @@
                     30
                 ],
                 "sypd": [
-                    316.2729216508662,
-                    315.8712419614757,
-                    242.4557880838317,
-                    188.86882802129767,
-                    141.83768438146097,
-                    85.47670516350941,
-                    43.847703152362485,
-                    38.24414603057739,
-                    38.113932577453085
+                    816.705086194383,
+                    778.7651877543989,
+                    336.62707540056834,
+                    455.57021290254,
+                    106.91580776092162,
+                    49.330458097520655,
+                    22.12026072179601,
+                    18.527001868887943,
+                    17.864607304865693
                 ],
                 "throughput": [
-                    0.7393195816510648,
-                    2.9535224608365818,
-                    9.06823440359624,
-                    15.893991805773076,
-                    21.219825344646598,
-                    28.772689822591623,
-                    33.20947864802387,
-                    51.494121078380765,
-                    115.46728691579841
+                    1.9091298094879896,
+                    7.281766011578731,
+                    12.590391223301896,
+                    38.337873468515184,
+                    15.995289102203545,
+                    16.605342554222055,
+                    16.753496154099597,
+                    24.945822471578374,
+                    54.12135662246685
                 ],
                 "ncolumns": [
                     128,
@@ -789,15 +789,15 @@
                     "land"
                 ],
                 "ms_per_step": [
-                    5.193964958190918,
-                    5.2005698970202845,
-                    6.77529905663162,
-                    8.697626228156727,
-                    11.581622186254283,
-                    19.218224066275138,
-                    37.46400276819865,
-                    42.9532527923584,
-                    43.09999942779541
+                    2.011387586593628,
+                    2.109378408421264,
+                    4.8799119034751515,
+                    3.6058338007069954,
+                    15.364523793830246,
+                    33.30012604042336,
+                    74.26270842552185,
+                    88.66574764251709,
+                    91.95334911346436
                 ],
                 "nlat_half": [
                     4,
@@ -835,26 +835,26 @@
                     30
                 ],
                 "sypd": [
-                    12048.461387321173,
-                    11593.086423341912,
-                    6419.349359951435,
-                    18446.852990399206,
-                    3466.5945240088117,
-                    1715.4622621689211,
-                    391.82109966648665,
-                    643.6059638146154,
-                    595.8993898085859
+                    17108.537237547735,
+                    17172.749349809354,
+                    6057.406755635646,
+                    41153.17171905111,
+                    1728.9158104041019,
+                    781.4775544109027,
+                    348.60398842491537,
+                    290.09113645483046,
+                    284.72539417049956
                 ],
                 "throughput": [
-                    28.164483339001976,
-                    108.3999952928162,
-                    240.09393702115963,
-                    1552.3690878128587,
-                    518.6247269966719,
-                    577.4493001026341,
-                    296.7584048360428,
-                    866.5881413835139,
-                    1805.294840047049
+                    39.99291664649159,
+                    160.5720755204574,
+                    226.55670451158215,
+                    3463.1875515763395,
+                    258.65687029764024,
+                    263.0565980914934,
+                    264.02652540283464,
+                    390.59541537224356,
+                    862.5840095111957
                 ],
                 "ncolumns": [
                     128,
@@ -901,15 +901,15 @@
                     "soil_heat"
                 ],
                 "ms_per_step": [
-                    0.13634192943572998,
-                    0.14169742312726766,
-                    0.2558998397139252,
-                    0.08905098734912785,
-                    0.4738686514682457,
-                    0.9575905623259368,
-                    4.1925013065338135,
-                    2.552354335784912,
-                    2.7566909790039062
+                    0.09601700305938721,
+                    0.09565797757931507,
+                    0.27119038534946127,
+                    0.039916983397874965,
+                    0.9501390769833424,
+                    2.102057139078776,
+                    4.71225380897522,
+                    5.662739276885986,
+                    5.769455432891846
                 ],
                 "nlat_half": [
                     4,
@@ -947,26 +947,26 @@
                     30
                 ],
                 "sypd": [
-                    1434.882887198509,
-                    1429.1387314844703,
-                    984.3426071851419,
-                    602.4323490570055,
-                    426.42016398488107,
-                    89.23625512724638,
-                    114.70243485990488,
-                    94.34606527411317,
-                    98.6213406970711
+                    1139.4911265533535,
+                    1527.1041094743475,
+                    611.7103500347893,
+                    2472.5904467868277,
+                    178.79045129770938,
+                    84.32356670898712,
+                    38.08790322572292,
+                    31.818058245856534,
+                    32.28137584989075
                 ],
                 "throughput": [
-                    3.3541822371152348,
-                    13.363018794872392,
-                    36.81598845689581,
-                    50.69685092960361,
-                    63.795185621187706,
-                    30.038208477904963,
-                    86.87360540003841,
-                    127.03297661842576,
-                    298.7762708334616
+                    2.663674457431119,
+                    14.27903426522894,
+                    22.87894582786117,
+                    208.07738742271997,
+                    26.748195773025632,
+                    28.38452681360567,
+                    28.84710755606577,
+                    42.8416663423762,
+                    97.79738366596919
                 ],
                 "ncolumns": [
                     128,
@@ -1013,15 +1013,15 @@
                     "land_no_vegetation"
                 ],
                 "ms_per_step": [
-                    1.1448394060134888,
-                    1.1494408737862347,
-                    1.6688401581811123,
-                    2.726796585293959,
-                    3.8523283161100794,
-                    18.40855457164623,
-                    14.32149608929952,
-                    17.41154193878174,
-                    16.656744480133057
+                    1.4416176080703735,
+                    1.0757030002654544,
+                    2.685438414089015,
+                    0.6643682031587521,
+                    9.187909423327836,
+                    19.48103639814589,
+                    43.12945405642191,
+                    51.628243923187256,
+                    50.887250900268555
                 ],
                 "nlat_half": [
                     4,
@@ -1047,16 +1047,16 @@
                 ]
             }
         },
-        "markdown": "\n### Model configurations, default resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 3.75° | 4608 | 600 | 217 | 156 | 10.5 | 13.1 | 6.86 MiB |\n| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 676 | 2.43 | 56.9 | 5.76 MiB |\n| soil_heat | 3.75° | 4608 | 600 | 217 | 3683 | 0.446 | 310 | 3.85 MiB |\n\n### Land model, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 22.50° | 128 | 600 | 2000 | 316 | 5.19 | 0.739 | 204.14 KiB |\n| land | 11.25° | 512 | 600 | 1953 | 316 | 5.2 | 2.95 | 789.14 KiB |\n| land | 5.62° | 2048 | 600 | 488 | 242 | 6.78 | 9.07 | 3.06 MiB |\n| land | 3.75° | 4608 | 600 | 217 | 189 | 8.7 | 15.9 | 6.86 MiB |\n| land | 2.81° | 8192 | 600 | 122 | 142 | 11.6 | 21.2 | 12.20 MiB |\n| land | 1.88° | 18432 | 600 | 54 | 85 | 19.2 | 28.8 | 27.43 MiB |\n| land | 1.25° | 41472 | 600 | 24 | 44 | 37.5 | 33.2 | 61.71 MiB |\n| land | 0.94° | 73728 | 600 | 20 | 38 | 43 | 51.5 | 109.70 MiB |\n| land | 0.62° | 165888 | 600 | 20 | 38 | 43.1 | 115 | 246.81 MiB |\n\n### Land model without vegetation, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land_no_vegetation | 22.50° | 128 | 600 | 2000 | 1435 | 1.14 | 3.35 | 171.16 KiB |\n| land_no_vegetation | 11.25° | 512 | 600 | 1953 | 1429 | 1.15 | 13.4 | 661.66 KiB |\n| land_no_vegetation | 5.62° | 2048 | 600 | 488 | 984 | 1.67 | 36.8 | 2.56 MiB |\n| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 602 | 2.73 | 50.7 | 5.76 MiB |\n| land_no_vegetation | 2.81° | 8192 | 600 | 122 | 426 | 3.85 | 63.8 | 10.23 MiB |\n| land_no_vegetation | 1.88° | 18432 | 600 | 54 | 89 | 18.4 | 30 | 23.00 MiB |\n| land_no_vegetation | 1.25° | 41472 | 600 | 24 | 115 | 14.3 | 86.9 | 51.74 MiB |\n| land_no_vegetation | 0.94° | 73728 | 600 | 20 | 94 | 17.4 | 127 | 91.98 MiB |\n| land_no_vegetation | 0.62° | 165888 | 600 | 20 | 99 | 16.7 | 299 | 206.94 MiB |\n\n### Soil heat conduction, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| soil_heat | 22.50° | 128 | 600 | 2000 | 12048 | 0.136 | 28.2 | 114.63 KiB |\n| soil_heat | 11.25° | 512 | 600 | 1953 | 11593 | 0.142 | 108 | 443.13 KiB |\n| soil_heat | 5.62° | 2048 | 600 | 488 | 6419 | 0.256 | 240 | 1.72 MiB |\n| soil_heat | 3.75° | 4608 | 600 | 217 | 18447 | 0.0891 | 1550 | 3.85 MiB |\n| soil_heat | 2.81° | 8192 | 600 | 122 | 3467 | 0.474 | 519 | 6.85 MiB |\n| soil_heat | 1.88° | 18432 | 600 | 54 | 1715 | 0.958 | 577 | 15.40 MiB |\n| soil_heat | 1.25° | 41472 | 600 | 24 | 392 | 4.19 | 297 | 34.65 MiB |\n| soil_heat | 0.94° | 73728 | 600 | 20 | 644 | 2.55 | 867 | 61.60 MiB |\n| soil_heat | 0.62° | 165888 | 600 | 20 | 596 | 2.76 | 1810 | 138.59 MiB |\n\n### Number of soil layers\n\n| Configuration | Res | Columns | L | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 3.75° | 4608 | 10 | 600 | 651 | 268 | 6.13 | 7.52 | 3.70 MiB |\n| land | 3.75° | 4608 | 20 | 600 | 326 | 222 | 7.41 | 12.4 | 5.28 MiB |\n| land | 3.75° | 4608 | 30 | 600 | 217 | 190 | 8.64 | 16 | 6.86 MiB |\n| land | 3.75° | 4608 | 60 | 600 | 109 | 79 | 20.8 | 13.3 | 11.62 MiB |\n| land | 3.75° | 4608 | 100 | 600 | 65 | 96 | 17.2 | 26.8 | 17.95 MiB |\n\n### Number format, Float32 vs Float64\n\n| Configuration | NF | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | Float32 | 3.75° | 4608 | 600 | 217 | 169 | 9.7 | 14.2 | 6.86 MiB |\n| land | Float64 | 3.75° | 4608 | 600 | 217 | 169 | 9.7 | 14.3 | 13.73 MiB |\n\n### Time stepper\n\n| Configuration | Variant | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | ForwardEuler | 3.75° | 4608 | 600 | 217 | 302 | 5.43 | 25.4 | 6.86 MiB |\n| land | Heun | 3.75° | 4608 | 600 | 217 | 97 | 17 | 8.12 | 6.86 MiB |\n"
+        "markdown": "\n### Model configurations, default resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 3.75° | 4608 | 600 | 217 | 148 | 11.1 | 12.4 | 6.86 MiB |\n| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 225 | 7.31 | 18.9 | 5.76 MiB |\n| soil_heat | 3.75° | 4608 | 600 | 217 | 3052 | 0.538 | 257 | 3.85 MiB |\n\n### Land model, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 22.50° | 128 | 600 | 2000 | 817 | 2.01 | 1.91 | 204.14 KiB |\n| land | 11.25° | 512 | 600 | 1953 | 779 | 2.11 | 7.28 | 789.14 KiB |\n| land | 5.62° | 2048 | 600 | 488 | 337 | 4.88 | 12.6 | 3.06 MiB |\n| land | 3.75° | 4608 | 600 | 217 | 456 | 3.61 | 38.3 | 6.86 MiB |\n| land | 2.81° | 8192 | 600 | 122 | 107 | 15.4 | 16 | 12.20 MiB |\n| land | 1.88° | 18432 | 600 | 54 | 49 | 33.3 | 16.6 | 27.43 MiB |\n| land | 1.25° | 41472 | 600 | 24 | 22 | 74.3 | 16.8 | 61.71 MiB |\n| land | 0.94° | 73728 | 600 | 20 | 19 | 88.7 | 24.9 | 109.70 MiB |\n| land | 0.62° | 165888 | 600 | 20 | 18 | 92 | 54.1 | 246.81 MiB |\n\n### Land model without vegetation, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land_no_vegetation | 22.50° | 128 | 600 | 2000 | 1139 | 1.44 | 2.66 | 171.16 KiB |\n| land_no_vegetation | 11.25° | 512 | 600 | 1953 | 1527 | 1.08 | 14.3 | 661.66 KiB |\n| land_no_vegetation | 5.62° | 2048 | 600 | 488 | 612 | 2.69 | 22.9 | 2.56 MiB |\n| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 2473 | 0.664 | 208 | 5.76 MiB |\n| land_no_vegetation | 2.81° | 8192 | 600 | 122 | 179 | 9.19 | 26.7 | 10.23 MiB |\n| land_no_vegetation | 1.88° | 18432 | 600 | 54 | 84 | 19.5 | 28.4 | 23.00 MiB |\n| land_no_vegetation | 1.25° | 41472 | 600 | 24 | 38 | 43.1 | 28.8 | 51.74 MiB |\n| land_no_vegetation | 0.94° | 73728 | 600 | 20 | 32 | 51.6 | 42.8 | 91.98 MiB |\n| land_no_vegetation | 0.62° | 165888 | 600 | 20 | 32 | 50.9 | 97.8 | 206.94 MiB |\n\n### Soil heat conduction, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| soil_heat | 22.50° | 128 | 600 | 2000 | 17109 | 0.096 | 40 | 114.63 KiB |\n| soil_heat | 11.25° | 512 | 600 | 1953 | 17173 | 0.0957 | 161 | 443.13 KiB |\n| soil_heat | 5.62° | 2048 | 600 | 488 | 6057 | 0.271 | 227 | 1.72 MiB |\n| soil_heat | 3.75° | 4608 | 600 | 217 | 41153 | 0.0399 | 3460 | 3.85 MiB |\n| soil_heat | 2.81° | 8192 | 600 | 122 | 1729 | 0.95 | 259 | 6.85 MiB |\n| soil_heat | 1.88° | 18432 | 600 | 54 | 781 | 2.1 | 263 | 15.40 MiB |\n| soil_heat | 1.25° | 41472 | 600 | 24 | 349 | 4.71 | 264 | 34.65 MiB |\n| soil_heat | 0.94° | 73728 | 600 | 20 | 290 | 5.66 | 391 | 61.60 MiB |\n| soil_heat | 0.62° | 165888 | 600 | 20 | 285 | 5.77 | 863 | 138.59 MiB |\n\n### Number of soil layers\n\n| Configuration | Res | Columns | L | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 3.75° | 4608 | 10 | 600 | 651 | 423 | 3.88 | 11.9 | 3.70 MiB |\n| land | 3.75° | 4608 | 20 | 600 | 326 | 172 | 9.57 | 9.63 | 5.28 MiB |\n| land | 3.75° | 4608 | 30 | 600 | 217 | 499 | 3.29 | 42 | 6.86 MiB |\n| land | 3.75° | 4608 | 60 | 600 | 109 | 88 | 18.6 | 14.9 | 11.62 MiB |\n| land | 3.75° | 4608 | 100 | 600 | 65 | 56 | 29.3 | 15.7 | 17.95 MiB |\n\n### Number format, Float32 vs Float64\n\n| Configuration | NF | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | Float32 | 3.75° | 4608 | 600 | 217 | 483 | 3.4 | 40.7 | 6.86 MiB |\n| land | Float64 | 3.75° | 4608 | 600 | 217 | 82 | 20 | 6.93 | 13.73 MiB |\n\n### Time stepper\n\n| Configuration | Variant | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | ForwardEuler | 3.75° | 4608 | 600 | 217 | 492 | 3.34 | 41.4 | 6.86 MiB |\n| land | Heun | 3.75° | 4608 | 600 | 217 | 53 | 30.9 | 4.47 | 6.86 MiB |\n"
     },
     "reactant-cpu-x86": {
         "meta": {
             "machine_info": "```julia\njulia> versioninfo()\nJulia Version 1.12.2\nCommit ca9b6662be4 (2025-11-20 16:25 UTC)\nBuild Info:\n  Official https://julialang.org release\nPlatform Info:\n  OS: Linux (x86_64-linux-gnu)\n  CPU: 128 × AMD EPYC 9554 64-Core Processor\n  WORD_SIZE: 64\n  LLVM: libLLVM-18.1.7 (ORCJIT, znver4)\n  GC: Built with stock GC\nThreads: 1 default, 1 interactive, 1 GC (on 128 virtual cores)\nEnvironment:\n  LD_LIBRARY_PATH = /usr/local/lib:/usr/local/lib:\n```\n\nReactant backend: `cpu` (selected with `Reactant.set_default_backend(\"cpu\")`).\n",
             "arch_type": "ReactantState",
             "threads": 1,
-            "terrarium_version": "0.1.4",
+            "terrarium_version": "0.1.9-DEV",
             "mode": "default",
-            "timestamp": "Sun, 09 Aug 2026 20:12:54",
+            "timestamp": "Mon, 12 Oct 2026 19:39:21",
             "timestep_multiplier": 1
         },
         "overview": {
@@ -1073,26 +1073,26 @@
                     30
                 ],
                 "sypd": [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
+                    16760.89570633954,
+                    4271.744931124528,
+                    1832.9754754005069,
+                    821.96298903719,
+                    421.7308097764525,
+                    193.76576425363854,
+                    83.94325147511664,
+                    52.22894764559647,
+                    23.534278291994664
                 ],
                 "throughput": [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
+                    39.18026980313931,
+                    39.94252380398679,
+                    68.5562155407396,
+                    69.17114459424008,
+                    63.09362821973986,
+                    65.22434647477998,
+                    63.57714126602738,
+                    70.32406349741547,
+                    71.29779270023528
                 ],
                 "ncolumns": [
                     128,
@@ -1106,715 +1106,15 @@
                     165888
                 ],
                 "compile_time": [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                ],
-                "status": [
-                    "failed: MethodError",
-                    "failed: MethodError",
-                    "failed: MethodError",
-                    "failed: MethodError",
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException"
-                ],
-                "config": [
-                    "land",
-                    "land",
-                    "land",
-                    "land",
-                    "land",
-                    "land",
-                    "land",
-                    "land",
-                    "land"
-                ],
-                "ms_per_step": [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                ],
-                "nlat_half": [
-                    4,
-                    8,
-                    16,
-                    24,
-                    32,
-                    48,
-                    72,
-                    96,
-                    144
-                ],
-                "memory": [
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0
-                ]
-            },
-            "bench202": {
-                "nz": [
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30
-                ],
-                "sypd": [
-                    84969.2262740437,
-                    11925.06804826277,
-                    6839.139979180977,
-                    1505.6862251041507,
-                    862.3410333896346,
-                    442.77481557670916,
-                    151.7760838999646,
-                    84.94335206504974,
-                    41.5838690512988
-                ],
-                "throughput": [
-                    198.62406333820456,
-                    111.5041562784762,
-                    255.7947778453352,
-                    126.70891631292467,
-                    129.01173757770303,
-                    149.04437888046462,
-                    114.95253468675654,
-                    114.37262195746192,
-                    125.97956217343364
-                ],
-                "ncolumns": [
-                    128,
-                    512,
-                    2048,
-                    4608,
-                    8192,
-                    18432,
-                    41472,
-                    73728,
-                    165888
-                ],
-                "compile_time": [
-                    14.582613694,
-                    14.570961196,
-                    14.664582511,
-                    1.085057259,
-                    15.027507949,
-                    15.706013688,
-                    16.729621839,
-                    18.392186935,
-                    23.156448168
-                ],
-                "status": [
-                    "ok",
-                    "ok",
-                    "ok",
-                    "ok",
-                    "ok",
-                    "ok",
-                    "ok",
-                    "ok",
-                    "ok"
-                ],
-                "config": [
-                    "soil_heat",
-                    "soil_heat",
-                    "soil_heat",
-                    "soil_heat",
-                    "soil_heat",
-                    "soil_heat",
-                    "soil_heat",
-                    "soil_heat",
-                    "soil_heat"
-                ],
-                "ms_per_step": [
-                    0.01933300495147705,
-                    0.1377527126579851,
-                    0.2401925501276235,
-                    1.0910045166718796,
-                    1.9049429502643522,
-                    3.7100359245582863,
-                    10.823249816894531,
-                    19.33889389038086,
-                    39.50355052947998
-                ],
-                "nlat_half": [
-                    4,
-                    8,
-                    16,
-                    24,
-                    32,
-                    48,
-                    72,
-                    96,
-                    144
-                ],
-                "memory": [
-                    117384,
-                    453768,
-                    1799304,
-                    4041864,
-                    7181448,
-                    16151688,
-                    36334728,
-                    64590984,
-                    145323144
-                ]
-            },
-            "bench201": {
-                "nz": [
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30
-                ],
-                "sypd": [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                ],
-                "throughput": [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                ],
-                "ncolumns": [
-                    128,
-                    512,
-                    2048,
-                    4608,
-                    8192,
-                    18432,
-                    41472,
-                    73728,
-                    165888
-                ],
-                "compile_time": [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                ],
-                "status": [
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException"
-                ],
-                "config": [
-                    "land_no_vegetation",
-                    "land_no_vegetation",
-                    "land_no_vegetation",
-                    "land_no_vegetation",
-                    "land_no_vegetation",
-                    "land_no_vegetation",
-                    "land_no_vegetation",
-                    "land_no_vegetation",
-                    "land_no_vegetation"
-                ],
-                "ms_per_step": [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                ],
-                "nlat_half": [
-                    4,
-                    8,
-                    16,
-                    24,
-                    32,
-                    48,
-                    72,
-                    96,
-                    144
-                ],
-                "memory": [
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0
-                ]
-            }
-        },
-        "markdown": "\n### Model configurations, default resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Compile | Status |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 3.75° | 4608 | — | — | — | — | — | — | — | failed: MethodError |\n| land_no_vegetation | 3.75° | 4608 | — | — | — | — | — | — | — | failed: ErrorException |\n| soil_heat | 3.75° | 4608 | 600 | 217 | 1484 | 1.11 | 125 | 3.85 MiB | 31.6 s | ok |\n\n### Land model, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Status |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 22.50° | 128 | — | — | — | — | — | — | failed: MethodError |\n| land | 11.25° | 512 | — | — | — | — | — | — | failed: MethodError |\n| land | 5.62° | 2048 | — | — | — | — | — | — | failed: MethodError |\n| land | 3.75° | 4608 | — | — | — | — | — | — | failed: MethodError |\n| land | 2.81° | 8192 | — | — | — | — | — | — | failed: ErrorException |\n| land | 1.88° | 18432 | — | — | — | — | — | — | failed: ErrorException |\n| land | 1.25° | 41472 | — | — | — | — | — | — | failed: ErrorException |\n| land | 0.94° | 73728 | — | — | — | — | — | — | failed: ErrorException |\n| land | 0.62° | 165888 | — | — | — | — | — | — | failed: ErrorException |\n\n### Land model without vegetation, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Status |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land_no_vegetation | 22.50° | 128 | — | — | — | — | — | — | failed: ErrorException |\n| land_no_vegetation | 11.25° | 512 | — | — | — | — | — | — | failed: ErrorException |\n| land_no_vegetation | 5.62° | 2048 | — | — | — | — | — | — | failed: ErrorException |\n| land_no_vegetation | 3.75° | 4608 | — | — | — | — | — | — | failed: ErrorException |\n| land_no_vegetation | 2.81° | 8192 | — | — | — | — | — | — | failed: ErrorException |\n| land_no_vegetation | 1.88° | 18432 | — | — | — | — | — | — | failed: ErrorException |\n| land_no_vegetation | 1.25° | 41472 | — | — | — | — | — | — | failed: ErrorException |\n| land_no_vegetation | 0.94° | 73728 | — | — | — | — | — | — | failed: ErrorException |\n| land_no_vegetation | 0.62° | 165888 | — | — | — | — | — | — | failed: ErrorException |\n\n### Soil heat conduction, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Compile |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| soil_heat | 22.50° | 128 | 600 | 2000 | 84969 | 0.0193 | 199 | 114.63 KiB | 14.6 s |\n| soil_heat | 11.25° | 512 | 600 | 1953 | 11925 | 0.138 | 112 | 443.13 KiB | 14.6 s |\n| soil_heat | 5.62° | 2048 | 600 | 488 | 6839 | 0.24 | 256 | 1.72 MiB | 14.7 s |\n| soil_heat | 3.75° | 4608 | 600 | 217 | 1506 | 1.09 | 127 | 3.85 MiB | 1.1 s |\n| soil_heat | 2.81° | 8192 | 600 | 122 | 862 | 1.9 | 129 | 6.85 MiB | 15.0 s |\n| soil_heat | 1.88° | 18432 | 600 | 54 | 443 | 3.71 | 149 | 15.40 MiB | 15.7 s |\n| soil_heat | 1.25° | 41472 | 600 | 24 | 152 | 10.8 | 115 | 34.65 MiB | 16.7 s |\n| soil_heat | 0.94° | 73728 | 600 | 20 | 85 | 19.3 | 114 | 61.60 MiB | 18.4 s |\n| soil_heat | 0.62° | 165888 | 600 | 20 | 42 | 39.5 | 126 | 138.59 MiB | 23.2 s |\n\n### Number of soil layers\n\n| Configuration | Res | Columns | L | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Status |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 3.75° | 4608 | 10 | — | — | — | — | — | — | failed: MethodError |\n| land | 3.75° | 4608 | 20 | — | — | — | — | — | — | failed: MethodError |\n| land | 3.75° | 4608 | 30 | — | — | — | — | — | — | failed: MethodError |\n| land | 3.75° | 4608 | 60 | — | — | — | — | — | — | failed: MethodError |\n| land | 3.75° | 4608 | 100 | — | — | — | — | — | — | failed: MethodError |\n\n### Number format, Float32 vs Float64\n\n| Configuration | NF | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Status |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | Float32 | 3.75° | 4608 | — | — | — | — | — | — | failed: MethodError |\n| land | Float64 | 3.75° | 4608 | — | — | — | — | — | — | failed: MethodError |\n\n### Time stepper\n\n| Configuration | Variant | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Status |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | ForwardEuler | 3.75° | 4608 | — | — | — | — | — | — | failed: MethodError |\n| land | Heun | 3.75° | 4608 | — | — | — | — | — | — | failed: MethodError |\n"
-    },
-    "reactant-gpu": {
-        "meta": {
-            "machine_info": "```julia\njulia> versioninfo()\nJulia Version 1.12.2\nCommit ca9b6662be4 (2025-11-20 16:25 UTC)\nBuild Info:\n  Official https://julialang.org release\nPlatform Info:\n  OS: Linux (x86_64-linux-gnu)\n  CPU: 128 × AMD EPYC 9554 64-Core Processor\n  WORD_SIZE: 64\n  LLVM: libLLVM-18.1.7 (ORCJIT, znver4)\n  GC: Built with stock GC\nThreads: 1 default, 1 interactive, 1 GC (on 128 virtual cores)\nEnvironment:\n  LD_LIBRARY_PATH = /usr/local/lib:/usr/local/lib:\n```\n\n```julia\njulia> CUDA.versioninfo()\nCUDA toolchain: \n- runtime 13.3.0, artifact installation\n- driver 580.126.9 for 13.3\n- compiler 13.3.33, artifact installation\n\nCUDA libraries: \n- cuBLAS: 13.6.0\n- cuSPARSE: 12.8.2\n- cuSOLVER: 12.2.6\n- cuFFT: 12.3.0\n- cuRAND: 10.4.3\n- CUPTI: 2026.2.1 (API 13.3.1)\n- NVML: 13.0.0+580.126.9\n\nJulia packages: \n- CUDACore: 6.2.1\n- GPUArrays: 11.5.9\n- GPUCompiler: 1.23.0\n- KernelAbstractions: 0.9.42\n- CUDA_Driver_jll: 13.3.0+1\n- CUDA_Compiler_jll: 0.4.4+1\n- CUDA_Runtime_jll: 0.23.0+1\n- NVPTX_LLVM_Backend_jll: 22.1.7+1\n\nToolchain:\n- Julia: 1.12.2\n- LLVM: 18.1.7\n\n1 device:\n  0: NVIDIA H100 80GB HBM3 (sm_90, 19.239 GiB / 79.647 GiB available)\n     compiles to sm_90a / PTX 9.3 (LLVM: sm_90a / PTX 9.0)\n```\n\nReactant backend: `gpu` (selected with `Reactant.set_default_backend(\"gpu\")`).\n",
-            "arch_type": "ReactantState",
-            "threads": 1,
-            "terrarium_version": "0.1.4",
-            "mode": "default",
-            "timestamp": "Sun, 09 Aug 2026 20:11:03",
-            "timestep_multiplier": 1
-        },
-        "overview": {
-            "bench200": {
-                "nz": [
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30
-                ],
-                "sypd": [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                ],
-                "throughput": [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                ],
-                "ncolumns": [
-                    128,
-                    512,
-                    2048,
-                    4608,
-                    8192,
-                    18432,
-                    41472,
-                    73728,
-                    165888
-                ],
-                "compile_time": [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                ],
-                "status": [
-                    "failed: MethodError",
-                    "failed: MethodError",
-                    "failed: MethodError",
-                    "failed: MethodError",
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException"
-                ],
-                "config": [
-                    "land",
-                    "land",
-                    "land",
-                    "land",
-                    "land",
-                    "land",
-                    "land",
-                    "land",
-                    "land"
-                ],
-                "ms_per_step": [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                ],
-                "nlat_half": [
-                    4,
-                    8,
-                    16,
-                    24,
-                    32,
-                    48,
-                    72,
-                    96,
-                    144
-                ],
-                "memory": [
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0
-                ]
-            },
-            "bench202": {
-                "nz": [
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30
-                ],
-                "sypd": [
-                    110784.60766843201,
-                    111799.79175410114,
-                    94046.01776417327,
-                    64078.16747631449,
-                    41518.4879371817,
-                    20687.32074812515,
-                    9516.064367459689,
-                    8046.74698361786,
-                    4341.815555310853
-                ],
-                "throughput": [
-                    258.9700988857267,
-                    1045.3727728175472,
-                    3517.471538008503,
-                    5392.408474534778,
-                    6211.431513725181,
-                    6963.6500612376985,
-                    7207.299669181102,
-                    10834.603631369342,
-                    13153.658742554666
-                ],
-                "ncolumns": [
-                    128,
-                    512,
-                    2048,
-                    4608,
-                    8192,
-                    18432,
-                    41472,
-                    73728,
-                    165888
-                ],
-                "compile_time": [
-                    14.390968013,
-                    14.449985686,
-                    14.580444051,
-                    1.088458589,
-                    14.930426335,
-                    15.51036829,
-                    16.647475023,
-                    18.351193867,
-                    23.12342463
-                ],
-                "status": [
-                    "ok",
-                    "ok",
-                    "ok",
-                    "ok",
-                    "ok",
-                    "ok",
-                    "ok",
-                    "ok",
-                    "ok"
-                ],
-                "config": [
-                    "soil_heat",
-                    "soil_heat",
-                    "soil_heat",
-                    "soil_heat",
-                    "soil_heat",
-                    "soil_heat",
-                    "soil_heat",
-                    "soil_heat",
-                    "soil_heat"
-                ],
-                "ms_per_step": [
-                    0.014827966690063477,
-                    0.014693323185183852,
-                    0.017467092295162013,
-                    0.02563604012063022,
-                    0.039565758626969136,
-                    0.07940663231743707,
-                    0.1726249853769938,
-                    0.2041459083557129,
-                    0.37834644317626953
-                ],
-                "nlat_half": [
-                    4,
-                    8,
-                    16,
-                    24,
-                    32,
-                    48,
-                    72,
-                    96,
-                    144
-                ],
-                "memory": [
-                    117384,
-                    453768,
-                    1799304,
-                    4041864,
-                    7181448,
-                    16151688,
-                    36334728,
-                    64590984,
-                    145323144
-                ]
-            },
-            "bench201": {
-                "nz": [
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30
-                ],
-                "sypd": [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                ],
-                "throughput": [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                ],
-                "ncolumns": [
-                    128,
-                    512,
-                    2048,
-                    4608,
-                    8192,
-                    18432,
-                    41472,
-                    73728,
-                    165888
-                ],
-                "compile_time": [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                ],
-                "status": [
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException",
-                    "failed: ErrorException"
-                ],
-                "config": [
-                    "land_no_vegetation",
-                    "land_no_vegetation",
-                    "land_no_vegetation",
-                    "land_no_vegetation",
-                    "land_no_vegetation",
-                    "land_no_vegetation",
-                    "land_no_vegetation",
-                    "land_no_vegetation",
-                    "land_no_vegetation"
-                ],
-                "ms_per_step": [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                ],
-                "nlat_half": [
-                    4,
-                    8,
-                    16,
-                    24,
-                    32,
-                    48,
-                    72,
-                    96,
-                    144
-                ],
-                "memory": [
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0
-                ]
-            }
-        },
-        "markdown": "\n### Model configurations, default resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Compile | Status |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 3.75° | 4608 | — | — | — | — | — | — | — | failed: MethodError |\n| land_no_vegetation | 3.75° | 4608 | — | — | — | — | — | — | — | failed: ErrorException |\n| soil_heat | 3.75° | 4608 | 600 | 217 | 65941 | 0.0249 | 5550 | 3.85 MiB | 31.5 s | ok |\n\n### Land model, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Status |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 22.50° | 128 | — | — | — | — | — | — | failed: MethodError |\n| land | 11.25° | 512 | — | — | — | — | — | — | failed: MethodError |\n| land | 5.62° | 2048 | — | — | — | — | — | — | failed: MethodError |\n| land | 3.75° | 4608 | — | — | — | — | — | — | failed: MethodError |\n| land | 2.81° | 8192 | — | — | — | — | — | — | failed: ErrorException |\n| land | 1.88° | 18432 | — | — | — | — | — | — | failed: ErrorException |\n| land | 1.25° | 41472 | — | — | — | — | — | — | failed: ErrorException |\n| land | 0.94° | 73728 | — | — | — | — | — | — | failed: ErrorException |\n| land | 0.62° | 165888 | — | — | — | — | — | — | failed: ErrorException |\n\n### Land model without vegetation, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Status |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land_no_vegetation | 22.50° | 128 | — | — | — | — | — | — | failed: ErrorException |\n| land_no_vegetation | 11.25° | 512 | — | — | — | — | — | — | failed: ErrorException |\n| land_no_vegetation | 5.62° | 2048 | — | — | — | — | — | — | failed: ErrorException |\n| land_no_vegetation | 3.75° | 4608 | — | — | — | — | — | — | failed: ErrorException |\n| land_no_vegetation | 2.81° | 8192 | — | — | — | — | — | — | failed: ErrorException |\n| land_no_vegetation | 1.88° | 18432 | — | — | — | — | — | — | failed: ErrorException |\n| land_no_vegetation | 1.25° | 41472 | — | — | — | — | — | — | failed: ErrorException |\n| land_no_vegetation | 0.94° | 73728 | — | — | — | — | — | — | failed: ErrorException |\n| land_no_vegetation | 0.62° | 165888 | — | — | — | — | — | — | failed: ErrorException |\n\n### Soil heat conduction, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Compile |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| soil_heat | 22.50° | 128 | 600 | 2000 | 110785 | 0.0148 | 259 | 114.63 KiB | 14.4 s |\n| soil_heat | 11.25° | 512 | 600 | 1953 | 111800 | 0.0147 | 1050 | 443.13 KiB | 14.4 s |\n| soil_heat | 5.62° | 2048 | 600 | 488 | 94046 | 0.0175 | 3520 | 1.72 MiB | 14.6 s |\n| soil_heat | 3.75° | 4608 | 600 | 217 | 64078 | 0.0256 | 5390 | 3.85 MiB | 1.1 s |\n| soil_heat | 2.81° | 8192 | 600 | 122 | 41518 | 0.0396 | 6210 | 6.85 MiB | 14.9 s |\n| soil_heat | 1.88° | 18432 | 600 | 54 | 20687 | 0.0794 | 6960 | 15.40 MiB | 15.5 s |\n| soil_heat | 1.25° | 41472 | 600 | 24 | 9516 | 0.173 | 7210 | 34.65 MiB | 16.6 s |\n| soil_heat | 0.94° | 73728 | 600 | 20 | 8047 | 0.204 | 10800 | 61.60 MiB | 18.4 s |\n| soil_heat | 0.62° | 165888 | 600 | 20 | 4342 | 0.378 | 13200 | 138.59 MiB | 23.1 s |\n\n### Number of soil layers\n\n| Configuration | Res | Columns | L | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Status |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 3.75° | 4608 | 10 | — | — | — | — | — | — | failed: MethodError |\n| land | 3.75° | 4608 | 20 | — | — | — | — | — | — | failed: MethodError |\n| land | 3.75° | 4608 | 30 | — | — | — | — | — | — | failed: MethodError |\n| land | 3.75° | 4608 | 60 | — | — | — | — | — | — | failed: MethodError |\n| land | 3.75° | 4608 | 100 | — | — | — | — | — | — | failed: MethodError |\n\n### Number format, Float32 vs Float64\n\n| Configuration | NF | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Status |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | Float32 | 3.75° | 4608 | — | — | — | — | — | — | failed: MethodError |\n| land | Float64 | 3.75° | 4608 | — | — | — | — | — | — | failed: MethodError |\n\n### Time stepper\n\n| Configuration | Variant | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Status |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | ForwardEuler | 3.75° | 4608 | — | — | — | — | — | — | failed: MethodError |\n| land | Heun | 3.75° | 4608 | — | — | — | — | — | — | failed: MethodError |\n"
-    },
-    "cpu-x86": {
-        "meta": {
-            "machine_info": "```julia\njulia> versioninfo()\nJulia Version 1.12.2\nCommit ca9b6662be4 (2025-11-20 16:25 UTC)\nBuild Info:\n  Official https://julialang.org release\nPlatform Info:\n  OS: Linux (x86_64-linux-gnu)\n  CPU: 128 × AMD EPYC 9554 64-Core Processor\n  WORD_SIZE: 64\n  LLVM: libLLVM-18.1.7 (ORCJIT, znver4)\n  GC: Built with stock GC\nThreads: 1 default, 1 interactive, 1 GC (on 128 virtual cores)\nEnvironment:\n  LD_LIBRARY_PATH = /usr/local/lib:/usr/local/lib:\n```\n",
-            "arch_type": "CPU",
-            "threads": 1,
-            "terrarium_version": "0.1.4",
-            "mode": "default",
-            "timestamp": "Sun, 09 Aug 2026 20:35:28",
-            "timestep_multiplier": 1
-        },
-        "overview": {
-            "bench200": {
-                "nz": [
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30,
-                    30
-                ],
-                "sypd": [
-                    273.1959760937726,
-                    76.46286018468403,
-                    19.11347638948335,
-                    3.3505364758384757,
-                    4.8645040137826685,
-                    2.1765514253444267,
-                    0.9617220346560954,
-                    0.5422365644104181,
-                    0.23886642776152225
-                ],
-                "throughput": [
-                    0.6386229137168027,
-                    0.7149583278708695,
-                    0.7148745985289005,
-                    0.28195970637312073,
-                    0.7277609332875755,
-                    0.7326585521114589,
-                    0.7283913427407167,
-                    0.730098543148297,
-                    0.7236529133497934
-                ],
-                "ncolumns": [
-                    128,
-                    512,
-                    2048,
-                    4608,
-                    8192,
-                    18432,
-                    41472,
-                    73728,
-                    165888
-                ],
-                "compile_time": [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
+                    935.042451041,
+                    947.535181932,
+                    949.59424796,
+                    20.55959356,
+                    970.811721983,
+                    1007.000823873,
+                    1076.554480785,
+                    1182.517958274,
+                    1466.65206201
                 ],
                 "status": [
                     "ok",
@@ -1839,15 +1139,15 @@
                     "land"
                 ],
                 "ms_per_step": [
-                    6.012938022613525,
-                    21.483769614575646,
-                    85.94514356284846,
-                    490.28282011708905,
-                    337.6933121290363,
-                    754.7308339012993,
-                    1708.0927888552349,
-                    3029.508852958679,
-                    6877.109050750732
+                    0.09800851345062256,
+                    0.3845525654657523,
+                    0.8961988277122622,
+                    1.998521215904693,
+                    3.8951635360717773,
+                    8.477815875300655,
+                    19.569297631581623,
+                    31.452107429504395,
+                    69.8007583618164
                 ],
                 "nlat_half": [
                     4,
@@ -1885,26 +1185,726 @@
                     30
                 ],
                 "sypd": [
-                    578.1700063802188,
-                    148.14731111826504,
-                    36.966318436072065,
-                    16.530957244556525,
-                    9.26473536901791,
-                    4.11819694140716,
-                    1.8200446967291135,
-                    1.0231745532890255,
-                    0.46176024973523233
+                    159726.15081712222,
+                    14526.067831298767,
+                    10622.848003136376,
+                    3540.7861055717813,
+                    1648.1960987921238,
+                    673.246254609764,
+                    382.50037707076325,
+                    185.93202051782248,
+                    85.79262428796814
                 ],
                 "throughput": [
-                    1.3515302069143993,
-                    1.3852366178802253,
-                    1.382599455618593,
-                    1.391139563575512,
-                    1.386063705511441,
-                    1.3862443925136065,
-                    1.3784698205159682,
-                    1.3776611534026135,
-                    1.3989163446762785
+                    373.3758501501049,
+                    135.82454464977602,
+                    397.3115118741055,
+                    297.9698976138455,
+                    246.580684834334,
+                    226.624384047713,
+                    289.69905358675965,
+                    250.34958210957802,
+                    259.9112947420784
+                ],
+                "ncolumns": [
+                    128,
+                    512,
+                    2048,
+                    4608,
+                    8192,
+                    18432,
+                    41472,
+                    73728,
+                    165888
+                ],
+                "compile_time": [
+                    15.675768845,
+                    15.763695658,
+                    16.332841958,
+                    2.188133743,
+                    18.060389265,
+                    21.345256153,
+                    28.191012367,
+                    38.074206078,
+                    66.426240994
+                ],
+                "status": [
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok"
+                ],
+                "config": [
+                    "soil_heat",
+                    "soil_heat",
+                    "soil_heat",
+                    "soil_heat",
+                    "soil_heat",
+                    "soil_heat",
+                    "soil_heat",
+                    "soil_heat",
+                    "soil_heat"
+                ],
+                "ms_per_step": [
+                    0.01028454303741455,
+                    0.11308707155695465,
+                    0.15463936524313004,
+                    0.4639394821659211,
+                    0.9966717391717629,
+                    2.439984568843135,
+                    4.294663667678833,
+                    8.835005760192871,
+                    19.14745569229126
+                ],
+                "nlat_half": [
+                    4,
+                    8,
+                    16,
+                    24,
+                    32,
+                    48,
+                    72,
+                    96,
+                    144
+                ],
+                "memory": [
+                    117384,
+                    453768,
+                    1799304,
+                    4041864,
+                    7181448,
+                    16151688,
+                    36334728,
+                    64590984,
+                    145323144
+                ]
+            },
+            "bench201": {
+                "nz": [
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30
+                ],
+                "sypd": [
+                    13849.690453043488,
+                    4704.311818941398,
+                    1636.9445563622355,
+                    615.9905182027591,
+                    474.8752378525794,
+                    228.61453210890994,
+                    85.42807662735405,
+                    54.789420234176475,
+                    27.06063405967138
+                ],
+                "throughput": [
+                    32.37503640303446,
+                    43.987197231829654,
+                    61.224345519237794,
+                    51.8378196726277,
+                    71.04437478426813,
+                    76.95494355712145,
+                    64.7017217034093,
+                    73.77163127390071,
+                    81.98099187854261
+                ],
+                "ncolumns": [
+                    128,
+                    512,
+                    2048,
+                    4608,
+                    8192,
+                    18432,
+                    41472,
+                    73728,
+                    165888
+                ],
+                "compile_time": [
+                    304.554547875,
+                    305.919000504,
+                    308.462279664,
+                    11.905680724,
+                    319.667851757,
+                    336.160056719,
+                    377.274465742,
+                    433.376843408,
+                    591.133550634
+                ],
+                "status": [
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok"
+                ],
+                "config": [
+                    "land_no_vegetation",
+                    "land_no_vegetation",
+                    "land_no_vegetation",
+                    "land_no_vegetation",
+                    "land_no_vegetation",
+                    "land_no_vegetation",
+                    "land_no_vegetation",
+                    "land_no_vegetation",
+                    "land_no_vegetation"
+                ],
+                "ms_per_step": [
+                    0.11860990524291992,
+                    0.3491925143365425,
+                    1.003522364819636,
+                    2.6667788281418763,
+                    3.459246432194944,
+                    7.1855032885516135,
+                    19.229163726170857,
+                    29.98225688934326,
+                    60.704803466796875
+                ],
+                "nlat_half": [
+                    4,
+                    8,
+                    16,
+                    24,
+                    32,
+                    48,
+                    72,
+                    96,
+                    144
+                ],
+                "memory": [
+                    175272,
+                    677544,
+                    2686632,
+                    6035112,
+                    10722984,
+                    24116904,
+                    54253224,
+                    96444072,
+                    216989352
+                ]
+            }
+        },
+        "markdown": "\n### Model configurations, default resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Compile |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 3.75° | 4608 | 600 | 217 | 726 | 2.26 | 61.1 | 6.86 MiB | 978.4 s |\n| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 696 | 2.36 | 58.5 | 5.76 MiB | 314.3 s |\n| soil_heat | 3.75° | 4608 | 600 | 217 | 2379 | 0.691 | 200 | 3.85 MiB | 18.3 s |\n\n### Land model, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Compile |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 22.50° | 128 | 600 | 2000 | 16761 | 0.098 | 39.2 | 204.14 KiB | 935.0 s |\n| land | 11.25° | 512 | 600 | 1953 | 4272 | 0.385 | 39.9 | 789.14 KiB | 947.5 s |\n| land | 5.62° | 2048 | 600 | 488 | 1833 | 0.896 | 68.6 | 3.06 MiB | 949.6 s |\n| land | 3.75° | 4608 | 600 | 217 | 822 | 2 | 69.2 | 6.86 MiB | 20.6 s |\n| land | 2.81° | 8192 | 600 | 122 | 422 | 3.9 | 63.1 | 12.20 MiB | 970.8 s |\n| land | 1.88° | 18432 | 600 | 54 | 194 | 8.48 | 65.2 | 27.43 MiB | 1007.0 s |\n| land | 1.25° | 41472 | 600 | 24 | 84 | 19.6 | 63.6 | 61.71 MiB | 1076.6 s |\n| land | 0.94° | 73728 | 600 | 20 | 52 | 31.5 | 70.3 | 109.70 MiB | 1182.5 s |\n| land | 0.62° | 165888 | 600 | 20 | 24 | 69.8 | 71.3 | 246.81 MiB | 1466.7 s |\n\n### Land model without vegetation, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Compile |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land_no_vegetation | 22.50° | 128 | 600 | 2000 | 13850 | 0.119 | 32.4 | 171.16 KiB | 304.6 s |\n| land_no_vegetation | 11.25° | 512 | 600 | 1953 | 4704 | 0.349 | 44 | 661.66 KiB | 305.9 s |\n| land_no_vegetation | 5.62° | 2048 | 600 | 488 | 1637 | 1 | 61.2 | 2.56 MiB | 308.5 s |\n| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 616 | 2.67 | 51.8 | 5.76 MiB | 11.9 s |\n| land_no_vegetation | 2.81° | 8192 | 600 | 122 | 475 | 3.46 | 71 | 10.23 MiB | 319.7 s |\n| land_no_vegetation | 1.88° | 18432 | 600 | 54 | 229 | 7.19 | 77 | 23.00 MiB | 336.2 s |\n| land_no_vegetation | 1.25° | 41472 | 600 | 24 | 85 | 19.2 | 64.7 | 51.74 MiB | 377.3 s |\n| land_no_vegetation | 0.94° | 73728 | 600 | 20 | 55 | 30 | 73.8 | 91.98 MiB | 433.4 s |\n| land_no_vegetation | 0.62° | 165888 | 600 | 20 | 27 | 60.7 | 82 | 206.94 MiB | 591.1 s |\n\n### Soil heat conduction, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Compile |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| soil_heat | 22.50° | 128 | 600 | 2000 | 159726 | 0.0103 | 373 | 114.63 KiB | 15.7 s |\n| soil_heat | 11.25° | 512 | 600 | 1953 | 14526 | 0.113 | 136 | 443.13 KiB | 15.8 s |\n| soil_heat | 5.62° | 2048 | 600 | 488 | 10623 | 0.155 | 397 | 1.72 MiB | 16.3 s |\n| soil_heat | 3.75° | 4608 | 600 | 217 | 3541 | 0.464 | 298 | 3.85 MiB | 2.2 s |\n| soil_heat | 2.81° | 8192 | 600 | 122 | 1648 | 0.997 | 247 | 6.85 MiB | 18.1 s |\n| soil_heat | 1.88° | 18432 | 600 | 54 | 673 | 2.44 | 227 | 15.40 MiB | 21.3 s |\n| soil_heat | 1.25° | 41472 | 600 | 24 | 383 | 4.29 | 290 | 34.65 MiB | 28.2 s |\n| soil_heat | 0.94° | 73728 | 600 | 20 | 186 | 8.84 | 250 | 61.60 MiB | 38.1 s |\n| soil_heat | 0.62° | 165888 | 600 | 20 | 86 | 19.1 | 260 | 138.59 MiB | 66.4 s |\n\n### Number of soil layers\n\n| Configuration | Res | Columns | L | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Compile |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 3.75° | 4608 | 10 | 600 | 651 | 1800 | 0.913 | 50.5 | 3.70 MiB | 967.4 s |\n| land | 3.75° | 4608 | 20 | 600 | 326 | 1252 | 1.31 | 70.2 | 5.28 MiB | 970.1 s |\n| land | 3.75° | 4608 | 30 | 600 | 217 | 863 | 1.9 | 72.6 | 6.86 MiB | 21.4 s |\n| land | 3.75° | 4608 | 60 | 600 | 109 | 412 | 3.99 | 69.3 | 11.62 MiB | 958.1 s |\n| land | 3.75° | 4608 | 100 | 600 | 65 | 195 | 8.41 | 54.8 | 17.95 MiB | 969.2 s |\n\n### Number format, Float32 vs Float64\n\n| Configuration | NF | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Compile |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | Float32 | 3.75° | 4608 | 600 | 217 | 684 | 2.4 | 57.6 | 6.86 MiB | 21.2 s |\n| land | Float64 | 3.75° | 4608 | 600 | 217 | 547 | 3 | 46 | 13.73 MiB | 721.9 s |\n\n### Time stepper\n\n| Configuration | Variant | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Compile |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | ForwardEuler | 3.75° | 4608 | 600 | 217 | 850 | 1.93 | 71.5 | 6.86 MiB | 21.3 s |\n| land | Heun | 3.75° | 4608 | 600 | 217 | 345 | 4.77 | 29 | 6.86 MiB | 636.9 s |\n"
+    },
+    "reactant-gpu": {
+        "meta": {
+            "machine_info": "```julia\njulia> versioninfo()\nJulia Version 1.12.2\nCommit ca9b6662be4 (2025-11-20 16:25 UTC)\nBuild Info:\n  Official https://julialang.org release\nPlatform Info:\n  OS: Linux (x86_64-linux-gnu)\n  CPU: 128 × AMD EPYC 9554 64-Core Processor\n  WORD_SIZE: 64\n  LLVM: libLLVM-18.1.7 (ORCJIT, znver4)\n  GC: Built with stock GC\nThreads: 1 default, 1 interactive, 1 GC (on 128 virtual cores)\nEnvironment:\n  LD_LIBRARY_PATH = /usr/local/lib:/usr/local/lib:\n```\n\n```julia\njulia> CUDA.versioninfo()\nCUDA toolchain: \n- runtime 13.3.0, artifact installation\n- driver 580.126.9 for 13.3\n- compiler 13.3.33, artifact installation\n\nCUDA libraries: \n- cuBLAS: 13.6.0\n- cuSPARSE: 12.8.2\n- cuSOLVER: 12.2.6\n- cuFFT: 12.3.0\n- cuRAND: 10.4.3\n- CUPTI: 2026.2.1 (API 13.3.1)\n- NVML: 13.0.0+580.126.9\n\nJulia packages: \n- CUDACore: 6.2.2\n- GPUArrays: 11.5.16\n- GPUCompiler: 1.23.0\n- KernelAbstractions: 0.9.44\n- CUDA_Driver_jll: 13.3.1+0\n- CUDA_Compiler_jll: 0.4.4+1\n- CUDA_Runtime_jll: 0.23.0+1\n- NVPTX_LLVM_Backend_jll: 22.1.7+1\n\nToolchain:\n- Julia: 1.12.2\n- LLVM: 18.1.7\n\n1 device:\n  0: NVIDIA H100 80GB HBM3 (sm_90, 19.239 GiB / 79.647 GiB available)\n     compiles to sm_90a / PTX 9.3 (LLVM: sm_90a / PTX 9.0)\n```\n\nReactant backend: `gpu` (selected with `Reactant.set_default_backend(\"gpu\")`).\n",
+            "arch_type": "ReactantState",
+            "threads": 1,
+            "terrarium_version": "0.1.9-DEV",
+            "mode": "default",
+            "timestamp": "Fri, 09 Oct 2026 21:25:41",
+            "timestep_multiplier": 1
+        },
+        "overview": {
+            "bench200": {
+                "nz": [
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30
+                ],
+                "sypd": [
+                    47766.30724029542,
+                    8876.809873785685,
+                    8368.30123671514,
+                    7748.102699540058,
+                    7383.77142685635,
+                    5508.023266888196,
+                    3945.9898466412214,
+                    2756.672443275503,
+                    1449.799491777374
+                ],
+                "throughput": [
+                    111.65851980491458,
+                    83.00172304384567,
+                    312.98785553512494,
+                    652.0307353360142,
+                    1104.659461594842,
+                    1854.0799471696103,
+                    2988.6232604247602,
+                    3711.74256195887,
+                    4392.210474404512
+                ],
+                "ncolumns": [
+                    128,
+                    512,
+                    2048,
+                    4608,
+                    8192,
+                    18432,
+                    41472,
+                    73728,
+                    165888
+                ],
+                "compile_time": [
+                    945.266589012,
+                    950.641876083,
+                    962.668373996,
+                    21.905018881,
+                    981.826312966,
+                    1020.626557367,
+                    1092.229849968,
+                    1198.114576924,
+                    1489.293397605
+                ],
+                "status": [
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok"
+                ],
+                "config": [
+                    "land",
+                    "land",
+                    "land",
+                    "land",
+                    "land",
+                    "land",
+                    "land",
+                    "land",
+                    "land"
+                ],
+                "ms_per_step": [
+                    0.03439056873321533,
+                    0.185056399273616,
+                    0.1963015462531418,
+                    0.2120145454934116,
+                    0.2224758023121318,
+                    0.29823956666169343,
+                    0.41629870732625324,
+                    0.5959033966064453,
+                    1.1330604553222656
+                ],
+                "nlat_half": [
+                    4,
+                    8,
+                    16,
+                    24,
+                    32,
+                    48,
+                    72,
+                    96,
+                    144
+                ],
+                "memory": [
+                    209040,
+                    808080,
+                    3204240,
+                    7197840,
+                    12788880,
+                    28763280,
+                    64705680,
+                    115025040,
+                    258794640
+                ]
+            },
+            "bench202": {
+                "nz": [
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30
+                ],
+                "sypd": [
+                    155935.88558838502,
+                    163367.11994371132,
+                    118919.61615281612,
+                    83289.83798812579,
+                    39898.58110765999,
+                    28231.388091283923,
+                    12236.24763307289,
+                    8600.707907530636,
+                    5385.989528804215
+                ],
+                "throughput": [
+                    364.51572615140884,
+                    1527.5479183216785,
+                    4447.783915501167,
+                    7009.139710117543,
+                    5969.083084625024,
+                    9503.091763514683,
+                    9267.518599331064,
+                    11580.488527474721,
+                    16317.014702802424
+                ],
+                "ncolumns": [
+                    128,
+                    512,
+                    2048,
+                    4608,
+                    8192,
+                    18432,
+                    41472,
+                    73728,
+                    165888
+                ],
+                "compile_time": [
+                    15.730162783,
+                    16.080003934,
+                    16.314728574,
+                    2.17658081,
+                    18.098224483,
+                    21.652483744,
+                    28.845234971,
+                    38.958013929,
+                    67.386623379
+                ],
+                "status": [
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok"
+                ],
+                "config": [
+                    "soil_heat",
+                    "soil_heat",
+                    "soil_heat",
+                    "soil_heat",
+                    "soil_heat",
+                    "soil_heat",
+                    "soil_heat",
+                    "soil_heat",
+                    "soil_heat"
+                ],
+                "ms_per_step": [
+                    0.010534524917602539,
+                    0.010055331041186636,
+                    0.013813620708027824,
+                    0.01972281987765967,
+                    0.04117215265993212,
+                    0.058187378777398005,
+                    0.13424952824910483,
+                    0.19099712371826172,
+                    0.30499696731567383
+                ],
+                "nlat_half": [
+                    4,
+                    8,
+                    16,
+                    24,
+                    32,
+                    48,
+                    72,
+                    96,
+                    144
+                ],
+                "memory": [
+                    117384,
+                    453768,
+                    1799304,
+                    4041864,
+                    7181448,
+                    16151688,
+                    36334728,
+                    64590984,
+                    145323144
+                ]
+            },
+            "bench201": {
+                "nz": [
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30
+                ],
+                "sypd": [
+                    50895.86042269837,
+                    9770.923659042539,
+                    9128.663462370998,
+                    8329.679833559965,
+                    7672.075743640071,
+                    5727.01818882232,
+                    4336.759782673669,
+                    2888.294741028209,
+                    1549.8008445645376
+                ],
+                "throughput": [
+                    118.97416332409972,
+                    91.36204458151137,
+                    341.4266193542151,
+                    700.9725448414719,
+                    1147.7916325333138,
+                    1927.7967914195117,
+                    3284.5855324248623,
+                    3888.9664050974634,
+                    4695.167532713265
+                ],
+                "ncolumns": [
+                    128,
+                    512,
+                    2048,
+                    4608,
+                    8192,
+                    18432,
+                    41472,
+                    73728,
+                    165888
+                ],
+                "compile_time": [
+                    313.22274619,
+                    313.227601014,
+                    315.274030122,
+                    13.367701276,
+                    323.100431816,
+                    342.030524436,
+                    385.381333925,
+                    442.709698975,
+                    599.157718698
+                ],
+                "status": [
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok"
+                ],
+                "config": [
+                    "land_no_vegetation",
+                    "land_no_vegetation",
+                    "land_no_vegetation",
+                    "land_no_vegetation",
+                    "land_no_vegetation",
+                    "land_no_vegetation",
+                    "land_no_vegetation",
+                    "land_no_vegetation",
+                    "land_no_vegetation"
+                ],
+                "ms_per_step": [
+                    0.03227591514587402,
+                    0.16812233209487906,
+                    0.17995081964086312,
+                    0.1972117182296542,
+                    0.2141155180383901,
+                    0.2868352112946687,
+                    0.3787875175476074,
+                    0.5687475204467773,
+                    1.0599493980407715
+                ],
+                "nlat_half": [
+                    4,
+                    8,
+                    16,
+                    24,
+                    32,
+                    48,
+                    72,
+                    96,
+                    144
+                ],
+                "memory": [
+                    175272,
+                    677544,
+                    2686632,
+                    6035112,
+                    10722984,
+                    24116904,
+                    54253224,
+                    96444072,
+                    216989352
+                ]
+            }
+        },
+        "markdown": "\n### Model configurations, default resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Compile |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 3.75° | 4608 | 600 | 217 | 8555 | 0.192 | 720 | 6.86 MiB | 986.6 s |\n| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 8979 | 0.183 | 756 | 5.76 MiB | 319.4 s |\n| soil_heat | 3.75° | 4608 | 600 | 217 | 67258 | 0.0244 | 5660 | 3.85 MiB | 18.5 s |\n\n### Land model, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Compile |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 22.50° | 128 | 600 | 2000 | 47766 | 0.0344 | 112 | 204.14 KiB | 945.3 s |\n| land | 11.25° | 512 | 600 | 1953 | 8877 | 0.185 | 83 | 789.14 KiB | 950.6 s |\n| land | 5.62° | 2048 | 600 | 488 | 8368 | 0.196 | 313 | 3.06 MiB | 962.7 s |\n| land | 3.75° | 4608 | 600 | 217 | 7748 | 0.212 | 652 | 6.86 MiB | 21.9 s |\n| land | 2.81° | 8192 | 600 | 122 | 7384 | 0.222 | 1100 | 12.20 MiB | 981.8 s |\n| land | 1.88° | 18432 | 600 | 54 | 5508 | 0.298 | 1850 | 27.43 MiB | 1020.6 s |\n| land | 1.25° | 41472 | 600 | 24 | 3946 | 0.416 | 2990 | 61.71 MiB | 1092.2 s |\n| land | 0.94° | 73728 | 600 | 20 | 2757 | 0.596 | 3710 | 109.70 MiB | 1198.1 s |\n| land | 0.62° | 165888 | 600 | 20 | 1450 | 1.13 | 4390 | 246.81 MiB | 1489.3 s |\n\n### Land model without vegetation, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Compile |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land_no_vegetation | 22.50° | 128 | 600 | 2000 | 50896 | 0.0323 | 119 | 171.16 KiB | 313.2 s |\n| land_no_vegetation | 11.25° | 512 | 600 | 1953 | 9771 | 0.168 | 91.4 | 661.66 KiB | 313.2 s |\n| land_no_vegetation | 5.62° | 2048 | 600 | 488 | 9129 | 0.18 | 341 | 2.56 MiB | 315.3 s |\n| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 8330 | 0.197 | 701 | 5.76 MiB | 13.4 s |\n| land_no_vegetation | 2.81° | 8192 | 600 | 122 | 7672 | 0.214 | 1150 | 10.23 MiB | 323.1 s |\n| land_no_vegetation | 1.88° | 18432 | 600 | 54 | 5727 | 0.287 | 1930 | 23.00 MiB | 342.0 s |\n| land_no_vegetation | 1.25° | 41472 | 600 | 24 | 4337 | 0.379 | 3280 | 51.74 MiB | 385.4 s |\n| land_no_vegetation | 0.94° | 73728 | 600 | 20 | 2888 | 0.569 | 3890 | 91.98 MiB | 442.7 s |\n| land_no_vegetation | 0.62° | 165888 | 600 | 20 | 1550 | 1.06 | 4700 | 206.94 MiB | 599.2 s |\n\n### Soil heat conduction, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Compile |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| soil_heat | 22.50° | 128 | 600 | 2000 | 155936 | 0.0105 | 365 | 114.63 KiB | 15.7 s |\n| soil_heat | 11.25° | 512 | 600 | 1953 | 163367 | 0.0101 | 1530 | 443.13 KiB | 16.1 s |\n| soil_heat | 5.62° | 2048 | 600 | 488 | 118920 | 0.0138 | 4450 | 1.72 MiB | 16.3 s |\n| soil_heat | 3.75° | 4608 | 600 | 217 | 83290 | 0.0197 | 7010 | 3.85 MiB | 2.2 s |\n| soil_heat | 2.81° | 8192 | 600 | 122 | 39899 | 0.0412 | 5970 | 6.85 MiB | 18.1 s |\n| soil_heat | 1.88° | 18432 | 600 | 54 | 28231 | 0.0582 | 9500 | 15.40 MiB | 21.7 s |\n| soil_heat | 1.25° | 41472 | 600 | 24 | 12236 | 0.134 | 9270 | 34.65 MiB | 28.8 s |\n| soil_heat | 0.94° | 73728 | 600 | 20 | 8601 | 0.191 | 11600 | 61.60 MiB | 39.0 s |\n| soil_heat | 0.62° | 165888 | 600 | 20 | 5386 | 0.305 | 16300 | 138.59 MiB | 67.4 s |\n\n### Number of soil layers\n\n| Configuration | Res | Columns | L | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Compile |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 3.75° | 4608 | 10 | 600 | 651 | 8288 | 0.198 | 232 | 3.70 MiB | 953.3 s |\n| land | 3.75° | 4608 | 20 | 600 | 326 | 7578 | 0.217 | 425 | 5.28 MiB | 969.6 s |\n| land | 3.75° | 4608 | 30 | 600 | 217 | 7540 | 0.218 | 635 | 6.86 MiB | 23.1 s |\n| land | 3.75° | 4608 | 60 | 600 | 109 | 6216 | 0.264 | 1050 | 11.62 MiB | 967.1 s |\n| land | 3.75° | 4608 | 100 | 600 | 65 | 5491 | 0.299 | 1540 | 17.95 MiB | 976.7 s |\n\n### Number format, Float32 vs Float64\n\n| Configuration | NF | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Compile |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | Float32 | 3.75° | 4608 | 600 | 217 | 7359 | 0.223 | 619 | 6.86 MiB | 23.1 s |\n| land | Float64 | 3.75° | 4608 | 600 | 217 | 4894 | 0.336 | 412 | 13.73 MiB | 720.4 s |\n\n### Time stepper\n\n| Configuration | Variant | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory | Compile |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | ForwardEuler | 3.75° | 4608 | 600 | 217 | 7234 | 0.227 | 609 | 6.86 MiB | 23.3 s |\n| land | Heun | 3.75° | 4608 | 600 | 217 | 3760 | 0.437 | 316 | 6.86 MiB | 628.9 s |\n"
+    },
+    "cpu-x86": {
+        "meta": {
+            "machine_info": "```julia\njulia> versioninfo()\nJulia Version 1.12.2\nCommit ca9b6662be4 (2025-11-20 16:25 UTC)\nBuild Info:\n  Official https://julialang.org release\nPlatform Info:\n  OS: Linux (x86_64-linux-gnu)\n  CPU: 128 × AMD EPYC 9554 64-Core Processor\n  WORD_SIZE: 64\n  LLVM: libLLVM-18.1.7 (ORCJIT, znver4)\n  GC: Built with stock GC\nThreads: 1 default, 1 interactive, 1 GC (on 128 virtual cores)\nEnvironment:\n  LD_LIBRARY_PATH = /usr/local/lib:/usr/local/lib:\n```\n",
+            "arch_type": "CPU",
+            "threads": 1,
+            "terrarium_version": "0.1.9-DEV",
+            "mode": "default",
+            "timestamp": "Fri, 09 Oct 2026 12:09:48",
+            "timestep_multiplier": 1
+        },
+        "overview": {
+            "bench200": {
+                "nz": [
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30
+                ],
+                "sypd": [
+                    257.1700704231822,
+                    80.27401558206182,
+                    20.74445294105518,
+                    3.171194013988293,
+                    5.370049374810159,
+                    2.302415239029291,
+                    1.0480271278330435,
+                    0.5961624976070566,
+                    0.26399499816594285
+                ],
+                "throughput": [
+                    0.6011607566212307,
+                    0.7505941552985109,
+                    0.7758757311201694,
+                    0.2668673925755652,
+                    0.8033937547875986,
+                    0.7750261242367014,
+                    0.7937573013432973,
+                    0.8027075257380032,
+                    0.7997806611956697
+                ],
+                "ncolumns": [
+                    128,
+                    512,
+                    2048,
+                    4608,
+                    8192,
+                    18432,
+                    41472,
+                    73728,
+                    165888
+                ],
+                "compile_time": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                ],
+                "status": [
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok",
+                    "ok"
+                ],
+                "config": [
+                    "land",
+                    "land",
+                    "land",
+                    "land",
+                    "land",
+                    "land",
+                    "land",
+                    "land",
+                    "land"
+                ],
+                "ms_per_step": [
+                    6.387642502784729,
+                    20.463788442225926,
+                    79.18793891297013,
+                    518.0100823327693,
+                    305.90230324229253,
+                    713.4727239608765,
+                    1567.4312512079875,
+                    2755.474352836609,
+                    6222.506046295166
+                ],
+                "nlat_half": [
+                    4,
+                    8,
+                    16,
+                    24,
+                    32,
+                    48,
+                    72,
+                    96,
+                    144
+                ],
+                "memory": [
+                    209040,
+                    808080,
+                    3204240,
+                    7197840,
+                    12788880,
+                    28763280,
+                    64705680,
+                    115025040,
+                    258794640
+                ]
+            },
+            "bench202": {
+                "nz": [
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30,
+                    30
+                ],
+                "sypd": [
+                    601.6952548414155,
+                    156.30072667045712,
+                    38.63755274810079,
+                    17.401012040788245,
+                    9.691857234426546,
+                    4.342181708339521,
+                    1.9194082965882155,
+                    1.0801018070679254,
+                    0.48608814874930173
+                ],
+                "throughput": [
+                    1.4065228277172928,
+                    1.4614743146594422,
+                    1.4451062928633664,
+                    1.4643578068756777,
+                    1.4499638701565116,
+                    1.4616408904436828,
+                    1.4537260622498944,
+                    1.4543112869003418,
+                    1.4726184348452127
                 ],
                 "ncolumns": [
                     128,
@@ -1951,15 +1951,15 @@
                     "soil_heat"
                 ],
                 "ms_per_step": [
-                    2.841223955154419,
-                    11.088358336574165,
-                    44.43803283034778,
-                    99.37176946121427,
-                    177.3078676129951,
-                    398.89070281275997,
-                    902.56600578626,
-                    1605.5036425590515,
-                    3557.496500015259
+                    2.73013699054718,
+                    10.509934964939319,
+                    42.51590371131897,
+                    94.40315703642533,
+                    169.49387847400104,
+                    378.31453923825865,
+                    855.8421234289805,
+                    1520.8848476409912,
+                    3379.44974899292
                 ],
                 "nlat_half": [
                     4,
@@ -1997,26 +1997,26 @@
                     30
                 ],
                 "sypd": [
-                    304.16201948319116,
-                    79.8805305748595,
-                    19.869578817222713,
-                    8.811735859724338,
-                    4.986353408321689,
-                    2.2251774667442255,
-                    1.0084121680045568,
-                    0.5641242327283805,
-                    0.25035070870474285
+                    312.4403581805256,
+                    89.0872409662136,
+                    22.54315375654531,
+                    10.214768024262767,
+                    5.592040445666006,
+                    2.43553998319605,
+                    1.079332327448735,
+                    0.6345818060846276,
+                    0.2780053999904592
                 ],
                 "throughput": [
-                    0.7110091367439075,
-                    0.7469149130871663,
-                    0.743154039090237,
-                    0.7415392948448981,
-                    0.7459903825467379,
-                    0.7490267778616275,
-                    0.7637536279924945,
-                    0.7595693605012968,
-                    0.758444882401996
+                    0.7303605812827966,
+                    0.8330013379304836,
+                    0.843150019540805,
+                    0.8596095024065993,
+                    0.8366050397304868,
+                    0.8198378301195485,
+                    0.8174673085607087,
+                    0.8544374956243731,
+                    0.8422255882309359
                 ],
                 "ncolumns": [
                     128,
@@ -2063,15 +2063,15 @@
                     "land_no_vegetation"
                 ],
                 "ms_per_step": [
-                    5.4007744789123535,
-                    20.564591402404442,
-                    82.67464989521464,
-                    186.42302702099497,
-                    329.44124448494836,
-                    738.2379593672575,
-                    1629.006991783778,
-                    2911.965799331665,
-                    6561.636996269226
+                    5.257676959037781,
+                    18.439346133777562,
+                    72.86959446844507,
+                    160.8172078286448,
+                    293.75868938008296,
+                    674.4748530564485,
+                    1521.9691197077434,
+                    2588.6504411697388,
+                    5908.91569852829
                 ],
                 "nlat_half": [
                     4,
@@ -2097,6 +2097,6 @@
                 ]
             }
         },
-        "markdown": "\n### Model configurations, default resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 3.75° | 4608 | 600 | 217 | 3.49 | 471 | 0.293 | 6.86 MiB |\n| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 9.37 | 175 | 0.789 | 5.76 MiB |\n| soil_heat | 3.75° | 4608 | 600 | 217 | 17 | 96.1 | 1.44 | 3.85 MiB |\n\n### Land model, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 22.50° | 128 | 600 | 2000 | 273 | 6.01 | 0.639 | 204.14 KiB |\n| land | 11.25° | 512 | 600 | 1953 | 76 | 21.5 | 0.715 | 789.14 KiB |\n| land | 5.62° | 2048 | 600 | 488 | 19 | 85.9 | 0.715 | 3.06 MiB |\n| land | 3.75° | 4608 | 600 | 217 | 3.35 | 490 | 0.282 | 6.86 MiB |\n| land | 2.81° | 8192 | 600 | 122 | 4.86 | 338 | 0.728 | 12.20 MiB |\n| land | 1.88° | 18432 | 600 | 54 | 2.18 | 755 | 0.733 | 27.43 MiB |\n| land | 1.25° | 41472 | 600 | 24 | 0.96 | 1710 | 0.728 | 61.71 MiB |\n| land | 0.94° | 73728 | 600 | 20 | 0.54 | 3030 | 0.73 | 109.70 MiB |\n| land | 0.62° | 165888 | 600 | 20 | 0.24 | 6880 | 0.724 | 246.81 MiB |\n\n### Land model without vegetation, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land_no_vegetation | 22.50° | 128 | 600 | 2000 | 304 | 5.4 | 0.711 | 171.16 KiB |\n| land_no_vegetation | 11.25° | 512 | 600 | 1953 | 80 | 20.6 | 0.747 | 661.66 KiB |\n| land_no_vegetation | 5.62° | 2048 | 600 | 488 | 20 | 82.7 | 0.743 | 2.56 MiB |\n| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 8.81 | 186 | 0.742 | 5.76 MiB |\n| land_no_vegetation | 2.81° | 8192 | 600 | 122 | 4.99 | 329 | 0.746 | 10.23 MiB |\n| land_no_vegetation | 1.88° | 18432 | 600 | 54 | 2.23 | 738 | 0.749 | 23.00 MiB |\n| land_no_vegetation | 1.25° | 41472 | 600 | 24 | 1.01 | 1630 | 0.764 | 51.74 MiB |\n| land_no_vegetation | 0.94° | 73728 | 600 | 20 | 0.56 | 2910 | 0.76 | 91.98 MiB |\n| land_no_vegetation | 0.62° | 165888 | 600 | 20 | 0.25 | 6560 | 0.758 | 206.94 MiB |\n\n### Soil heat conduction, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| soil_heat | 22.50° | 128 | 600 | 2000 | 578 | 2.84 | 1.35 | 114.63 KiB |\n| soil_heat | 11.25° | 512 | 600 | 1953 | 148 | 11.1 | 1.39 | 443.13 KiB |\n| soil_heat | 5.62° | 2048 | 600 | 488 | 37 | 44.4 | 1.38 | 1.72 MiB |\n| soil_heat | 3.75° | 4608 | 600 | 217 | 17 | 99.4 | 1.39 | 3.85 MiB |\n| soil_heat | 2.81° | 8192 | 600 | 122 | 9.26 | 177 | 1.39 | 6.85 MiB |\n| soil_heat | 1.88° | 18432 | 600 | 54 | 4.12 | 399 | 1.39 | 15.40 MiB |\n| soil_heat | 1.25° | 41472 | 600 | 24 | 1.82 | 903 | 1.38 | 34.65 MiB |\n| soil_heat | 0.94° | 73728 | 600 | 20 | 1.02 | 1610 | 1.38 | 61.60 MiB |\n| soil_heat | 0.62° | 165888 | 600 | 20 | 0.46 | 3560 | 1.4 | 138.59 MiB |\n\n### Number of soil layers\n\n| Configuration | Res | Columns | L | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 3.75° | 4608 | 10 | 600 | 651 | 22 | 74.8 | 0.616 | 3.70 MiB |\n| land | 3.75° | 4608 | 20 | 600 | 326 | 12 | 138 | 0.67 | 5.28 MiB |\n| land | 3.75° | 4608 | 30 | 600 | 217 | 8.2 | 200 | 0.69 | 6.86 MiB |\n| land | 3.75° | 4608 | 60 | 600 | 109 | 4.23 | 388 | 0.713 | 11.62 MiB |\n| land | 3.75° | 4608 | 100 | 600 | 65 | 2.63 | 626 | 0.737 | 17.95 MiB |\n\n### Number format, Float32 vs Float64\n\n| Configuration | NF | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | Float32 | 3.75° | 4608 | 600 | 217 | 3.13 | 524 | 0.264 | 6.86 MiB |\n| land | Float64 | 3.75° | 4608 | 600 | 217 | 6.7 | 245 | 0.564 | 13.73 MiB |\n\n### Time stepper\n\n| Configuration | Variant | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | ForwardEuler | 3.75° | 4608 | 600 | 217 | 8.04 | 204 | 0.676 | 6.86 MiB |\n| land | Heun | 3.75° | 4608 | 600 | 217 | 4.14 | 396 | 0.349 | 6.86 MiB |\n"
+        "markdown": "\n### Model configurations, default resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 3.75° | 4608 | 600 | 217 | 3.25 | 505 | 0.274 | 6.86 MiB |\n| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 10 | 158 | 0.877 | 5.76 MiB |\n| soil_heat | 3.75° | 4608 | 600 | 217 | 18 | 91.1 | 1.52 | 3.85 MiB |\n\n### Land model, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 22.50° | 128 | 600 | 2000 | 257 | 6.39 | 0.601 | 204.14 KiB |\n| land | 11.25° | 512 | 600 | 1953 | 80 | 20.5 | 0.751 | 789.14 KiB |\n| land | 5.62° | 2048 | 600 | 488 | 21 | 79.2 | 0.776 | 3.06 MiB |\n| land | 3.75° | 4608 | 600 | 217 | 3.17 | 518 | 0.267 | 6.86 MiB |\n| land | 2.81° | 8192 | 600 | 122 | 5.37 | 306 | 0.803 | 12.20 MiB |\n| land | 1.88° | 18432 | 600 | 54 | 2.3 | 713 | 0.775 | 27.43 MiB |\n| land | 1.25° | 41472 | 600 | 24 | 1.05 | 1570 | 0.794 | 61.71 MiB |\n| land | 0.94° | 73728 | 600 | 20 | 0.6 | 2760 | 0.803 | 109.70 MiB |\n| land | 0.62° | 165888 | 600 | 20 | 0.26 | 6220 | 0.8 | 246.81 MiB |\n\n### Land model without vegetation, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land_no_vegetation | 22.50° | 128 | 600 | 2000 | 312 | 5.26 | 0.73 | 171.16 KiB |\n| land_no_vegetation | 11.25° | 512 | 600 | 1953 | 89 | 18.4 | 0.833 | 661.66 KiB |\n| land_no_vegetation | 5.62° | 2048 | 600 | 488 | 23 | 72.9 | 0.843 | 2.56 MiB |\n| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 10 | 161 | 0.86 | 5.76 MiB |\n| land_no_vegetation | 2.81° | 8192 | 600 | 122 | 5.59 | 294 | 0.837 | 10.23 MiB |\n| land_no_vegetation | 1.88° | 18432 | 600 | 54 | 2.44 | 674 | 0.82 | 23.00 MiB |\n| land_no_vegetation | 1.25° | 41472 | 600 | 24 | 1.08 | 1520 | 0.817 | 51.74 MiB |\n| land_no_vegetation | 0.94° | 73728 | 600 | 20 | 0.63 | 2590 | 0.854 | 91.98 MiB |\n| land_no_vegetation | 0.62° | 165888 | 600 | 20 | 0.28 | 5910 | 0.842 | 206.94 MiB |\n\n### Soil heat conduction, horizontal resolution\n\n| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| soil_heat | 22.50° | 128 | 600 | 2000 | 602 | 2.73 | 1.41 | 114.63 KiB |\n| soil_heat | 11.25° | 512 | 600 | 1953 | 156 | 10.5 | 1.46 | 443.13 KiB |\n| soil_heat | 5.62° | 2048 | 600 | 488 | 39 | 42.5 | 1.45 | 1.72 MiB |\n| soil_heat | 3.75° | 4608 | 600 | 217 | 17 | 94.4 | 1.46 | 3.85 MiB |\n| soil_heat | 2.81° | 8192 | 600 | 122 | 9.69 | 169 | 1.45 | 6.85 MiB |\n| soil_heat | 1.88° | 18432 | 600 | 54 | 4.34 | 378 | 1.46 | 15.40 MiB |\n| soil_heat | 1.25° | 41472 | 600 | 24 | 1.92 | 856 | 1.45 | 34.65 MiB |\n| soil_heat | 0.94° | 73728 | 600 | 20 | 1.08 | 1520 | 1.45 | 61.60 MiB |\n| soil_heat | 0.62° | 165888 | 600 | 20 | 0.49 | 3380 | 1.47 | 138.59 MiB |\n\n### Number of soil layers\n\n| Configuration | Res | Columns | L | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | 3.75° | 4608 | 10 | 600 | 651 | 23 | 70.6 | 0.653 | 3.70 MiB |\n| land | 3.75° | 4608 | 20 | 600 | 326 | 13 | 124 | 0.743 | 5.28 MiB |\n| land | 3.75° | 4608 | 30 | 600 | 217 | 3.08 | 533 | 0.259 | 6.86 MiB |\n| land | 3.75° | 4608 | 60 | 600 | 109 | 4.8 | 342 | 0.809 | 11.62 MiB |\n| land | 3.75° | 4608 | 100 | 600 | 65 | 2.92 | 562 | 0.819 | 17.95 MiB |\n\n### Number format, Float32 vs Float64\n\n| Configuration | NF | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | Float32 | 3.75° | 4608 | 600 | 217 | 3.02 | 543 | 0.254 | 6.86 MiB |\n| land | Float64 | 3.75° | 4608 | 600 | 217 | 7.45 | 220 | 0.627 | 13.73 MiB |\n\n### Time stepper\n\n| Configuration | Variant | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| land | ForwardEuler | 3.75° | 4608 | 600 | 217 | 3.04 | 540 | 0.256 | 6.86 MiB |\n| land | Heun | 3.75° | 4608 | 600 | 217 | 1.48 | 1110 | 0.124 | 6.86 MiB |\n"
     }
 }
