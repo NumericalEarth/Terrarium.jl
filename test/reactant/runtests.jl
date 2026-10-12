@@ -36,6 +36,9 @@ include("setup.jl")
 @testset "Terrarium CPU vs Reactant" begin
     test_model(:soil_heat_column)
     test_model(:soil_heat_column_stretched)   # array-valued (ExponentialSpacing) vertical coordinates
+    test_model(:soil_heat_column_implicit)    # IMEX with implicit (tridiagonal) heat conduction and a flux top boundary
+    test_model(:soil_heat_column_implicit_freezing)  # …crossing the freezing point (regularized FreeWater apparent heat capacity)
+    test_model(:soil_richards_column_implicit)  # IMEX with implicit Richards flow and heat conduction, infiltration and heat advection
     test_model(:soil_heat_global)
     test_model(:snow_column)                  # standalone single-layer snow (closure + tendencies)
     test_model(:land_soil_snow)
