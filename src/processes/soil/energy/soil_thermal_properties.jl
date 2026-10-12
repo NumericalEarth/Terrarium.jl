@@ -62,6 +62,9 @@ SoilHeatCapacities(::Type{NF}; kwargs...) where {NF} = SoilHeatCapacities{NF}(; 
 """
     $TYPEDEF
 
+Thermal properties of the soil: constituent thermal conductivities and heat capacities, the bulk
+conductivity weighting, and the freeze curve of the energy–temperature closure.
+
 Properties:
 $TYPEDFIELDS
 """

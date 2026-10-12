@@ -24,6 +24,16 @@ variables(::SoilEnergyTemperatureClosure) = (
     auxiliary(:liquid_water_fraction, Ground(XYZ()), bounds = UnitInterval, desc = "Fraction of unfrozen water in the pore space"),
 )
 
+"""
+    $TYPEDSIGNATURES
+
+Name of the variable returned by the [`SoilEnergyTemperatureClosure`](@ref) ([`varname`](@ref) interface
+for closures): `temperature`. The closure also diagnoses `liquid_water_fraction`, but the temperature is
+its primary variable, in which the implicit heat operator of `internal_energy` is solved (see
+[`BackwardEuler`](@ref)).
+"""
+varname(::SoilEnergyTemperatureClosure) = :temperature
+
 function closure!(
         state, grid,
         closure::SoilEnergyTemperatureClosure,
