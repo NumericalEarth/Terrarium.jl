@@ -47,7 +47,7 @@ integrator.state.temperature   # current temperature Field
 ## Time stepping schemes
 
 Each model carries a single `timestepper` (set via the `timestepper` keyword on the model constructor).
-[`SoilModel`](@ref) and [`LandModel`](@ref) default to the implicit-explicit `IMEX(ForwardEuler(NF; Δt), BackwardEuler(NF))`, with a time step of 1 hour for `SoilModel` and 15 minutes for `LandModel` (see [Implicit-explicit time stepping](@ref)); all other models default to `ForwardEuler(NF)`, whose default time step is 300 s.
+[`LandModel`](@ref), and [`SoilModel`](@ref) with Richards-equation water flow, default to the implicit-explicit `IMEX(ForwardEuler(NF; Δt), BackwardEuler(NF))`, with a time step of 15 minutes for `LandModel` and 1 hour for `SoilModel` (see [Implicit-explicit time stepping](@ref)); all other models, including `SoilModel` without water flow, default to `ForwardEuler(NF)`, whose default time step is 300 s.
 Terrarium currently provides two explicit time steppers, [`ForwardEuler`](@ref) and [`Heun`](@ref):
 
 ```@docs; canonical = false
@@ -80,7 +80,7 @@ A single IMEX step of size ``\Delta t`` consists of the following stages:
    in place.
 5. The model hook `timestep!(state, model, timestepper, Δt)` and `closure!` are applied once, and the clock ticks once.
 
-`IMEX(ForwardEuler(NF; Δt), BackwardEuler(NF))` is the default timestepper of [`SoilModel`](@ref) (`Δt = 3600`) and [`LandModel`](@ref) (`Δt = 900`). The snow, vegetation, surface hydrology, and surface energy balance components of a `LandModel` remain explicit under it and are integrated with forward Euler at the same step; the shorter step of `LandModel` is set by the stability of the explicit snow. Value boundary conditions on `temperature` or `pressure_head` (e.g. [`PrescribedSurfaceTemperature`](@ref)) require an explicit timestepper instead (see [Limitations](@ref imex-limitations)).
+`IMEX(ForwardEuler(NF; Δt), BackwardEuler(NF))` is the default timestepper of [`LandModel`](@ref) (`Δt = 900`) and of [`SoilModel`](@ref) with Richards-equation water flow (`Δt = 3600`). The snow, vegetation, surface hydrology, and surface energy balance components of a `LandModel` remain explicit under it and are integrated with forward Euler at the same step; the shorter step of `LandModel` is set by the stability of the explicit snow. Value boundary conditions on `temperature` or `pressure_head` (e.g. [`PrescribedSurfaceTemperature`](@ref)) require an explicit timestepper instead (see [Limitations](@ref imex-limitations)).
 
 Because there is only one `update_state!` per step, an IMEX step costs one evaluation of the explicit right-hand side plus the implicit solve. The sub-steppers are given in the order `IMEX(explicit, implicit)`, which is checked when the integrator is initialized. The explicit sub-stepper must be a single-stage scheme; currently this means [`ForwardEuler`](@ref), whose `Δt` is also the default time step of the `IMEX`. The implicit sub-stepper is an [`AbstractTimeStepper`](@ref) whose behavior is further specialized by an [`AbstractImplicitSolver`](@ref):
 
@@ -304,8 +304,8 @@ and, for a Richards-equation hydrology, the hydraulic timescale ``\Delta z^2 (\p
 Because a [`ModelIntegrator`](@ref) implements the Oceananigans model interface, this diagnostic can
 be consumed directly by the Oceananigans [`TimeStepWizard`](@extref Oceananigans.Simulations.TimeStepWizard)
 callback, which rescales `simulation.Δt` each time it is invoked to target a chosen diffusive CFL
-number. The following examples use [`ForwardEuler`](@ref) explicitly, since the default [`IMEX`](@ref) timestepper of
-`SoilModel` imposes no diffusive restriction (see [Adaptive time stepping with IMEX](@ref)). Attach it to a [`Simulation`](@extref Oceananigans.Simulations.Simulation) like any other
+number. The following examples use [`ForwardEuler`](@ref) explicitly, since an [`IMEX`](@ref) timestepper imposes no
+diffusive restriction from implicitly integrated terms (see [Adaptive time stepping with IMEX](@ref)). Attach it to a [`Simulation`](@extref Oceananigans.Simulations.Simulation) like any other
 callback,
 
 ```@example simulation
