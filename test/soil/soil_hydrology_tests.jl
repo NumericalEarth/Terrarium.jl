@@ -403,6 +403,39 @@ using .ImplicitRichardsTestUtils: richards_soil, implicit_timestepper, build_wat
     @test Terrarium.minimum_moisture_capacity(SoilHydraulicsSURFEX(NF; minimum_moisture_capacity = 1.0e-4)) == 1.0e-4
 end
 
+@testset "Implicit Richards: explicit water outflow timescale" begin
+    NF = Float64
+    Δz = 0.05
+    grid = ColumnGrid(CPU(), NF, UniformSpacing(; Δz, N = 20))
+    # draining sandy column: gravity drainage (unit head gradient) at the bottom, infiltration at the top
+    drainage = (pressure_head = (bottom = GradientBoundaryCondition(NF(1)),),)
+    soil_kwargs = (saturated_conductivity = 1.0e-4, swrc = VanGenuchten(α = 3.5, n = 3.0))
+    infiltration = 2.0e-5
+    s = 0.6
+    s_res = Terrarium.residual_saturation(ConstantSoilHydraulics(NF))
+    function outflow_timescale(integrator)
+        (; state, model) = integrator
+        update_state!(state, model, integrator.inputs; compute_tendencies = true)
+        class = timestepping(state, Val(:saturation_water_ice))
+        return Terrarium.water_outflow_timescale(state, get_grid(model), get_hydrology(model.soil), model.soil, model.constants, nothing, class)
+    end
+    # implicit: only the drainage through the bottom face, q = -K, is explicit
+    implicit = build_water_column(grid, implicit_timestepper(NF); saturation = s, infiltration, extra_boundary_conditions = drainage, soil_kwargs)
+    τ = outflow_timescale(implicit)
+    K = interior(implicit.state.hydraulic_conductivity)[1, 1, :]
+    @test isfinite(τ)
+    @test τ ≈ POROSITY * (s - s_res) * Δz / min(K[1], K[2])
+    # implicit heat advection imposes no limit, so the outflow limit is the advective timescale of the model
+    @test Terrarium.cell_advection_timescale(implicit) ≈ τ
+    # explicit: the interior gravity fluxes balance, and the top cell loses K - infiltration
+    explicit = build_water_column(grid, ForwardEuler(NF); saturation = s, infiltration, extra_boundary_conditions = drainage, soil_kwargs)
+    @test outflow_timescale(explicit) ≈ POROSITY * (s - s_res) * Δz / (min(K[end - 1], K[end]) - infiltration)
+    # no explicit outflow without drainage
+    closed = build_water_column(grid, implicit_timestepper(NF); saturation = s, infiltration, soil_kwargs)
+    @test outflow_timescale(closed) == Inf
+    @test Terrarium.cell_advection_timescale(closed) == Inf
+end
+
 
 @testset "Implicit Richards: linear consistency with dense backward Euler" begin
     NF = Float64

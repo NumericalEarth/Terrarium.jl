@@ -1,8 +1,8 @@
 # Cell advection/diffusion timescale diagnostics for adaptive timestepping.
 #
-# These methods provide the `cell_diffusion_timescale` (and a trivial `cell_advection_timescale`)
-# consumed by the Oceananigans `TimeStepWizard` callback so that a `Simulation` wrapping a
-# `ModelIntegrator` can adapt its step size to the diffusive stability limit of the soil operators.
+# These methods provide the `cell_diffusion_timescale` and `cell_advection_timescale` consumed by the
+# Oceananigans `TimeStepWizard` callback so that a `Simulation` wrapping a `ModelIntegrator` can adapt its
+# step size to the stability limits of the explicitly integrated soil terms.
 
 """
     $TYPEDSIGNATURES
@@ -23,9 +23,10 @@ cell_diffusion_timescale(integrator::ModelIntegrator) =
 
 Return the advective stability timescale (seconds) of the `integrator`, used by the Oceananigans
 `TimeStepWizard` for an advective CFL constraint. For [`SoilModel`](@ref) and [`LandModel`](@ref) this is
-the timescale of the explicit upwind advection of sensible heat by the soil water flux (see
+the minimum of the timescale of the explicit upwind advection of sensible heat by the soil water flux (see
 [`advective_heat_flux`](@ref)), `Inf` without water flow and when `internal_energy` is integrated
-implicitly. Models that transport nothing advectively return `Inf`.
+implicitly, and of the explicit water outflow limit ([`water_outflow_timescale`](@ref)). Models that
+transport nothing advectively return `Inf`.
 """
 cell_advection_timescale(integrator::ModelIntegrator) =
     cell_advection_timescale(integrator.state, integrator.model)
@@ -33,9 +34,11 @@ cell_advection_timescale(integrator::ModelIntegrator) =
 # Generic (no advective restriction) fallback.
 cell_advection_timescale(state, ::AbstractModel{NF}) where {NF} = convert(NF, Inf)
 
-cell_advection_timescale(state, model::SoilModel) = cell_advection_timescale(state, model.grid, model.soil, get_timestepper(model))
+cell_advection_timescale(state, model::SoilModel) =
+    cell_advection_timescale(state, model.grid, model.soil, model.constants, nothing, get_timestepper(model))
 
-cell_advection_timescale(state, model::LandModel) = cell_advection_timescale(state, get_grid(model), model.soil, get_timestepper(model))
+cell_advection_timescale(state, model::LandModel) =
+    cell_advection_timescale(state, get_grid(model), model.soil, model.constants, model.surface_hydrology, get_timestepper(model))
 
 # Generic (no diffusive restriction) fallback.
 cell_diffusion_timescale(state, ::AbstractModel{NF}) where {NF} = convert(NF, Inf)
