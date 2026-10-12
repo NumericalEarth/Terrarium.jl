@@ -171,6 +171,8 @@ function initialize!(integrator::ModelIntegrator)
     return integrator
 end
 
+initialize!(simulation::Simulation{<:ModelIntegrator}) = initialize!(simulation.model)
+
 current_time(integrator::ModelIntegrator) = integrator.clock.time
 
 get_fields(integrator::ModelIntegrator, queries...) = get_fields(integrator.state, queries...)
