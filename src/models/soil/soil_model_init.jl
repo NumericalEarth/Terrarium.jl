@@ -259,18 +259,14 @@ $TYPEDFIELDS
     @param value::T bounds = UnitInterval
 end
 
-# plain values are interpreted as saturation
-water_content_measure(value) = Saturation(value)
-water_content_measure(measure::AbstractWaterContentMeasure) = measure
-
 """
     $TYPEDEF
 
 Simple initialization scheme for soil/ground saturation that sets the initial water table at the
 given depth and the water content in all layers in the vadose (unsaturated) zone to a constant value.
 
-The vadose zone water content is given as a [`Saturation`](@ref) (the default for plain values) or
-as a [`VolumetricWaterContent`](@ref), which is converted to saturation by dividing by the soil
+The vadose zone water content is given as a [`Saturation`](@ref) or as a
+[`VolumetricWaterContent`](@ref); plain (unwrapped) values are interpreted as saturation. Volumetric water content is converted to saturation by dividing by the soil
 porosity at each grid cell (and capped at full saturation). It is declared as the input variable
 `vadose_zone_saturation` (-) or `vadose_zone_water_content` (m³/m³), respectively, and the
 water table depth as `water_table_depth` (m), with defaults taken from the corresponding properties.
@@ -286,17 +282,16 @@ VolumetricWaterContent{Float32}(0.2f0)
 Properties:
 $TYPEDFIELDS
 """
-@parameterized struct SaturationWaterTable{NF, S <: AbstractWaterContentMeasure, D} <: AbstractInitializer{NF}
-    "Water content in the vadose zone above the water table, as `Saturation` or `VolumetricWaterContent`"
-    @component vadose_zone_saturation::S
+@parameterized struct SaturationWaterTable{NF, S, D} <: AbstractInitializer{NF}
+    "Water content in the vadose zone above the water table, as `Saturation`, `VolumetricWaterContent`, or a plain saturation value"
+    @param vadose_zone_saturation::S bounds = UnitInterval
 
     "Depth of the water table below the surface (m)"
     @param water_table_depth::D bounds = Nonnegative
 end
 
 function SaturationWaterTable(::Type{NF}; vadose_zone_saturation = convert(NF, 3 // 4), water_table_depth = NF(5)) where {NF}
-    measure = water_content_measure(vadose_zone_saturation)
-    return SaturationWaterTable{NF, typeof(measure), typeof(water_table_depth)}(measure, water_table_depth)
+    return SaturationWaterTable{NF, typeof(vadose_zone_saturation), typeof(water_table_depth)}(vadose_zone_saturation, water_table_depth)
 end
 
 ConstructionBase.constructorof(::Type{<:SaturationWaterTable{NF}}) where {NF} = (sat, depth) -> SaturationWaterTable{NF, typeof(sat), typeof(depth)}(sat, depth)
@@ -306,14 +301,18 @@ variables(init::SaturationWaterTable) = (
     input(:water_table_depth, Ground(XY()), default = init.water_table_depth, units = u"m", bounds = Nonnegative, desc = "Initial depth of the water table below the surface"),
 )
 
+# plain values are interpreted as saturation
+vadose_zone_variable(saturation) =
+    input(:vadose_zone_saturation, Ground(XY()), default = saturation, bounds = UnitInterval, desc = "Initial saturation in the vadose zone above the water table")
+
 vadose_zone_variable(measure::Saturation) =
     input(:vadose_zone_saturation, Ground(XY()), default = measure.value, bounds = UnitInterval, desc = "Initial saturation in the vadose zone above the water table")
 
 vadose_zone_variable(measure::VolumetricWaterContent) =
     input(:vadose_zone_water_content, Ground(XY()), default = measure.value, units = u"m^3/m^3", bounds = UnitInterval, desc = "Initial volumetric water and ice content in the vadose zone above the water table")
 
-# Additional kernel arguments needed to convert the water content measure to saturation
-water_content_args(::AbstractModel, ::Saturation) = ()
+# Additional kernel arguments needed to convert the vadose zone water content to saturation
+water_content_args(::AbstractModel, saturation) = ()
 water_content_args(model::AbstractModel, ::VolumetricWaterContent) = (get_stratigraphy(model.soil), get_biogeochemistry(model.soil))
 
 function initialize!(state, model::AbstractModel, init::SaturationWaterTable)
@@ -338,11 +337,11 @@ end
 """
     $TYPEDSIGNATURES
 
-Saturation in the vadose zone at cell `(i, j, k)`. For a [`Saturation`](@ref) it is read directly
-from the `vadose_zone_saturation` field; for a [`VolumetricWaterContent`](@ref) it is the
+Saturation in the vadose zone at cell `(i, j, k)`. For a [`Saturation`](@ref) or a plain value it is
+read directly from the `vadose_zone_saturation` field; for a [`VolumetricWaterContent`](@ref) it is the
 `vadose_zone_water_content` divided by the soil porosity, `θ / ϕ`, capped at full saturation.
 """
-@propagate_inbounds compute_vadose_zone_saturation(i, j, k, grid, fields, ::Saturation) = fields.vadose_zone_saturation[i, j, 1]
+@propagate_inbounds compute_vadose_zone_saturation(i, j, k, grid, fields, saturation) = fields.vadose_zone_saturation[i, j, 1]
 
 @propagate_inbounds function compute_vadose_zone_saturation(
         i, j, k, grid, fields, ::VolumetricWaterContent,

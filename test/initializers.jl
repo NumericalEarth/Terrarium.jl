@@ -48,8 +48,13 @@ end
     strat = HomogeneousSoilStratigraphy(NF; porosity)
     biogeochem = ConstantSoilCarbonDensity(ρ_soc = 0.0)
     soil = SoilEnergyWaterCarbon(NF; strat, biogeochem)
-    # plain values are interpreted as saturation
-    @test SaturationWaterTable(NF; vadose_zone_saturation = 0.5).vadose_zone_saturation == Saturation(0.5)
+    # saturation can be given wrapped or as a plain value
+    for vadose_zone_saturation in (0.5, Saturation(0.5))
+        hydrology = SaturationWaterTable(NF; vadose_zone_saturation, water_table_depth = 1.0)
+        integrator = initialize(SoilModel(grid; soil, initializer = SoilInitializer(NF; hydrology)))
+        z = znodes(integrator.state.saturation_water_ice)
+        @test all(interior(integrator.state.saturation_water_ice)[1, 1, z .> -1] .== 0.5)
+    end
     hydrology = SaturationWaterTable(NF; vadose_zone_saturation = VolumetricWaterContent(0.2), water_table_depth = 1.0)
     model = SoilModel(grid; soil, initializer = SoilInitializer(NF; hydrology))
     names = map(varname, input_variables(variables(model)))
