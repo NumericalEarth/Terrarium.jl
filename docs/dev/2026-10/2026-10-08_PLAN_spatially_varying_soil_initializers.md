@@ -43,6 +43,10 @@ Base revision: `ce9ae606ae39063f52bb0ef23a3328a8b1904055` (tip of `main`, branch
   Instead of the model initializer re-evaluating field initializers (`reinitialize!`, now removed), `initialize!(::ModelIntegrator)` first resets every input field to the default declared by the current model's variables (`reset_inputs!`), then applies input sources, user initializers, and the model initializer.
   Defaults of every form are therefore re-applied on each initialization, so all initializer parameters, including plain scalars, take effect through `initialize(integrator, params)`, and input sources always take precedence over defaults, including field initializers.
   *Approved by the author on 2026-10-08.*
+- **Rev 8 (2026-10-09):** Requested directly by the author.
+  `SaturationWaterTable` accepts its vadose zone water content either as saturation or as volumetric water content, by wrapping the value of `vadose_zone_saturation` in a marker type, `Saturation` (the default for plain values) or `VolumetricWaterContent`.
+  The input variable is named after the marker (`vadose_zone_saturation` or `vadose_zone_water_content`), and volumetric water content is converted to saturation in the kernel by dividing by the soil porosity of the model's stratigraphy, capped at full saturation.
+  The markers are `@parameterized`, so a numeric value remains a model parameter.
 
 ## Problem description
 

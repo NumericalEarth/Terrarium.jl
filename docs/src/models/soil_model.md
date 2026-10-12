@@ -84,7 +84,7 @@ The parameters of the energy and hydrology initializers are declared as `input` 
 | [`ConstantSoilTemperature`](@ref) | `initial_surface_temperature` (°C) |
 | [`QuasiThermalSteadyState`](@ref) | `initial_surface_temperature` (°C), `geothermal_heat_flux` (W/m²) |
 | [`ConstantSaturation`](@ref) | `initial_saturation` |
-| [`SaturationWaterTable`](@ref) | `vadose_zone_saturation`, `water_table_depth` (m) |
+| [`SaturationWaterTable`](@ref) | `vadose_zone_saturation` or `vadose_zone_water_content` (m³/m³), `water_table_depth` (m) |
 
 Each value may therefore be a number, a function of the horizontal node coordinates, an array, a `Field`, or an [`AbstractFieldInitializer`](@ref).
 These defaults are re-applied at every initialization, so changes to their parameters take effect, and an [`InputSource`](@ref) with the same name and units always takes precedence over them.
@@ -120,6 +120,21 @@ PiecewiseLinearInitialSoilTemperature
 SaturationWaterTable
 ```
 
+The vadose zone water content of `SaturationWaterTable` can be given either as saturation or as volumetric water content by wrapping the value in one of the following marker types; plain values are interpreted as saturation.
+Volumetric water content is converted to saturation by dividing by the soil porosity at each grid cell, so that it can be initialized directly from, e.g., soil moisture observations.
+
+```@example soilmodel
+hydrology = SaturationWaterTable(Float32; vadose_zone_saturation = VolumetricWaterContent(0.2f0), water_table_depth = 3.0f0)
+model = SoilModel(grid; initializer = SoilInitializer(Float32; hydrology))
+integrator = initialize(model)
+extrema(interior(integrator.state.saturation_water_ice))
+```
+
+```@docs; canonical = false
+Saturation
+VolumetricWaterContent
+```
+
 ```@docs; canonical = false
 ConstantSaturation
 ```
@@ -130,6 +145,7 @@ ConstantSaturation
 compute_quasi_steady_state_temperature
 compute_constant_temperature
 compute_water_table_saturation
+compute_vadose_zone_saturation
 compute_constant_saturation
 ```
 

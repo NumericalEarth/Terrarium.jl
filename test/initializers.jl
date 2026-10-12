@@ -40,6 +40,39 @@ end
     @test interior(state.temperature) == T_before
 end
 
+@testset "SaturationWaterTable with volumetric water content" begin
+    NF = Float64
+    grid = ColumnGrid(CPU(), NF, UniformSpacing(Δz = 0.1, N = 20))
+    # constant porosity of 0.4 without organic carbon
+    porosity = ConstantSoilPorosity(mineral_porosity = 0.4)
+    strat = HomogeneousSoilStratigraphy(NF; porosity)
+    biogeochem = ConstantSoilCarbonDensity(ρ_soc = 0.0)
+    soil = SoilEnergyWaterCarbon(NF; strat, biogeochem)
+    # plain values are interpreted as saturation
+    @test SaturationWaterTable(NF; vadose_zone_saturation = 0.5).vadose_zone_saturation == Saturation(0.5)
+    hydrology = SaturationWaterTable(NF; vadose_zone_saturation = VolumetricWaterContent(0.2), water_table_depth = 1.0)
+    model = SoilModel(grid; soil, initializer = SoilInitializer(NF; hydrology))
+    names = map(varname, input_variables(variables(model)))
+    @test :vadose_zone_water_content ∈ names
+    @test :vadose_zone_saturation ∉ names
+    integrator = initialize(model)
+    z = znodes(integrator.state.saturation_water_ice)
+    sat = interior(integrator.state.saturation_water_ice)[1, 1, :]
+    @test all(sat[z .<= -1] .== 1)
+    @test all(sat[z .> -1] .≈ 0.2 / 0.4)
+    # the wrapped value is a parameter of the model
+    ps = vec(parameters(model))
+    @test ps.initializer.hydrology.vadose_zone_saturation.value == 0.2
+    ps.initializer.hydrology.vadose_zone_saturation.value = 0.1
+    integrator = initialize(integrator, ps)
+    sat = interior(integrator.state.saturation_water_ice)[1, 1, :]
+    @test all(sat[z .> -1] .≈ 0.1 / 0.4)
+    # water content exceeding the porosity is capped at full saturation
+    hydrology = SaturationWaterTable(NF; vadose_zone_saturation = VolumetricWaterContent(0.6), water_table_depth = 1.0)
+    integrator = initialize(SoilModel(grid; soil, initializer = SoilInitializer(NF; hydrology)))
+    @test all(interior(integrator.state.saturation_water_ice) .== 1)
+end
+
 @testset "Scalar initial values are parameters" begin
     NF = Float32
     grid = ColumnGrid(CPU(), NF, ExponentialSpacing(N = 10))
