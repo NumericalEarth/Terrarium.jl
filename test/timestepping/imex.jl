@@ -333,6 +333,25 @@ end
     end
 end
 
+@testset "LandModel routes the snow meltwater drainage implicitly under IMEX" begin
+    grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 10))
+    integrator = initialize(LandModel(grid; vegetation = nothing))
+    state = integrator.state
+    @test timestepping(state, Val(:snow_water_equivalent)) === Implicit()
+    @test timestepping(state, Val(:snow_energy)) === Explicit()
+    # one `SplitOperator` with the soil operators followed by the snow operator
+    operators = state.timestepper_cache.implicit.operator.operators
+    @test keys(operators) == (:internal_energy, :snow_water_equivalent)
+    @test operators.internal_energy isa TridiagonalOperator
+    @test operators.snow_water_equivalent isa DiagonalOperator
+    # the drainage is linearized in the liquid fraction
+    @test state.timestepper_cache.implicit.workspaces.snow_water_equivalent.iteration ==
+        Terrarium.Iteration(:snow_water_equivalent; target = :snow_liquid_fraction)
+    # without snow, only the soil is implicit
+    integrator = initialize(LandModel(grid; vegetation = nothing, snow = nothing))
+    @test keys(integrator.state.timestepper_cache.implicit.operator.operators) == (:internal_energy,)
+end
+
 # Routing of the soil variables of a `SoilModel` under `IMEX` and the structure of the implicit cache and operators
 module IMEXSoilRoutingTests
 

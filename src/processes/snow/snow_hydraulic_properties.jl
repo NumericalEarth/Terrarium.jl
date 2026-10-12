@@ -47,3 +47,17 @@ fraction of the water substance. Outflow vanishes smoothly as `θ_liq → L_c` a
     Sstar = max(θ_liq - liq_c, zero(NF)) / (one(NF) - liq_c)
     return K_sat * Sstar^3
 end
+
+"""
+    $TYPEDSIGNATURES
+
+Derivative `∂M_r/∂θ_liq = 3 K_sat S*² / (1 − L_c)` (m/s) of the meltwater outflow
+([`compute_meltwater_outflow`](@ref)) with respect to the liquid fraction `θ_liq`, zero below the capillary
+retention `L_c`.
+"""
+@inline function compute_meltwater_outflow_derivative(hydraulics::ConstantSnowHydraulics, θ_liq::NF) where {NF}
+    liq_c = hydraulics.capillary_retention
+    K_sat = hydraulics.saturated_conductivity
+    Sstar = max(θ_liq - liq_c, zero(NF)) / (one(NF) - liq_c)
+    return 3 * K_sat * Sstar^2 / (one(NF) - liq_c)
+end

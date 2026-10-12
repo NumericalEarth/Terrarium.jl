@@ -43,9 +43,9 @@ liquid water fraction.
 ```@docs; canonical = false
 initialize!(state, grid, snow::SingleLayerSnow, constants::PhysicalConstants, args...)
 
-compute_auxiliary!(state, grid, snow::SingleLayerSnow, constants::PhysicalConstants, args...)
+compute_auxiliary!(state, grid, snow::SingleLayerSnow, constants::PhysicalConstants, timestepper::Optional{AbstractTimeStepper})
 
-compute_tendencies!(state, grid, snow::SingleLayerSnow, constants::PhysicalConstants, atmos::AbstractAtmosphere, args...)
+compute_tendencies!(state, grid, snow::SingleLayerSnow, constants::PhysicalConstants, atmos::AbstractAtmosphere, timestepper::Optional{AbstractTimeStepper})
 
 closure!(state, grid, closure::SnowEnergyTemperatureClosure, snow::SingleLayerSnow, constants::PhysicalConstants, args...)
 

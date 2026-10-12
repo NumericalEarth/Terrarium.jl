@@ -47,12 +47,12 @@ function initialize!(state, model::SnowModel)
 end
 
 function compute_auxiliary!(state, model::SnowModel)
-    compute_auxiliary!(state, model.grid, model.snow, model.constants)
+    compute_auxiliary!(state, model.grid, model.snow, model.constants, model.timestepper)
     return nothing
 end
 
 function compute_tendencies!(state, model::SnowModel)
-    compute_tendencies!(state, model.grid, model.snow, model.constants, model.atmosphere)
+    compute_tendencies!(state, model.grid, model.snow, model.constants, model.atmosphere, model.timestepper)
     return nothing
 end
 
@@ -69,6 +69,31 @@ function invclosure!(state, model::SnowModel)
 end
 
 # Time stepping
+
+# The snow meltwater drainage is implicit under an IMEX timestepper.
+timestepping(::AbstractVariable{:snow_water_equivalent}, ::SnowModel, ::AbstractIMEX) = Implicit()
+
+# Forward the implicit operator query and the solver hooks to the snow.
+
+function implicit_operator(model::SnowModel, state, names::Tuple{Vararg{Symbol}})
+    operators = NamedTuple{names}(map(name -> implicit_operator(model.snow, state, model.grid, Val(name)), names))
+    return SplitOperator(operators)
+end
+
+function linearize!(operator::AbstractLinearOperator, rhs, state, model::SnowModel, explicit_stage, Δt, iteration::Iteration)
+    linearize!(operator, rhs, state, model.grid, model.snow, model.constants, explicit_stage, Δt, iteration)
+    return nothing
+end
+
+function implicit_update!(state, model::SnowModel, operator::AbstractLinearOperator, explicit_stage, Δt, iteration::Iteration)
+    implicit_update!(state, model.grid, model.snow, model.constants, operator, explicit_stage, Δt, iteration)
+    return nothing
+end
+
+function implicit_closure!(state, model::SnowModel, iteration::Iteration)
+    implicit_closure!(state, model.grid, model.snow, model.constants, iteration)
+    return nothing
+end
 
 function Terrarium.timestep!(state::StateVariables, model::SnowModel, timestepper::Terrarium.AbstractTimeStepper, Δt)
     return timestep!(state, model, model.snow, timestepper, Δt)
