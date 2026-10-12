@@ -130,6 +130,8 @@ The hydrology closure redistributes over- and undersaturation with [`adjust_satu
 
 The implicit step is the modified Picard iteration of [CeliaEtAl1990](@cite) for the mixed form, solved in the total hydraulic head with the lagged face conductivity of the Darcy flux and the lagged specific moisture capacity ``C = \partial\theta/\partial\psi`` given by [`compute_implicit_conductivity!`](@ref) and [`compute_implicit_capacity!`](@ref), followed by a conservative update of the saturation and the hydrology closure; see [Implicit Richards equation](@ref imex-richards) for the scheme. In saturated cells ``C = 0``; the [`minimum_moisture_capacity`](@ref) of the hydraulic properties bounds ``C`` from below so that frozen saturated cells, whose hydraulic conductivity vanishes as well, do not make the system singular. Flux boundary conditions on `saturation_water_ice` and gradient boundary conditions on `pressure_head` are supported; value boundary conditions on `pressure_head` are not yet supported.
 
+The terms that stay explicit can remove more water from a cell in one step than it holds, e.g. gravity drainage through the bottom face of a draining sandy column. [`water_outflow_timescale`](@ref) reports the time in which they would drain a cell to its residual saturation, which bounds the step of a `TimeStepWizard` through `cell_advection_timescale` (see [Adaptive time stepping with IMEX](@ref)). It evaluates the explicit terms selected by the resolved class of `saturation_water_ice`, so under `Explicit()` it includes the interior Darcy fluxes as well.
+
 The implicit operator of `saturation_water_ice` is a [`TridiagonalOperator`](@ref) in the total hydraulic head `pressure_head`, the variable of the [`SoilSaturationPressureClosure`](@ref) (see its [`varname`](@ref) method below), returned by [`implicit_operator`](@ref) (which also validates the configuration), and each iteration of the implicit solver calls the process hooks of `SoilHydrology` with `RichardsEq` below:
 
 ```@docs; canonical = false
@@ -218,6 +220,10 @@ compute_hydraulics!
 minimum_moisture_capacity
 ```
 
+```@docs; canonical = false
+water_outflow_timescale
+```
+
 ## Kernel functions
 
 ```@docs; canonical = false
@@ -252,6 +258,8 @@ compute_redistributed_heat!
 compute_matric_potential
 compute_specific_moisture_capacity
 specific_moisture_capacity
+compute_water_outflow_timescale
+compute_saturation_boundary_flux
 ```
 
 The following kernel functions implement the implicit Richards step (see [Implicit Richards equation](@ref soil-hydrology-implicit-richards)):

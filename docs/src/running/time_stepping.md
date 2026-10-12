@@ -201,7 +201,7 @@ Phase change is the main source of error. With `iterations = 1`, the lagged appa
 - Boundary fluxes are evaluated at ``t^n`` and held fixed over the step; only the diffusive fluxes through interior faces are implicit.
 - With active soil hydrology (e.g. [`RichardsEq`](@ref)), the energy and water equations are coupled by operator splitting (see [Coupling of water and energy](@ref imex-water-energy-coupling)): the Richards step evaluates the hydraulic conductivity at the liquid water fraction at ``t^n``, so the effect of freezing and thawing on the water flow is lagged by one step. This affects only accuracy; energy and water conservation are unaffected.
 - The redistribution of water by [`adjust_saturation_profile!`](@ref) moves only the sensible heat of liquid water, also when the water it moves is frozen.
-- Boundary Darcy fluxes, e.g. gravity drainage, are evaluated at ``t^n`` and are not limited by the water available in the boundary cell. At very large steps they can overdraw a column so strongly that it alternates between empty and saturated; the water solution is then inaccurate, and since the hydrology closure moves the excess water of a cell (and its heat) before the heat step advects the heat of the water that caused it, the temperature is then no longer guaranteed to stay within its initial range.
+- Boundary Darcy fluxes, e.g. gravity drainage, are evaluated at ``t^n`` and are not limited by the water available in the boundary cell. At very large steps they can overdraw a column so strongly that it alternates between empty and saturated; the water solution is then inaccurate, and since the hydrology closure moves the excess water of a cell (and its heat) before the heat step advects the heat of the water that caused it, the temperature is then no longer guaranteed to stay within its initial range. A `TimeStepWizard` keeps the step below this bound through the explicit water outflow limit of `cell_advection_timescale` (see [Adaptive time stepping with IMEX](@ref)).
 - Value (Dirichlet) boundary conditions on `pressure_head` are rejected when `saturation_water_ice` is implicit; use flux conditions on `saturation_water_ice` (e.g. [`InfiltrationFlux`](@ref)) or gradient conditions on `pressure_head` (e.g. [`FreeDrainage`](@ref)).
 - Only the `FreeWater` freeze curve is supported, since the regularized apparent heat capacity is only implemented for it.
 - [`Heun`](@ref) is not yet supported as the explicit partner of an [`IMEX`](@ref); use [`ForwardEuler`](@ref).
@@ -325,11 +325,53 @@ run!(sim)
 sim.Δt   # adapted time step (s)
 ```
 
-Oceananigans also defines a companion advective diagnostic [`cell_advection_timescale`](@ref). For a soil with
-Richards-equation hydrology, it is the minimum over all cells of ``C \Delta z / (C_\text{w} |q|)``, the stability
-limit of the explicit upwind advection of heat by the Darcy flux ``q`` (with bulk and water volumetric heat capacities
-``C`` and ``C_\text{w}``), and `Inf` without water flow. Implicitly integrated operators impose no diffusive
-restriction, so under an `IMEX` timestepper `cell_diffusion_timescale` excludes them.
+Oceananigans also defines a companion advective diagnostic [`cell_advection_timescale`](@ref), which the wizard
+multiplies by its `cfl` (0.2 by default). For a soil with Richards-equation hydrology, it is the minimum of two time
+scales of explicit transport terms:
+
+- the stability limit ``C \Delta z / (C_\text{w} |q|)`` of the explicit upwind advection of heat by the Darcy flux
+  ``q`` (with bulk and water volumetric heat capacities ``C`` and ``C_\text{w}``), `Inf` without water flow;
+- the explicit water outflow limit [`water_outflow_timescale`](@ref), ``\phi (s - s_\text{res}) \Delta z / q_\text{out}``,
+  the time in which the explicit terms of the saturation tendency would drain a cell of porosity ``\phi`` and
+  saturation ``s`` to its residual saturation ``s_\text{res}``. The outflow ``q_\text{out}`` (m/s) is the net loss of
+  water of the cell per unit area through these terms: the Darcy fluxes that are integrated explicitly, the flux
+  boundary conditions on the saturation (e.g. [`InfiltrationFlux`](@ref)), evapotranspiration, and the user-defined
+  forcing. Cells without net explicit outflow impose no limit.
+
+The wizard calls these diagnostics after each step, when the auxiliary variables have been updated but the tendencies
+are those of the beginning of the step. The outflow limit is therefore evaluated directly from the current state by
+kernel functions ([`compute_water_outflow_timescale`](@ref)) rather than read from the stored tendency, so that it
+measures the explicit outflow of the next step.
+
+### Adaptive time stepping with IMEX
+
+Implicitly integrated operators impose no stability restriction, so the wizard is not throttled by them: under an
+[`IMEX`](@ref) timestepper, `cell_diffusion_timescale` is `Inf` for implicit heat conduction and implicit Richards flow,
+and the advective limit of the heat advection is `Inf` when `internal_energy` is implicit. The step is then bounded
+by the terms that remain explicit and by `max_Δt`. Without water flow, only `max_Δt` remains:
+
+```@example simulation
+wizard_integrator = initialize(SoilModel(imex_grid; timestepper = IMEX(ForwardEuler(Float32), BackwardEuler(Float32))))
+sim = Simulation(wizard_integrator; stop_iteration = 50, Δt = 60.0)
+wizard = TimeStepWizard(diffusive_cfl = 0.5, max_change = 1.5, max_Δt = 6 * 3600.0)
+sim.callbacks[:wizard] = Callback(wizard, IterationInterval(1))
+run!(sim)
+sim.Δt   # reaches `max_Δt`, far beyond the explicit diffusive limit of a few minutes
+```
+
+With a Richards-equation hydrology, the Darcy fluxes through the boundary faces of the column (e.g. gravity drainage
+through a [`FreeDrainage`](@ref) or unit-gradient condition on `pressure_head`), the flux boundary conditions, and the
+sinks stay explicit at ``t^n`` (see [Implicit Richards equation](@ref imex-richards)). A step longer than the outflow
+limit would remove more water from a cell than it holds, and the hydrology closure would then move water from other
+cells to fill the deficit, so the column alternates between drained and saturated cells. The outflow limit keeps the
+wizard below this bound. In a draining sandy column, it can be as restrictive as the explicit diffusive limit of the
+Richards equation, since the boundary drainage carries the full flux through the column; the `cfl` of the wizard sets
+the fraction of the available water that a step may remove. Under explicit time stepping of the saturation, the outflow
+limit includes the interior Darcy fluxes, but the diffusive limit is then usually the more restrictive one.
+
+If `internal_energy` is routed explicitly while `saturation_water_ice` is implicit (see the warning in
+[Coupling of water and energy](@ref imex-water-energy-coupling)), the advective limit of the explicit heat advection
+and the diffusive limit of explicit heat conduction both apply.
 
 !!! warning "Richards equation is stiff near saturation"
     As the soil saturates, ``\partial\theta/\partial\psi \to 0`` and the hydraulic timescale tends to
