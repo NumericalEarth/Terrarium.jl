@@ -88,7 +88,11 @@ If the operator has a `face_velocity` ``u`` (allocated with `TridiagonalOperator
 
 An operator may in addition treat a linear term ``L_k T_k`` implicitly (e.g. a linear sink or a linearized boundary flux), which adds ``-\Delta t\, L_k`` to the main diagonal. Its coefficient is given by [`compute_implicit_linear_coefficient`](@ref), which an operator specializes via the trailing arguments it passes to [`solve!`](@ref); by default it is zero.
 
+[`DiagonalOperator`](@ref) is the operator of implicit terms without spatial coupling, such as the meltwater drainage of a single-layer snowpack: its system is diagonal, so [`solve!`](@ref) is a pointwise division by the lagged `diagonal`.
+
 ```@docs; canonical = false
+DiagonalOperator
+solve!(target, operator::DiagonalOperator, rhs, Δt, args...)
 TridiagonalOperator
 solve!(target, operator::TridiagonalOperator, rhs, Δt, args...)
 ImplicitDiffusionLowerDiagonal

@@ -171,7 +171,7 @@ include("timesteppers/abstract_timestepper.jl")
 include("models/abstract_types.jl")
 
 # numerical solvers, including the implicit solvers and linear operators of implicit time steps
-export AbstractLinearOperator, TridiagonalOperator, Picard
+export AbstractLinearOperator, DiagonalOperator, TridiagonalOperator, Picard
 include("solvers/solvers.jl")
 
 # physical processes
