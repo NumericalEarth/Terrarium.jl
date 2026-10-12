@@ -137,7 +137,8 @@ end
     k_unsat = hydraulic_conductivity(i, j, ground_grid.Nz, grid, fields, soil_hydrology)
     sat_top = saturation_water_ice(i, j, ground_grid.Nz, grid, fields, soil_hydrology)
 
-    if excess_water > zero(NF)
+    # A decaying pool can stay positive at roundoff scale and block fresh rain indefinitely.
+    if excess_water > eps(NF)
         # Case 1: Excess water present at the surface -> precipitation adds to excess water
         # and we set the infiltration rate to the min of hydraulic conductivity and surface_excess_water
         # First, compute rate of excess water removal (surface drainage)
@@ -145,8 +146,8 @@ end
         # Calculate infiltration
         infil = out.infiltration[i, j, end] = compute_infiltration(runoff, surface_drainage, sat_top, k_unsat)
     else
-        # Case 2: No excess water -> rainfall is routed directly to infiltration
-        surface_drainage = zero(NF)
+        # Case 2: No appreciable excess water -> rainfall is routed directly to infiltration
+        surface_drainage = compute_surface_drainage(runoff, excess_water)
         infil = out.infiltration[i, j, end] = compute_infiltration(runoff, influx, sat_top, k_unsat)
     end
 

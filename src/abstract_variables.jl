@@ -339,6 +339,10 @@ end
 
 Represents a spatially varying input (e.g. forcing) variable with the given `name` and spatial `dims`.
 Input variables can also be made to vary in time through the use of [`InputSource`](@ref)s.
+
+The `default` is applied once, when the input `Field` is constructed, via `set!(field, default)`.
+It may be `nothing` (zero), a number, or any other value accepted by `set!`: a function of the node
+coordinates, an array, a `Field`, or an [`AbstractFieldInitializer`](@ref).
 """
 struct InputVariable{
         name,
@@ -346,12 +350,12 @@ struct InputVariable{
         UT <: Units,
         Var <: Variable{name, VL, UT},
         BT <: DomainSets.AbstractInterval,
-        Def <: Union{Nothing, Number, Function},
+        Def,
     } <: AbstractProcessVariable{name, VL, UT}
     "State variable"
     var::Var
 
-    "Default value or function initializer"
+    "Default value or initializer; `nothing`, a number, or any argument accepted by `set!`"
     default::Def
 
     "Variable bounds"

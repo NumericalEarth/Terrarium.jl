@@ -30,8 +30,10 @@ dynamics are allowed except in very special cases where they must be clearly doc
   using TestEnv; TestEnv.activate()
   include("test/soil/soil_energy_tests.jl")
   ```
-- To run the full suite, use `julia --project=. -e 'using Pkg; Pkg.test()'` (Enzyme/AD tests run
-  via `Pkg.test(; test_args=["enzyme"])`).
+- To run the full suite, use `julia --project=. -e 'using Pkg; Pkg.test()'`.
+- Only run the Enzyme (`Pkg.test(; test_args=["enzyme"])`) or Reactant (`test/reactant/`) test suites
+  locally after directly editing the respective extension modules or unit tests, or when explicitly requested.
+  These tests should otherwise be left to the CI/CD pipeline.
 - Julia errors and associated stack traces are often very long due to long type signatures. To
   mitigate this, always write test output to temporary files and analyze this output using `grep`
   and similar tools.
@@ -259,6 +261,10 @@ Each document should be prefaced by the following template:
 
 Date of initial draft: YYYY-MM-dd
 
+Author: <Name of model and version (if known)>, <harness name and version (if known)>
+
+Reviewer: <Name of human reviewer> (<reviewer email address>)
+
 Base revision: <SHA1 of HEAD when plan was drafted>
 
 ## Originating prompt
@@ -269,15 +275,26 @@ Base revision: <SHA1 of HEAD when plan was drafted>
 
 > User prompts here
 
-N.B: Make sure that each revision is given a number and a date.
-
 ## Problem description
 
 ## Background
 
 ```
 
-The revision log should, to the greatest extent possible, briefly summarize changes to the plan that are made on-the-fly during development. Make sure that each revision is given a number and a date. **A human must approve each revision before implementation**.
+Notes on filling in the template (these notes are guidance about the template; do not copy them into
+the plan document itself):
+
+- Leave the `Reviewer` field blank until a human has approved the plan, then fill in both name and
+  email after approval. Where the reviewer is the repository owner, `git config user.name` and
+  `git config user.email` are an acceptable source for those values.
+- The revision log should, to the greatest extent possible, briefly summarize changes to the plan
+  that are made on-the-fly during development. Give each revision a number and a date, and record
+  the model name and version (if known) for that revision, since a plan may be revised by a
+  different model than the one that drafted it. **A human must approve each revision before
+  implementation**.
+
+Write plan prose with a line break at the end of every sentence (one sentence per line) rather than wrapping at an arbitrary column width.
+This keeps diffs readable when individual sentences are revised.
 
 The remainder of the plan document may be adapted on a case-by-case basis but should generally follow this structure:
 

@@ -87,6 +87,17 @@ function kernel(func, args...; clock = false)
 end
 
 """
+    set!(field::Field, kf::KernelFunction, fields)
+    set!(field::Field, kf::KernelFunction, clock, fields)
+
+Set `field` by evaluating the [`kernel`](@ref) function `kf` at every node of `field`, reading from
+`fields` (and `clock`, for non-autonomous kernel functions). The operation is constructed on the
+grid of `field` and its location.
+"""
+Oceananigans.Fields.set!(field::Field, kf::KernelFunction{true}, fields) = set!(field, kf(field, field.grid, nothing, fields))
+Oceananigans.Fields.set!(field::Field, kf::KernelFunction{false}, clock, fields) = set!(field, kf(field, field.grid, clock, fields))
+
+"""
     findfirst_z(i, j, condition_func, z_nodes, field)
 
 2D kernel function that finds the first coordinate in `z_nodes` where `condition_func(field[i, j, k])`.
