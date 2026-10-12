@@ -322,66 +322,66 @@ end
 # Routing of the soil variables of a `SoilModel` under `IMEX` and the structure of the implicit cache and operators
 module IMEXSoilRoutingTests
 
-using Terrarium
-using Test
+    using Terrarium
+    using Test
 
-using Terrarium: merge_boundary_conditions, implicit_operator, default_timestepping, get_hydrology
+    using Terrarium: merge_boundary_conditions, implicit_operator, default_timestepping, get_hydrology
 
-const POROSITY = 0.4
+    const POROSITY = 0.4
 
-function richards_soil(NF)
-    hydraulic_properties = ConstantSoilHydraulics(NF; swrc = VanGenuchten(α = 2.0, n = 2.0), saturated_conductivity = 1.0e-5, unsat_hydraulic_cond = UnsatKVanGenuchten(NF))
-    hydrology = SoilHydrology(NF, RichardsEq(); hydraulic_properties)
-    strat = HomogeneousSoilStratigraphy(NF; porosity = ConstantSoilPorosity(NF; mineral_porosity = POROSITY))
-    biogeochem = ConstantSoilCarbonDensity(NF; ρ_soc = 0.0)
-    return SoilEnergyWaterCarbon(NF; hydrology, strat, biogeochem)
-end
+    function richards_soil(NF)
+        hydraulic_properties = ConstantSoilHydraulics(NF; swrc = VanGenuchten(α = 2.0, n = 2.0), saturated_conductivity = 1.0e-5, unsat_hydraulic_cond = UnsatKVanGenuchten(NF))
+        hydrology = SoilHydrology(NF, RichardsEq(); hydraulic_properties)
+        strat = HomogeneousSoilStratigraphy(NF; porosity = ConstantSoilPorosity(NF; mineral_porosity = POROSITY))
+        biogeochem = ConstantSoilCarbonDensity(NF; ρ_soc = 0.0)
+        return SoilEnergyWaterCarbon(NF; hydrology, strat, biogeochem)
+    end
 
-implicit_timestepper(NF) = IMEX(ForwardEuler(NF), BackwardEuler(NF; solver = Picard(NF; iterations = 2)))
+    implicit_timestepper(NF) = IMEX(ForwardEuler(NF), BackwardEuler(NF; solver = Picard(NF; iterations = 2)))
 
-function build_water_column(grid, timestepper; saturation)
-    model = SoilModel(grid; soil = richards_soil(eltype(grid)), timestepper)
-    return initialize(model; initializers = (temperature = 5.0, saturation_water_ice = saturation))
-end
+    function build_water_column(grid, timestepper; saturation)
+        model = SoilModel(grid; soil = richards_soil(eltype(grid)), timestepper)
+        return initialize(model; initializers = (temperature = 5.0, saturation_water_ice = saturation))
+    end
 
-@testset "IMEX routing and implicit operators of the soil variables" begin
-    NF = Float64
-    grid = ColumnGrid(CPU(), NF, UniformSpacing(Δz = 0.1, N = 10))
-    @test default_timestepping(SoilHydrology(NF, NoFlow())) === Explicit()
-    @test default_timestepping(SoilHydrology(NF, RichardsEq())) === Implicit()
-    # NoFlow: saturation is not prognostic, so it is never routed, and only energy is implicit
-    model = SoilModel(grid; timestepper = implicit_timestepper(NF))
-    @test timestepping(Terrarium.prognostic(:saturation_water_ice, Terrarium.Ground(Terrarium.XYZ())), model, model.timestepper) === Explicit()
-    integrator = initialize(model)
-    @test timestepping(integrator.state, Val(:saturation_water_ice)) === Explicit()
-    @test timestepping(integrator.state, Val(:internal_energy)) === Implicit()
-    @test_throws ArgumentError implicit_operator(model, integrator.state, (:saturation_water_ice,))
-    # RichardsEq: saturation is routed to the implicit sub-stepper
-    integrator = build_water_column(grid, implicit_timestepper(NF); saturation = 0.6)
-    @test timestepping(integrator.state, Val(:saturation_water_ice)) === Implicit()
-    @test implicit_operator(integrator.model, integrator.state, (:saturation_water_ice,)).operators.saturation_water_ice isa TridiagonalOperator
-    # the implicit timestepper's cache holds one `SplitOperator` with one operator per implicitly routed
-    # variable, applied in the order set by the model (water, then energy)
-    cache = integrator.state.timestepper_cache.implicit
-    @test cache.operator isa Terrarium.SplitOperator
-    operators = cache.operator.operators
-    @test keys(operators) == (:saturation_water_ice, :internal_energy)
-    # the order is set by the model, not by the order of the names
-    reversed = implicit_operator(integrator.model, integrator.state, (:internal_energy, :saturation_water_ice))
-    @test keys(reversed.operators) == (:saturation_water_ice, :internal_energy)
-    # with water flow, the heat operator advects heat with the water flux; the Richards operator does not advect
-    @test operators.internal_energy.face_velocity isa Field
-    @test isnothing(operators.saturation_water_ice.face_velocity)
-    # each variable is solved for the variable of its closure
-    @test map(w -> w.iteration, cache.workspaces) == (
-        internal_energy = Terrarium.Iteration(:internal_energy; target = :temperature),
-        saturation_water_ice = Terrarium.Iteration(:saturation_water_ice; target = :pressure_head),
-    )
-    @test Terrarium.varname(Terrarium.get_closure(get_hydrology(integrator.model.soil))) === :pressure_head
-    @test Terrarium.varname(integrator.model.soil.energy.closure) === :temperature
-    @test all(operator -> operator isa TridiagonalOperator, operators)
-    @test operators.internal_energy !== operators.saturation_water_ice
-    @test operators.internal_energy.face_conductivity !== operators.saturation_water_ice.face_conductivity
-end
+    @testset "IMEX routing and implicit operators of the soil variables" begin
+        NF = Float64
+        grid = ColumnGrid(CPU(), NF, UniformSpacing(Δz = 0.1, N = 10))
+        @test default_timestepping(SoilHydrology(NF, NoFlow())) === Explicit()
+        @test default_timestepping(SoilHydrology(NF, RichardsEq())) === Implicit()
+        # NoFlow: saturation is not prognostic, so it is never routed, and only energy is implicit
+        model = SoilModel(grid; timestepper = implicit_timestepper(NF))
+        @test timestepping(Terrarium.prognostic(:saturation_water_ice, Terrarium.Ground(Terrarium.XYZ())), model, model.timestepper) === Explicit()
+        integrator = initialize(model)
+        @test timestepping(integrator.state, Val(:saturation_water_ice)) === Explicit()
+        @test timestepping(integrator.state, Val(:internal_energy)) === Implicit()
+        @test_throws ArgumentError implicit_operator(model, integrator.state, (:saturation_water_ice,))
+        # RichardsEq: saturation is routed to the implicit sub-stepper
+        integrator = build_water_column(grid, implicit_timestepper(NF); saturation = 0.6)
+        @test timestepping(integrator.state, Val(:saturation_water_ice)) === Implicit()
+        @test implicit_operator(integrator.model, integrator.state, (:saturation_water_ice,)).operators.saturation_water_ice isa TridiagonalOperator
+        # the implicit timestepper's cache holds one `SplitOperator` with one operator per implicitly routed
+        # variable, applied in the order set by the model (water, then energy)
+        cache = integrator.state.timestepper_cache.implicit
+        @test cache.operator isa Terrarium.SplitOperator
+        operators = cache.operator.operators
+        @test keys(operators) == (:saturation_water_ice, :internal_energy)
+        # the order is set by the model, not by the order of the names
+        reversed = implicit_operator(integrator.model, integrator.state, (:internal_energy, :saturation_water_ice))
+        @test keys(reversed.operators) == (:saturation_water_ice, :internal_energy)
+        # with water flow, the heat operator advects heat with the water flux; the Richards operator does not advect
+        @test operators.internal_energy.face_velocity isa Field
+        @test isnothing(operators.saturation_water_ice.face_velocity)
+        # each variable is solved for the variable of its closure
+        @test map(w -> w.iteration, cache.workspaces) == (
+            internal_energy = Terrarium.Iteration(:internal_energy; target = :temperature),
+            saturation_water_ice = Terrarium.Iteration(:saturation_water_ice; target = :pressure_head),
+        )
+        @test Terrarium.varname(Terrarium.get_closure(get_hydrology(integrator.model.soil))) === :pressure_head
+        @test Terrarium.varname(integrator.model.soil.energy.closure) === :temperature
+        @test all(operator -> operator isa TridiagonalOperator, operators)
+        @test operators.internal_energy !== operators.saturation_water_ice
+        @test operators.internal_energy.face_conductivity !== operators.saturation_water_ice.face_conductivity
+    end
 
 end # module IMEXSoilRoutingTests
