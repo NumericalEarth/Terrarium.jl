@@ -77,6 +77,15 @@ function Adapt.adapt_structure(to, workspace::ImplicitSolverWorkspace)
 end
 
 """
+    implicit_variable(var::AbstractVariable)
+
+Name of the field that the linear system of the implicitly integrated variable `var` is solved for if `var`
+has no closure: the variable itself by default. Processes may linearize in a derived field instead, e.g. the
+snow meltwater drainage of `snow_water_equivalent` in `snow_liquid_fraction`. Not exported.
+"""
+implicit_variable(var::AbstractVariable) = varname(var)
+
+"""
     implicit_operator(model::AbstractModel, state, names::Tuple)
 
 Return a newly allocated [`AbstractLinearOperator`](@ref) for the implicitly routed prognostic

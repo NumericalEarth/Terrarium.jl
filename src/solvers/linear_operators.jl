@@ -43,6 +43,60 @@ Adapt.adapt_structure(to, operator::SplitOperator) = SplitOperator(Adapt.adapt_s
 # Variable names of a `SplitOperator` in solve order, as a compile-time constant.
 @inline split_variable_names(::SplitOperator{<:NamedTuple{names}}) where {names} = names
 
+# Pointwise diagonal operator
+
+"""
+    $TYPEDEF
+
+Diagonal [`AbstractLinearOperator`](@ref) for implicit terms without spatial coupling, e.g. the meltwater
+outflow of a single-layer snowpack. Each row of the system reads `D ϕ = rhs`, with the lagged diagonal `D`
+in `diagonal`, so that [`solve!`](@ref) is a pointwise division. The `diagonal` field is allocated at the
+location of the field the system is solved for.
+
+```jldoctest
+julia> grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 4));
+
+julia> operator = DiagonalOperator(Field{Center, Center, Nothing}(ground_domain(grid)));
+
+julia> size(operator.diagonal)
+(1, 1, 1)
+```
+
+Properties:
+$(TYPEDFIELDS)
+"""
+struct DiagonalOperator{Diagonal} <: AbstractLinearOperator
+    "Lagged diagonal `D`, at the location of the field it is solved for"
+    diagonal::Diagonal
+end
+
+Adapt.adapt_structure(to, operator::DiagonalOperator) = DiagonalOperator(Adapt.adapt_structure(to, operator.diagonal))
+
+"""
+    solve!(target, operator::DiagonalOperator, rhs, Δt, args...)
+
+Solve the system of `operator` for `target` with right-hand side `rhs`, `target = rhs / D` pointwise.
+"""
+function solve!(target, operator::DiagonalOperator, rhs, Δt, args...)
+    launch!(target.grid, XYZ, solve_diagonal_kernel!, target, operator.diagonal, rhs)
+    return nothing
+end
+
+function solve!(target::Field{<:Any, <:Any, Nothing}, operator::DiagonalOperator, rhs, Δt, args...)
+    launch!(target.grid, XY, solve_diagonal_xy_kernel!, target, operator.diagonal, rhs)
+    return nothing
+end
+
+@kernel inbounds = true function solve_diagonal_kernel!(target, grid, diagonal, rhs)
+    i, j, k = @index(Global, NTuple)
+    target[i, j, k] = rhs[i, j, k] / diagonal[i, j, k]
+end
+
+@kernel inbounds = true function solve_diagonal_xy_kernel!(target, grid, diagonal, rhs)
+    i, j = @index(Global, NTuple)
+    target[i, j, end] = rhs[i, j, end] / diagonal[i, j, end]
+end
+
 # Batched vertical tridiagonal operator
 
 """
