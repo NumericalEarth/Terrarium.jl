@@ -13,6 +13,10 @@ end
     include("soil_energy_tests.jl")
 end
 
+@testset "Soil Stefan problem" begin
+    include("soil_freeze_thaw_tests.jl")
+end
+
 @testset "Soil hydrology" begin
     include("soil_hydrology_tests.jl")
 end

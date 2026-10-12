@@ -48,6 +48,76 @@ function build_model(::Val{:soil_heat_column_stretched}, arch, NF)
     return (; model, boundary_conditions = bcs, initializers = inits, Δt = NF(600))
 end
 
+# --- :soil_heat_column_implicit — :soil_heat_column with implicit heat conduction ---------
+# Same column as :soil_heat_column, integrated with `IMEX(ForwardEuler, BackwardEuler)` so that the
+# interior heat conduction runs through the `Picard` solver with a `TridiagonalOperator` (two Picard
+# iterations, so the in-step energy closure is traced as well). Value boundary conditions on
+# temperature are not supported by the implicit operator, so the surface is cooled by a constant
+# `SoilHeatFlux` instead of a prescribed surface temperature. The step is several times the explicit
+# diffusive limit; the column stays thawed so the comparison does not hinge on the exact step at which
+# a cell enters the phase change interval, which CPU and XLA need not agree on.
+
+function build_model(::Val{:soil_heat_column_implicit}, arch, NF)
+    grid = ColumnGrid(arch, NF, UniformSpacing(Δz = NF(0.2), N = 10))
+    solver = Picard(NF; iterations = 2)
+    timestepper = IMEX(ForwardEuler(NF), BackwardEuler(NF; solver))
+    model = SoilModel(grid; timestepper)
+    # constant heat loss at the surface (W/m², positive upward); default (zero-flux) bottom boundary
+    bcs = SoilHeatFlux(NF(20))
+    inits = (temperature = (x, z) -> NF(5) - NF(0.05) * z,)
+    return (; model, boundary_conditions = bcs, initializers = inits, Δt = NF(3600))
+end
+
+# --- :soil_heat_column_implicit_freezing — implicit heat conduction across the freezing point -
+# As :soil_heat_column_implicit, but the column starts just above the freezing point (0.5 °C) under a
+# strong surface cooling flux, so that a freezing front enters the column (within the 100 test steps the
+# top cell freezes completely and the cell below starts to freeze) and the regularized apparent
+# heat capacity of the `FreeWater` freeze curve (switched on for cells in phase change) is exercised
+# under XLA, together with the in-step energy closure of the two Picard iterations.
+
+function build_model(::Val{:soil_heat_column_implicit_freezing}, arch, NF)
+    grid = ColumnGrid(arch, NF, UniformSpacing(Δz = NF(0.2), N = 10))
+    solver = Picard(NF; iterations = 2)
+    timestepper = IMEX(ForwardEuler(NF), BackwardEuler(NF; solver))
+    model = SoilModel(grid; timestepper)
+    bcs = SoilHeatFlux(NF(80))
+    # water must be present for a phase change (the default initial saturation is zero)
+    inits = (temperature = NF(0.5), saturation_water_ice = NF(0.8))
+    return (; model, boundary_conditions = bcs, initializers = inits, Δt = NF(3600))
+end
+
+# --- :soil_richards_column_implicit — implicit Richards flow and heat conduction -----------
+# Single-column SoilModel with Richards-equation hydrology (Brooks–Corey retention curve) under
+# `IMEX(ForwardEuler, BackwardEuler)`, so that both `internal_energy` and `saturation_water_ice` are
+# integrated by the `Picard` solver (two Picard iterations: the modified Picard iteration
+# of the Richards equation with the in-step hydrology closure, and the implicit heat conduction), and
+# the energy tendency carries the explicit advection of heat by the Darcy flux. Water infiltrates
+# through a constant `InfiltrationFlux` at the top (impermeable bottom). The column is thawed and, with a
+# low saturated conductivity, stays unsaturated within the 100 test steps (saturation 0.35 to 0.46): once
+# water accumulates to saturation at the impermeable base, whether a cell is exactly saturated switches
+# the water table and the hydrostatic head, and the run becomes sensitive to roundoff (Float32 and
+# Float64 CPU runs then already differ by about 1 K), which CPU and XLA need not agree on.
+
+function build_model(::Val{:soil_richards_column_implicit}, arch, NF)
+    grid = ColumnGrid(arch, NF, UniformSpacing(Δz = NF(0.1), N = 20))
+    # The Brooks–Corey retention curve (the default) is used since the inverse of the FreezeCurves
+    # van Genuchten curve is not type stable for Float32 (one branch promotes to Float64), which
+    # leaves a stack allocation in the saturation–pressure closure kernel that XLA cannot raise.
+    hydraulic_properties = ConstantSoilHydraulics(NF; saturated_conductivity = NF(1.0e-6))
+    hydrology = SoilHydrology(NF, RichardsEq(); hydraulic_properties)
+    soil = SoilEnergyWaterCarbon(NF; hydrology)
+    solver = Picard(NF; iterations = 2)
+    timestepper = IMEX(ForwardEuler(NF), BackwardEuler(NF; solver))
+    model = SoilModel(grid; soil, timestepper)
+    # infiltration as a flux of saturation (m/s, positive upward) and a constant surface heat loss (W/m²)
+    bcs = merge(InfiltrationFlux(NF(-2.0e-7)), SoilHeatFlux(NF(10)))
+    inits = (
+        temperature = (x, z) -> NF(5) - NF(0.05) * z,
+        saturation_water_ice = (x, z) -> NF(0.3) - NF(0.05) * z,
+    )
+    return (; model, boundary_conditions = bcs, initializers = inits, Δt = NF(3600))
+end
+
 # --- :soil_heat_global — global ColumnRingGrid SoilModel (heat conduction) --------------
 # Mirrors examples/simulations/soil_heat_global.jl, but with a synthetic all-land mask
 # (no NetCDF inputs in CI) and a purely functional, smooth surface BC (no array gather).

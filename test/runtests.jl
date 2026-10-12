@@ -8,6 +8,8 @@ if FLAG_ENZYME_TESTS
     @testset "Enzyme" begin
         include("differentiability/clock_diff.jl")
         include("differentiability/soil_energy_diff.jl")
+        include("differentiability/implicit_heat_conduction_diff.jl")
+        include("differentiability/implicit_richards_diff.jl")
         include("differentiability/soil_hydrology_diff.jl")
         include("differentiability/vegetation_model_diff.jl")
         include("differentiability/snow_model_diff.jl")
