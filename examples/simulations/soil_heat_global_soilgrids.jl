@@ -85,7 +85,7 @@ DisplayAs.PNG(fig) #hide
 porosity = SoilPorositySURFEX(eltype(grid))
 strat = SoilGridsStratigraphy(eltype(grid); porosity)
 soil = SoilEnergyWaterCarbon(eltype(grid); strat)
-model = SoilModel(grid; soil)
+model = SoilModel(grid; soil, timestepper = ForwardEuler(eltype(grid))) # explicit, for the prescribed surface temperature
 
 # We reuse the simple latitude-dependent climatology from the [global example](@ref soil_heat_global)
 # for the initial and boundary conditions.

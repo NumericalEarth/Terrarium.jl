@@ -46,8 +46,10 @@ grid_lon, grid_lat = RingGrids.get_lonlats(grid.rings) # in radians, on CPU
 # corresponds to a single index following the ring order (for more details, see the [corresponding section in the
 # RingGrids.jl documentation](https://speedyweather.github.io/SpeedyWeatherDocumentation/stable/ringgrids/#Indexing-Fields)).
 
-# Now we create our [`SoilModel`](@ref), this time without a model initializer:
-model = SoilModel(grid)
+# Now we create our [`SoilModel`](@ref), this time without a model initializer. We prescribe the surface temperature
+# below, and such value boundary conditions currently require an explicit time stepper such as [`ForwardEuler`](@ref)
+# instead of the default [`IMEX`](@ref):
+model = SoilModel(grid; timestepper = ForwardEuler(eltype(grid)))
 
 # To make the simulation a bit more interesting, we will use spatially periodic initial and boundary conditions.
 # The climatology will be determined by latitude with a maximum of 20 °C at the equator and minimum of -20°C at

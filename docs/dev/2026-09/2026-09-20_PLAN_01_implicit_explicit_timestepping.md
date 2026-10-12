@@ -1,6 +1,6 @@
 # Add support for implicit-explicit (IMEX) time stepping
 
-> Status: **in progress**. Phases 1 and 2 (implicit heat conduction, implicit Richards flow, and energy advection, with the refactoring of revisions 12–16) are implemented; Phase 3 (wizard diagnostics) and Phase 4 (feasibility spikes for Path 1) remain.
+> Status: **in progress**. Phases 1–3 (implicit heat conduction, implicit Richards flow, energy advection, and the wizard diagnostics) and IMEX as the default of `SoilModel` and `LandModel` are implemented; revision 20 (implicit snow meltwater drainage) awaits approval, and Phase 4 (feasibility spikes for Path 1) remains.
 
 Date of initial draft: 2026-09-20
 
@@ -321,6 +321,79 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 > Reviewer request: the default timestepper of `SoilModel` and `LandModel` becomes `IMEX(ForwardEuler(NF; Δt = 1800), BackwardEuler(NF))`, i.e. backward Euler with the `Picard` solver for the implicitly routed soil variables and forward Euler for the rest, with a default time step of 30 min.
 > The other models (`SnowModel`, `VegetationModel`, the surface models) keep `ForwardEuler` as their default.
 > Tests and examples whose purpose is explicit time stepping pass `ForwardEuler` explicitly; the explicitly integrated components of a default `LandModel` (snow, vegetation, surface hydrology, and the surface energy balance) must remain stable at 30 min, which the implementation verifies.
+>
+> Implementation notes (2026-10-12):
+> Mechanism: a two-argument `default_timestepper(::Type{<:AbstractModel}, NF)` falls back to `ForwardEuler(NF)`; `SoilModel` and `LandModel` specialize it to `IMEX(ForwardEuler(NF; Δt = 1800), BackwardEuler(NF))` and call it in their `@kwdef` defaults, so include order does not matter (committed in `cd4ee95b4`).
+> The defaults of both models contain no value conditions on `temperature` or `pressure_head`; `SoilModel` defaults to `NoFlow` (only `internal_energy` implicit), and `LandModel` with vegetation defaults to `RichardsEq` (both soil variables implicit).
+> Stability was checked with ERA5-Land point forcing (January 2024, 12 sites from Yakutia to the Congo, 30 layers with `Δz_min = 5 cm`, `Float32`) for 31 days, against IMEX at 60 s and 300 s and forward Euler at 10 s and 60 s.
+> **Result: the explicit snow is not stable at 30 min, so the default is not yet verified.**
+> Bare ground without snow: IMEX at 1800 s agrees with IMEX at 60 s (hourly RMS 0.02 to 0.14 K top soil, 0.1 to 0.6 K skin, 0.4 to 14 W/m² ground heat flux; monthly means within 0.06 K), so the explicit surface energy balance and ground heat flux are stable at 30 min.
+> Bare ground with snow: at 1800 s the thin snowpack energy is unstable, with snow temperatures down to −104 °C at Yakutia (−46 °C at 60 s and 300 s), spurious melt at 0 °C under −23 °C air in western Siberia (SWE 2.6 mm instead of 41 mm after 31 days), hourly RMS snow temperature errors of 12 to 36 K, and ground heat flux errors of 44 to 110 W/m² at five cold sites; 300 s agrees with 60 s to within 0.08 K.
+> Default `LandModel` with vegetation: every run (IMEX at 60, 300, 600, and 1800 s, forward Euler at 10 s) produces NaN in the vegetation at Yakutia after 139 h (air near −42 °C), and the vegetation carbon pool swings to ±10 to ±500 kg C/m² within hours at all steps, since the autotrophic respiration is about 4×10⁻⁴ kg C m⁻² s⁻¹ at 25 °C; this is independent of the time step, so the vegetation and canopy interception cannot be assessed until it is fixed.
+> Forward Euler at 60 s fails after 3 h from explicit Richards flow near saturation, which is why IMEX at 60 s serves as the reference for the explicit components.
+> Tests whose purpose is explicit stepping now pass `ForwardEuler`: value-condition tests (`boundary_conditions.jl`, the periodic and step heat diffusion tests, the explicit halves of the implicit-rejection tests), explicit-only checks (`cell_diffusion_timescale` and wizard tests in `adaptive_timestep.jl`, the forcing step in `soil_hydrology_tests.jl`, the immobile-water advection check, "run! SoilModel w/ ForwardEuler"), and `test/timestepping/imex.jl` gained a "Default timesteppers" test set.
+> The default suite passes (9329 tests, no failures or errors), and the draft doc build shows no new warnings.
+> Examples and doc pages with `PrescribedSurfaceTemperature` (quick start, Reactant page, `soil_heat_column`, `soil_heat_global`, `soil_heat_global_soilgrids`, `speedy_dry_land`, `differentiating_terrarium_reactant`) and the explicit wizard examples pass `ForwardEuler`; the time stepping and model pages state the new default.
+> Not changed, for the reviewer: `test/reactant/setup.jl` (`:soil_heat_column`, `:soil_heat_column_stretched`, and `:soil_heat_global` now fail at `initialize` because of their value conditions; `:land_soil_snow` and `:land_default` now run IMEX `LandModel`s, which are untested under Reactant), `test/differentiability/soil_energy_diff.jl` and `snow_model_diff.jl` (read `get_timestepper(model).Δt`, which `IMEX` lacks), `soil_hydrology_diff.jl` and `prescribed_seb_diff.jl` (now IMEX under Enzyme), and the `:land`, `:land_no_vegetation`, and `:soil_heat` benchmark sweeps (`:soil_heat` now fails on its value condition).
+> Follow-up (2026-10-12, reviewer request): the defaults are 1 h for `SoilModel` (`ForwardEuler(NF; Δt = 3600)`) and 15 min for `LandModel` (`Δt = 900`), set by the explicit snow.
+> With the same 31-day ERA5-Land setup (bare ground with snow, IMEX at 60 s as reference), 15 min removed the 30 min failures (Yakutia minimum snow temperature −45.9 °C vs −45.8 °C, W-Siberia SWE 41.4 mm as in the reference) but a melting pack at NE-US still dropped to −92 °C for one hour (reference minimum −13.3 °C).
+> The cause is the explicit Darcy meltwater outflow: near melt-out, a 900 s step drains more mass than the pack holds as liquid (SWE 20.5 → 3.7 mm in one hour against 19.5 → 12.1 mm in the reference), and since meltwater leaves with zero enthalpy, the drained ice leaves its latent deficit in the remaining pack.
+> The wizard does not catch this: its snow diffusion timescale is about 2000 s at the conduction floor (2.5 cm), so it kept Δt = 900 s throughout, and it has no meltwater outflow timescale.
+> At 10 min all snow sites track the reference: minimum snow temperatures within 2.4 K, final SWE within 0.3 mm, hourly RMS snow temperature 0.02–0.63 K and ground heat flux 0.2–5.4 W/m².
+
+> **Revision 20, 2026-10-12. Implicit snow meltwater drainage (pending approval).**
+> Reviewer request: integrate the snow meltwater outflow implicitly under IMEX, so that a step can never drain more water than the pack holds as liquid.
+>
+> *Motivation.*
+> A meltwater outflow limit for the `TimeStepWizard` (`θ_liq W / M_r`) was implemented and reverted.
+> The default saturated conductivity of `ConstantSnowHydraulics` is 20 m/h ([tarbotonSpatiallyDistributedEnergy1994](@cite)), so a fully melted pack drains its liquid within seconds: about 1 s for 6 mm of water (the floor at the minimum conduction thickness) and 4 s for 20 mm.
+> In the 2-day ERA5-Land run, the wizard step averaged 2 s, with a minimum of 0.2 s.
+> The explicit drainage is therefore stiff at any useful step, and only an implicit treatment removes the overshoot behind the NE-US spike of revision 19.
+>
+> *Formulation.*
+> Drainage removes liquid water only, so the ice content `W_i = (1 − θ_liq) W` is unchanged by it, and the snow energy `Ū` is unchanged as well, since meltwater leaves at the zero-enthalpy reference (liquid water at 0 °C).
+> The backward Euler step of the drainage, with snowfall, rain, sublimation, and the energy fluxes in the explicit stage (`W⁺`, `Ū⁺`), is a scalar equation per column for the liquid content `W_l = W − W_i`:
+> `W_l = W_l⁺ − Δt M_r(θ_liq)`, with `θ_liq = W_l / (W_i + W_l)`.
+> `W_i` follows from `W⁺` and `Ū⁺` through the closure (`θ_liq⁺` from the `FreeWater` relations, at fixed `Ū⁺`).
+> With the liquid content at the capillary retention `W_c = θ_c W_i / (1 − θ_c)`, the excess saturation is `S* = (W_l − W_c) / W`, so the outflow `M_r = K_sat S*³` has the lagged-coefficient form `M_r = c (W_l − W_c)` with `c = K_sat S*² / W ≥ 0`.
+> `M_r` increases monotonically with `W_l` and vanishes for `W_l ≤ W_c`, so the equation has a unique root in `[W_c, W_l⁺]` whenever `W_l⁺ > W_c`, and `Wⁿ⁺¹ = W⁺` otherwise.
+> In a fully liquid pack (`Ū⁺ ≥ 0`, so `W_i = W_c = 0` and `S* = 1`), `M_r = K_sat` is constant until the pack is empty, and the root is `max(W_l⁺ − Δt K_sat, 0)`.
+>
+> *Solver.*
+> The existing `Picard` solver, with `c` lagged at the latest iterate: each iteration solves `W_lᵐ⁺¹ = (W_l⁺ + Δt cᵐ W_c) / (1 + Δt cᵐ)`, a pointwise division.
+> Every iterate is a convex combination of `W_l⁺` and `W_c`, so already after one iteration the step never drains ice and never drains below the capillary retention, at any `Δt`, and no safeguard or clamp is needed.
+> In a fully liquid pack the iteration is `Wᵐ⁺¹ = W⁺ / (1 + Δt K_sat / Wᵐ)`, which converges to `W⁺ − Δt K_sat`, or decays toward zero when the pack empties within the step.
+> Since `c` increases with `W_l`, the iterates alternate around the root; the iteration count of the solver (2 by default, shared with the soil) sets only the accuracy of the drainage, not its bounds.
+>
+> *Integration with the IMEX framework.*
+> (1) `timestepping(::AbstractVariable{:snow_water_equivalent}, ::Union{LandModel, SnowModel}, ::AbstractIMEX) = Implicit()`; `snow_energy` stays explicit, and the defaults of `SnowModel` (`ForwardEuler`) are unchanged.
+> (2) `compute_snow_water_tendency` receives the resolved `Timestepping` class of `snow_water_equivalent`, as the soil tendencies do, and omits `M_r` when it is `Implicit()`.
+> (3) A new `DiagonalOperator <: AbstractLinearOperator` on the snow (`XY`) domain, holding the diagonal `1 + Δt cᵐ`, whose `solve!` divides the right-hand side by it pointwise; the snow's `implicit_operator` returns it.
+> The snow implements the usual hooks: `linearize!` (diagonal and right-hand side `W_l⁺ + Δt cᵐ W_c` from the closure fields of the latest iterate), `implicit_update!` (`W = W_i + W_l`), and `implicit_closure!` (the snow closure at fixed `Ū⁺`, which keeps `W_i` unchanged).
+> `implicit_operator(::LandModel, ...)` merges it with the soil components into one `SplitOperator`, and the `LandModel` hooks forward by the variable of the `Iteration` label to the snow or the soil; its position in the split does not matter, since the soil solves do not depend on it within the step (see (4)).
+> (4) Water conservation with the soil: a new snow auxiliary `meltwater_flux` (m/s) holds the drainage of the last step, `(W⁺ − Wⁿ⁺¹) / Δt`, set by the implicit update.
+> Under implicit routing, `snow_meltwater_flux` reads it, so the surface runoff and infiltration of the next step receive exactly the water that the snow lost, one step late.
+> Under explicit routing, `compute_auxiliary!` sets it to `M_r(tⁿ)`, and the behavior is unchanged.
+> The alternative, adding the drained water to `surface_excess_water` at the end of the step, has no lag but changes the routing (meltwater would always pond before infiltrating); the plan proposes the lag, pending the reviewer's decision.
+> (5) The `SWE ≥ 0` clamp of the post-step hook (`enforce_snow_constraints!`) stays for explicit overshoot by sublimation, which is out of scope.
+>
+> *Expected effect on the default step.*
+> Implicit drainage should remove the melt-out spike at 15 min.
+> It does not make 30 min stable: the 30 min failures of revision 19 at Yakutia (−104 °C) occurred in a cold pack without melt, so they come from the explicit snow heat conduction, whose limit for a pack at the conduction floor is about 1000 s (`τ ≈ 2000 s`, forward Euler stable for `Δt < τ/2` with conduction to both the surface and the soil).
+> The `LandModel` default therefore stays at 15 min, and an implicit snow heat conduction (per-column backward Euler of `snow_energy` with the surface and soil temperatures at `tⁿ`, conservative with the soil if the snow-soil flux is recomputed after the snow solve) is added to Future work.
+>
+> *Testing.*
+> Unit tests of the snow implicit step: with many iterations the result satisfies the backward Euler equation to tolerance, and the default two iterations stay close to it; the ice content and `Ū` are unchanged; `θ_liq ≥ θ_c` after every iteration, including the first; a frozen pack is unchanged; a fully liquid pack drains `Δt K_sat` or tends to empty; Float32 type stability.
+> `SnowModel` with IMEX: a melting pack at 900 s and 3600 s stays within physical temperature bounds, and water and energy are conserved over a melt-out (snow plus drained water, with `meltwater_flux` counted as in transit).
+> `LandModel` with IMEX: water is conserved across a melt event (snow, soil, surface excess, runoff, and in-transit meltwater); the routing test of `imex.jl` gains `snow_water_equivalent`.
+> The 31-day ERA5-Land check at 900 s: the NE-US spike is gone, and all snow sites track the 60 s reference.
+> Enzyme and Reactant tests are run by CI only, unless their extensions or tests change.
+>
+> *Documentation.*
+> `snow_mass.md` (implicit drainage under IMEX, with the formulation above), `time_stepping.md` (the list of implicitly routed variables, which currently says that snow variables always remain explicit), and this plan's Future work (implicit snow heat conduction).
+>
+> *Known limitations.*
+> The one-step lag of the meltwater input to the soil; explicit stepping (`ForwardEuler`) keeps the overshoot, so explicit `LandModel` runs with melting snow need steps of the order of seconds near melt-out to be fully accurate; the snow heat conduction remains explicit.
 
 ## Problem description
 
@@ -770,7 +843,8 @@ Each phase ends with the full test suite, the Enzyme test set, and a draft doc b
 - Value boundary conditions on the closure variables (`temperature`, `pressure_head`) under the implicit operator: the boundary coefficient on the diagonal and the boundary value in the right-hand side, with the boundary flux in the conservative update; deferred from Phase 3 by revision 18. The explicit boundary tendencies must skip faces whose flux the operator carries, preferably by dispatch on the boundary condition type rather than by flags threaded through the tendency kernels.
 - Second-order IMEX (R4): `Heun` as explicit partner with per-stage implicit corrections (IMEX trapezoidal), deferred from Phase 3 by revision 17, which also introduces the stage hook.
 - Stiffly accurate higher-order IMEX Runge–Kutta pairs (ARS(2,2,2), ARS(4,4,3)) on top of the stage hook.
-- Implicit treatment of snow energy and of the lateral/2D couplings if they are ever added.
+- Implicit snow heat conduction (revision 20): per-column backward Euler of `snow_energy` with the surface and soil temperatures at `tⁿ`, conservative with the soil if the snow-soil flux is recomputed after the snow solve; needed for `LandModel` steps beyond about 15 min, since the explicit conduction of a thin pack is limited to about 1000 s.
+- Implicit treatment of the lateral/2D couplings if they are ever added.
 - A convergence-based step controller for the implicit solvers to replace the diffusive CFL wizard.
 
 ### Oceananigans advection operators for soil energy advection
