@@ -317,6 +317,11 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 > In the draining sandy column (Δz = 5 cm, `Ks = 1e-4` m/s, infiltration `2e-5` m/s) the bottom cell drains in about 565 s, so the wizard (default `cfl = 0.2`) chooses 90 to 113 s, close to the explicit Richards limit of 97 s; fixed steps of 1800 s and longer overdraw the column, while wizard runs with `cfl` up to 1 stay bounded.
 > The explicit boundary drainage is therefore the binding limit of such columns, which only an implicit treatment of the boundary Darcy fluxes would remove.
 
+> **Revision 19, 2026-10-12. Approved. IMEX as the default timestepper of `SoilModel` and `LandModel`.**
+> Reviewer request: the default timestepper of `SoilModel` and `LandModel` becomes `IMEX(ForwardEuler(NF; Δt = 1800), BackwardEuler(NF))`, i.e. backward Euler with the `Picard` solver for the implicitly routed soil variables and forward Euler for the rest, with a default time step of 30 min.
+> The other models (`SnowModel`, `VegetationModel`, the surface models) keep `ForwardEuler` as their default.
+> Tests and examples whose purpose is explicit time stepping pass `ForwardEuler` explicitly; the explicitly integrated components of a default `LandModel` (snow, vegetation, surface hydrology, and the surface energy balance) must remain stable at 30 min, which the implementation verifies.
+
 ## Problem description
 
 Terrarium integrates every prognostic variable with fixed-step explicit schemes (`ForwardEuler`, `Heun`).

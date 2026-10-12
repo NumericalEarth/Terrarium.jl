@@ -46,8 +46,8 @@ $(TYPEDFIELDS)
     "State variable initializer"
     @component initializer::Initializer = DefaultInitializer(eltype(grid))
 
-    "Time stepper: a single `AbstractTimeStepper` (e.g. `ForwardEuler`, `Heun`) or an `IMEX`"
-    @component timestepper::Timestepper = default_timestepper(eltype(grid))
+    "Time stepper: a single `AbstractTimeStepper` (e.g. `ForwardEuler`, `Heun`) or an `IMEX` (default)"
+    @component timestepper::Timestepper = default_timestepper(LandModel, eltype(grid))
 end
 
 """
@@ -173,6 +173,9 @@ function invclosure!(state, model::LandModel)
 end
 
 # Time stepping
+
+# IMEX by default: implicit soil heat conduction (and Richards flow), explicit everything else, Δt = 30 min.
+default_timestepper(::Type{<:LandModel}, ::Type{NF}) where {NF} = IMEX(ForwardEuler(NF; Δt = 1800), BackwardEuler(NF))
 
 # Under an IMEX timestepper, soil heat conduction is implicit by default, and so is soil water flow if it
 # follows the Richards equation (see `default_timestepping`).
