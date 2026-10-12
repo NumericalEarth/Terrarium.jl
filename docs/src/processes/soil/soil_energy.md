@@ -68,7 +68,37 @@ initialize!(state, grid, energy::SoilThermodynamics, soil::AbstractSoil, constan
 
 compute_auxiliary!(state, grid, energy::SoilThermodynamics, soil::AbstractSoil, args...)
 
-compute_tendencies!(state, grid, energy::SoilThermodynamics, soil::AbstractSoil, args...)
+compute_tendencies!(state, grid, energy::SoilThermodynamics, soil::AbstractSoil, constants::Optional{PhysicalConstants}, timestepping::Timestepping)
+```
+
+## Advection of heat by soil water flow
+
+When the soil water flows (a [`RichardsEq`](@ref) hydrology), it carries its sensible heat along. The energy equation then reads
+```math
+\frac{\partial U}{\partial t} = \frac{\partial}{\partial z}\left[\kappa_{\text{h}} \frac{\partial T}{\partial z}\right] - \frac{\partial}{\partial z}\left(C_{\text{w}}\, T_{\text{up}}\, q\right) + F_h(z,t)\,,
+```
+where ``q`` is the water flux (m/s, positive upward) at the cell faces, ``C_{\text{w}}`` the volumetric heat capacity of liquid water (the `water` heat capacity of [`SoilThermalProperties`](@ref), the same value with which water enters the bulk heat capacity), and ``T_{\text{up}}`` the temperature of the upwind cell (first-order upwind). Only the sensible heat of liquid water is advected, consistent with ``U`` being measured relative to liquid water at 0 °C, and ice is immobile.
+
+The flux ``q`` is the `water_flux` auxiliary variable of the hydrology, i.e. the Darcy flux that moved the water in the step: the flux at ``t^n`` under explicit time stepping of the saturation, and the flux of the conservative update of the implicit Richards step otherwise (see [Soil hydrology](@ref)). Heat thus always moves with the water that moves. Under explicit time stepping of `internal_energy`, the advective term is part of the explicit tendency and subject to an advective CFL condition, reported by `cell_advection_timescale` (see [Adaptive time stepping](@ref)). Under implicit time stepping, it is part of the implicit heat operator (see [Implicit vertical heat conduction](@ref)) and has no CFL limit.
+
+Water that crosses the column boundaries through flux boundary conditions on `saturation_water_ice`, such as the infiltration flux, carries the temperature of the cell it enters or leaves, i.e. infiltrating water enters at the temperature of the top soil cell; this heat is added by [`compute_boundary_advected_heat!`](@ref) from exactly the same boundary flux as the water. Water that the hydrology closure redistributes between cells, or removes from an oversaturated surface, carries its sensible heat as well (see [`adjust_saturation_profile!`](@ref) and [`compute_redistributed_heat!`](@ref)); the heat of excess water routed to the surface excess pool leaves the system. Without water flow ([`NoFlow`](@ref)) the advective flux is zero.
+
+## Implicit vertical heat conduction
+
+The `Timestepping` trait argument of [`compute_tendencies!`](@ref soilenergy.dispatches) is the resolved [`timestepping`](@ref) class of `internal_energy` (see [Implicit-explicit time stepping](@ref)). It is [`Explicit`](@ref) unless the model is run with an [`IMEX`](@ref) timestepper, in which case it is [`Implicit`](@ref).
+
+- Under `Explicit()`, the tendency contains the full divergence of the diffusive and advective heat fluxes, [`compute_energy_tendency`](@ref), plus the flux boundary conditions.
+- Under `Implicit()`, the diffusive and advective heat fluxes through the *interior* cell faces are omitted, since they are integrated by the implicit sub-stepper. Only the diffusive fluxes through the two boundary faces of the column, via [`compute_boundary_energy_tendency`](@ref), and the heat of the water entering the column through them with the boundary Darcy flux, via [`compute_boundary_advective_energy_tendency`](@ref), remain. For flux boundary conditions the diffusive boundary fluxes vanish because the halo cells are filled with a zero gradient, and the boundary fluxes themselves enter through the flux boundary conditions on `internal_energy`. For a gradient boundary condition on `temperature`, they carry the prescribed flux ``-\kappa\, \partial T / \partial z`` through the boundary face. The heat of the water leaving the column through the boundary faces (e.g. by gravity drainage) is part of the implicit operator, at the temperature of the boundary cell at ``t^{n+1}``, so that an explicit drainage flux that overdraws the water of the boundary cell cannot remove more heat than the cell holds.
+
+The implicit step then solves the conduction and advection operator in temperature with the lagged apparent heat capacity and face conductivity given by [`compute_implicit_capacity!`](@ref) and [`compute_implicit_conductivity!`](@ref), and, with water flow, the advective face velocity ``C_\text{w} q`` given by [`compute_implicit_advective_velocity!`](@ref); see [Implicit Euler with a Picard solver](@ref) for the scheme. The implicit step is supported for the `FreeWater` freeze curve, flux boundary conditions on `internal_energy`, and gradient boundary conditions on `temperature`; value boundary conditions on `temperature` are not yet supported.
+
+The implicit operator of `internal_energy` is a [`TridiagonalOperator`](@ref) in temperature, with a face velocity for the advection if the water flows, returned by [`implicit_operator`](@ref) (which also validates the configuration), and each iteration of the implicit solver calls the process hooks of `SoilThermodynamics` below. The linear system is solved for the `temperature`, the variable of the [`SoilEnergyTemperatureClosure`](@ref) (see its [`varname`](@ref) method below). If `saturation_water_ice` is integrated implicitly as well, the Richards step is solved first, so that the heat step is evaluated at the saturation ``s^{n+1}`` at the end of the step and advects heat with the water flux of the step (see [Coupling of water and energy](@ref imex-water-energy-coupling)); [`linearize!`](@ref) therefore re-evaluates the energy closure at the current saturation before the coefficients.
+
+```@docs; canonical = false
+implicit_operator(energy::SoilThermodynamics, hydrology::AbstractSoilHydrology, state, grid)
+linearize!(operator::TridiagonalOperator, rhs, state, grid, energy::SoilThermodynamics, soil::AbstractSoil, constants::PhysicalConstants, explicit_energy, Δt)
+implicit_update!(state, grid, energy::SoilThermodynamics, soil::AbstractSoil, operator::TridiagonalOperator, explicit_energy, Δt)
+implicit_closure!(state, grid, energy::SoilThermodynamics, soil::AbstractSoil, constants::PhysicalConstants, runoff, iteration::Iteration)
 ```
 
 ## Closures
@@ -124,6 +154,7 @@ For more information on more complex formulations of these so-called soil freezi
 
 ```@docs; canonical = false
 SoilEnergyTemperatureClosure
+varname(::SoilEnergyTemperatureClosure)
 ```
 
 ## Methods
@@ -132,10 +163,21 @@ SoilEnergyTemperatureClosure
 get_thermal_properties
 ```
 
+```@docs; canonical = false
+compute_boundary_advected_heat!
+```
+
 ## Kernel functions
 
 ```@docs; canonical = false
 compute_energy_tendency
+compute_boundary_energy_tendency
+compute_advective_energy_tendency
+advective_heat_flux
+compute_advective_water_flux
+compute_boundary_advective_energy_tendency
+compute_boundary_advected_energy_tendency
+compute_heat_advection_timescale
 ```
 
 ```@docs; canonical = false
@@ -144,6 +186,19 @@ compute_energy_tendencies!
 
 ```@docs; canonical = false
 compute_thermal_conductivity
+```
+
+The following kernel functions implement the implicit heat conduction and advection step (see [Implicit vertical heat conduction](@ref)):
+
+```@docs; canonical = false
+compute_implicit_conductivity!
+compute_implicit_capacity!
+compute_implicit_advective_velocity!
+compute_implicit_heat_coefficients!
+compute_implicit_energy_rhs
+compute_implicit_energy_update
+compute_implicit_diffusion_tendency
+compute_implicit_advection_tendency
 ```
 
 ## [References](@id "soilenergy.refs")
