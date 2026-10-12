@@ -139,7 +139,7 @@ thermal_properties = SoilThermalProperties(
 
 energy = SoilThermodynamics(eltype(grid); thermal_properties);
 soil = SoilEnergyWaterCarbon(eltype(grid); energy, strat, biogeochem);
-model = SoilModel(grid; soil);
+model = SoilModel(grid; soil, timestepper = ForwardEuler(eltype(grid)));
 
 # Here we prescribe a sinusoidal temperature at the surface, again leaving the bottom boundary condition
 # set to its default (zero flux). The initial condition is set to the analytical solution at `t = 0`.

@@ -65,7 +65,8 @@ end
             PrescribedBottomTemperature(:T_bottom, 5.0),
             SoilHeatFlux(0.0),
         )
-        model = SoilModel(grid)
+        # explicit, since value conditions on `temperature` are rejected under implicit heat conduction
+        model = SoilModel(grid; timestepper = ForwardEuler(Float64))
         integrator = initialize(model; boundary_conditions = bcs, initializers = (temperature = 5.0, saturation_water_ice = 0.5))
         timestep!(integrator, 1.0)
         state = integrator.state

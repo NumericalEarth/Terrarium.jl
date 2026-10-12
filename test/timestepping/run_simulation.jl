@@ -6,7 +6,7 @@ import Dates: Hour
 
 @testset "run! SoilModel w/ ForwardEuler" begin
     grid = ColumnRingGrid(CPU(), Float64, ExponentialSpacing(N = 50), RingGrids.FullHEALPixGrid(16))
-    model = SoilModel(grid)
+    model = SoilModel(grid; timestepper = ForwardEuler(Float64))
     integrator = initialize(model)
 
     run!(integrator; steps = 2)
