@@ -64,9 +64,8 @@ compute_tendencies!(
     hydrology::SoilHydrology{NF, RichardsEq},
     soil::AbstractSoil,
     constants::PhysicalConstants,
-    evapotranspiration::Optional{AbstractEvapotranspiration},
-    runoff::Optional{AbstractSurfaceRunoff},
-    args...
+    evtr::Optional{AbstractEvapotranspiration},
+    timestepping::Timestepping
 ) where {NF}
 ```
 
@@ -112,6 +111,34 @@ RichardsEq
 
 ```@example soilwater
 variables(SoilHydrology(Float32, RichardsEq()))
+```
+
+### [Implicit Richards equation](@id soil-hydrology-implicit-richards)
+
+The `Timestepping` trait argument of [`compute_tendencies!`](@ref soilhydrology.interface) for `RichardsEq` is the resolved [`timestepping`](@ref) class of `saturation_water_ice` (see [Implicit-explicit time stepping](@ref)). It is [`Explicit`](@ref) unless the model is run with an [`IMEX`](@ref) timestepper, in which case [`SoilModel`](@ref) and [`LandModel`](@ref) route the saturation of a Richards-equation hydrology to the implicit sub-stepper:
+
+```@docs; canonical = false
+default_timestepping
+```
+
+- Under `Explicit()`, the tendency contains the full divergence of the [`darcy_flux`](@ref), the evapotranspiration sink, the user-defined forcing, and the flux boundary conditions on `saturation_water_ice` (e.g. [`InfiltrationFlux`](@ref)).
+- Under `Implicit()`, the Darcy fluxes through the *interior* cell faces are omitted, since they are integrated by the implicit sub-stepper. Only the Darcy fluxes through the two boundary faces of the column remain, via [`compute_boundary_darcy_flux_divergence`](@ref). These vanish for the default (no-flux) conditions on `pressure_head` and carry the prescribed flux for a gradient condition on `pressure_head` (e.g. [`FreeDrainage`](@ref)).
+
+In both cases, the Darcy fluxes at ``t^n`` through all cell faces are stored in the `water_flux` auxiliary variable (m/s, positive upward, on cell faces; see [`compute_water_flux`](@ref)). Under `Implicit()`, the implicit step overwrites the fluxes through the interior faces with those of its conservative update ([`compute_implicit_water_flux`](@ref)). After a step, `water_flux` therefore holds the flux that moved the water, with which the soil energy advects heat (see [Soil energy balance](@ref)).
+
+The hydrology closure redistributes over- and undersaturation with [`adjust_saturation_profile!`](@ref). It moves the sensible heat ``C_\text{w} T`` of the water it shifts between cells in the `internal_energy`, at the temperature of the cell that the water leaves, and removes that of the excess water it discards (standalone [`SoilModel`](@ref)) or routes to the `surface_excess_water` pool ([`LandModel`](@ref)), which stores no heat. The energy closure, which runs after the hydrology closure, then recomputes the temperature from the adjusted energy. In the implicit Richards step, only the closure of the last iteration moves heat, so the internal energy is adjusted exactly once per step.
+
+The implicit step is the modified Picard iteration of [CeliaEtAl1990](@cite) for the mixed form, solved in the total hydraulic head with the lagged face conductivity of the Darcy flux and the lagged specific moisture capacity ``C = \partial\theta/\partial\psi`` given by [`compute_implicit_conductivity!`](@ref) and [`compute_implicit_capacity!`](@ref), followed by a conservative update of the saturation and the hydrology closure; see [Implicit Richards equation](@ref imex-richards) for the scheme. In saturated cells ``C = 0``; the [`minimum_moisture_capacity`](@ref) of the hydraulic properties bounds ``C`` from below so that frozen saturated cells, whose hydraulic conductivity vanishes as well, do not make the system singular. Flux boundary conditions on `saturation_water_ice` and gradient boundary conditions on `pressure_head` are supported; value boundary conditions on `pressure_head` are not yet supported.
+
+The terms that stay explicit can remove more water from a cell in one step than it holds, e.g. gravity drainage through the bottom face of a draining sandy column. [`water_outflow_timescale`](@ref) reports the time in which they would drain a cell to its residual saturation, which bounds the step of a `TimeStepWizard` through `cell_advection_timescale` (see [Adaptive time stepping with IMEX](@ref)). It evaluates the explicit terms selected by the resolved class of `saturation_water_ice`, so under `Explicit()` it includes the interior Darcy fluxes as well.
+
+The implicit operator of `saturation_water_ice` is a [`TridiagonalOperator`](@ref) in the total hydraulic head `pressure_head`, the variable of the [`SoilSaturationPressureClosure`](@ref) (see its [`varname`](@ref) method below), returned by [`implicit_operator`](@ref) (which also validates the configuration), and each iteration of the implicit solver calls the process hooks of `SoilHydrology` with `RichardsEq` below:
+
+```@docs; canonical = false
+implicit_operator(hydrology::SoilHydrology{NF, RichardsEq}, state, grid) where {NF}
+linearize!(operator::TridiagonalOperator, rhs, state, grid, hydrology::SoilHydrology{NF, RichardsEq}, soil::AbstractSoil, constants::PhysicalConstants, explicit_saturation, Δt) where {NF}
+implicit_update!(state, grid, hydrology::SoilHydrology{NF, RichardsEq}, soil::AbstractSoil, operator::TridiagonalOperator, explicit_saturation, Δt) where {NF}
+implicit_closure!(state, grid, hydrology::SoilHydrology{NF, RichardsEq}, soil::AbstractSoil, constants::PhysicalConstants, runoff::Optional{AbstractSurfaceRunoff}, iteration::Iteration) where {NF}
 ```
 
 ## Hydraulic properties
@@ -160,6 +187,7 @@ with $\Psi_z$ the elevation head and $\Psi_h$ the hydrostatic head contributed b
 
 ```@docs; canonical = false
 SoilSaturationPressureClosure
+varname(::SoilSaturationPressureClosure)
 ```
 
 ## Methods
@@ -188,6 +216,14 @@ adjust_saturation_profile!
 compute_hydraulics!
 ```
 
+```@docs; canonical = false
+minimum_moisture_capacity
+```
+
+```@docs; canonical = false
+water_outflow_timescale
+```
+
 ## Kernel functions
 
 ```@docs; canonical = false
@@ -208,6 +244,33 @@ water_table
 
 ```@docs; canonical = false
 surface_excess_water
+```
+
+```@docs; canonical = false
+compute_volumetric_water_content_tendency
+compute_darcy_flux_divergence
+compute_boundary_darcy_flux_divergence
+darcy_flux
+darcy_conductivity
+compute_water_flux
+redistribute_saturation_profile!
+compute_redistributed_heat!
+compute_matric_potential
+compute_specific_moisture_capacity
+specific_moisture_capacity
+compute_water_outflow_timescale
+compute_saturation_boundary_flux
+```
+
+The following kernel functions implement the implicit Richards step (see [Implicit Richards equation](@ref soil-hydrology-implicit-richards)):
+
+```@docs; canonical = false
+compute_implicit_conductivity!(face_conductivity, i, j, k, grid, fields, hydrology::SoilHydrology{NF, RichardsEq}) where {NF}
+compute_implicit_capacity!(diagonal_coefficient, i, j, k, grid, fields, hydrology::SoilHydrology{NF, RichardsEq}, strat::AbstractStratigraphy, bgc::AbstractSoilBiogeochemistry) where {NF}
+compute_implicit_water_flow_coefficients!
+compute_implicit_water_flow_rhs
+compute_implicit_saturation_update
+compute_implicit_water_flux
 ```
 
 ## [References](@id "soilhydrology.refs")

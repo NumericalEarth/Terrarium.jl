@@ -72,3 +72,9 @@ function solve! end
 include("fixed_point.jl")
 include("newton.jl")
 include("root_solvers.jl")
+
+# Implicit solvers
+
+include("linear_operators.jl")
+include("implicit_solvers.jl")
+include("picard.jl")

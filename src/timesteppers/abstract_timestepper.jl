@@ -24,6 +24,20 @@ abstract type AbstractTimeStepper{NF} end
 """
     $TYPEDEF
 
+Base type for implicit-explicit (IMEX) time steppers, which combine an explicit and an implicit
+sub-stepper. The explicit sub-stepper applies the explicit tendency terms of *all* prognostic variables;
+variables of [`timestepping`](@ref) class [`Implicit`](@ref) are then advanced by the implicit sub-stepper
+(see [`implicit_step!`](@ref)), while those of class [`Explicit`](@ref) are fully integrated by the
+explicit stage.
+
+Concrete subtypes (e.g. [`IMEX`](@ref)) must provide the sub-steppers via [`explicit_timestepper`](@ref)
+and [`implicit_timestepper`](@ref); the remaining behavior is defined here.
+"""
+abstract type AbstractIMEX{NF} <: AbstractTimeStepper{NF} end
+
+"""
+    $TYPEDEF
+
 Trait supertype classifying how a timestepper or prognostic variable is integrated in time, either
 [`Explicit`](@ref) or [`Implicit`](@ref). See [`timestepping`](@ref).
 """
@@ -71,18 +85,15 @@ Get the current timestep size for the time stepper.
 function default_dt end
 
 """
-    is_adaptive(timestepper::AbstractTimeStepper)
+    default_timestepper(::Type{NF})
+    default_timestepper(::Type{<:AbstractModel}, ::Type{NF})
 
-Return `true` if the given time stepper is adaptive, false otherwise.
-"""
-function is_adaptive end
-
-"""
-    $SIGNATURES
-
-Default `timestepper` for models: a single `explicit` [`ForwardEuler`](@ref) time stepper.
+Default `timestepper` for models: a single explicit [`ForwardEuler`](@ref) time stepper. Models may
+specialize the two-argument method on their type; `SoilModel` and `LandModel` default to
+`IMEX(ForwardEuler(NF; Δt = 1800), BackwardEuler(NF))`.
 """
 default_timestepper(::Type{NF}) where {NF} = ForwardEuler(NF)
+default_timestepper(::Type{<:AbstractModel}, ::Type{NF}) where {NF} = default_timestepper(NF)
 
 """
     get_timestepper(model::AbstractModel)::AbstractTimeStepper
@@ -134,6 +145,89 @@ timestepper this is the cache itself; an [`IMEX`](@ref) cache returns the sub-ca
 timestepper's class.
 """
 get_cache(cache::AbstractTimeStepperCache, ::AbstractTimeStepper) = cache
+
+"""
+    timestepping(state::StateVariables, ::Val{name})
+    timestepping(state::StateVariables, var::AbstractVariable{name})
+
+Return the resolved [`Timestepping`](@ref) class ([`Explicit`](@ref) or [`Implicit`](@ref)) of the
+prognostic variable `name` in `state`. Under an [`AbstractIMEX`](@ref) timestepper the class is read from
+the [`IMEXCache`](@ref) type parameter in `state.timestepper_cache`; for any other cache every variable is
+`Explicit()`, as are names that are not top-level prognostic variables (including variables in
+namespaces, which an IMEX does not route).
+
+The lookup is resolved at compile time (type stable), so the trait can be passed to process methods
+(e.g. `compute_tendencies!`) that dispatch on it.
+"""
+@inline timestepping(state::StateVariables, ::AbstractVariable{name}) where {name} = timestepping(state, Val(name))
+@inline timestepping(state::StateVariables, name::Val) = resolved_timestepping(getfield(state, :timestepper_cache), state, name)
+
+# A cache without per-variable classes (single timestepper) integrates every variable explicitly.
+@inline resolved_timestepping(::AbstractTimeStepperCache, ::StateVariables, ::Val) = Explicit()
+
+"""
+    timestepping(timestepper::Optional{AbstractTimeStepper}, state::StateVariables, ::Val{name})
+
+Return the [`Timestepping`](@ref) class with which the prognostic variable `name` of `state` is
+integrated by `timestepper`, for process methods that receive the model's timestepper. A single
+timestepper uses its own class (see `timestepping(timestepper)`), an [`AbstractIMEX`](@ref) the
+per-variable class in its [`IMEXCache`](@ref) (see `timestepping(state, ::Val)`), and `nothing` (e.g.
+standalone process evaluation) gives `Explicit()`. Type stable.
+"""
+@inline timestepping(timestepper::AbstractTimeStepper, ::StateVariables, ::Val) = timestepping(timestepper)
+@inline timestepping(::Nothing, ::StateVariables, ::Val) = Explicit()
+
+"""
+    explicit_stage!(integrator::ModelIntegrator, timestepper::AbstractTimeStepper, Δt, names::Tuple)
+
+Apply a single explicit stage of `timestepper` to the prognostic variables in `names`, using the
+tendencies already in `integrator.state`. Unlike `timestep!(integrator, timestepper, Δt, names)`, this
+calls neither `update_state!`, the model hook, nor `closure!`; it is the building block of an
+[`AbstractIMEX`](@ref) timestepper, which orchestrates the step itself. Only single-stage schemes
+(currently [`ForwardEuler`](@ref)) implement it.
+"""
+function explicit_stage! end
+
+"""
+    validate_timestepper(timestepper::AbstractTimeStepper)
+    validate_timestepper(timestepper::AbstractTimeStepper, imex::AbstractIMEX)
+
+Host-side validation of a timestepper configuration, called from [`initialize`](@ref) before any cache
+is allocated. The one-argument form validates `timestepper` alone (a no-op by default); the two-argument
+form validates it as a sub-stepper of `imex` and throws an `ArgumentError` for unsupported roles (e.g.
+multi-stage schemes such as [`Heun`](@ref) as the explicit partner). Not exported.
+"""
+validate_timestepper(::AbstractTimeStepper) = nothing
+validate_timestepper(::AbstractTimeStepper, ::AbstractIMEX) = nothing
+
+"""
+    update_cache!(cache::AbstractTimeStepperCache, integrator::ModelIntegrator, Δt, names::Tuple)
+
+Update the timestepper `cache` from the state of `integrator` for the variables in `names`, at the start
+of a step (after `update_state!`, while the prognostic fields still hold `uⁿ`). Timesteppers that retain
+beginning-of-step state implement this on their cache type (e.g. [`BackwardEulerCache`](@ref) stores a
+copy of `uⁿ`). The default is a no-op.
+"""
+update_cache!(::AbstractTimeStepperCache, integrator, Δt, names) = nothing
+
+"""
+    implicit_step!(integrator::ModelIntegrator, timestepper::AbstractTimeStepper, Δt, names::Tuple)
+
+Apply the implicit part of a time step of size `Δt` with the implicit `timestepper` to the variables in
+`names`. Called by an [`AbstractIMEX`](@ref) timestepper after `update_state!` and the explicit stage, so
+each prognostic field in `names` already holds `u⁺ = uⁿ + Δt G_exp`, where `G_exp` contains only the
+explicit terms. `u⁺` is the right-hand side of the implicit system, which this method solves in place.
+
+This is unrelated to (and does not extend) `Oceananigans.TimeSteppers.implicit_step!`.
+
+Implicit timesteppers must implement this method; the fallback throws an `ArgumentError`, and
+`implicit_step!(integrator, ::Nothing, Δt, names)` is a no-op.
+"""
+function implicit_step!(integrator, timestepper::AbstractTimeStepper, Δt, names)
+    throw(ArgumentError("$(nameof(typeof(timestepper))) does not implement `implicit_step!` and cannot be used as an implicit timestepper"))
+end
+
+implicit_step!(integrator, ::Nothing, Δt, names) = nothing
 
 """
     $SIGNATURES
