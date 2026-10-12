@@ -85,11 +85,15 @@ Get the current timestep size for the time stepper.
 function default_dt end
 
 """
-    $SIGNATURES
+    default_timestepper(::Type{NF})
+    default_timestepper(::Type{<:AbstractModel}, ::Type{NF})
 
-Default `timestepper` for models: a single `explicit` [`ForwardEuler`](@ref) time stepper.
+Default `timestepper` for models: a single explicit [`ForwardEuler`](@ref) time stepper. Models may
+specialize the two-argument method on their type; `SoilModel` and `LandModel` default to
+`IMEX(ForwardEuler(NF; Δt = 1800), BackwardEuler(NF))`.
 """
 default_timestepper(::Type{NF}) where {NF} = ForwardEuler(NF)
+default_timestepper(::Type{<:AbstractModel}, ::Type{NF}) where {NF} = default_timestepper(NF)
 
 """
     get_timestepper(model::AbstractModel)::AbstractTimeStepper
