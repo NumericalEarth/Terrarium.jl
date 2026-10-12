@@ -58,6 +58,17 @@ Compute the (numerical) residual saturation level of the soil.
 """
 function residual_saturation end
 
+"""
+    minimum_moisture_capacity(hydraulics::AbstractSoilHydraulics)
+
+Numerical lower bound (1/m) of the specific moisture capacity `∂θ/∂ψ` used on the diagonal of the
+implicit Richards solve (see [`Picard`](@ref) and [`compute_implicit_capacity!`](@ref)).
+It plays the role of a small specific storage: in saturated cells `∂θ/∂ψ = 0`, and a saturated cell
+whose faces have zero hydraulic conductivity (e.g. a frozen saturated cell) would otherwise give a
+singular row of the tridiagonal system.
+"""
+function minimum_moisture_capacity end
+
 # Hydraulics parameterizations
 
 """
@@ -88,6 +99,9 @@ $TYPEDFIELDS
 
     "Residual (minimum) saturation level"
     @param residual_saturation::NF = 0.01 (bounds = UnitInterval,)
+
+    "Lower bound (1/m) of the specific moisture capacity ∂θ/∂ψ on the diagonal of the implicit Richards solve (implicit time stepping only)"
+    minimum_moisture_capacity::NF = 1.0e-5
 end
 
 function ConstantSoilHydraulics(
@@ -107,6 +121,8 @@ end
 @inline field_capacity(hydraulics::ConstantSoilHydraulics, args...) = hydraulics.field_capacity
 
 @inline residual_saturation(hydraulics::ConstantSoilHydraulics, args...) = hydraulics.residual_saturation
+
+@inline minimum_moisture_capacity(hydraulics::ConstantSoilHydraulics) = hydraulics.minimum_moisture_capacity
 
 """
     $TYPEDEF
@@ -145,6 +161,9 @@ $TYPEDFIELDS
 
     "Residual (minimum) saturation level"
     @param residual_saturation::NF = 0.01 (bounds = UnitInterval,)
+
+    "Lower bound (1/m) of the specific moisture capacity ∂θ/∂ψ on the diagonal of the implicit Richards solve (implicit time stepping only)"
+    minimum_moisture_capacity::NF = 1.0e-5
 end
 
 function SoilHydraulicsSURFEX(
@@ -161,6 +180,8 @@ end
 @inline saturated_hydraulic_conductivity(hydraulics::SoilHydraulicsSURFEX, args...) = hydraulics.saturated_conductivity
 
 @inline residual_saturation(hydraulics::SoilHydraulicsSURFEX, args...) = hydraulics.residual_saturation
+
+@inline minimum_moisture_capacity(hydraulics::SoilHydraulicsSURFEX) = hydraulics.minimum_moisture_capacity
 
 @inline function wilting_point(hydraulics::SoilHydraulicsSURFEX, texture::SoilTexture)
     β_w = hydraulics.wilting_point_effect
