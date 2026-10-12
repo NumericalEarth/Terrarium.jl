@@ -113,13 +113,22 @@ function compute_tendencies! end
 variables(::Any) = ()
 
 """
-    variables(obj::Union{AbstractCoupledProcesses, AbstractModel})
+    variables(obj::AbstractCoupledProcesses)
 
-Default implementation of [`variables`](@ref) for composite [`AbstractModel`](@ref) and
-[`AbstractCoupledProcesses`](@ref) types that automatically collects all variables from all processes defined
-as properties/fields on the given `obj`.
+Default implementation of [`variables`](@ref) for composite [`AbstractCoupledProcesses`](@ref) types
+that automatically collects all variables from all processes defined as properties/fields on the given `obj`.
 """
-variables(obj::Union{AbstractCoupledProcesses, AbstractModel}) = tuplejoin(fastmap(variables, processes(obj))...)
+variables(obj::AbstractCoupledProcesses) = tuplejoin(fastmap(variables, processes(obj))...)
+
+"""
+    variables(model::AbstractModel)
+
+Default implementation of [`variables`](@ref) for [`AbstractModel`](@ref) types that collects all
+variables from all processes defined as properties/fields on the given `model`, followed by any
+variables declared by its initializer (see [`get_initializer`](@ref)). Initializers may declare
+`input` variables for their parameters; see [`AbstractInitializer`](@ref).
+"""
+variables(model::AbstractModel) = tuplejoin(fastmap(variables, processes(model))..., variables(get_initializer(model)))
 
 # Fallback dispatches to make implementing compute_boundary_conditions! optional
 compute_boundary_conditions!(state, ::AbstractModel) = nothing
@@ -246,13 +255,17 @@ Convenience constructor for all `AbstractModel` types that accepts `grid` as a p
 (::Type{Model})(grid::AbstractGrid; kwargs...) where {Model <: AbstractModel} = Model(; grid, kwargs...)
 
 # Default parameters collection for processes
-function ParameterEditing.parameters(proc::AbstractProcess; kwargs...)
+function ParameterEditing.parameters(::Type{PT}, proc::AbstractProcess; kwargs...) where {PT <: ModelParameters.AbstractParam}
     proc_params = map(fieldnames(typeof(proc))) do name
-        name => ParameterEditing.parameters(getproperty(proc, name))
+        name => ParameterEditing.parameters(PT, getproperty(proc, name))
     end
     nonempty_params = filter(p -> length(p[2]) > 0, proc_params)
     return ParameterEditing.ParameterTable((; nonempty_params...))
 end
+
+# `Field`s used as initial values (e.g. in a `@param` field of an initializer) are state, not parameters;
+# without this, ParameterEditing would treat them as array-valued parameters since `AbstractField <: AbstractArray`.
+ParameterEditing.parameters(::Type{PT}, ::AbstractField; kwargs...) where {PT <: ParameterEditing.AbstractParam} = (;)
 
 function Base.show(io::IO, model::AbstractModel{NF}) where {NF}
     println(io, "$(nameof(typeof(model))){$NF} on $(architecture(get_grid(model)))")

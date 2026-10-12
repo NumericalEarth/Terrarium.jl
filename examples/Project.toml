@@ -27,7 +27,7 @@ Terrarium = "80418d68-07fa-499d-ae2b-c12e531f5cd8"
 Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 
 [compat]
-SpeedyWeather = "0.21, 0.22"
+SpeedyWeather = "0.23"
 
 [sources.NumericalEarth]
 rev = "main"
