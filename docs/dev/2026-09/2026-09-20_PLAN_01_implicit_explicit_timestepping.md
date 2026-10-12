@@ -1,17 +1,6 @@
 # Add support for implicit-explicit (IMEX) time stepping
 
-> Status: **in progress** (approved at revision 4, revision 5 added energy advection to Phase 2; Phase 1 implemented with review fixes, Phase 2 (implicit Richards flow and energy advection) implemented 2026-10-08, see revision 7).
-> Revision 12 (operators queried from processes, `Picard` solver generic over the operator) implemented 2026-10-09, see its implementation notes.
-> Revision 13 (saturation substitution in the heat step, solver and soil code moved out of the timestepping directory) implemented 2026-10-09.
-> Revision 14 (one implicit operator per model block, `SplitOperator`, unknown resolved from the closure's `varname`) implemented 2026-10-09, see its implementation notes.
-> Revision 15 (heat advected with the water that actually moves, heat moved with water redistributed by the closure) implemented 2026-10-09, see its implementation notes.
-> Revision 16 (explicit increment in the `BackwardEuler` cache, `ImplicitSolverWorkspace`, simpler solver-level `implicit_step!` signatures) implemented 2026-10-10, see its implementation notes.
-> Revision 17 (second-order IMEX trapezoidal scheme deferred to a future PR; value boundary conditions stay in Phase 3) 2026-10-10.
-> Assessment of two implicit paths (a fully coupled Jacobian-free Newton–Krylov solver using Enzyme forward-mode JVPs, and an Oceananigans-style linearly implicit vertical diffusion solve built on `BatchedTridiagonalSolver`), the refactoring of the timestepping core that both need, and a phased implementation path.
-> **Scope of this plan and PR: the tridiagonal path (Path 2) and the core refactoring**, followed by feasibility spikes for the Newton–Krylov path.
-> Path 1 itself is assessed here but deferred in its entirety to a future plan and PR, where it will reuse the Path 2 tridiagonal operator as its preconditioner.
-> Revision 2 (2026-10-08) re-checked the plan against the repository; revision 3 (2026-10-08) narrowed the scope as described.
-> Awaiting human review; nothing has been implemented.
+> Status: **in progress**. Phases 1 and 2 (implicit heat conduction, implicit Richards flow, and energy advection, with the refactoring of revisions 12–16) are implemented; Phase 3 (wizard diagnostics) and Phase 4 (feasibility spikes for Path 1) remain.
 
 Date of initial draft: 2026-09-20
 
@@ -34,12 +23,11 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 ## Revision log
 
 > **Revision 1, 2026-09-20.** Initial draft.
-> Not yet reviewed.
 >
 > **Revision 2, 2026-10-08.** Re-reviewed against the current repository (see "B0. Repository state at revision 2").
 > Changes: the explicit heat operator was renamed to `TwoPhaseHeatTransport` (commit `e9b9ef82a`); per reviewer feedback the operator types are left untouched and R1 instead passes the resolved `Timestepping` trait into the soil energy and hydrology `compute_tendencies!`, and the implicit entry point is named `implicit_step!`; Oceananigans is pinned at 0.113.5, so the compat item and the `IMEXFluxBoundaryCondition` availability caveat are dropped; state fields may now live on plain `AbstractGrid`s and may carry non-scalar element types, which adds two constraints to the implicit caches (R5); the soil kernel fusion that R1 would have interacted with was abandoned; the ground heat flux is now its own SEB sub-process, which is where the Phase 3 linearized surface flux hooks in; the Reactant extension now converts the traced clock time, which R7 relies on.
 > The recommendation and phasing are unchanged.
-> Not yet reviewed.
+
 >
 > **Revision 3, 2026-10-08.** Reviewer feedback: the implicit entry point is `implicit_step!`; the operator types are left unchanged and the resolved `Timestepping` trait is passed into the soil energy and hydrology `compute_tendencies!` instead; the finer `Implicit{…}` trait distinction is deferred as a Path 1 consideration; the feasibility spikes (formerly Phase 0) move after the Path 2 implementation; and Path 1 is deferred in its entirety to a future plan and PR.
 > Its assessment and sketch stay in this document as the record for that future work.
@@ -309,6 +297,26 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 > The rest of Phase 3 stays in scope, in particular value boundary conditions on the closure variables under the implicit operator (sharing the boundary-diagonal code with `IMEXFluxBoundaryCondition`), together with the implicit surface coupling and the wizard diagnostics.
 > `IMEX` therefore continues to accept only `ForwardEuler` as its explicit partner, and the second-order convergence test is dropped from the testing section.
 
+> **Revision 18, 2026-10-10. Approved. Scope reduction: Phase 3 restricted to the wizard diagnostics.**
+> Reviewer request: the implicit surface coupling (an `IMEXFluxBoundaryCondition` for the ground heat flux with `λ = ∂G/∂T_ground` from the skin temperature solve) and the value boundary conditions on the closure variables under the implicit operator are deferred to a future PR and moved to Future work.
+> Value conditions on `temperature` and `pressure_head` therefore stay rejected at `initialize` when the variable is integrated implicitly, and the ground heat flux of a `LandModel` stays explicit at `tⁿ`; a rough estimate, `Δt ≲ 2 C Δz / λ` with `λ ≈ 2κ/Δz`, suggests that the latter limits the step to the order of 10 min for a 2 cm top cell, which remains to be measured.
+> Phase 3 consists only of the wizard diagnostics: (1) document and test that the `TimeStepWizard` is not throttled by implicitly integrated terms (`cell_diffusion_timescale` and `cell_advection_timescale` are `Inf` for them), and (2) report the time scales of the terms that remain explicit, so that the wizard bounds `Δt` by them: the advective limit of explicit energy advection, and the limit at which explicit water outflow (boundary drainage and sinks such as evapotranspiration, evaluated at `tⁿ`) would remove more water than a cell holds.
+> A convergence-based diagnostic for the Picard iteration stays future work.
+>
+> Implementation notes (2026-10-10):
+> (1) The existing `Inf` diagnostics for implicit heat conduction, implicit Richards flow, and implicit heat advection are unchanged; new `Simulation` tests in `test/timestepping/adaptive_timestep.jl` show that an IMEX `SoilModel` and an IMEX `LandModel` reach `max_Δt` (about 118 and 14 times the explicit heat conduction limit), and the "Adaptive time stepping" docs gained an IMEX subsection with an example.
+> (2a) The advective limit of explicit heat advection is verified under mixed routing with a test-local `AbstractIMEX` subtype that routes `internal_energy` explicitly; with a closed bottom it is the binding limit and the wizard step equals `cfl` times it.
+> (2b) The explicit water outflow limit is the new `water_outflow_timescale` (dispatch on the hydrology, `Inf` fallback) with the kernel function `compute_water_outflow_timescale`, combined with the advective limit by `min` in the soil `cell_advection_timescale`.
+> The per-cell time scale is `τ = φ (s − s_res) Δz / q_out`, with `q_out = −Δz G_θ` where the explicit volumetric water content tendency `G_θ` is negative, and `Inf` elsewhere.
+> `G_θ` reuses `compute_volumetric_water_content_tendency` with the resolved `Timestepping` class of `saturation_water_ice` (boundary Darcy fluxes, evapotranspiration, and forcing under `Implicit()`; all Darcy fluxes under `Explicit()`), plus the flux boundary conditions on `saturation_water_ice` through the new kernel function `compute_saturation_boundary_flux` (`getbc` for `Flux` conditions, zero otherwise).
+> The stored tendency is not used: the wizard runs after the step, when `compute_auxiliary!` has updated the auxiliaries but the tendencies are still those of `tⁿ` of the previous step, so the direct evaluation measures the outflow of the next step instead.
+> The net (not gross) explicit tendency is used, since the explicit stage `s⁺ = sⁿ + Δt G_exp` overdraws a cell only if the net tendency is negative.
+> The limit also applies under explicit hydrology, where it includes the interior Darcy fluxes, but the diffusive limit is then usually more restrictive.
+> Both soil advective diagnostics fill the `pressure_head` halos first, since the wizard otherwise sees boundary Darcy fluxes computed from the halos of `tⁿ`.
+> `cell_advection_timescale(state, grid, soil, ...)` now takes `constants` and an optional `surface_hydrology` (for the evapotranspiration sink) before the `timestepper`, like `compute_tendencies!`.
+> In the draining sandy column (Δz = 5 cm, `Ks = 1e-4` m/s, infiltration `2e-5` m/s) the bottom cell drains in about 565 s, so the wizard (default `cfl = 0.2`) chooses 90 to 113 s, close to the explicit Richards limit of 97 s; fixed steps of 1800 s and longer overdraw the column, while wizard runs with `cfl` up to 1 stay bounded.
+> The explicit boundary drainage is therefore the binding limit of such columns, which only an implicit treatment of the boundary Darcy fluxes would remove.
+
 ## Problem description
 
 Terrarium integrates every prognostic variable with fixed-step explicit schemes (`ForwardEuler`, `Heun`).
@@ -345,7 +353,7 @@ Changes since the base revision that bear on this plan:
 - **Evapotranspiration sink.** `LandModel` now passes `surface_hydrology` into the soil `compute_tendencies!`, so the evapotranspiration sink is an ordinary explicit source term in the Richards tendency.
   It stays on the right-hand side in Path 2 and inside the residual in Path 1.
 - **Surface energy balance.** The ground heat flux is now a first-class SEB sub-process with `Diagnosed` and `Prescribed` implementations (plan `2026-09-01_PLAN_prescribed_surface_energy_balance.md`, completed).
-  The Phase 3 linearized surface flux (`λ = ∂G/∂T_ground`) attaches to the `Diagnosed` ground heat flux implementation.
+  The linearized surface flux (`λ = ∂G/∂T_ground`, deferred to a future PR by revision 18) would attach to the `Diagnosed` ground heat flux implementation.
 - **Reactant.** `TerrariumReactantExt` now defines `convert_dt` for a `TracedRNumber` clock time, and the Reactant test registry gained time-varying input configurations.
   R7 (ticking the clock before a residual evaluation) is therefore supported inside the compiled loop.
 - **Heun.** `HeunCache` allocates with `similar` rather than `deepcopy`; implicit caches should do the same.
@@ -568,14 +576,14 @@ rhs_k   = C_app,k Tⁿ_k + Δt G^{exp}_k
 **Flux boundary conditions are the primary case and are required from Phase 1.** In Terrarium they are attached to the conserved prognostic (`SoilHeatFlux` and `GeothermalHeatFlux` on `internal_energy`, `InfiltrationFlux` on `saturation_water_ice`) and `compute_z_bcs!` adds them into the tendency during `update_state!`.
 The implicit step takes that tendency as `G^{exp}`, so the ground heat flux enters the top row through the right-hand side while the masked off-diagonals keep the matrix itself flux-free, exactly as in Oceananigans.
 The R1 split must therefore omit only the *interior* diffusive flux under `Implicit()` and leave the `compute_z_bcs!` contributions in place; the conservation tests check this by requiring the column energy and water change to equal the integrated boundary fluxes.
-The boundary flux is evaluated at `tⁿ` (from the surface energy balance of that step) and held fixed over the step; Phase 3 adds the `λ T_top` linearization on top of this flux form for cases where the explicit surface coupling limits `Δt`.
+The boundary flux is evaluated at `tⁿ` (from the surface energy balance of that step) and held fixed over the step; a future PR adds the `λ T_top` linearization on top of this flux form for cases where the explicit surface coupling limits `Δt` (deferred by revision 18).
 Value and gradient conditions are instead attached to the closure variables (`temperature`, `pressure_head`; e.g. `PrescribedSurfaceTemperature` and `PrescribedBottomTemperature` in `src/models/soil/soil_model_bcs.jl`) and reach the explicit operator through halo fills, which the implicit operator does not read.
 They are handled as follows:
 
 - A **gradient** condition on `T` at a boundary face is a known flux `−κ ∂T/∂z`, so it is added to the right-hand side exactly like a flux condition (Phase 1).
 - A **value** condition `T_bc` at the top gives the boundary flux `κ (T_bc − T_Nz) / (Δz_Nz / 2)`, which is affine in the unknown `T_Nz`: the coefficient `κ / (Δz_Nz / 2)` is folded into `diag_Nz` and the `T_bc` part into the right-hand side (and symmetrically at the bottom).
-  This is the same structure as `IMEXFluxBoundaryCondition`, so it shares the boundary-diagonal code introduced in Phase 3 for the linearized surface flux `λ T_top`.
-  Until Phase 3, a value condition on a closure variable routed to the implicit stepper is rejected in the host-side constructor.
+  This is the same structure as `IMEXFluxBoundaryCondition`.
+  Value conditions under the implicit operator are deferred to a future PR (revision 18); until then, a value condition on a closure variable routed to the implicit stepper is rejected at `initialize`.
 
 ### Reuse from Oceananigans
 
@@ -584,7 +592,7 @@ They are handled as follows:
 | `BatchedTridiagonalSolver` | Used as-is, constructed on `ground_domain(grid)` with three Terrarium marker structs (`ImplicitDiffusionLowerDiagonal`, `ImplicitDiffusionDiagonal`, `ImplicitDiffusionUpperDiagonal`) and `Oceananigans.Solvers.get_coefficient` methods that call Terrarium kernel functions with `(fields, process, Δt, ...)` in `args`. Separate `rhs` field, never `ϕ === rhs` |
 | `ivd_upper_diagonal`, `ivd_lower_diagonal`, `ivd_diagonal` | Copied and adapted (capacity on the diagonal, Terrarium argument convention); not imported |
 | `implicit_step!(field, ::Nothing) = nothing` idiom | Adopted as `implicit_step!(…, ::Nothing, …) = nothing` for processes with no implicit operator |
-| `IMEXFluxBoundaryCondition`, `boundary_flux_diagonal` | Phase 3 (available in the pinned 0.113.5) |
+| `IMEXFluxBoundaryCondition`, `boundary_flux_diagonal` | Future PR, deferred by revision 18 (available in the pinned 0.113.5) |
 | `SplitRungeKuttaTimeStepper` stage pattern | Design template for the second-order IMEX (deferred to a future PR), not imported |
 | `KrylovSolver` / `KrylovField` | Template for Path 1's multi-field Krylov vector |
 
@@ -691,12 +699,11 @@ Path 1 is deferred to a future plan.
 - Energy advection by the water flux in `TwoPhaseHeatTransport` (revision 5): an explicit upwind advective heat flux kernel function `advective_heat_flux(i, j, k, grid, fields, energy, hydrology, constants)` at faces using `darcy_flux` and the upwind temperature, added to `compute_energy_tendency` for both explicit and implicit configurations (it is part of `G^{exp}` under `Implicit()`); zero for `NoFlow` hydrology by dispatch; boundary faces carry the infiltration and drainage fluxes at the adjacent cell temperature. `cell_advection_timescale` returns `min(Δz / |q|)` for the energy equation so the `TimeStepWizard` can honor the advective CFL.
 - `LandModel` routing (snow, vegetation, surface hydrology stay explicit); GPU tests; Reactant registry configuration in `test/reactant/setup.jl` (the tridiagonal solve has fixed trip counts and no throw paths, so no structural obstacle is expected; compile time is measured here).
 
-**Phase 3: implicit surface coupling and value boundary conditions.**
+**Phase 3: wizard diagnostics.**
 
 - (Deferred to a future PR by revision 17: R4, `Heun` as explicit partner with per-stage implicit corrections (IMEX trapezoidal).)
-- `IMEXFluxBoundaryCondition` for the ground heat flux with `λ = ∂G/∂T_ground` from the skin temperature solve, attached to the `Diagnosed` ground heat flux sub-process of the SEB (B0).
-- Value boundary conditions on the closure variables under the implicit operator, sharing the boundary-diagonal code with the IMEX flux condition.
-- Wizard diagnostics for implicit runs.
+- (Deferred to a future PR by revision 18: `IMEXFluxBoundaryCondition` for the ground heat flux, and value boundary conditions on the closure variables under the implicit operator.)
+- Wizard diagnostics for implicit runs: no throttling by implicit terms, and time scales of the remaining explicit terms (explicit energy advection, explicit water outflow that could overdraw a cell).
 
 **Phase 4: feasibility spikes for Path 1 (no production code).** Run after Path 2 is complete so the results can be compared against a working implicit stepper; recorded in the future Path 1 plan.
 
@@ -746,14 +753,16 @@ Each phase ends with the full test suite, the Enzyme test set, and a draft doc b
 - Energy advection is explicit and first-order upwind, so it is diffusive and imposes an advective CFL limit `Δt ≲ C Δz / (C_w |q|)`, which for highly conductive soils can be the binding limit of an implicit run; infiltrating water enters at the top cell temperature rather than the skin or rain temperature, so rain heat is not exchanged with the surface energy balance, and water removed by evapotranspiration or routed to the surface excess pool carries no heat.
 - The implicit Richards step lags the hydrostatic head and the water table within a step and bounds the moisture capacity from below (`minimum_moisture_capacity`); with a fixed number of Picard iterations the result is not converged when a large step saturates part of the column.
 - Only vertical diffusion in the soil is implicit in Phases 1–3.
-  Snow, vegetation, surface hydrology, and the energy–water cross-couplings remain explicit, and the surface energy balance stays an explicit flux until Phase 3.
-- Value conditions on the closure variables (`temperature`, `pressure_head`), such as `PrescribedSurfaceTemperature`, are supported by the tridiagonal operator only from Phase 3; flux conditions on the conserved prognostics and gradient conditions on the closure variables work from Phase 1.
+  Snow, vegetation, surface hydrology, and the energy–water cross-couplings remain explicit, and the surface energy balance stays an explicit flux (implicit surface coupling deferred by revision 18).
+- Value conditions on the closure variables (`temperature`, `pressure_head`), such as `PrescribedSurfaceTemperature`, are not supported by the implicit operator (deferred by revision 18); flux conditions on the conserved prognostics and gradient conditions on the closure variables are supported.
 - Path 1 on Reactant requires fixed iteration counts and is not adaptive; Path 1's Enzyme JVP requires a new weak dependency; nested AD through Path 1 is not guaranteed until the adjoint rule from the future Path 1 plan exists.
 - Adaptive `Δt` under Reactant remains out of scope, as in the adaptive-timestepping plan.
 
 ## Future work
 
 - Implicit-function-theorem adjoints for `implicit_step!` (efficient inverse modeling through implicit steps).
+- Implicit surface coupling: an `IMEXFluxBoundaryCondition` for the ground heat flux with `λ = ∂G/∂T_ground` from the skin temperature solve, attached to the `Diagnosed` ground heat flux sub-process of the SEB, deferred from Phase 3 by revision 18; first measure whether the explicit ground heat flux limits `Δt` of a `LandModel`.
+- Value boundary conditions on the closure variables (`temperature`, `pressure_head`) under the implicit operator: the boundary coefficient on the diagonal and the boundary value in the right-hand side, with the boundary flux in the conservative update; deferred from Phase 3 by revision 18. The explicit boundary tendencies must skip faces whose flux the operator carries, preferably by dispatch on the boundary condition type rather than by flags threaded through the tendency kernels.
 - Second-order IMEX (R4): `Heun` as explicit partner with per-stage implicit corrections (IMEX trapezoidal), deferred from Phase 3 by revision 17, which also introduces the stage hook.
 - Stiffly accurate higher-order IMEX Runge–Kutta pairs (ARS(2,2,2), ARS(4,4,3)) on top of the stage hook.
 - Implicit treatment of snow energy and of the lateral/2D couplings if they are ever added.
