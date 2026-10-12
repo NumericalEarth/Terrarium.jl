@@ -1,12 +1,11 @@
-# Implicit solver interface: the solver type, the solver-level `implicit_step!`, the implicit operator query, and
-# the process hooks that solvers call.
+# Implicit solver interface: solver type, solver-level `implicit_step!`, operator query, and process hooks.
 
 """
     $TYPEDEF
 
-Base type for solvers of the (nonlinear) system of an implicit time step, held by an implicit
-timestepper such as [`BackwardEuler`](@ref) (e.g. [`Picard`](@ref)). Solvers are generic over the
-[`AbstractLinearOperator`](@ref) and implement the solver-level [`implicit_step!`](@ref).
+Base type for solvers of the (nonlinear) system of an implicit time step (e.g. [`Picard`](@ref)),
+held by an implicit timestepper such as [`BackwardEuler`](@ref). Solvers are generic over the
+[`AbstractLinearOperator`](@ref) and implement [`implicit_step!`](@ref).
 """
 abstract type AbstractImplicitSolver end
 
@@ -14,10 +13,9 @@ abstract type AbstractImplicitSolver end
     Iteration{name, target, final}(number)
 
 Identifies one iteration of an implicit solver for the prognostic variable `name`, whose linear system is
-solved for the field `target` (the closure variable, e.g. `temperature` for `internal_energy`; `target`
-defaults to `name` for variables without a closure); `final` is `true` in the solver's last iteration.
-All three are type parameters, so hooks dispatch on them at compile time. The field `number` is the
-1-based index of the iteration within the solver; it is stored for debugging purposes only.
+solved for the field `target` (the closure variable, e.g. `temperature` for `internal_energy`; defaults to
+`name`). `final` is `true` in the solver's last iteration. All three are type parameters, so hooks dispatch
+on them. `number` is the 1-based iteration index, kept for debugging only.
 
 ```jldoctest
 julia> iteration = Terrarium.Iteration(:internal_energy; target = :temperature)
@@ -34,7 +32,7 @@ function Iteration(name::Symbol; target::Symbol = name, final::Bool = false, num
     return Iteration{name, target, final}(number)
 end
 
-function Iteration(iter::Iteration{oldname, oldtarget, isfinal}; target::Symbol = oldname, final::Bool = isfinal, number::Int = iter.number) where {oldname, oldtarget, isfinal}
+function Iteration(iter::Iteration{name, oldtarget, isfinal}; target::Symbol = oldtarget, final::Bool = isfinal, number::Int = iter.number) where {name, oldtarget, isfinal}
     return Iteration{name, target, final}(number)
 end
 
@@ -48,13 +46,44 @@ end
 @inline isfinal(::Iteration{name, target, final}) where {name, target, final} = final
 
 """
+    $TYPEDEF
+
+Per-variable working data of an implicit step: the right-hand side `rhs` of the linear system, the
+`explicit_stage` (the explicit increment `Δt G_exp` on entry to [`implicit_step!`](@ref), from which the
+solver forms `u⁺ = u⁰ + Δt G_exp` at the initial iterate `u⁰`), and the non-final [`Iteration`](@ref)
+label `iteration` of the variable. Allocated by the implicit timestepper (see
+[`BackwardEulerCache`](@ref)). Not exported.
+
+Properties:
+$(TYPEDFIELDS)
+"""
+struct ImplicitSolverWorkspace{I <: Iteration, R, E}
+    "Right-hand side of the linear system"
+    rhs::R
+
+    "Explicit increment `Δt G_exp` on entry to the step, and the explicit stage `u⁺` once the solver has formed it"
+    explicit_stage::E
+
+    "Non-final iteration label of the variable, naming the variable and the target field of its linear system"
+    iteration::I
+end
+
+function Adapt.adapt_structure(to, workspace::ImplicitSolverWorkspace)
+    return ImplicitSolverWorkspace(
+        Adapt.adapt_structure(to, workspace.rhs),
+        Adapt.adapt_structure(to, workspace.explicit_stage),
+        workspace.iteration,
+    )
+end
+
+"""
     implicit_operator(model::AbstractModel, state, names::Tuple)
 
 Return a newly allocated [`AbstractLinearOperator`](@ref) for the implicitly routed prognostic
 variables `names` of `model` (e.g. a [`SplitOperator`](@ref) of per-variable operators in solve
-order). Called once on the host at `initialize`; methods validate the configuration and throw an
-`ArgumentError` for unsupported ones. The fallback throws an `ArgumentError`. [`SoilModel`](@ref)
-and [`LandModel`](@ref) forward to `implicit_operator(soil::AbstractSoil, state, grid, names)`.
+order). Called once on the host at `initialize`; methods throw an `ArgumentError` for unsupported
+configurations, as does the fallback. [`SoilModel`](@ref) and [`LandModel`](@ref) forward to
+`implicit_operator(soil::AbstractSoil, state, grid, names)`.
 """
 function implicit_operator(model::AbstractModel, state, names::Tuple{Vararg{Symbol}})
     throw(
@@ -64,15 +93,14 @@ function implicit_operator(model::AbstractModel, state, names::Tuple{Vararg{Symb
     )
 end
 
-# Process hooks, called by the solver for one variable and dispatched on its `Iteration`; models forward them
-# to the process that owns the variable.
+# Process hooks called by the solver per variable, dispatched on `Iteration`; models forward them to the owning process.
 
 """
     linearize!(operator::AbstractLinearOperator, rhs, state, model::AbstractModel, explicit_stage, Δt, ::Iteration{name})
 
 Process hook of the implicit solver. Fill the lagged coefficients of `operator` and the right-hand
-side `rhs` of the linear system for variable `name` at the current iterate in `state`, given its
-explicit stage `explicit_stage` (`u* = uⁿ + Δt G_exp`). The fallback throws an `ArgumentError`.
+side `rhs` for variable `name` at the current iterate in `state`, given the explicit stage
+`explicit_stage` (`u⁺ = uⁿ + Δt G_exp`). The fallback throws an `ArgumentError`.
 """
 function linearize!(operator::AbstractLinearOperator, rhs, state, model::AbstractModel, explicit_stage, Δt, ::Iteration{name}) where {name}
     throw(
@@ -85,8 +113,8 @@ end
 """
     implicit_update!(state, model::AbstractModel, operator::AbstractLinearOperator, explicit_stage, Δt, ::Iteration{name})
 
-Process hook of the implicit solver. Update the prognostic variable `name` in `state` from the
-solved target and `explicit_stage`, conservatively, i.e. from the fluxes implied by `operator`.
+Process hook of the implicit solver. Update the prognostic variable `name` in `state` conservatively
+from the solved target and `explicit_stage`, using the fluxes implied by `operator`.
 """
 function implicit_update! end
 
@@ -94,38 +122,36 @@ function implicit_update! end
     implicit_closure!(state, model::AbstractModel, ::Iteration{name, target, final})
 
 Process hook of the implicit solver. Re-evaluate the closure of variable `name` (and the auxiliary
-variables the next linearization needs) after [`implicit_update!`](@ref). Side effects that must
-happen once per step (e.g. routing excess water to runoff) should be restricted to `final = true`.
+variables the next linearization needs) after [`implicit_update!`](@ref). Once-per-step side effects
+(e.g. routing excess water to runoff) must be restricted to `final = true`.
 """
 function implicit_closure! end
 
 """
-    implicit_step!(solver::AbstractImplicitSolver, operator::AbstractLinearOperator, state, model::AbstractModel, rhs::NamedTuple, explicit_state::NamedTuple, Δt, iterations::NamedTuple)
-    implicit_step!(solver::AbstractImplicitSolver, operator::AbstractLinearOperator, state, model::AbstractModel, rhs, explicit_stage, Δt, iteration::Iteration)
+    implicit_step!(solver::AbstractImplicitSolver, operator::AbstractLinearOperator, workspaces::NamedTuple, state, model::AbstractModel, Δt)
+    implicit_step!(solver::AbstractImplicitSolver, operator::AbstractLinearOperator, workspace::ImplicitSolverWorkspace, state, model::AbstractModel, Δt)
 
 Solve the implicit system of `model` with `solver` and `operator` (from
 [`implicit_operator`](@ref)), using the hooks [`linearize!`](@ref), [`solve!`](@ref),
 [`implicit_update!`](@ref), and [`implicit_closure!`](@ref).
 
-The first form solves all routed variables; `rhs`, `explicit_state`, and `iterations` are keyed by
-variable name, with `iterations` holding the non-final [`Iteration`](@ref) of each variable. The
-second form solves a single variable, e.g. one component of a [`SplitOperator`](@ref). On entry, the
-prognostic fields hold the initial iterate; on exit, they hold the solution and their closure
-variables are consistent with it. The fallbacks throw an `ArgumentError`.
+The first form solves all routed variables (`workspaces` is a `NamedTuple` of
+[`ImplicitSolverWorkspace`](@ref)s keyed by variable name); the second solves the single variable of
+`workspace`, e.g. one component of a [`SplitOperator`](@ref). On entry, the prognostic fields hold
+the initial iterate and each `explicit_stage` holds `Δt G_exp`; on exit, the prognostic fields hold
+the solution and their closure variables are consistent with it. The fallbacks throw an `ArgumentError`.
 """
 function implicit_step!(
         solver::AbstractImplicitSolver,
         operator::AbstractLinearOperator,
+        workspaces::NamedTuple,
         state,
         model::AbstractModel,
-        rhs::NamedTuple,
-        explicit_state::NamedTuple,
-        Δt,
-        iterations::NamedTuple
+        Δt
     )
     throw(
         ArgumentError(
-            "solver $(nameof(typeof(solver))) does not support the implicit operator $(nameof(typeof(operator))) of variables $(keys(iterations))"
+            "solver $(nameof(typeof(solver))) does not support the implicit operator $(nameof(typeof(operator))) of variables $(keys(workspaces))"
         )
     )
 end
@@ -133,16 +159,14 @@ end
 function implicit_step!(
         solver::AbstractImplicitSolver,
         operator::AbstractLinearOperator,
+        workspace::ImplicitSolverWorkspace,
         state,
         model::AbstractModel,
-        rhs,
-        explicit_stage,
-        Δt,
-        ::Iteration{name}
-    ) where {name}
+        Δt
+    )
     throw(
         ArgumentError(
-            "solver $(nameof(typeof(solver))) does not support the implicit operator $(nameof(typeof(operator))) of variable `$name`"
+            "solver $(nameof(typeof(solver))) does not support the implicit operator $(nameof(typeof(operator))) of variable `$(varname(workspace.iteration))`"
         )
     )
 end
