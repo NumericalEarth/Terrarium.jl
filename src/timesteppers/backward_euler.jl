@@ -119,18 +119,19 @@ end
     $TYPEDSIGNATURES
 
 Return the name of the field of `state` that the linear system of the implicitly integrated variable
-`var` is solved for (its target): [`varname`](@ref) of its closure if it has one, and the name of `var`
-otherwise. Implicit operators are thus linearized in the closure variable, e.g. `temperature` for
-`internal_energy` and `pressure_head` for `saturation_water_ice`. Called on the host when the
+`var` is solved for (its target): [`varname`](@ref) of its closure if it has one, and
+[`implicit_variable`](@ref) of `var` otherwise (the variable itself by default). Implicit operators are thus
+linearized in the closure variable, e.g. `temperature` for `internal_energy` and `pressure_head` for
+`saturation_water_ice`. Called on the host when the
 [`BackwardEuler`](@ref) cache is allocated; throws an `ArgumentError` if the closure does not implement
 `varname` or `state` has no field of the resolved name. Not exported.
 """
 function resolve_implicit_target(var::PrognosticVariable, state)
-    name = varname(var)
+    name = implicit_variable(var)
     if hasclosure(var)
         applicable(varname, var.closure) || throw(
             ArgumentError(
-                "the closure $(nameof(typeof(var.closure))) of variable `$name` does not implement `varname`, which is required to determine the target of its implicit operator"
+                "the closure $(nameof(typeof(var.closure))) of variable `$(varname(var))` does not implement `varname`, which is required to determine the target of its implicit operator"
             )
         )
         name = varname(var.closure)
