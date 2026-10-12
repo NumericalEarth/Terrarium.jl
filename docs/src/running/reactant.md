@@ -35,7 +35,7 @@ using Reactant, CUDA  # CUDA is required by Reactant's kernel integration, even 
 
 # ReactantState() instead of CPU() or GPU() — the only change!
 grid = ColumnGrid(ReactantState(), Float32, ExponentialSpacing(N = 10))
-model = SoilModel(grid)
+model = SoilModel(grid; timestepper = ForwardEuler(Float32))  # explicit, as in the CPU example
 
 boundary_conditions = PrescribedSurfaceTemperature(:T_ub, 1.0f0)
 initializers = (temperature = (x, z) -> -1.0f0 - 0.05f0 * z,)

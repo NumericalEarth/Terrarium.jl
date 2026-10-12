@@ -47,6 +47,7 @@ integrator.state.temperature   # current temperature Field
 ## Time stepping schemes
 
 Each model carries a single `timestepper` (set via the `timestepper` keyword on the model constructor).
+[`SoilModel`](@ref) and [`LandModel`](@ref) default to the implicit-explicit `IMEX(ForwardEuler(NF; Δt), BackwardEuler(NF))`, with a time step of 1 hour for `SoilModel` and 15 minutes for `LandModel` (see [Implicit-explicit time stepping](@ref)); all other models default to `ForwardEuler(NF)`, whose default time step is 300 s.
 Terrarium currently provides two explicit time steppers, [`ForwardEuler`](@ref) and [`Heun`](@ref):
 
 ```@docs; canonical = false
@@ -78,6 +79,8 @@ A single IMEX step of size ``\Delta t`` consists of the following stages:
    ```
    in place.
 5. The model hook `timestep!(state, model, timestepper, Δt)` and `closure!` are applied once, and the clock ticks once.
+
+`IMEX(ForwardEuler(NF; Δt), BackwardEuler(NF))` is the default timestepper of [`SoilModel`](@ref) (`Δt = 3600`) and [`LandModel`](@ref) (`Δt = 900`). The snow, vegetation, surface hydrology, and surface energy balance components of a `LandModel` remain explicit under it and are integrated with forward Euler at the same step; the shorter step of `LandModel` is set by the stability of the explicit snow. Value boundary conditions on `temperature` or `pressure_head` (e.g. [`PrescribedSurfaceTemperature`](@ref)) require an explicit timestepper instead (see [Limitations](@ref imex-limitations)).
 
 Because there is only one `update_state!` per step, an IMEX step costs one evaluation of the explicit right-hand side plus the implicit solve. The sub-steppers are given in the order `IMEX(explicit, implicit)`, which is checked when the integrator is initialized. The explicit sub-stepper must be a single-stage scheme; currently this means [`ForwardEuler`](@ref), whose `Δt` is also the default time step of the `IMEX`. The implicit sub-stepper is an [`AbstractTimeStepper`](@ref) whose behavior is further specialized by an [`AbstractImplicitSolver`](@ref):
 
@@ -194,7 +197,7 @@ The implicit step is unconditionally stable for the diffusion operator (the line
 
 Phase change is the main source of error. With `iterations = 1`, the lagged apparent heat capacity overestimates the cooling of cells that begin to freeze within a step. Using `iterations = 2` reduces the maximum temperature error of a freezing front by roughly a factor of ten in the tests, at the cost of one additional coefficient evaluation, tridiagonal solve, and closure per step. More iterations are not guaranteed to reduce the error further, since the regularized capacity of a cell switches on and off as the iterates enter and leave the phase change. For thawed columns (no phase change), a single iteration is sufficient.
 
-### Limitations
+### [Limitations](@id imex-limitations)
 
 - Only the vertical heat conduction, the advection of heat by the soil water flux, and the Richards-equation Darcy flux in the soil can be integrated implicitly. The advection is first-order upwind and therefore numerically diffusive at large advective Courant numbers. Infiltrating water enters at the temperature of the top soil cell rather than at the skin or rain temperature, water removed by evapotranspiration carries no heat, and the surface excess pool stores no heat, i.e. the heat of the excess water leaves the system with it.
 - Value (Dirichlet) boundary conditions on `temperature`, such as [`PrescribedSurfaceTemperature`](@ref), are rejected when `internal_energy` is implicit, with an informative error at initialization. Use flux boundary conditions on `internal_energy`, such as [`SoilHeatFlux`](@ref) and [`GeothermalHeatFlux`](@ref), or an explicit timestepper. Gradient (Neumann) boundary conditions on `temperature` are supported; the flux ``-\kappa\, \partial T / \partial z`` they prescribe is treated explicitly, at ``t^n``, like a flux boundary condition.
@@ -301,11 +304,12 @@ and, for a Richards-equation hydrology, the hydraulic timescale ``\Delta z^2 (\p
 Because a [`ModelIntegrator`](@ref) implements the Oceananigans model interface, this diagnostic can
 be consumed directly by the Oceananigans [`TimeStepWizard`](@extref Oceananigans.Simulations.TimeStepWizard)
 callback, which rescales `simulation.Δt` each time it is invoked to target a chosen diffusive CFL
-number. Attach it to a [`Simulation`](@extref Oceananigans.Simulations.Simulation) like any other
+number. The following examples use [`ForwardEuler`](@ref) explicitly, since the default [`IMEX`](@ref) timestepper of
+`SoilModel` imposes no diffusive restriction (see [Adaptive time stepping with IMEX](@ref)). Attach it to a [`Simulation`](@extref Oceananigans.Simulations.Simulation) like any other
 callback,
 
 ```@example simulation
-integrator = initialize(SoilModel(grid))
+integrator = initialize(SoilModel(grid; timestepper = ForwardEuler(Float32)))
 sim = Simulation(integrator; stop_iteration = 50, Δt = 60.0)
 
 wizard = TimeStepWizard(diffusive_cfl = 0.5, max_change = 1.1)
@@ -318,7 +322,7 @@ sim.Δt   # adapted time step (s)
 or more succinctly via [`conjure_time_step_wizard!`](@extraref Oceananigans.Simulations.conjure_time_step_wizard!):
 
 ```@example simulation
-integrator = initialize(SoilModel(grid))
+integrator = initialize(SoilModel(grid; timestepper = ForwardEuler(Float32)))
 sim = Simulation(integrator; stop_iteration = 50, Δt = 60.0)
 conjure_time_step_wizard!(sim, show_progress = false)
 run!(sim)

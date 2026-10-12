@@ -267,7 +267,8 @@ end
     end
     hydrology = SoilHydrology(eltype(grid), RichardsEq(); hydraulic_properties, vwc_forcing)
     soil = SoilEnergyWaterCarbon(eltype(grid); hydrology, strat)
-    model = SoilModel(grid; soil)
+    # explicit, so that one step removes exactly Δt times the forcing
+    model = SoilModel(grid; soil, timestepper = ForwardEuler(Float64))
     # Variably saturated with water table
     initializers = (
         temperature = 10.0, # positive soil temperature
@@ -397,7 +398,7 @@ module SoilHydrologyImplicitRichardsTests
         gradient_bc = (pressure_head = (bottom = GradientBoundaryCondition(NF(1)),),)
         @test initialize(model; boundary_conditions = gradient_bc, initializers = (saturation_water_ice = 0.6,)) isa ModelIntegrator
         # the same value condition is fine under explicit time stepping
-        @test initialize(SoilModel(grid; soil = richards_soil(NF)); boundary_conditions = value_bc, initializers = (saturation_water_ice = 0.6,)) isa ModelIntegrator
+        @test initialize(SoilModel(grid; soil = richards_soil(NF), timestepper = ForwardEuler(NF)); boundary_conditions = value_bc, initializers = (saturation_water_ice = 0.6,)) isa ModelIntegrator
         # the minimum moisture capacity of the implicit solve is a property of the hydraulic properties
         @test Terrarium.minimum_moisture_capacity(ConstantSoilHydraulics(NF)) == 1.0e-5
         @test Terrarium.minimum_moisture_capacity(SoilHydraulicsSURFEX(NF; minimum_moisture_capacity = 1.0e-4)) == 1.0e-4

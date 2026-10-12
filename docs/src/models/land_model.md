@@ -26,6 +26,8 @@ integrator = initialize(model)
 LandModel
 ```
 
+By default, `LandModel` is integrated with `IMEX(ForwardEuler(NF; Δt = 900), BackwardEuler(NF))`: soil heat conduction (and Richards-equation water flow) is implicit, while snow, vegetation, surface hydrology, and the surface energy balance are explicit, with a 15-minute time step, which is limited by the stability of the explicit snow. See [Time stepping](@ref) for details.
+
 ```@example landmodel
 variables(model)
 ```

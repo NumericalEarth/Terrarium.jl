@@ -30,7 +30,7 @@ end
 
 @testset "cell_diffusion_timescale (SoilModel, NoFlow)" begin
     grid = ColumnGrid(UniformSpacing(Δz = 0.1, N = 20))
-    model = SoilModel(grid)
+    model = SoilModel(grid; timestepper = ForwardEuler(Float64))
     integrator = initialize(model)
 
     τ = cell_diffusion_timescale(integrator)
@@ -53,7 +53,7 @@ end
     grid = ColumnGrid(UniformSpacing(Δz = 0.1, N = 20))
     hydrology = SoilHydrology(Float64; vertical_flow = RichardsEq())
     soil = Terrarium.SoilEnergyWaterCarbon(Float64; hydrology)
-    model = SoilModel(grid; soil)
+    model = SoilModel(grid; soil, timestepper = ForwardEuler(Float64))
     integrator = initialize(model)
 
     τ_energy = cell_diffusion_timescale(integrator.state, grid, Terrarium.get_energy_balance(soil), soil, model.constants)
@@ -68,7 +68,7 @@ end
 
 @testset "single-float32 numeric type" begin
     grid = ColumnGrid(UniformSpacing(Δz = 0.1f0, N = 10))
-    model = SoilModel(grid)
+    model = SoilModel(grid; timestepper = ForwardEuler(Float32))
     integrator = initialize(model)
     τ = cell_diffusion_timescale(integrator)
     @test typeof(τ) === Float32
@@ -77,7 +77,7 @@ end
 
 @testset "TimeStepWizard drives an adaptive Simulation" begin
     grid = ColumnGrid(UniformSpacing(Δz = 0.1, N = 20))
-    integrator = initialize(SoilModel(grid))
+    integrator = initialize(SoilModel(grid; timestepper = ForwardEuler(Float64)))
     sim = Simulation(integrator; Δt = 100.0, stop_iteration = 20)
     wizard = TimeStepWizard(diffusive_cfl = 0.4)
     sim.callbacks[:wizard] = Callback(wizard, IterationInterval(2))
@@ -143,7 +143,7 @@ module IMEXWizardTests
     @testset "TimeStepWizard is not throttled by implicit heat conduction (SoilModel)" begin
         NF = Float64
         grid = ColumnGrid(CPU(), NF, ExponentialSpacing(Δz_min = 0.02, Δz_max = 0.5, N = 20))
-        τ_explicit = cell_diffusion_timescale(initialize(SoilModel(grid)))
+        τ_explicit = cell_diffusion_timescale(initialize(SoilModel(grid; timestepper = ForwardEuler(NF))))
         integrator = initialize(SoilModel(grid; timestepper = implicit_timestepper(NF)))
         @test cell_diffusion_timescale(integrator) == Inf
         @test cell_advection_timescale(integrator) == Inf

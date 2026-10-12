@@ -118,7 +118,8 @@ end
     energy = SoilThermodynamics(eltype(grid); thermal_properties)
     soil = SoilEnergyWaterCarbon(eltype(grid); energy, strat, biogeochem)
     initializer = DefaultInitializer(eltype(grid))
-    model = SoilModel(grid; soil, initializer)
+    # explicit, since value conditions on `temperature` are rejected under implicit heat conduction
+    model = SoilModel(grid; soil, initializer, timestepper = ForwardEuler(Float64))
     # periodic upper boundary temperature
     upperbc(z, t) = T₀ + A * sin(2π * t / P)
     bcs = PrescribedSurfaceTemperature(:Tsurf, upperbc)
@@ -161,7 +162,7 @@ end
     # endpoint, isolating the analytical conduction comparison from the texture weighting
     strat = HomogeneousSoilStratigraphy(Float64; texture = SoilTexture(Float64, :clay), porosity = soil_porosity)
     soil = SoilEnergyWaterCarbon(eltype(grid); strat, biogeochem)
-    model = SoilModel(grid; soil, initializer)
+    model = SoilModel(grid; soil, initializer, timestepper = ForwardEuler(Float64))
     # constant upper boundary temperature set to T₁
     bcs = (temperature = (top = ValueBoundaryCondition(T₁),),)
     integrator = initialize(model, boundary_conditions = bcs)
@@ -408,7 +409,7 @@ module SoilEnergyImplicitHeatConductionTests
             model = SoilModel(grid; timestepper = implicit_timestepper(NF))
             @test_throws ArgumentError initialize(model; boundary_conditions)
             # the same boundary conditions are fine under explicit time stepping
-            @test initialize(SoilModel(grid); boundary_conditions) isa ModelIntegrator
+            @test initialize(SoilModel(grid; timestepper = ForwardEuler(NF)); boundary_conditions) isa ModelIntegrator
         end
         # gradient boundary conditions on temperature are supported
         gradient_bc = (temperature = (bottom = GradientBoundaryCondition(NF(-0.03)),),)
@@ -590,7 +591,7 @@ module SoilEnergyAdvectionTests
         NF = Float64
         grid = ColumnGrid(CPU(), NF, UniformSpacing(Δz = 0.1, N = 10))
         # immobile water carries no heat
-        integrator = initialize(SoilModel(grid); initializers = (temperature = 5.0, saturation_water_ice = 0.5))
+        integrator = initialize(SoilModel(grid; timestepper = ForwardEuler(NF)); initializers = (temperature = 5.0, saturation_water_ice = 0.5))
         soil = integrator.model.soil
         energy, hydrology = get_energy_balance(soil), get_hydrology(soil)
         fields = get_fields(integrator.state, energy, hydrology)
