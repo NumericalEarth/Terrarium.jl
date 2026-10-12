@@ -149,8 +149,9 @@ end
 function compute_tendencies!(state, model::LandModel)
     grid = get_grid(model)
     compute_tendencies!(state, grid, model.surface_hydrology)
-    # Pass the surface hydrology so that evapotranspiration is applied as a sink in the soil water tendency
-    compute_tendencies!(state, grid, model.soil, model.constants, model.surface_hydrology)
+    # Pass the surface hydrology (evapotranspiration sink in the soil water tendency) and the timestepper
+    # (resolves which soil variables are integrated implicitly)
+    compute_tendencies!(state, grid, model.soil, model.constants, model.surface_hydrology, model.timestepper)
     # Snow tendencies after surface hydrology; no-op without snow (`nothing`)
     compute_tendencies!(state, grid, model.snow, model.constants, model.atmosphere)
     compute_tendencies!(state, grid, model.vegetation, model.constants, model.atmosphere)
@@ -172,6 +173,31 @@ function invclosure!(state, model::LandModel)
 end
 
 # Time stepping
+
+# Under an IMEX timestepper, soil heat conduction is implicit by default, and so is soil water flow if it
+# follows the Richards equation (see `default_timestepping`).
+timestepping(::AbstractVariable{:internal_energy}, ::LandModel, ::AbstractIMEX) = Implicit()
+timestepping(::AbstractVariable{:saturation_water_ice}, model::LandModel, ::AbstractIMEX) = default_timestepping(get_hydrology(model.soil))
+
+# Forward the implicit operator query and the solver hooks to the coupled soil, which maps each variable to
+# the process that owns it.
+
+implicit_operator(model::LandModel, state, names::Tuple{Vararg{Symbol}}) = implicit_operator(model.soil, state, get_grid(model), names)
+
+function linearize!(operator::AbstractLinearOperator, rhs, state, model::LandModel, explicit_stage, Δt, iteration::Iteration)
+    linearize!(operator, rhs, state, get_grid(model), model.soil, model.constants, explicit_stage, Δt, iteration)
+    return nothing
+end
+
+function implicit_update!(state, model::LandModel, operator::AbstractLinearOperator, explicit_stage, Δt, iteration::Iteration)
+    implicit_update!(state, get_grid(model), model.soil, operator, explicit_stage, Δt, iteration)
+    return nothing
+end
+
+function implicit_closure!(state, model::LandModel, iteration::Iteration)
+    implicit_closure!(state, get_grid(model), model.soil, model.constants, model.surface_hydrology, iteration)
+    return nothing
+end
 
 function Terrarium.timestep!(state::StateVariables, model::LandModel, timestepper::Terrarium.AbstractTimeStepper, Δt)
     if !isnothing(model.snow)
