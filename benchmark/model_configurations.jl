@@ -55,6 +55,19 @@ function resolve_model_kwargs(nt::NamedTuple, ::Type{NF}) where {NF}
 end
 
 """
+Architecture-specific model kwargs of the coupled land configurations, merged in before the per-run
+`model_kwargs`. Empty except under Reactant: the default skin-temperature solver (`RootSolver`) iterates
+to a tolerance, and that convergence-tested loop cannot be raised to StableHLO, so Reactant runs use the
+fixed-iteration `NewtonSolver` instead, as `test/reactant/setup.jl` does. 
+"""
+land_architecture_kwargs(arch, ::Type{NF}) where {NF} = (;)
+
+function land_architecture_kwargs(::ReactantState, ::Type{NF}) where {NF}
+    skin_temperature = ImplicitSkinTemperature(NF; solver = Terrarium.NewtonSolver(NF; iterations = 5))
+    return (surface_energy_balance = SurfaceEnergyBalance(NF; skin_temperature),)
+end
+
+"""
 Initial state shared by the coupled land configurations: a warm, variably saturated soil column
 under a thin cold snowpack. `carbon_vegetation` is only meaningful with vegetation enabled.
 """
@@ -93,7 +106,8 @@ function build_model(::Val{:land}, arch, ::Type{NF}; nlat_half::Integer, nz::Int
     vegetation = VegetationCarbonCycle(NF; vegetation_dynamics)
 
     snow = SingleLayerSnow(NF)
-    model = LandModel(grid; soil, snow, vegetation, resolve_model_kwargs(model_kwargs, NF)...)
+    kwargs = merge(land_architecture_kwargs(arch, NF), resolve_model_kwargs(model_kwargs, NF))
+    model = LandModel(grid; soil, snow, vegetation, kwargs...)
     initializers = land_initializers(NF; vegetation = true)
     return (; model, boundary_conditions = (;), initializers, Δt = NF(600))
 end
@@ -110,7 +124,8 @@ function build_model(::Val{:land_no_vegetation}, arch, ::Type{NF}; nlat_half::In
     soil = SoilEnergyWaterCarbon(NF; strat, hydrology = SoilHydrology(NF, RichardsEq()))
 
     snow = SingleLayerSnow(NF)
-    model = LandModel(grid; soil, snow, vegetation = nothing, resolve_model_kwargs(model_kwargs, NF)...)
+    kwargs = merge(land_architecture_kwargs(arch, NF), resolve_model_kwargs(model_kwargs, NF))
+    model = LandModel(grid; soil, snow, vegetation = nothing, kwargs...)
     initializers = land_initializers(NF; vegetation = false)
     return (; model, boundary_conditions = (;), initializers, Δt = NF(600))
 end

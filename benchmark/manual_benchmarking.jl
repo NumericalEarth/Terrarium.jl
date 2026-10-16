@@ -65,19 +65,23 @@ end
 using Terrarium
 using Dates, InteractiveUtils, JSON3, Printf
 
+"`cpu-arm` or `cpu-x86`, depending on the host CPU."
+function cpu_label()
+    arch_str = String(Sys.ARCH)
+    return (startswith(arch_str, "aarch") || arch_str == "arm64") ? "cpu-arm" : "cpu-x86"
+end
+
 # `arg` is one of `ARCH_CHOICES`; ArgParse has already rejected anything else.
 function pick_architecture(arg::AbstractString)
     if arg == "gpu"
         CUDA.functional() || error("No functional CUDA device found for architecture `gpu`.")
         return (GPU(), "gpu-nvidia")
     elseif arg == "reactant-cpu"
-        return (ReactantState(), "reactant-cpu")
+        return (ReactantState(), "reactant-" * cpu_label())
     elseif arg == "reactant-gpu"
         return (ReactantState(), "reactant-gpu")
     else
-        arch_str = String(Sys.ARCH)
-        label = (startswith(arch_str, "aarch") || arch_str == "arm64") ? "cpu-arm" : "cpu-x86"
-        return (CPU(), label)
+        return (CPU(), cpu_label())
     end
 end
 
@@ -182,7 +186,7 @@ end
 
 # --- regenerate README.md from the store -------------------------------------------------
 
-const ARCH_ORDER = ["cpu-arm", "cpu-x86", "gpu-nvidia", "reactant-cpu", "reactant-gpu"]
+const ARCH_ORDER = ["cpu-arm", "cpu-x86", "gpu-nvidia", "reactant-cpu-arm", "reactant-cpu-x86", "reactant-gpu"]
 
 function sorted_arch_labels(results)
     known = filter(in(keys(results)), ARCH_ORDER)
@@ -223,7 +227,7 @@ function write_preamble(md)
     write(md, "```\n")
     write(md, "julia --project=. manual_benchmarking.jl                # CPU (auto-labelled cpu-arm or cpu-x86)\n")
     write(md, "julia --project=. manual_benchmarking.jl gpu            # CUDA GPU\n")
-    write(md, "julia --project=. manual_benchmarking.jl reactant-cpu   # Reactant/XLA, CPU backend\n")
+    write(md, "julia --project=. manual_benchmarking.jl reactant-cpu   # Reactant/XLA, CPU backend (auto-labelled reactant-cpu-arm or reactant-cpu-x86)\n")
     write(md, "julia --project=. manual_benchmarking.jl reactant-gpu   # Reactant/XLA, CUDA backend\n")
     write(md, "```\n\n")
     write(md, "A second argument controls the duration: `quick` (0.25x steps, sweeps capped at 8192 columns), ")
