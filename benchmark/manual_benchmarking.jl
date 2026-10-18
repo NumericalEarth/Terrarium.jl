@@ -71,13 +71,45 @@ function cpu_label()
     return (startswith(arch_str, "aarch") || arch_str == "arm64") ? "cpu-arm" : "cpu-x86"
 end
 
+"""
+CPU affinity of this process as reported by Linux (`Cpus_allowed_list`, e.g. `0` or `0-127`), or
+`nothing` where it is not available.
+"""
+function cpu_affinity()
+    Sys.islinux() || return nothing
+    for line in readlines("/proc/self/status")
+        startswith(line, "Cpus_allowed_list:") && return String(strip(split(line, ':')[2]))
+    end
+    return nothing
+end
+
+"""
+Number of OS threads of this process as reported by Linux, or `nothing` where it is not available.
+Under Reactant, this includes the XLA thread pool, which XLA sizes itself.
+"""
+function os_threads()
+    Sys.islinux() || return nothing
+    for line in readlines("/proc/self/status")
+        startswith(line, "Threads:") && return parse(Int, strip(split(line, ':')[2]))
+    end
+    return nothing
+end
+
+"`true` if the process may only run on a single CPU core, e.g. when started under `taskset -c 0`."
+function single_core()
+    affinity = cpu_affinity()
+    return !isnothing(affinity) && !isnothing(tryparse(Int, affinity))
+end
+
 # `arg` is one of `ARCH_CHOICES`; ArgParse has already rejected anything else.
+# A Reactant CPU run restricted to one core gets its own label, so that its results are stored next to,
+# rather than instead of, those of an unrestricted run (XLA otherwise uses all available cores).
 function pick_architecture(arg::AbstractString)
     if arg == "gpu"
         CUDA.functional() || error("No functional CUDA device found for architecture `gpu`.")
         return (GPU(), "gpu-nvidia")
     elseif arg == "reactant-cpu"
-        return (ReactantState(), "reactant-" * cpu_label())
+        return (ReactantState(), "reactant-" * cpu_label() * (single_core() ? "-1core" : ""))
     elseif arg == "reactant-gpu"
         return (ReactantState(), "reactant-gpu")
     else
@@ -120,7 +152,10 @@ const OVERVIEW_SUITES = [:bench200, :bench201, :bench202]
 function arch_markdown()
     io = IOBuffer()
     for key in SUITE_KEYS
-        write_results(io, benchmarks[key])
+        suite = benchmarks[key]
+        ## native-only suites are left out entirely rather than shown as a table of skipped runs
+        (suite.native_only && ARCH isa ReactantState) && continue
+        write_results(io, suite)
     end
     return String(take!(io))
 end
@@ -143,7 +178,24 @@ function machine_info()
         backend = ARCH_LABEL == "reactant-gpu" ? "gpu" : "cpu"
         write(io, "\nReactant backend: `$backend` (selected with `Reactant.set_default_backend(\"$backend\")`).\n")
     end
+    affinity, nthreads = cpu_affinity(), os_threads()
+    if !isnothing(affinity)
+        write(io, "\nCPU affinity of the benchmark process: `$affinity`; OS threads at the end of the run: $nthreads.\n")
+    end
     return String(take!(io))
+end
+
+"""
+One-sentence description of how the run was made, stored with the results and used by both the README
+and the documentation page. Older records without it fall back to `legacy_run_summary`.
+"""
+function run_summary()
+    s = "in `$(MODE.name)` mode ($(MODE.timestep_multiplier)x time steps, median of $(MODE.repeats) repetitions"
+    s *= ", $(Threads.nthreads()) Julia thread(s)"
+    if ARCH isa ReactantState && ARCH_LABEL != "reactant-gpu"
+        s *= single_core() ? "; XLA restricted to a single core" : "; XLA uses its own thread pool on all available cores"
+    end
+    return s * ")"
 end
 
 arch_record = Dict(
@@ -154,6 +206,10 @@ arch_record = Dict(
         "mode" => MODE.name,
         "timestep_multiplier" => MODE.timestep_multiplier,
         "threads" => Threads.nthreads(),
+        "repeats" => MODE.repeats,
+        "cpu_affinity" => something(cpu_affinity(), "unknown"),
+        "os_threads" => something(os_threads(), -1),
+        "run_summary" => run_summary(),
         "machine_info" => machine_info(),
     ),
     "markdown" => arch_markdown(),
@@ -186,7 +242,10 @@ end
 
 # --- regenerate README.md from the store -------------------------------------------------
 
-const ARCH_ORDER = ["cpu-arm", "cpu-x86", "gpu-nvidia", "reactant-cpu-arm", "reactant-cpu-x86", "reactant-gpu"]
+const ARCH_ORDER = [
+    "cpu-arm", "cpu-x86", "gpu-nvidia",
+    "reactant-cpu-arm", "reactant-cpu-arm-1core", "reactant-cpu-x86", "reactant-cpu-x86-1core", "reactant-gpu",
+]
 
 function sorted_arch_labels(results)
     known = filter(in(keys(results)), ARCH_ORDER)
@@ -203,10 +262,18 @@ function write_preamble(md)
     write(md, "Every configuration is run for a fixed number of time steps without output. ")
     write(md, "Initialization and — under Reactant — XLA compilation happen before the clock starts and are ")
     write(md, "reported separately; the timed section covers only the stepping loop. ")
-    write(md, "A run takes a few seconds and is timed once, so it measures the mean rather than the minimum: ")
-    write(md, "deviations of ±20% between repetitions are normal, and `quick` mode — which shortens every run — ")
-    write(md, "is noisier still, so treat its numbers as a smoke test rather than a measurement. ")
-    write(md, "Use the `long` mode for numbers worth quoting.\n\n")
+    write(md, "Every run is repeated (twice in `quick` mode, five times otherwise), each time from the initial state; ")
+    write(md, "the tables report the median repetition, and the Spread column shows how far the fastest and slowest ")
+    write(md, "repetitions lie apart. `quick` mode shortens every run, so treat its numbers as a smoke test rather ")
+    write(md, "than a measurement, and use the `long` mode for numbers worth quoting.\n\n")
+
+    write(md, "The land configurations solve the skin temperature with the fixed-iteration Newton solver on every ")
+    write(md, "architecture, so that all architectures integrate the same physics. ")
+    write(md, "Natively, the first model stepped in a Julia process can be several times slower than later models ")
+    write(md, "with the same types; the compile-order check suites run first to absorb this, and are repeated at ")
+    write(md, "the end of the run to report the size of the effect. They are not run under Reactant. ")
+    write(md, "Reactant CPU runs use all available cores unless the process is restricted to one core ")
+    write(md, "(e.g. with `taskset -c 0`), in which case they are stored under a separate `-1core` label.\n\n")
 
     write(md, "### Explanation\n\n")
     write(md, "- Configuration: model setup, see `model_configurations.jl`\n")
@@ -216,7 +283,8 @@ function write_preamble(md)
     write(md, "- L: number of soil layers, default $DEFAULT_NZ\n")
     write(md, "- Δt: time step (s)\n")
     write(md, "- SYPD: simulated years per wallclock day\n")
-    write(md, "- ms/step: wallclock milliseconds per time step\n")
+    write(md, "- ms/step: wallclock milliseconds per time step (median over the repetitions)\n")
+    write(md, "- Spread: (slowest − fastest) / median of the repetitions\n")
     write(md, "- Mcell-steps/s: millions of (column × layer) updates per second — the resolution-independent throughput\n")
     write(md, "- Memory: state and tendency fields, including halos\n")
     write(md, "- Compile: one-off XLA compilation time of the stepping loop (Reactant only)\n")
@@ -230,6 +298,8 @@ function write_preamble(md)
     write(md, "julia --project=. manual_benchmarking.jl reactant-cpu   # Reactant/XLA, CPU backend (auto-labelled reactant-cpu-arm or reactant-cpu-x86)\n")
     write(md, "julia --project=. manual_benchmarking.jl reactant-gpu   # Reactant/XLA, CUDA backend\n")
     write(md, "```\n\n")
+    write(md, "On a Slurm cluster, `run_benchmarks.sbatch` wraps the same commands; see the comments at its top ")
+    write(md, "for the arguments and the cluster-specific options to pass to `sbatch`.\n\n")
     write(md, "A second argument controls the duration: `quick` (0.25x steps, sweeps capped at 8192 columns), ")
     write(md, "`long` (10x steps), or a numeric timestep multiplier. ")
     write(md, "Each run updates only its own architecture's section here; the other architectures are preserved ")
@@ -291,7 +361,7 @@ function write_arch_section(md, label, record)
     meta = record["meta"]
     write(md, "## Architecture: `$label`\n\n")
     write(md, "Created for Terrarium.jl v$(meta["terrarium_version"]) on $(meta["timestamp"]) ")
-    write(md, "in `$(meta["mode"])` mode ($(meta["timestep_multiplier"])x time steps, $(meta["threads"]) thread(s)).\n\n")
+    write(md, get(meta, "run_summary", legacy_run_summary(meta)) * ".\n\n")
     write(md, "### Machine details\n\n")
     write(md, meta["machine_info"])
     write(md, "\n")
@@ -299,6 +369,9 @@ function write_arch_section(md, label, record)
     write(md, "\n")
     return
 end
+
+"Run description for records written before `run_summary` was stored; timed once per run."
+legacy_run_summary(meta) = "in `$(meta["mode"])` mode ($(meta["timestep_multiplier"])x time steps, timed once, $(meta["threads"]) Julia thread(s))"
 
 const README_PATH = joinpath(@__DIR__, "README.md")
 labels = sorted_arch_labels(all_results)

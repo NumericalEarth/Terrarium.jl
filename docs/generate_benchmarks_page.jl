@@ -22,7 +22,10 @@ const DOCS_ASSETS_DIR = joinpath(@__DIR__, "src", "assets", "benchmarks")
 const DOCS_PAGE_PATH = joinpath(@__DIR__, "src", "benchmarks.md")
 
 ## Stable architecture ordering — matches benchmark/manual_benchmarking.jl
-const ARCH_ORDER = ["cpu-arm", "cpu-x86", "gpu-nvidia", "reactant-cpu-arm", "reactant-cpu-x86", "reactant-gpu"]
+const ARCH_ORDER = [
+    "cpu-arm", "cpu-x86", "gpu-nvidia",
+    "reactant-cpu-arm", "reactant-cpu-arm-1core", "reactant-cpu-x86", "reactant-cpu-x86-1core", "reactant-gpu",
+]
 
 ## Reference resolutions drawn as vertical lines in the scaling figures.
 const REFERENCE_RESOLUTIONS = [(5.0, "5°"), (2.0, "2°"), (1.0, "1°"), (0.5, "0.5°")]
@@ -258,7 +261,9 @@ function generate_benchmarks_page()
             meta = record["meta"]
             write(io, "## Architecture: `$label`\n\n")
             write(io, "Created for Terrarium.jl v$(meta["terrarium_version"]) on $(meta["timestamp"]) ")
-            write(io, "in `$(meta["mode"])` mode ($(meta["timestep_multiplier"])x time steps, $(meta["threads"]) thread(s)).\n\n")
+            ## records written before `run_summary` was stored were timed once
+            legacy = "in `$(meta["mode"])` mode ($(meta["timestep_multiplier"])x time steps, timed once, $(meta["threads"]) Julia thread(s))"
+            write(io, get(meta, "run_summary", legacy) * ".\n\n")
             write(io, "### Machine details — $label\n\n")
             write(io, meta["machine_info"])
             write(io, "\n")
