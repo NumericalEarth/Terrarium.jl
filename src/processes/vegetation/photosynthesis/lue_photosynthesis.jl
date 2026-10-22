@@ -435,7 +435,7 @@ end
 
 # Kernels
 
-@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, photo::AbstractPhotosynthesis, args...)
+@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, photo::AbstractPhotosynthesis, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_photosynthesis!(out, i, j, grid, fields, photo, args...)
 end

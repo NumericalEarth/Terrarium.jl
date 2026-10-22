@@ -176,12 +176,12 @@ end
 
 # Kernels
 
-@kernel function compute_auxiliary_kernel!(out, grid, fields, phenol::AbstractPhenology, args...)
+@kernel function compute_auxiliary_kernel!(out, grid, fields, phenol::AbstractPhenology, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_phenology!(out, i, j, grid, fields, phenol, args...)
 end
 
-@kernel function compute_tendencies_kernel!(tend, grid, fields, phenol::PALADYNPhenology, args...)
+@kernel function compute_tendencies_kernel!(tend, grid, fields, phenol::PALADYNPhenology, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_gdd_tendency!(tend, i, j, grid, fields, phenol, args...)
 end

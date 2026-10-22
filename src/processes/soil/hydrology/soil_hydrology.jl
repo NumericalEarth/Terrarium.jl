@@ -305,7 +305,7 @@ end
     adjust_saturation_profile!(out, i, j, grid, hydrology, runoff)
 end
 
-@kernel inbounds = true function compute_hydraulics_kernel!(out, grid, fields, hydrology::SoilHydrology, args...)
+@kernel inbounds = true function compute_hydraulics_kernel!(out, grid, fields, hydrology::SoilHydrology, args::Vararg{Any, N}) where {N}
     i, j, k = @index(Global, NTuple)
     compute_hydraulics!(out, i, j, k, grid, fields, hydrology, args...)
 end

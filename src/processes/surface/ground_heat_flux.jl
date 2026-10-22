@@ -182,7 +182,7 @@ untouched.
 
 # Kernels
 
-@kernel function compute_ground_heat_flux_kernel!(out, grid, fields, ghf::AbstractGroundHeatFlux, args...)
+@kernel function compute_ground_heat_flux_kernel!(out, grid, fields, ghf::AbstractGroundHeatFlux, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     # Forward to mutating compute_ground_heat_flux!
     compute_ground_heat_flux!(out, i, j, grid, fields, ghf, args...)

@@ -142,8 +142,8 @@ end
 @kernel inbounds = true function pressure_to_saturation_kernel!(
         out, grid, fields,
         closure::SoilSaturationPressureClosure,
-        args...
-    )
+        args::Vararg{Any, N}
+    ) where {N}
     i, j, k = @index(Global, NTuple)
     pressure_to_saturation!(out.saturation_water_ice, i, j, k, grid, fields, closure, args...)
 end
@@ -151,8 +151,8 @@ end
 @kernel inbounds = true function saturation_to_pressure_kernel!(
         out, grid, fields,
         closure::SoilSaturationPressureClosure,
-        args...
-    )
+        args::Vararg{Any, N}
+    ) where {N}
     i, j, k = @index(Global, NTuple)
     saturation_to_pressure!(out.pressure_head, i, j, k, grid, fields, closure, args...)
 end

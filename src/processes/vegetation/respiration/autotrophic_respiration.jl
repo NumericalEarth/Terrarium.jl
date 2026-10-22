@@ -208,7 +208,7 @@ end
 
 # Kernels
 
-@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, autoresp::AbstractAutotrophicRespiration, args...)
+@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, autoresp::AbstractAutotrophicRespiration, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_autotrophic_respiration!(out, i, j, grid, fields, autoresp, args...)
 end
