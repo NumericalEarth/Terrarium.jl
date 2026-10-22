@@ -29,7 +29,6 @@ Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 
 [compat]
 SpeedyWeather = "0.23"
-Makie = "=0.24.15"
 
 [sources.NumericalEarth]
 rev = "main"
