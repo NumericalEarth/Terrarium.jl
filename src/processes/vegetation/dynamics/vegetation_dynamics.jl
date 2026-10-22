@@ -152,7 +152,7 @@ end
 
 # Kernels
 
-@kernel function compute_tendencies_kernel!(tend, grid, fields, veg_dynamics::AbstractVegetationDynamics, args...)
+@kernel function compute_tendencies_kernel!(tend, grid, fields, veg_dynamics::AbstractVegetationDynamics, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_ν_tendencies!(tend, i, j, grid, fields, veg_dynamics, args...)
 end

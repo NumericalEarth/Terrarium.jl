@@ -211,7 +211,7 @@ end
 
 # Kernels
 
-@kernel function compute_auxiliary_kernel!(out, grid, fields, tur::DiagnosedTurbulentFluxes, args...)
+@kernel function compute_auxiliary_kernel!(out, grid, fields, tur::DiagnosedTurbulentFluxes, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     # compute sensible heat flux
     out.sensible_heat_flux[i, j, end] = compute_sensible_heat_flux(i, j, grid, fields, tur, args...)
