@@ -20,6 +20,3 @@ Oceananigans = "9e8cae18-63c1-5223-a75c-80ca9d6e9a09"
 Rasters = "a3a2b9e3-a471-40c9-b274-f788e487c689"
 RingGrids = "d1845624-ad4f-453b-8ff4-a8db365bf3a7"
 Terrarium = "80418d68-07fa-499d-ae2b-c12e531f5cd8"
-
-[compat]
-Makie = "=0.24.15"
