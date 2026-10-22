@@ -1,12 +1,12 @@
 # Investigating the performance gap between native and Reactant execution
 
-> Status: **in progress**. Phases 0 and 1 are complete, including a clean native GPU baseline on an H100; Phase 2 awaits sign-off.
+> Status: **in progress**. Phases 0 and 1 are complete, including a clean native GPU baseline on an H100; the plan is approved and Phase 2 (items 1, 5, 6, and 7; items 2 to 4 deferred) is next, after a native CPU baseline with the Phase 0 harness.
 
 Date of initial draft: 2026-10-17
 
 Author: Claude Opus 5.5 (`claude-opus-5-5`), Claude Code 2.1.269
 
-Reviewer: Brian Groenke (brian.groenke@pik-potsdam.de); approval covers Phase 0 only (Rev 6)
+Reviewer: Brian Groenke (brian.groenke@pik-potsdam.de); Phase 0 approved in Rev 6, the plan as a whole in Rev 10
 
 Base revision: `0577a277cd7a4f32c36c01db2f745bcf4af02716` (tip of local `main`, branch `bg/reactant-speedup-investigation`)
 
@@ -35,9 +35,12 @@ Base revision: `0577a277cd7a4f32c36c01db2f745bcf4af02716` (tip of local `main`, 
 - **Rev 7 (2026-10-18, Claude Opus 5.5):** First Phase 0 GPU re-run on an H100.
   Found that the published native GPU baseline was dominated by a one-off compilation of about 1.8 s in the first timed run of every new grid size, and fixed the harness to absorb it in the warm-up (second attempt, after the first did not hold up on job 2554084).
 - **Rev 8 (2026-10-18, Claude Opus 5.5):** Final Phase 0 GPU re-run with the corrected warm-up; Phase 0 complete.
+- **Rev 9 (2026-10-18, Claude Opus 5.5):** Phase 2 items 2 (the soil moisture limiting factor in a kernel) and 3 (hoisting parameter-only computations, and `sqrt`) deferred by the author.
+- **Rev 10 (2026-10-18, Claude Opus 5.5):** Plan approved by the author. Added the protocol for measuring each Phase 2 change on its own, preceded by a native CPU baseline with the Phase 0 harness.
+- **Rev 11 (2026-10-22, Claude Opus 5.5):** Implemented Phase 2 item 1 (31 kernels, a regression test, and before/after measurements).
+  Moved the native CPU baseline to a worktree pinned at the pre-Phase 2 commit, with the author's approval, because Slurm could not accept jobs.
 - **Rev 15 (2026-10-24, Claude Opus 5.5):** At the author's request, turned the profiling scripts into general tools: plan-specific names (`d1_` to `d7_`) replaced by descriptive ones, `key=value` options with defaults and `--help` on every tool, and the three scripts that test one specific change moved to `benchmark/profiling/experiments/`.
   The diagnostics map to the tools as listed in the Phase 1 findings.
-  Revisions 9 to 14 concern Phase 2 and are recorded on `bg/performance-fixes`.
 
 ## Problem description
 
@@ -367,16 +370,37 @@ On the GPU, V3 costs a separate launch and halo fill, which outweighs the saved 
 
 Candidate fixes, in the expected order of payoff (reordered in Rev 4 after Phase 1):
 
-1. **Force specialization of pass-through varargs in kernels (H9).**
+1. **Force specialization of pass-through varargs in kernels (H9). Implemented (Rev 11).**
    Change the trailing `args...` of the `@kernel` definitions that only pass their arguments through to `args::Vararg{Any, N}) where {N}`.
    Five kernels are measured to despecialize (D6); there are 28 kernels with the pattern, and all of them are changed in one pull request (decided in Rev 5), so that the outcome no longer depends on Julia's heuristics.
    This is a signature-only change with a measured 620× speedup of `soil_heat`'s `closure!` and bitwise-identical results.
    It must be checked that KernelAbstractions' `@kernel` accepts the `where` clause on both backends and under Reactant.
-2. **Compute the soil moisture limiting factor inside a kernel (H9).**
+
+   *Implementation (Rev 11, branch `bg/vararg-kernel-specialization`):* 31 kernels were changed, not 28: the original count missed kernels whose signatures span several lines, including `saturation_to_pressure_kernel!` and `pressure_to_saturation_kernel!`.
+   Three further kernels keep a plain `args...`, because Julia does not allow a typed `Vararg` after optional positional arguments: `solve_surface_energy_balance_kernel!`, `compute_surface_energy_fluxes_kernel!`, and the canopy evapotranspiration `compute_auxiliary_kernel!`.
+   None of the three allocates at present; making their optional arguments required would let them use the typed form as well.
+   A new test, `test/coupled_models/kernel_allocations.jl`, checks that `closure!` and `compute_auxiliary!` allocate the same at 8 and 32 columns for a `SoilModel` and for a `LandModel` without vegetation but with Richards hydrology; it fails 3 of its 4 cases on the previous code and passes on the new.
+   The full test suite passes.
+   Measured before and after on the same machine in the same session (native CPU, Julia 1.12.7, one thread, median of five repetitions; `benchmark/profiling/phase2_step_times.jl`):
+
+   | Configuration | Columns | Before (ms/step) | After (ms/step) | Speedup | Allocations per step, before → after |
+   | --- | --- | --- | --- | --- | --- |
+   | `land` | 128 | 6.98 | 4.20 | 1.66× | 60,771 → 1,350 |
+   | `land` | 4608 | 203 | 116 | 1.75× | 2,489,546 → 1,361 |
+   | `land_no_vegetation` | 128 | 5.79 | 3.28 | 1.76× | 60,033 → 612 |
+   | `land_no_vegetation` | 4608 | 192 | 104 | 1.85× | 2,488,803 → 618 |
+   | `soil_heat` | 128 | 3.07 | 1.95 | 1.57× | 27,186 → 6 |
+   | `soil_heat` | 4608 | 110 | 70 | 1.58× | 1,090,897 → 7 |
+
+   All 24 kernel instances of a `land` step now allocate nothing (`kernel_allocations.jl`; before: five kernels, 59,421 allocations per step at 128 columns), and the allocations that remain are host-side and independent of the grid size.
+   What remains of `soil_heat` at 4608 columns (70 ms) is almost exactly the cost of the soil energy tendency kernel measured in D3 (499 ns per cell), which deferred items 2 and 3 address.
+   On the GPU (local A40), there is no change, as expected, because GPU kernels are always compiled fully specialized: `land` takes 1.43 and 1.45 ms/step at 128 columns, `land_no_vegetation` 2.50 and 2.50 at 165,888, and `soil_heat` 1.40 and 1.40 at 165,888, before and after, and host allocations per step are identical (for example 5,112 for `land`).
+   The remaining GPU differences (for example `land` at 165,888 columns, 3.45 and 2.95 ms/step, with maxima above 38 ms in both runs) are run-to-run noise; a first GPU comparison that ran alongside the test suite was discarded because the suite also uses the GPU.
+2. **Compute the soil moisture limiting factor inside a kernel (H9). Deferred (Rev 9).**
    Replace `compute!(state.soil_moisture_limiting_factor)`, the Oceananigans `Integral` over a lazy operation, with a column sum in an XY kernel function, or fold it into the existing plant-available-water XYZ kernel as the fused-kernels plan already proposes in its future work.
    This removes the dominant host cost of `land` at small sizes, the compile-order anomaly, and the `serial_mapreduce_kernel` on the GPU.
    The root fraction can stay a lazy `FunctionField` read inside the kernel, so it stays differentiable with respect to its parameters.
-3. **Hoist parameter-only computations out of kernels (H2).**
+3. **Hoist parameter-only computations out of kernels (H2). Deferred (Rev 9).**
    Compute derived constants such as the bulk mineral conductivity and square-rooted constituent conductivities on the host immediately before each launch, as a plain function of the process parameters, and pass the result as an `isbits` kernel argument.
    Computing them per launch rather than storing them in the struct keeps them differentiable with respect to parameters and compatible with `reconstruct`.
    Measured: 36× for the soil energy tendency on CPU and 1.2× on GPU.
@@ -407,6 +431,25 @@ Skipping diagnostic-only auxiliaries (the former item 7, H4) is dropped, because
 - Phase 2 fixes touch kernel code that Reactant and Enzyme compile, so the Reactant and Enzyme suites must pass in CI.
   Following the repository rules, they are run locally only if the extensions or their tests are edited.
 - Each Phase 2 fix is a major revision of model compute functions, so the benchmarks are re-run on at least `cpu-x86` and `gpu-nvidia`, with the improvement reported against the current README baseline.
+
+### Measuring each Phase 2 change (added in Rev 10)
+
+Each Phase 2 item is measured on its own, in the order in which the items land, against the state just before it (not against `main`), because the changes interact; for example, item 1 also reduces garbage collection elsewhere.
+
+1. The native CPU baseline is re-run with the Phase 0 harness (`cpu-x86`, through `benchmark/run_benchmarks.sbatch`), because the stored `cpu-x86` record predates it; the `gpu-nvidia` record from Slurm job 2554901 is already current.
+   Since Slurm could not accept jobs when Phase 2 started, the baseline is run from a separate worktree pinned at commit `0af879626` (`.worktrees/cpu-baseline`), which holds the code before item 1 (Rev 11).
+2. For every item, a targeted before/after measurement with the scripts in `benchmark/profiling/`, on the same machine and in the same session:
+
+   | Item | Measurement |
+   | --- | --- |
+   | 1, varargs specialization | `kernel_allocations.jl` (allocations per kernel must drop to zero), `closure_allocations.jl`, and native CPU and GPU step times for all three configurations |
+   | 5, GPU host overhead | `d2_gpu_profile.jl`: launches per step, CUDA API time, and wall time against device time at small sizes |
+   | 6, surface energy balance kernel | register count and time of `solve_surface_energy_balance_kernel!` from the `d2_gpu_profile.jl` trace |
+   | 7, Float64 literals | the PTX and IR audits (`d2_gpu_profile.jl`, `d6_kernel_ir_audit.jl`) for f64 instructions; no timing change is expected |
+
+3. One full benchmark run per pull request on `cpu-x86` and `gpu-nvidia`.
+
+Differences of less than about 10% are treated as noise: the medians reproduce within a few percent, but single points still show occasional outliers.
 
 ## Documentation changes
 
