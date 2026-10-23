@@ -14,7 +14,10 @@ timestepping(::Heun) = Explicit()
 
 default_dt(heun::Heun) = heun.Δt
 
-is_adaptive(heun::Heun) = false
+# Multi-stage explicit partners of an IMEX require a per-stage implicit correction, which is not yet supported.
+function validate_timestepper(::Heun, ::AbstractIMEX)
+    throw(ArgumentError("`Heun` is not yet supported as the explicit sub-stepper of an `IMEX` timestepper; use `ForwardEuler` instead"))
+end
 
 """
     $TYPEDEF
@@ -89,7 +92,7 @@ end
 function timestep!(integrator::ModelIntegrator, timestepper::Heun, Δt, names::Tuple)
     (; model, state, inputs) = integrator
     grid = get_grid(model)
-    # fetch Heun's cache (the whole timestepper_cache for a single Heun, or the explicit slot under IMEX)
+    # fetch Heun's cache
     cache = get_cache(state.timestepper_cache, timestepper)
 
     # Predictor: compute tendencies ∂u∂t₀ at the current state u₀

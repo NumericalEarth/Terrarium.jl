@@ -123,3 +123,30 @@ Computes the field or function at the vertical (z-axis) face by taking the `min`
 """
 @inline min_zᵃᵃᶠ(i, j, k, grid, c) = @inbounds min(c[i, j, k], c[i, j, k - 1])
 @inline min_zᵃᵃᶠ(i, j, k, grid, f, args...) = @inbounds min(f(i, j, k, grid, args...), f(i, j, k - 1, grid, args...))
+
+"""
+    add_scaled!(out, field, factor)
+
+Add `factor` times `field` to `out` over the interior of their common grid, `out ← out + factor * field`,
+e.g. to form or remove an explicit increment. Fields without a vertical location (e.g. snow variables) are
+updated once per column. Not exported.
+"""
+function add_scaled!(out, field, factor)
+    launch!(out.grid, XYZ, add_scaled_kernel!, out, field, convert(eltype(out), factor))
+    return nothing
+end
+
+function add_scaled!(out::Field{<:Any, <:Any, Nothing}, field, factor)
+    launch!(out.grid, XY, add_scaled_xy_kernel!, out, field, convert(eltype(out), factor))
+    return nothing
+end
+
+@kernel inbounds = true function add_scaled_kernel!(out, grid, field, factor)
+    i, j, k = @index(Global, NTuple)
+    out[i, j, k] += factor * field[i, j, k]
+end
+
+@kernel inbounds = true function add_scaled_xy_kernel!(out, grid, field, factor)
+    i, j = @index(Global, NTuple)
+    out[i, j, end] += factor * field[i, j, end]
+end

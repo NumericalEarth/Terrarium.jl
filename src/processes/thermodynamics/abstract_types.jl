@@ -13,13 +13,6 @@ Return the thermal properties associated with the given energy balance process.
 """
 function get_thermal_properties end
 
-"""
-    $TYPEDEF
-
-Base type for formulations of the heat transfer operator.
-"""
-abstract type AbstractHeatOperator end
-
 # Closures
 
 """
