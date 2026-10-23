@@ -1,0 +1,8 @@
+{
+  "override": {
+    "preferences": {
+      "citekeyFormat": "auth.capitalize + year",
+      "citekeyFormatEditing": "auth.capitalize + year"
+    }
+  }
+}
