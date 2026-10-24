@@ -156,7 +156,7 @@ export DefaultInitializer, LatitudinalClimatology
 include("initializers.jl")
 
 # boundary condition helper functions
-export FieldBC, FieldBCs, boundary_conditions
+export FieldBC, FieldBCs, boundary_conditions, merge_boundary_conditions
 include("boundary_conditions.jl")
 
 # forcing helper functions
