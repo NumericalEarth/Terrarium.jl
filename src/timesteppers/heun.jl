@@ -107,8 +107,14 @@ function timestep!(integrator::ModelIntegrator, timestepper::Heun, Δt, names::T
     # Apply closure relations
     closure!(state, model)
 
-    # Recompute tendencies ∂u∂t₁ at the predictor state (u_pred, t + Δt)
+    # Recompute tendencies ∂u∂t₁ at the predictor state (u_pred, t + Δt), with the clock advanced to t + Δt so
+    # that time-dependent inputs and boundary conditions are evaluated at the end of the step; the clock is then
+    # restored to t, since the caller advances it by the full step
+    time = state.clock.time
+    tick_stage!(state.clock, Δt)
     update_state!(state, model, inputs, compute_tendencies = true)
+    state.clock.time = time
+    state.clock.stage = 1
     # Average tendencies in place: state.tendencies ← (∂u∂t₀ + ∂u∂t₁) / 2
     average_tendencies!(cache, state, names)
     # Restore the prognostic state to u₀ before the corrector explicit step

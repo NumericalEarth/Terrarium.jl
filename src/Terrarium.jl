@@ -28,7 +28,7 @@ using Oceananigans.Operators: ∂zᵃᵃᶜ, ∂zᵃᵃᶠ, ℑzᵃᵃᶠ, Δz�
 using Oceananigans.OutputReaders: FieldTimeSeries
 using Oceananigans.Solvers: BatchedTridiagonalSolver
 using Oceananigans.Simulations: Simulation, run!, timestepper, TimeStepWizard, conjure_time_step_wizard!, Callback, add_callback!
-using Oceananigans.TimeSteppers: Clock, update_state!, time_step!, tick!, reset!
+using Oceananigans.TimeSteppers: Clock, update_state!, time_step!, tick!, tick_stage!, reset!
 using Oceananigans.Units: Time, seconds, hours, days
 using Oceananigans.Utils: launch!, IterationInterval, TimeInterval
 
