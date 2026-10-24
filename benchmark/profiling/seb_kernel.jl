@@ -1,6 +1,7 @@
 # Resources and device time of the surface energy balance kernel of `land` on the GPU (Phase 2 item 6).
 # usage: julia --project=. seb_kernel.jl <label> <outprefix> [newton|root]
-# The skin temperature solver defaults to Newton, as in the benchmarks; `root` selects the default `RootSolver`.
+# `newton` (the default here) selects `NewtonSolver(NF; iterations = 5)`, as in the benchmarks; `root` selects
+# the model default, `RootSolver`, which wraps the Newton method of RootSolvers.jl.
 using CUDA
 include(joinpath(@__DIR__, "common.jl"))
 import Oceananigans.Architectures: convert_to_device
@@ -52,7 +53,7 @@ step_time = time_steps(integrator, Δt, ARCH; nsteps = 20, reps = 5)
 open(OUT * "_seb.md", "a") do io
     mem = CUDA.memory(compiled)
     say(io, @sprintf("| %s | %d | %d | %d | %d | %d | %d | %d | %d | %.1f (min %.1f) | %s |",
-        "$LABEL ($SOLVER)", CUDA.registers(compiled), mem.local, CUDA.maxthreads(compiled),
+        "$LABEL, $(nameof(typeof(model.surface_energy_balance.skin_temperature.solver)))", CUDA.registers(compiled), mem.local, CUDA.maxthreads(compiled),
         count_matches(F64_ARITH, ptx), count_matches(CVT_F64, ptx), count_matches(r"\btrap;", ptx),
         count_matches(r"\bcall(\.uni)?\b", ptx), count('\n', ptx),
         1.0e3 * median(times), 1.0e3 * minimum(times), fmt_times(step_time)))
