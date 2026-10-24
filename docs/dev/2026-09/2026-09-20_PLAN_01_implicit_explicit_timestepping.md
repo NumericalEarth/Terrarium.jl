@@ -1,6 +1,6 @@
 # Add support for implicit-explicit (IMEX) time stepping
 
-> Status: **in progress**. Phases 1–3 (implicit heat conduction, implicit Richards flow, energy advection, and the wizard diagnostics), IMEX as the default of `SoilModel` and `LandModel`, and the implicit snow meltwater drainage (revisions 20 and 21) are implemented; Phase 4 (feasibility spikes for Path 1) is deferred to future work (revision 22).
+> Status: **in progress**. Phases 1–3 and revisions 19–23 are implemented; Phase 4, Path 1, and the Richards Picard safeguard (revision 24) are deferred to future work; the final test suite and doc build are pending.
 
 Date of initial draft: 2026-09-20
 
@@ -419,6 +419,62 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 > **Revision 22, 2026-10-13. Approved. Scope reduction: Phase 4 deferred.**
 > Reviewer request: the feasibility spikes for Path 1 (Phase 4) are deferred to future work, together with Path 1 itself, so this PR ends with Phase 3 and revisions 19–21.
 
+> **Revision 23, 2026-10-18 (Claude Opus 5.5). Approved. Time stepping example and Heun forcing fix.**
+> Reviewer request: a new example, `examples/simulations/soil_timestepping.jl` ("Choosing a time stepper" in the docs), explains how to set the time stepper of a `SoilModel` and plots the error against the time step (1 min to 1 day, log axes) of `ForwardEuler`, `Heun`, and `IMEX(ForwardEuler, BackwardEuler)`, against `ForwardEuler` at 1 s.
+> The column freezes under a daily cycle of the ground heat flux, so that the comparison includes phase change.
+> The cycle is a cosine, so that the day boundaries, at which the errors are sampled, fall at the strongest cooling, and steps of 12 h and one day do not see only the daily-mean forcing.
+> The example exposed a pre-existing bug of `Heun` (also on `main`), fixed here at the reviewer's request: the corrector stage recomputed the tendencies at the predicted state with the clock still at `tⁿ`, so time-dependent inputs and boundary conditions were evaluated at the beginning of the step, and `Heun` was only first order for time-dependent forcing (observed order 1.04 under a sinusoidal surface heat flux, 2.01 under a constant one).
+> The corrector now advances the clock to `tⁿ + Δt` with `tick_stage!` before recomputing the tendencies, and restores it afterwards, since the caller advances it by the full step.
+> A new test in `test/timestepping/heun.jl` checks second-order convergence under a time-dependent surface heat flux.
+> Follow-up (reviewer request): the example has a second experiment with Richards-equation flow, with a separate figure of the temperature and saturation errors; `merge_boundary_conditions`, which the example needs to combine the conditions of both variables, is now exported.
+> The experiment first used infiltration into freezing soil, in which `BackwardEuler` failed at a step of 8 h (see revision 24); at the reviewer's request it now simulates the thawing of an active layer above permafrost (thawed to 10 cm, frozen at −3 °C below 25 cm, a warming ground heat flux of 60 ± 50 W/m², infiltration of 2 mm/day, an impermeable bottom, and a saturation of 0.5 at the surface rising to a water table at 5 m), in which `BackwardEuler` is stable at every tested step, with temperature errors of about 0.4 K at 4 h and 1 K at 12 h, and both explicit schemes are stable only at 1 min.
+> Follow-up (reviewer requests, 2026-10-22): all experiments add a step of 10 s, and a third experiment runs a `LandModel` without snow and vegetation (the Richards soil and initial state of experiment 2) for one day under synthetic weather (air temperature of 1 to 11 °C, daytime shortwave radiation, and an afternoon rain shower), with the infiltration limited by the surface runoff scheme.
+> The weather is supplied by a `FunctionInputSource` defined in the example (an `InputSource` that evaluates a function of the clock time), since a `FieldTimeSeriesInputSource` costs about 3 ms per step per column for the time interpolation (3.75 against 0.77 ms per `LandModel` step, independent of the number of inputs and samples), and setting the inputs by hand would bypass the update of the inputs in the corrector stage of `Heun`.
+> In the land experiment, `BackwardEuler` is stable at every step, with temperature errors of 0.03 K at 2 h and 0.14 K at 4 h, rising to 2 K at 8 h and 6 K at 12 h because the explicit surface energy balance is held over the step; the explicit schemes are stable up to 108 s.
+> The plots omit, for each scheme, every step from its first diverged one on, since a single explicit step beyond the stability limit can stay bounded without being meaningful; at the smallest steps, the `Heun` errors flatten at the error of the 1 s `ForwardEuler` reference.
+> The example takes about 5.5 min, mostly in the land experiment, whose time is dominated by compilation; `Heun` on a `LandModel` costs about 4.6 times as much per step as `ForwardEuler` (3.8 against 0.82 ms), more than its two stages explain.
+> Both performance observations (the time interpolation of `FieldTimeSeriesInputSource` and the cost of `Heun` on a `LandModel`) are outside the scope of this PR.
+
+> **Revision 24, 2026-10-18 (Claude Opus 5.5). Approved 2026-10-22 as a deferral. Robustness of implicit Richards flow with prescribed infiltration into freezing soil.**
+> The example of revision 23 exposed a failure of `IMEX(ForwardEuler, BackwardEuler)` with Richards flow: with infiltration into freezing soil at steps of 8 h and the default two Picard iterations, the column alternates between saturated and residual cells, destroys water, and the temperature diverges (122 °C, then −35 200 °C, within two steps).
+>
+> *Findings.*
+> In the failing step, a strong upward Darcy flux (1.6×10⁻⁵ m/s, about 1.4 m/day) through the top five faces drains the cells below the partially frozen top cell to their residual saturation (pressure head −10⁶ m) and saturates the top cell, although the top cell was wetter than the cells below at the start of the step (pressure head −0.38 m against −1.9 m), so that the converged flux would be downward.
+> The water drained from below exceeds what the top cell can hold, and a `SoilModel` without surface hydrology discards the excess, so water is destroyed; the subsequent closure and heat steps then diverge.
+> The trigger is the combination of freezing and a prescribed infiltration flux: without infiltration, and with infiltration but without freezing, the same 8 h steps stay bounded and conserve water (the latter gains exactly the infiltrated 20 mm).
+> It is a convergence failure of the Picard iteration, not of the backward Euler formulation: with 4, 8, and 16 iterations the run stays bounded (lowest saturation 0.29, 0.347, and 0.347, and temperatures down to about −6.3 °C), while 1 iteration drains cells to residual saturation (temperatures down to −47.7 °C) and 2 iterations diverge.
+> Diagnosis (2026-10-18, replaying the failing step iteration by iteration): while the top cell is frozen, its hydraulic conductivity is zero and infiltrated water accumulates in it (saturation 0.489, pressure head −0.38 m, liquid fraction 0.25, explicit stage `s⁺ = 0.573`).
+> In the first Picard iteration it is partially thawed, and its conductivity, lagged at this wet state (1.2×10⁻⁶ m/s), allows gravity drainage of about 3.5 cm in 8 h from a cell that holds about 1.1 cm; the linear step drains it to a saturation of 0.019, whereas the true conductivity would collapse as the cell drains.
+> In the second iteration, the nearly dry top cell has its capacity at the lower bound (`C = 1e-5`), a pressure head of −10⁶ m, and a conductivity of 4.8×10⁻⁸ m/s; the solve sets a suction gradient across its lower face that moves about 50 cm of water upward within the step, so that the conservative update gives a saturation of 25.6 in the top cell and −0.93 below it.
+> The closure then clamps the saturation to [0.01, 1] and discards the excess, which destroys water, and the heat moved with that water makes the temperature diverge.
+> Freezing is therefore not the direct cause: it creates a wet cell whose conductivity rises suddenly, which the lagged-coefficient iteration cannot resolve in one large step, and the iterates swing between too dry and too wet; more iterations damp the swing.
+>
+> Correction (2026-10-22, reviewer observation): the infiltration was a prescribed `InfiltrationFlux`, which forces water into the top cell regardless of its state, so water entered the frozen top cell although its hydraulic conductivity was zero (its saturation rose from 0.32 to 0.49 over the first three steps); the surface runoff of a `LandModel` limits the infiltration to the conductivity of the top cell instead.
+> The failure therefore requires a physically inconsistent forcing, prescribed infiltration into frozen soil, and has not been observed with capacity-limited infiltration; it remains a robustness weakness, since the solver destroys water and diverges rather than degrading gracefully.
+>
+> *Prototypes of option (a) (2026-10-22, scratch scripts, not in the package).*
+> Correction to the formulation proposed above: under-relaxing toward the previous iterate is not conservative in the first iteration, whose previous iterate `sⁿ` lacks the explicit increment; the relaxation must act on the fluxes, from the explicit stage `s⁺` with zero interior flux as the base of the first iteration, so that `s = s⁺ + Δt div(q) / φ` holds for the relaxed flux.
+> A column-wide factor `ω` that keeps every cell within `[s_res, 1]` throttles the whole column on the saturated cell at the water table, which the unrelaxed update routinely overfills by about 0.4% for the closure to correct; enforcing the upper bound only for cells unsaturated at the base prevents the failure and conserves water at 1 to 8 iterations, but is inaccurate at 2 iterations (−30 °C against −6.4 °C converged).
+> A per-face limiter of the Zalesak (flux-corrected transport) type, which scales each interior flux increment by the outflow and inflow factors of its donor and receiver, prevents the failure at every iteration count, conserves water, converges to the unrelaxed solution, and leaves the step-size sweep unchanged where the unrelaxed scheme is stable (1 K instead of divergence at 8 h with 2 iterations and at 12 h with 4 iterations, which also fails without a safeguard, so more iterations alone are not sufficient).
+> Both limiters, however, break existing tests: the infiltration into a dry column (Celia et al., 1990) loses accuracy (relative errors of 0.08 to 0.10 against a tolerance of 0.05 with the per-face limiter), the mass conservation test with infiltration fails, and the per-face limiter changes one `TimeStepWizard` test.
+> In strong infiltration, the modified Picard iteration must transiently overshoot the saturation bounds for the closure to redistribute, which any limiter on gross inflows and outflows obstructs.
+> Oceananigans offers no bounds-preserving safeguard for implicit nonlinear diffusion; its `BoundsPreservingWENO` limiter applies to explicit advection only, while the implicit sink linearization of CATKE (a lagged rate times the unknown on the diagonal) supports option (c), a saturation-based linearization in the cells where the pressure-head form leaves the bounds.
+>
+> *Status.*
+> The example no longer exercises the failure, and the time stepping docs list prescribed infiltration into freezing soil at steps of several hours as a limitation.
+> Remaining options, for the reviewer: a limiter on the net balance of each cell rather than its gross flows; option (c); or deferring the fix to a follow-up PR, with the limitation documented.
+>
+> *Decision (2026-10-22, reviewer).* The fix is deferred to a future PR and moved to Future work; this PR keeps the documented limitation and adds no safeguard or regression test for it.
+
+> **Revision 25, 2026-10-24 (Claude Opus 5.5). Approved. Plan text brought up to date.**
+> Reviewer request: the sections after the revision log are condensed and updated to the final scope.
+> Phased implementation: the scope is Phases 1–3, and the list of Path 1 work is replaced by a pointer to the Approach 1 sketch and Future work.
+> Testing and verification: the Newton convergence, JVP, and two-solver items, which belong to the deferred Path 1, are removed, and the Heun and example checks of revision 23 are added.
+> Documentation changes: updated to the pages and names as implemented (`Picard` instead of `TridiagonalPicard`, no `NewtonKrylov`, no Ascher et al. reference, which belongs to the deferred higher-order IMEX).
+> Known limitations: the Path 1 item is removed, the implicit snow meltwater drainage (revision 20) and the prescribed infiltration limitation (revision 24) are added.
+> The body of the plan (Background, Approaches, Common refactoring, Recommendation) is left as the historical record of the design.
+> A Picard iteration study (`scratch/picard_iters.jl`, not committed) confirmed that the default two iterations are converged in the first experiment of the example, so the larger error of `BackwardEuler` compared with `Heun` there is due to order, not to unconverged iterations.
+
 ## Problem description
 
 Terrarium integrates every prognostic variable with fixed-step explicit schemes (`ForwardEuler`, `Heun`).
@@ -784,76 +840,64 @@ Terrarium.timestepping(::AbstractVariable{:saturation_water_ice}, ::SoilModel, :
 
 ## Phased implementation
 
-Phases 1 through 4 are the scope of this PR.
-Path 1 is deferred to a future plan.
+Phases 1–3 are the scope of this PR (revision 22).
+Path 1 and the Phase 4 spikes are deferred; the Path 1 work is sketched under Approach 1, and the spikes are listed under Future work.
 
 **Phase 1: core refactor and implicit heat conduction (Path 2).**
 
-- R1–R3, R5–R10.
-  `BackwardEuler`, `AbstractImplicitSolver`, `TridiagonalPicard`, marker structs and `get_coefficient` methods, `implicit_step!`, the `timestepping(state, var)` helper.
-- Implicit heat conduction: `compute_tendencies!` for `SoilThermodynamics` dispatching on the trait, coefficient kernel functions for `TwoPhaseHeatTransport`; explicit tendency reduced to boundary faces and sources; apparent heat capacity kernel function with a documented regularization parameter for `FreeWater` and the analytic `C_app` for `SFCC` curves; conservative energy update.
-- Flux boundary conditions (`SoilHeatFlux`, `GeothermalHeatFlux`) verified to enter the implicit step through the right-hand side, with conservation tests against the integrated boundary fluxes.
-- `SoilModel` routing; tests; docs.
+- R1–R3, R5–R10: `BackwardEuler`, `AbstractImplicitSolver`, `Picard`, the linear operators, and `implicit_step!` (in the form of revisions 12–16).
+- Implicit heat conduction for `TwoPhaseHeatTransport`, with a regularized apparent heat capacity for `FreeWater` and the analytic one for `SFCC` curves, and a conservative energy update.
+- Flux boundary conditions (`SoilHeatFlux`, `GeothermalHeatFlux`) enter the right-hand side, verified by conservation tests.
 
 **Phase 2: implicit Richards flow and the coupled land model.**
 
-- `RichardsEq` implicit variant with Celia modified Picard (`iterations = 2` default), gravity and hydrostatic terms on the right-hand side, conservative saturation update, interaction with `adjust_saturation_profile!` (post-step) verified by mass balance.
-- Energy advection by the water flux in `TwoPhaseHeatTransport` (revision 5): an explicit upwind advective heat flux kernel function `advective_heat_flux(i, j, k, grid, fields, energy, hydrology, constants)` at faces using `darcy_flux` and the upwind temperature, added to `compute_energy_tendency` for both explicit and implicit configurations (it is part of `G^{exp}` under `Implicit()`); zero for `NoFlow` hydrology by dispatch; boundary faces carry the infiltration and drainage fluxes at the adjacent cell temperature. `cell_advection_timescale` returns `min(Δz / |q|)` for the energy equation so the `TimeStepWizard` can honor the advective CFL.
-- `LandModel` routing (snow, vegetation, surface hydrology stay explicit); GPU tests; Reactant registry configuration in `test/reactant/setup.jl` (the tridiagonal solve has fixed trip counts and no throw paths, so no structural obstacle is expected; compile time is measured here).
+- Implicit `RichardsEq` with Celia modified Picard (2 iterations by default), a conservative saturation update, and the hydrology closure after every iteration (revision 7).
+- Explicit first-order upwind energy advection by the water that actually moves (revisions 5 and 15), with `cell_advection_timescale` for the wizard.
+- `LandModel` routing, Reactant configurations in `test/reactant/setup.jl`, and implicit differentiability tests.
 
 **Phase 3: wizard diagnostics.**
 
-- (Deferred to a future PR by revision 17: R4, `Heun` as explicit partner with per-stage implicit corrections (IMEX trapezoidal).)
-- (Deferred to a future PR by revision 18: `IMEXFluxBoundaryCondition` for the ground heat flux, and value boundary conditions on the closure variables under the implicit operator.)
-- Wizard diagnostics for implicit runs: no throttling by implicit terms, and time scales of the remaining explicit terms (explicit energy advection, explicit water outflow that could overdraw a cell).
+- The wizard is not throttled by implicit terms and honors the time scales of the remaining explicit terms (revision 18; second-order IMEX deferred by revision 17).
 
-**Phase 4: feasibility spikes for Path 1.** Deferred to future work by revision 22 (see Future work).
+**Additions by revision.**
+IMEX as the default of `SoilModel` (Richards flow) and `LandModel` (revision 19); implicit snow meltwater drainage with a Newton linearization (revisions 20 and 21); the time stepping example and the `Heun` forcing fix (revision 23).
 
 Each phase ends with the full test suite, the Enzyme test set, and a draft doc build.
 
-**Deferred to a future plan and PR (Path 1).** For the record, the work previously planned here:
-
-- `NewtonKrylov` with `FiniteDifferenceJVP` in base, GMRES(m) (Krylov.jl if the dependency is approved, otherwise a hand-written fixed-iteration version), `TridiagonalPreconditioner` reusing the Phase 1–2 coefficients, state-tree vector operations, and the trait distinction described in the Approach 1 implementation sketch.
-- `TerrariumEnzymeExt` with `EnzymeJVP` (weak dependency, to be approved then).
-- CPU/CUDA tests: JVP agreement, Newton convergence rates, agreement with Path 2 in the linear limit.
-- Fixed-iteration `NewtonKrylov` variant for Reactant, raise tests, Enzyme reverse tests, and an implicit-function-theorem adjoint rule for `implicit_step!` if nested AD proves fragile.
-
 ## Testing and verification
 
-- **Linear consistency**: for constant `κ`, `C` on a small column, assemble the dense `I − Δt L` from finite differences of the explicit operator and check that one implicit step matches the dense solve to roundoff (both solvers).
-- **Order and stability**: the existing `examples/extending/linear_heat_conduction.jl` analytic solution; first-order convergence in `Δt` for IMEX Euler; stable and accurate runs with `Δt` 100× the explicit limit.
-- **Conservation**: total column energy and water change equals the integrated boundary fluxes to roundoff, for every solver, with and without Picard iterations, and with `adjust_saturation_profile!` active.
-- **Freeze–thaw**: a Stefan-type freezing column compared against a fine-step explicit reference with `FreeWater` (regularized) and an `SFCC` curve; the Newton path must show quadratic convergence on the smooth curve.
-- **Energy advection**: a uniform-temperature column with steady downward flow must keep `T` uniform (advection of a constant); a warm infiltration pulse into a cold column must conserve total energy to roundoff and move the thermal front at the thermal advection velocity `C_w q / C` (revision 7; not the pore velocity `q/θ`); a coupled freeze–thaw infiltration case that is unstable without advection must run stably with it.
-- **Richards**: the Celia et al. (1990) infiltration test against a fine explicit reference, including a near-saturated column where explicit stepping is impractical.
-- **Routing**: `test/timestepping/imex.jl` updated for the single-`update_state!` orchestration; since revision 15 it also holds the routing and implicit cache and operator structure tests of the soil variables.
-- **Test layout (revision 15)**: the physics tests of the implicit soil processes live with the process tests, which `test/soil/soil_model_tests.jl` includes: implicit heat conduction and heat advection in `test/soil/soil_energy_tests.jl`, the implicit Richards equation in `test/soil/soil_hydrology_tests.jl`, and the Stefan benchmark in `test/soil/soil_freeze_thaw_tests.jl`; the `TridiagonalOperator` with upwind advection is tested in `test/solvers/test_solvers.jl`.
-- **JVP**: Enzyme versus finite-difference JVP agreement on `SoilModel` and `LandModel` (Phase 4, deferred by revision 22).
-- **Differentiability**: `test/differentiability/` gains implicit `SoilModel` cases for both solvers; gradients cross-checked with FiniteDifferences as in the existing tests.
-- **Reactant**: `test/reactant/correctness.jl` gains implicit configurations; compiled results match the CPU run.
-- **GPU**: implicit configurations in the CUDA test set.
+- **Linear consistency**: one implicit step on a small column with constant coefficients matches the dense solve of `I − Δt L` to roundoff.
+- **Order and stability**: first-order convergence in `Δt` of IMEX Euler, and stable runs far beyond the explicit limit.
+- **Conservation**: total column energy and water change equal the integrated boundary fluxes to roundoff, with and without Picard iterations and with `adjust_saturation_profile!` active.
+- **Freeze–thaw**: a two-phase Neumann (Stefan) benchmark in `test/soil/soil_freeze_thaw_tests.jl`, in saturated and unsaturated columns with Richards hydrology.
+- **Energy advection**: a uniform temperature stays uniform under steady flow; a warm infiltration pulse conserves energy and moves the front at `C_w q / C`.
+- **Richards**: the Celia et al. (1990) infiltration test against a fine explicit reference, including a near-saturated column.
+- **Snow drainage**: implicit meltwater outflow never drains more than the liquid water of the pack, and conserves mass (revisions 20 and 21).
+- **Routing and structure**: `test/timestepping/imex.jl`; the process physics tests live with the soil and snow process tests (revision 15), and the `TridiagonalOperator` in `test/solvers/test_solvers.jl`.
+- **Heun**: second-order convergence under a time-dependent surface heat flux (`test/timestepping/heun.jl`, revision 23).
+- **Differentiability**: implicit heat conduction and implicit Richards cases in `test/differentiability/`, cross-checked with FiniteDifferences.
+- **Reactant**: implicit soil configurations in `test/reactant/setup.jl`; compiled results match the CPU run.
+- **Example**: `examples/simulations/soil_timestepping.jl` compares the error against the time step of `ForwardEuler`, `Heun`, and `IMEX(ForwardEuler, BackwardEuler)` in three experiments (revision 23).
 - Benchmarks are added to `benchmark/model_configurations.jl` only when explicitly requested.
 
 ## Documentation changes
 
-- `docs/src/running/time_stepping.md`: new "Implicit-explicit time stepping" section (formulation, choosing operators and solvers, Picard iterations, the `FreeWater` regularization caveat, cost guidance, Reactant and AD notes); update the "planned" warning in the adaptive section.
-- `docs/src/extending/implementing_processes.md`: the implicit operator interface (R1) with the kernel-function signatures.
-- `docs/src/solvers/solvers.md`: `AbstractImplicitSolver`, `TridiagonalPicard`, `NewtonKrylov`.
-- Process pages for soil energy and soil hydrology: implementation sections for the implicit operators with non-canonical docstrings and kernel-function lists.
-- `docs/src/references.bib`: add Celia, Bouloutas, and Zarba (1990, Water Resources Research 26, 1483–1496); Knoll and Keyes (2004, Journal of Computational Physics 193, 357–397); Ascher, Ruuth, and Spiteri (1997, Applied Numerical Mathematics 25, 151–167) for the IMEX Runge–Kutta background.
-  Dall'Amico et al. (2011), Farthing and Ogden (2017), and Kavetski and Kuczera (2007) are already present.
+- `docs/src/running/time_stepping.md`: the "Implicit-explicit time stepping" section (formulation, operators and solvers, Picard iterations, the `FreeWater` regularization, defaults, and limitations).
+- `docs/src/extending/implementing_processes.md`: the implicit operator interface and its hooks (`linearize!`, `solve!`, `implicit_update!`, `implicit_closure!`).
+- `docs/src/solvers/solvers.md`: `AbstractImplicitSolver`, `Picard`, and the linear operators.
+- Process pages for soil energy, soil hydrology, and snow mass: implementation sections for the implicit operators.
+- The new example page "Choosing a time stepper" (revision 23).
+- `docs/src/references.bib`: Celia, Bouloutas, and Zarba (1990) and Knoll and Keyes (2004).
 
 ## Known limitations
 
-- Path 2 is first order with lagged coefficients; Picard iterations reduce but do not remove the nonlinear error within a step.
-  The Dirac `FreeWater` capacity requires regularization in the temperature form.
-- Energy advection is explicit and first-order upwind, so it is diffusive and imposes an advective CFL limit `Δt ≲ C Δz / (C_w |q|)`, which for highly conductive soils can be the binding limit of an implicit run; infiltrating water enters at the top cell temperature rather than the skin or rain temperature, so rain heat is not exchanged with the surface energy balance, and water removed by evapotranspiration or routed to the surface excess pool carries no heat.
-- The implicit Richards step lags the hydrostatic head and the water table within a step and bounds the moisture capacity from below (`minimum_moisture_capacity`); with a fixed number of Picard iterations the result is not converged when a large step saturates part of the column.
-- Only vertical diffusion in the soil is implicit in Phases 1–3.
-  Snow, vegetation, surface hydrology, and the energy–water cross-couplings remain explicit, and the surface energy balance stays an explicit flux (implicit surface coupling deferred by revision 18).
-- Value conditions on the closure variables (`temperature`, `pressure_head`), such as `PrescribedSurfaceTemperature`, are not supported by the implicit operator (deferred by revision 18); flux conditions on the conserved prognostics and gradient conditions on the closure variables are supported.
-- Path 1 on Reactant requires fixed iteration counts and is not adaptive; Path 1's Enzyme JVP requires a new weak dependency; nested AD through Path 1 is not guaranteed until the adjoint rule from the future Path 1 plan exists.
-- Adaptive `Δt` under Reactant remains out of scope, as in the adaptive-timestepping plan.
+- Backward Euler is first order with lagged coefficients; Picard iterations reduce but do not remove the nonlinear error within a step, and the Dirac `FreeWater` capacity requires regularization.
+- Energy advection is explicit and first-order upwind, so it is diffusive and imposes an advective limit `Δt ≲ C Δz / (C_w |q|)`; infiltrating water enters at the top cell temperature, and water removed by evapotranspiration or routed to surface excess carries no heat.
+- The implicit Richards step lags the hydrostatic head and bounds the moisture capacity from below (`minimum_moisture_capacity`); with a fixed number of Picard iterations it is not converged when a large step saturates part of the column.
+- A prescribed infiltration flux into frozen soil, such as `InfiltrationFlux`, can make the default two Picard iterations fail at steps of several hours (revision 24); the capacity-limited infiltration of a `LandModel` avoids it.
+- Only the soil heat conduction, the soil water flow, and the snow meltwater drainage are implicit; snow heat conduction, vegetation, surface hydrology, the surface energy balance, and the energy–water cross-couplings remain explicit, which limits `LandModel` with snow to steps of about 15 min.
+- Value conditions on the closure variables (`temperature`, `pressure_head`), such as `PrescribedSurfaceTemperature`, are not supported by the implicit operator (revision 18).
+- Adaptive `Δt` under Reactant remains out of scope.
 
 ## Future work
 
@@ -866,6 +910,7 @@ Each phase ends with the full test suite, the Enzyme test set, and a draft doc b
 - Stiffly accurate higher-order IMEX Runge–Kutta pairs (ARS(2,2,2), ARS(4,4,3)) on top of the stage hook.
 - Implicit snow heat conduction (revision 20): per-column backward Euler of `snow_energy` with the surface and soil temperatures at `tⁿ`, conservative with the soil if the snow-soil flux is recomputed after the snow solve; needed for `LandModel` steps beyond about 15 min, since the explicit conduction of a thin pack is limited to about 1000 s.
 - Implicit treatment of the lateral/2D couplings if they are ever added.
+- Robustness of the implicit Richards step (revision 24): a bounds-preserving safeguard for the Picard iterates, so that a prescribed infiltration flux into freezing soil at steps of several hours neither destroys water nor diverges; candidates are a limiter on the net balance of each cell (the prototyped column-wide and per-face Zalesak limiters prevent the failure but break the dry-column and mass conservation tests) or a saturation-based linearization in the cells where the pressure-head form leaves the bounds (primary variable switching); the failing configuration of revision 24 is the regression case.
 - A convergence-based step controller for the implicit solvers to replace the diffusive CFL wizard.
 
 ### Oceananigans advection operators for soil energy advection
@@ -902,6 +947,6 @@ For implicit and IMEX stepping, reimplement the Shchepetkin split in our own `Tr
 
 1. **Approved:** scope is Path 2 and the core refactoring in this PR (Phases 1–3), spikes in Phase 4, Path 1 deferred to a future plan.
 2. **Decided:** `FreeWater` under the implicit heat operator uses a regularized apparent heat capacity `C_app ≈ C + ρLθ / ΔT_reg` over a phase-change interval of width `ΔT_reg`, exposed as a documented parameter of the implicit solver; `SFCC` curves use their analytic `C_app`.
-3. **Approved:** type names `BackwardEuler`, `AbstractImplicitSolver`, `TridiagonalPicard`.
+3. **Approved:** type names `BackwardEuler`, `AbstractImplicitSolver`, `TridiagonalPicard` (renamed `Picard` by revision 12).
 
 Deferred with Path 1: Enzyme (or EnzymeCore) as a weak dependency with `TerrariumEnzymeExt`, and Krylov.jl as a direct dependency versus a hand-written fixed-iteration GMRES(m).
