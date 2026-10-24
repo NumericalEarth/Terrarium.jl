@@ -35,6 +35,9 @@ Base revision: `0577a277cd7a4f32c36c01db2f745bcf4af02716` (tip of local `main`, 
 - **Rev 7 (2026-10-18, Claude Opus 5.5):** First Phase 0 GPU re-run on an H100.
   Found that the published native GPU baseline was dominated by a one-off compilation of about 1.8 s in the first timed run of every new grid size, and fixed the harness to absorb it in the warm-up (second attempt, after the first did not hold up on job 2554084).
 - **Rev 8 (2026-10-18, Claude Opus 5.5):** Final Phase 0 GPU re-run with the corrected warm-up; Phase 0 complete.
+- **Rev 15 (2026-10-24, Claude Opus 5.5):** At the author's request, turned the profiling scripts into general tools: plan-specific names (`d1_` to `d7_`) replaced by descriptive ones, `key=value` options with defaults and `--help` on every tool, and the three scripts that test one specific change moved to `benchmark/profiling/experiments/`.
+  The diagnostics map to the tools as listed in the Phase 1 findings.
+  Revisions 9 to 14 concern Phase 2 and are recorded on `bg/performance-fixes`.
 
 ## Problem description
 
@@ -244,7 +247,19 @@ The deliverable of Phase 1 is a findings section in this plan, apportioning the 
 ### Phase 1 findings (Rev 4)
 
 All seven diagnostics were run on 2026-10-17 on the AMD EPYC 9554 host with an NVIDIA A40 GPU, using Julia 1.12.7 with one Julia thread, Float32, and 30 layers unless stated otherwise.
-The scripts are committed under `benchmark/profiling/`, with their own environment and a README that maps each script to its diagnostic.
+The scripts are committed under `benchmark/profiling/`, with their own environment and a README.
+Since Rev 15 they are general tools with options; the diagnostics map to them as follows:
+
+| Diagnostic | Tool and options |
+| --- | --- |
+| D1 | `host_overhead.jl` (defaults) |
+| D2 | `gpu_profile.jl` (defaults) |
+| D3 | `experiments/soil_heat_tendency_variants.jl variant=V0` to `V4`, with `arch=cpu` and `arch=gpu` |
+| D4 | `native_timing.jl solver=root` and `solver=newton`; `reactant_timing.jl` under `taskset -c 0` and unpinned |
+| D5 | `reactant_timing.jl` with `XLA_FLAGS="--xla_dump_to=<dir> --xla_dump_hlo_as_text"` |
+| D6 | `kernel_ir_audit.jl`, `kernel_allocations.jl`, `allocation_sites.jl phase=closure`, `experiments/vararg_specialization.jl`, and `native_timing.jl ftz=true` and `float=Float64` |
+| D7 | `native_timing.jl` at neighboring `nlat` and `nz`, `compile_order.jl`, `gc_share.jl`, and `gpu_profile.jl sections=timings` |
+
 Native CPU jobs were pinned to separate cores with `taskset`, and every timing below is the median of three to five repetitions.
 Reactant was measured on the CPU only; Reactant GPU ratios below use the published `reactant-gpu` numbers.
 
@@ -406,7 +421,7 @@ Skipping diagnostic-only auxiliaries (the former item 7, H4) is dropped, because
 - The `land` breakdown accounts for an estimated 150 of 203 ms per step on the CPU; the remainder has not been attributed to individual kernels.
 - JET's 43 optimization reports for `land` have not been triaged.
 - While checking `sqrt` (Rev 6), the reverse-mode gradient of the mean soil temperature with respect to the traced soil conductivities came out exactly zero, for both `sqrt` and the current `x^(1/2)`, whereas `examples/autodiff/global_sensitivity.jl` reports a nonzero sensitivity.
-  This was not investigated further; it may be a regression in the parameter-sensitivity path or a difference in the test setup (`benchmark/profiling/reactant_sqrt.jl`), and it is unrelated to this plan.
+  This was not investigated further; it may be a regression in the parameter-sensitivity path or a difference in the test setup (`benchmark/profiling/experiments/reactant_sqrt.jl`), and it is unrelated to this plan.
 - Reactant's constant folding is a legitimate optimization, so the native path is not expected to match Reactant exactly; the aim is to remove avoidable overhead, not to close the gap completely.
 - Phase 2 item 5 may be limited by how much host work Oceananigans' `launch!` and CUDA.jl's argument conversion do per call, which is outside Terrarium's control.
 
