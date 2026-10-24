@@ -107,7 +107,8 @@ function Terrarium.timestep!(
     ) where {NF}
     # Enforce SWE >= 0
     # TODO: Rewrite to ensure mass conservation
-    out = (; snow_water_equivalent, snow_energy) = state
+    (; snow_water_equivalent, snow_energy) = state
+    out = (; snow_water_equivalent, snow_energy)
     launch!(model.grid, XY, enforce_snow_constraints!, out, snow)
     return nothing
 end
