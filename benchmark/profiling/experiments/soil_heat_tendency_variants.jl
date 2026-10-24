@@ -1,17 +1,39 @@
-# D3: per-cell cost of the soil heat tendency kernel, baseline vs variants.
-# usage: julia --project=. d3_soil_heat_tendency_variants.jl <V0|V1|V2|V3|V4> <cpu|gpu> <nlat_half> <outfile>
-# V0 baseline; V1 parameter-only conductivities hoisted (passed as compile-time constants, which is
-# equivalent to an isbits kernel argument); V2 sqrt instead of x^(1/2); V3 κ stored once per cell and
-# interpolated to faces; V4 = V1 + V3.
-const VARIANT, ARCHNAME, NLAT, OUTFILE = ARGS[1], ARGS[2], parse(Int, ARGS[3]), ARGS[4]
-ARCHNAME == "gpu" && using CUDA
-include(joinpath(@__DIR__, "common.jl"))
+const USAGE = """
+Experiment: cost per cell of the soil energy tendency kernel for alternative implementations.
+
+Usage: julia --project=. experiments/soil_heat_tendency_variants.jl [key=value ...]
+
+Times `compute_tendencies!` of the soil energy balance of `soil_heat` (median, per grid cell) and compares
+the tendencies of the chosen variant with the current implementation:
+  V0  the current implementation
+  V1  parameter-only conductivities hoisted out of the kernel (passed as constants, which is equivalent to an
+      `isbits` kernel argument); requires `InverseQuadratic` weighting and a single soil horizon
+  V2  `sqrt` instead of `x^(1/2)` in `InverseQuadratic`
+  V3  thermal conductivity computed once per cell and interpolated to the faces
+  V4  V1 and V3 together
+Appends one Markdown table row: variant, architecture, columns, cells, ns per cell before and after,
+speedup, allocations, the largest relative difference of the tendencies (all cells and interior cells),
+the largest tendency, and the number of nonzero tendencies.
+
+This experiment redefines Terrarium methods to build the variants, so it depends on the internals of the
+soil energy balance and may need adapting when they change. Run each variant in a fresh process.
+
+Options:
+  variant=V0     `V0` to `V4`
+  arch=cpu       `cpu` or `gpu`
+  nlat=4         grid size (`nlat_half`)
+  header=false   print the table header first
+  out=           file to append the row to (default: standard output only)
+"""
+include(joinpath(@__DIR__, "..", "common.jl"))
+const OPTIONS = parse_options((variant = "V0", arch = "cpu", nlat = 4, header = false, out = ""), USAGE)
+const VARIANT, ARCHNAME, NLAT = OPTIONS.variant, OPTIONS.arch, OPTIONS.nlat
 using Oceananigans.Operators: ℑzᵃᵃᶠ, ∂zᵃᵃᶠ
 using Oceananigans.BoundaryConditions: fill_halo_regions!
 using Oceananigans.Fields: CenterField
 using KernelAbstractions: @kernel, @index
 
-const ARCH = ARCHNAME == "gpu" ? GPU() : CPU()
+const ARCH = architecture(ARCHNAME)
 integrator, Δt = setup(:soil_heat, ARCH; nlat_half = NLAT)
 const STATE = integrator.state
 const MODEL = integrator.model
@@ -90,7 +112,12 @@ else
     maxrel_int = maximum(abs, variant[:, :, 2:(end - 1)] .- baseline[:, :, 2:(end - 1)]) / scale
 end
 
-open(OUTFILE, "a") do io
+with_output(OPTIONS.out) do io
+    if OPTIONS.header
+        say(io, environment_summary())
+        say(io, "| variant | arch | columns | cells | ns/cell, current | ns/cell, variant | speedup | allocations | largest relative difference | same, interior cells | largest tendency | nonzero tendencies |")
+        say(io, "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+    end
     say(io, @sprintf("| %s | %s | %d | %d | %.1f | %.1f | %.2f× | %d | %.2e | %.2e | %.3e | %d |",
         VARIANT, ARCHNAME, ncolumns(NLAT), NCELLS, t0 / NCELLS, t1 / NCELLS, t0 / t1, a1, maxrel_all, maxrel_int, maximum(abs, baseline), count(!iszero, baseline)))
 end

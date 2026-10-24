@@ -1,51 +1,71 @@
-# Profiling scripts
+# Profiling tools
 
-Diagnostic scripts used to find out why native execution is so much slower than Reactant.
-They implement the Phase 1 diagnostics D1 to D7 of
-[`docs/dev/2026-10/2026-10-17_PLAN_native_vs_reactant_performance_gap.md`](../../docs/dev/2026-10/2026-10-17_PLAN_native_vs_reactant_performance_gap.md),
-which also records their results.
-They are not part of the benchmark suite and are run by hand.
+Command-line tools for finding out where the time of a Terrarium time step goes, on the CPU, on the GPU, and under Reactant.
+They complement the benchmark suite in `..`, which measures step times; these tools explain them.
+They build the same model configurations as the benchmarks (`../model_configurations.jl`) and are run by hand.
+
+They were written for the investigation in [`docs/dev/2026-10/2026-10-17_PLAN_native_vs_reactant_performance_gap.md`](../../docs/dev/2026-10/2026-10-17_PLAN_native_vs_reactant_performance_gap.md), which records what they found.
 
 ## Setup
 
-The scripts have their own environment, because they need packages (JET, Enzyme, CUDA, and Reactant) that the benchmark environment does not.
+The tools have their own environment, because they need packages (JET, Enzyme, CUDA, and Reactant) that the benchmark environment does not.
 From this directory:
 
 ```
 julia --project=. -e 'using Pkg; Pkg.instantiate()'
 ```
 
-All scripts take their output file (or prefix) as a command-line argument and print the same rows to standard output.
-Run them with one Julia thread, and pin native CPU runs to a core so that concurrent runs do not disturb each other, for example:
+## Usage
+
+Every tool takes `key=value` options with defaults, and lists them with `--help`:
 
 ```
-taskset -c 10 julia --project=. -t 1 d4_d6_d7_native_cpu.jl results.md
+julia --project=. host_overhead.jl --help
+julia --project=. native_timing.jl config=land nlat=24 solver=root header=true out=results.md
 ```
 
-Several scripts redefine methods (KernelAbstractions' CPU launch operator, or Terrarium kernels and kernel functions) to count or test something.
-Each script must therefore run in a fresh Julia process.
+Lists are comma-separated (`nlat=2,4,8`, `configs=land,soil_heat`).
+Results are printed to standard output and, with `out=<file>`, appended to that file, mostly as Markdown tables; tools that write several files take `out` as a prefix.
+Give concurrent runs separate output files: rows appended to one file from two processes can be lost.
 
-## Scripts
+Run the tools with one Julia thread, and pin native CPU runs to a core so that concurrent runs do not disturb each other:
 
-| Script | Diagnostic | What it measures |
+```
+taskset -c 10 julia --project=. -t 1 native_timing.jl config=soil_heat nlat=24
+```
+
+Several tools redefine methods (KernelAbstractions' CPU launch operator, or Terrarium kernels and kernel functions) to count or test something, so each tool must run in a fresh Julia process.
+For the same reason, and because the first model stepped in a process can be slower than later ones (see `compile_order.jl`), compare timings from separate processes or from tools that build a throwaway model first.
+
+## Tools
+
+| Tool | Architecture | What it measures |
 | --- | --- | --- |
-| `common.jl` | | Shared helpers: model setup from `../model_configurations.jl`, repeated timing, the Newton solver settings. |
-| `d1_host_overhead.jl` | D1 | Whole-step time and allocations at 32, 128, and 512 columns; phase breakdown, allocation sites, and a sampling profile at 32 columns. |
-| `d2_gpu_profile.jl` | D2, D6, D7 | GPU: PTX statistics per kernel (Float64 instructions, local memory, `pow` calls), repeated timings across resolutions, and `CUDA.@profile` summaries and a trace with register counts. |
-| `d3_soil_heat_tendency_variants.jl` | D3 | Cost per cell of the soil energy tendency kernel for the baseline and four variants (hoisted constants, `sqrt`, κ stored once per cell, and both), on CPU or GPU. |
-| `d4_d5_reactant_threads_and_hlo.jl` | D4, D5 | Reactant CPU timings with repetitions and the OS thread count; run it under `taskset -c 0` for a single core, and set `XLA_FLAGS="--xla_dump_to=<dir> --xla_dump_hlo_as_text"` to dump the HLO. |
-| `d4_d6_d7_native_cpu.jl` | D4, D6, D7 | Native CPU: root solver versus Newton solver, flushing subnormals, Float64, neighboring resolutions and layer counts, and repeated timings. |
-| `d6_kernel_ir_audit.jl` | D6 | LLVM IR of every CPU kernel launched in one step (Float64 operations, allocation and dispatch call sites, throw sites), plus JET's `report_opt` on `update_state!`. Note that `ka_code_llvm` compiles a fully specialized instance, so it does not show runtime despecialization; use `kernel_allocations.jl` for that. |
-| `kernel_allocations.jl` | D6 | Allocations per launch for every CPU kernel during one `land` step. |
-| `closure_allocations.jl` | D6 | Allocation count and allocation sites of `closure!` for `soil_heat`. |
-| `vararg_specialization.jl` | D6 | `closure!` before and after redefining `energy_to_temperature_kernel!` with `args::Vararg{Any, N}) where {N}`. |
-| `compile_order.jl` | D7 | `land` at the given grid sizes in the given order in one process, which exposes the slowdown of the first size compiled. |
-| `gc_share.jl` | D7 | Share of garbage collection in the per-step time. |
-| `reactant_sqrt.jl` | | Whether `sqrt` instead of `x^(1/2)` in `InverseQuadratic` compiles and differentiates under Reactant when the soil conductivities are traced scalars. Run it once per variant with `XLA_FLAGS="--xla_dump_to=<dir> --xla_dump_hlo_as_text"` to compare the compiled programs. The reported gradients were exactly zero for both variants when last run; see the plan's known limitations. |
+| `host_overhead.jl` | CPU | Whole-step time and allocations across grid sizes, split into a fixed and a per-column cost; a breakdown of one step into its phases; allocation sites; and a sampling profile with the share of time inside kernel bodies. |
+| `native_timing.jl` | CPU, GPU | Step time of one configuration and setting (grid size, layers, precision, skin temperature solver, flushing subnormals) with repetitions, and the number of subnormal prognostic values. |
+| `gpu_profile.jl` | GPU | PTX statistics per kernel (Float64 instructions, local memory, `pow` calls), step times across grid sizes, and `CUDA.@profile` summaries and a trace with register counts. |
+| `reactant_timing.jl` | Reactant | Compile time and step time with repetitions, the number of OS threads, and optionally the compiled HLO (through `XLA_FLAGS`). |
+| `kernel_allocations.jl` | CPU | Allocations per launch of every kernel in one step; finds kernels that are not type stable or have lost specialization. |
+| `kernel_ir_audit.jl` | CPU | LLVM IR of every kernel launched in one step (Float64 operations, `pow` and `exp`/`log` calls, allocation, dispatch, and throw sites), and JET's `report_opt` on `update_state!`. |
+| `allocation_sites.jl` | CPU | Allocation count and allocation sites of one phase of a step (`closure!`, `compute_auxiliary!`, and so on). |
+| `compile_order.jl` | CPU | Step times of one configuration at several grid sizes, in a given order, in one process; exposes timings that depend on what was compiled first. |
+| `gc_share.jl` | CPU | Share of garbage collection in the step time. |
+| `common.jl` | | Shared helpers: option parsing, model setup, timing with repetitions, and the skin temperature solver settings. Not run directly. |
+
+## Experiments
+
+The tools in `experiments/` each test one specific change by redefining Terrarium methods, so they depend on the internals they replace and may need adapting when those change.
+They are kept as worked examples and to reproduce the results recorded in the plan.
+Run them from this directory, for example `julia --project=. experiments/reactant_sqrt.jl mode=sqrt`.
+
+| Experiment | What it tests |
+| --- | --- |
+| `experiments/soil_heat_tendency_variants.jl` | Cost per cell of the soil energy tendency kernel for four alternative implementations (hoisted constants, `sqrt`, conductivity computed once per cell, and both), and how much each changes the tendencies. |
+| `experiments/vararg_specialization.jl` | Allocations and time of `closure!` before and after forcing `Vararg` specialization of `energy_to_temperature_kernel!`. |
+| `experiments/reactant_sqrt.jl` | Whether `sqrt` instead of `x^(1/2)` in `InverseQuadratic` compiles and differentiates under Reactant when the soil conductivities are traced scalars. |
 
 ## Run times
 
-Most native CPU and GPU scripts take a few minutes; `d1_host_overhead.jl` takes more than 20 minutes, mostly in its allocation and sampling profiles.
-`d4_d5_reactant_threads_and_hlo.jl` takes about 20 minutes per `land` configuration, almost all of it XLA compilation.
-
-The results recorded in the plan were measured before `build_model` switched the land configurations to the Newton skin-temperature solver; `common.jl` provides `newton_kwargs` and `root_solver_kwargs` to select either solver explicitly.
+Most native CPU and GPU tools take a few minutes with their defaults.
+`host_overhead.jl` takes more than 20 minutes, mostly in its allocation and sampling profiles.
+`reactant_timing.jl` takes about 20 minutes for a `land` configuration on the CPU backend, almost all of it XLA compilation.
