@@ -68,14 +68,6 @@ struct ImplicitSolverWorkspace{I <: Iteration, R, E}
     iteration::I
 end
 
-function Adapt.adapt_structure(to, workspace::ImplicitSolverWorkspace)
-    return ImplicitSolverWorkspace(
-        Adapt.adapt_structure(to, workspace.rhs),
-        Adapt.adapt_structure(to, workspace.explicit_stage),
-        workspace.iteration,
-    )
-end
-
 """
     implicit_variable(var::AbstractVariable)
 

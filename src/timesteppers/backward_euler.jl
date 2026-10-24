@@ -72,14 +72,6 @@ function BackwardEulerCache{NF}(previous_state, operator, workspaces) where {NF}
     return BackwardEulerCache{NF, typeof(previous_state), typeof(operator), typeof(workspaces)}(previous_state, operator, workspaces)
 end
 
-function Adapt.adapt_structure(to, cache::BackwardEulerCache{NF}) where {NF}
-    return BackwardEulerCache{NF}(
-        Adapt.adapt_structure(to, cache.previous_state),
-        Adapt.adapt_structure(to, cache.operator),
-        Adapt.adapt_structure(to, cache.workspaces),
-    )
-end
-
 """
     $TYPEDSIGNATURES
 
