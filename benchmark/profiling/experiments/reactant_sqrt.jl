@@ -1,12 +1,32 @@
-# Does `sqrt` (instead of `x^(1/2)`) in `InverseQuadratic` still break Reactant when the soil
-# conductivities are traced device scalars (promote-after-init, as in examples/autodiff/global_sensitivity.jl)?
-# usage: julia --project=. reactant_sqrt.jl <pow|sqrt> <outfile>
+const USAGE = """
+Experiment: does `sqrt` compile and differentiate under Reactant in the soil thermal conductivity?
+
+Usage: julia --project=. experiments/reactant_sqrt.jl [key=value ...]
+
+`InverseQuadratic` weights conductivities by their square roots. This experiment builds a `SoilModel` on
+`ReactantState()` whose soil thermal conductivities are traced scalars (promoted after initialization, as
+in examples/autodiff/global_sensitivity.jl), optionally replaces `x^(1/2)` by `sqrt` in `InverseQuadratic`,
+and tries to compile and run the mean soil temperature after 10 steps, forward and in reverse mode with
+Enzyme. Appends one Markdown table row: the mode, whether `sqrt` has a method for Reactant's traced device
+scalar, and the forward and reverse results (or the start of the error message).
+
+To compare the compiled programs of the two modes, run each with
+`XLA_FLAGS="--xla_dump_to=<dir> --xla_dump_hlo_as_text"`. The experiment redefines `InverseQuadratic`'s
+call operator for `mode=sqrt`, so it depends on that implementation.
+
+Options:
+  mode=pow     `pow` (the current implementation) or `sqrt`
+  header=false print the table header first
+  out=         file to append the row to (default: standard output only)
+"""
 using CUDA
 using Reactant
 using Enzyme
 Reactant.set_default_backend("cpu")
-include(joinpath(@__DIR__, "common.jl"))
-const MODE, OUT = ARGS[1], ARGS[2]
+include(joinpath(@__DIR__, "..", "common.jl"))
+const OPTIONS = parse_options((mode = "pow", header = false, out = ""), USAGE)
+const MODE = OPTIONS.mode
+MODE in ("pow", "sqrt") || error("unknown mode `$MODE`; use `pow` or `sqrt`")
 
 if MODE == "sqrt"
     @eval (f::Terrarium.InverseQuadratic)(xs, weights) = sum(Terrarium.fastmap((x, w) -> sqrt(x) * w, xs, weights))^2
@@ -57,6 +77,11 @@ rev = attempt() do
     (∂T_∂κ_mineral = Reactant.to_number(dintegrator.model.soil.energy.thermal_properties.conductivities.mineral),
      ∂T_∂κ_water = Reactant.to_number(dintegrator.model.soil.energy.thermal_properties.conductivities.water))
 end
-open(OUT, "a") do io
+with_output(OPTIONS.out) do io
+    if OPTIONS.header
+        say(io, environment_summary())
+        say(io, "| mode | `sqrt` method for traced scalars | forward | reverse |")
+        say(io, "| --- | --- | --- | --- |")
+    end
     say(io, "| $MODE | $has_sqrt | $fwd | $rev |")
 end
