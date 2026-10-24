@@ -285,10 +285,8 @@ end
     specific_moisture_capacity(swrc::SWRC, ψ, θsat)
 
 Specific moisture capacity `∂θ/∂ψ` (1/m) of the soil water retention curve `swrc` at the matric
-potential `ψ` (m) for the saturated water content `θsat`, from the derivative provided by FreezeCurves.jl;
-zero for saturated conditions (`ψ` at or above the [`air_entry_potential`](@ref)). The derivative is
-always evaluated at an unsaturated potential, so that the saturated branch of the curve, where the
-derivatives of FreezeCurves.jl involve powers of zero, never enters the result or its adjoint.
+potential `ψ` (m) for the saturated water content `θsat`, from the derivative provided by FreezeCurves.jl,
+in the number type of `ψ`; zero for saturated conditions.
 
 ```jldoctest
 julia> swrc = VanGenuchten(α = 2.0, n = 2.0);
@@ -300,27 +298,7 @@ julia> Terrarium.specific_moisture_capacity(swrc, -0.5, 0.4) ≈ swrc(Terrarium.
 true
 ```
 """
-@inline function specific_moisture_capacity(swrc::SWRC, ψ, θsat)
-    # TODO: fix upstream in FreezeCurves.jl, whose SWRC derivatives evaluate both branches of `ifelse`
-    # (powers of zero at saturation, NaN adjoints for n < 2) and return an `Int` zero (`VanGenuchten`) or
-    # `θsat` (`BrooksCorey`) in the saturated branch; then call `swrc(FreezeCurves.derivative, ψ; θsat)`
-    # directly and remove the guard and `air_entry_potential`.
-    ψ_ae = air_entry_potential(swrc, ψ)
-    unsaturated = ψ < ψ_ae
-    # evaluate the derivative at an unsaturated potential (1 m below air entry where saturated)
-    ψ_unsat = ifelse(unsaturated, ψ, ψ_ae - one(ψ))
-    ∂θ∂ψ = convert(typeof(ψ), swrc(FreezeCurves.derivative, ψ_unsat; θsat))
-    return ifelse(unsaturated, ∂θ∂ψ, zero(∂θ∂ψ))
-end
-
-"""
-    air_entry_potential(swrc::SWRC, ψ)
-
-Matric potential (m) above which the soil water retention curve `swrc` is saturated, in the number type
-of `ψ`: zero by default and for `VanGenuchten`, and `-ψₛ` for `BrooksCorey`.
-"""
-@inline air_entry_potential(::SWRC, ψ) = zero(ψ)
-@inline air_entry_potential(swrc::BrooksCorey, ψ) = -convert(typeof(ψ), swrc.ψₛ)
+@inline specific_moisture_capacity(swrc::SWRC, ψ, θsat) = convert(typeof(ψ), swrc(FreezeCurves.derivative, ψ; θsat))
 
 """
     $SIGNATURES
