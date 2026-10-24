@@ -481,6 +481,11 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 > The only other path to them, the `Adapt` rule of `StateVariables` through its timestepper cache, is not invoked anywhere, since no kernel takes the state and nothing adapts a state or integrator.
 > The rules of `StateVariables`, `IMEXCache`, and `HeunCache`, which predate this branch, are unchanged; the requirement of R5 that every cache be `Adapt`-able is dropped, and the notes of revisions 12, 14, and 16 on these rules are superseded.
 
+> **Revision 27, 2026-10-24 (Claude Opus 5.5). Approved. Reactant fix for the implicit Richards coefficients.**
+> The Reactant correctness test `land_soil_snow` failed to compile since revision 19, because `compute_implicit_water_flow_coefficients_kernel!` could not be raised: the `VanGenuchten` derivative of FreezeCurves.jl (up to 0.9.7) returns `ifelse(ψ < 0, …, 0)`, a `Union{Float32, Int64}`, which the larger `LandModel` kernel does not inline away.
+> `specific_moisture_capacity` gains a `VanGenuchten` method that evaluates the derivative in the number type of `ψ`; it agrees with FreezeCurves.jl to rounding and infers without a `Union`.
+> The derivatives are also fixed upstream in FreezeCurves.jl (typed zero and no powers of zero in the saturated branch for `VanGenuchten` and `BrooksCorey`, whose derivative returned `θsat` instead of zero there); once a release with the fix is required, the guard, `air_entry_potential`, and the `VanGenuchten` method can be removed (TODO in `specific_moisture_capacity`).
+
 ## Problem description
 
 Terrarium integrates every prognostic variable with fixed-step explicit schemes (`ForwardEuler`, `Heun`).

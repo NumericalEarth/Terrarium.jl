@@ -301,15 +301,33 @@ true
 ```
 """
 @inline function specific_moisture_capacity(swrc::SWRC, ψ, θsat)
-    # TODO: fix upstream in FreezeCurves.jl, whose SWRC derivatives evaluate both branches of `ifelse`
+    # TODO: the SWRC derivatives of FreezeCurves.jl up to 0.9.7 evaluate both branches of `ifelse`
     # (powers of zero at saturation, NaN adjoints for n < 2) and return an `Int` zero (`VanGenuchten`) or
-    # `θsat` (`BrooksCorey`) in the saturated branch; then call `swrc(FreezeCurves.derivative, ψ; θsat)`
-    # directly and remove the guard and `air_entry_potential`.
+    # `θsat` (`BrooksCorey`) in the saturated branch. Once a FreezeCurves.jl release with the fix is
+    # required in `[compat]`, call `swrc(FreezeCurves.derivative, ψ; θsat)` directly and remove the guard,
+    # `air_entry_potential`, and the `VanGenuchten` method below.
     ψ_ae = air_entry_potential(swrc, ψ)
     unsaturated = ψ < ψ_ae
     # evaluate the derivative at an unsaturated potential (1 m below air entry where saturated)
     ψ_unsat = ifelse(unsaturated, ψ, ψ_ae - one(ψ))
     ∂θ∂ψ = convert(typeof(ψ), swrc(FreezeCurves.derivative, ψ_unsat; θsat))
+    return ifelse(unsaturated, ∂θ∂ψ, zero(∂θ∂ψ))
+end
+
+# The `VanGenuchten` derivative of FreezeCurves.jl up to 0.9.7 returns `Union{NF, Int}`, which cannot be
+# raised by Reactant where it is not inlined away, so it is evaluated here, in the number type of `ψ`:
+# `∂θ/∂ψ = α n m (θsat - θres) x^(-m-1) (-α ψ)^(n-1)` with `x = 1 + (-α ψ)^n` and `m = 1 - 1/n`.
+@inline function specific_moisture_capacity(swrc::VanGenuchten, ψ, θsat)
+    NF = typeof(ψ)
+    α = convert(NF, swrc.α)
+    n = convert(NF, swrc.n)
+    θres = convert(NF, swrc.vol.θres)
+    m = 1 - 1 / n
+    unsaturated = ψ < zero(ψ)
+    # evaluate the derivative at an unsaturated potential (1 m below air entry where saturated)
+    ψ_unsat = ifelse(unsaturated, ψ, -one(ψ))
+    x = 1 + (-α * ψ_unsat)^n
+    ∂θ∂ψ = α * n * m * (θsat - θres) * x^(-m - 1) * (-α * ψ_unsat)^(n - 1)
     return ifelse(unsaturated, ∂θ∂ψ, zero(∂θ∂ψ))
 end
 
