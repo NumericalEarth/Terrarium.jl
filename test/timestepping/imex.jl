@@ -232,12 +232,6 @@ end
     @test operator.tridiagonal_solver isa Terrarium.BatchedTridiagonalSolver
     @test operator.tridiagonal_solver.b isa Terrarium.ImplicitDiffusionDiagonal
     @test Terrarium.get_cache(integrator.state.timestepper_cache, timestepper.implicit) === cache
-    # the cache can be adapted (e.g. for kernel arguments or device transfer)
-    @test adapt(Array, cache) isa Terrarium.BackwardEulerCache
-    @test adapt(Array, cache).operator isa Terrarium.SplitOperator
-    @test adapt(Array, cache).operator.operators.b isa TridiagonalOperator
-    @test adapt(Array, cache).workspaces.b isa Terrarium.ImplicitSolverWorkspace
-    @test adapt(Array, cache).workspaces.b.iteration === workspace.iteration
     # `:b` has an implicit operator but defines no implicit process hooks, so the `linearize!` fallback throws
     err = try
         timestep!(integrator)

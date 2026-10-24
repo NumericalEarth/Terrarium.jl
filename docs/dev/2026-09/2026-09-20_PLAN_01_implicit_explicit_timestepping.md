@@ -475,6 +475,12 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 > The body of the plan (Background, Approaches, Common refactoring, Recommendation) is left as the historical record of the design.
 > A Picard iteration study (`scratch/picard_iters.jl`, not committed) confirmed that the default two iterations are converged in the first experiment of the example, so the larger error of `BackwardEuler` compared with `Heun` there is due to order, not to unconverged iterations.
 
+> **Revision 26, 2026-10-24 (Claude Opus 5.5). Approved. Unused `Adapt` rules removed.**
+> Reviewer request: the `Adapt` rules added by this branch for `TridiagonalOperator` (with the helper `adapt_tridiagonal_solver` for Oceananigans' `BatchedTridiagonalSolver`), `SplitOperator`, `DiagonalOperator`, `ImplicitSolverWorkspace`, and `BackwardEulerCache` are removed, together with the test that adapted a `BackwardEulerCache`.
+> None of these objects is passed to a kernel: the kernels of the implicit step receive only the fields of an operator or workspace, and Oceananigans' `solve!` launches its kernel with the components of the tridiagonal solver rather than the solver itself.
+> The only other path to them, the `Adapt` rule of `StateVariables` through its timestepper cache, is not invoked anywhere, since no kernel takes the state and nothing adapts a state or integrator.
+> The rules of `StateVariables`, `IMEXCache`, and `HeunCache`, which predate this branch, are unchanged; the requirement of R5 that every cache be `Adapt`-able is dropped, and the notes of revisions 12, 14, and 16 on these rules are superseded.
+
 ## Problem description
 
 Terrarium integrates every prognostic variable with fixed-step explicit schemes (`ForwardEuler`, `Heun`).
@@ -798,7 +804,7 @@ These are the substantive refactoring items.
 - **R4. Stage hook for multi-stage explicit schemes.** Phase 1 supports only `ForwardEuler` as the explicit partner (IMEX Euler).
   Deferred to a future PR (revision 17): a per-stage `implicit_step!` call inside `Heun` under an IMEX (predictor stage with implicit correction, corrector with averaged explicit tendencies and a second implicit correction), following the Oceananigans "Euler from cached state with the stage `Δτ`" pattern.
 - **R5. Caches.** `initialize(ts, state, progvars, model)` already receives the model, so implicit caches can allocate the tridiagonal scratch on `ground_domain(get_grid(model))`, a right-hand-side field and coefficient buffers per implicit variable, and, for Path 1, the shadow state and Krylov basis.
-  All caches must be `Adapt`-able as `HeunCache` is, allocate with `similar` as `HeunCache` now does, work on a plain `AbstractGrid` as well as a `LandGrid`, and the host-side constructor must reject implicit routing of variables with non-scalar element types (B0).
+  All caches must allocate with `similar` as `HeunCache` now does, work on a plain `AbstractGrid` as well as a `LandGrid`, and the host-side constructor must reject implicit routing of variables with non-scalar element types (B0).
 - **R6. `Δt` plumbing.** `Δt` is passed down to the coefficient functions (via `BatchedTridiagonalSolver` `args`) rather than stored, matching Oceananigans and the existing `timestep!(integrator, ts, Δt, names)` signature.
 - **R7. Clock semantics.** Path 2 evaluates explicit terms at `tⁿ` (Oceananigans convention).
   Path 1 evaluates the residual at `tⁿ⁺¹`, so the IMEX driver must be able to `tick!` before the residual evaluation and the traced Reactant clock must tolerate that ordering; the extension's `convert_dt` for traced times (B0) makes input updates at a traced `tⁿ⁺¹` possible.

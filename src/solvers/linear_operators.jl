@@ -38,8 +38,6 @@ struct SplitOperator{Operators <: NamedTuple} <: AbstractLinearOperator
     operators::Operators
 end
 
-Adapt.adapt_structure(to, operator::SplitOperator) = SplitOperator(Adapt.adapt_structure(to, operator.operators))
-
 # Variable names of a `SplitOperator` in solve order, as a compile-time constant.
 @inline split_variable_names(::SplitOperator{<:NamedTuple{names}}) where {names} = names
 
@@ -69,8 +67,6 @@ struct DiagonalOperator{Diagonal} <: AbstractLinearOperator
     "Lagged diagonal `D`, at the location of the field it is solved for"
     diagonal::Diagonal
 end
-
-Adapt.adapt_structure(to, operator::DiagonalOperator) = DiagonalOperator(Adapt.adapt_structure(to, operator.diagonal))
 
 """
     solve!(target, operator::DiagonalOperator, rhs, Δt, args...)
@@ -194,28 +190,6 @@ function TridiagonalOperator(grid::AbstractGrid; advection::Bool = false)
         upper_diagonal = ImplicitDiffusionUpperDiagonal(),
     )
     return TridiagonalOperator(tridiagonal_solver, diagonal_coefficient, face_conductivity, face_velocity)
-end
-
-function Adapt.adapt_structure(to, operator::TridiagonalOperator)
-    return TridiagonalOperator(
-        adapt_tridiagonal_solver(to, operator.tridiagonal_solver),
-        Adapt.adapt_structure(to, operator.diagonal_coefficient),
-        Adapt.adapt_structure(to, operator.face_conductivity),
-        Adapt.adapt_structure(to, operator.face_velocity),
-    )
-end
-
-# Oceananigans defines no `Adapt` rule for `BatchedTridiagonalSolver`.
-function adapt_tridiagonal_solver(to, solver::BatchedTridiagonalSolver)
-    return BatchedTridiagonalSolver(
-        solver.a,
-        solver.b,
-        solver.c,
-        Adapt.adapt_structure(to, solver.t),
-        Adapt.adapt_structure(to, solver.grid),
-        Adapt.adapt_structure(to, solver.parameters),
-        solver.tridiagonal_direction,
-    )
 end
 
 # Tridiagonal coefficients, following Oceananigans' `ivd_*_diagonal` construction
