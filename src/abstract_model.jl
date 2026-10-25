@@ -271,10 +271,6 @@ end
 # without this, ParameterEditing would treat them as array-valued parameters since `AbstractField <: AbstractArray`.
 ParameterEditing.parameters(::Type{PT}, ::AbstractField; kwargs...) where {PT <: ParameterEditing.AbstractParam} = (;)
 
-# Default ConstructionBase override for processes and models
-ConstructionBase.constructorof(::Type{MT}) where {NF, MT <: Union{AbstractModel{NF}, AbstractProcess{NF}}} =
-    (args...) -> MT.name.wrapper(name, args...)
-
 function Base.show(io::IO, model::AbstractModel{NF}) where {NF}
     println(io, "$(nameof(typeof(model))){$NF} on $(architecture(get_grid(model)))")
     for name in propertynames(model)
