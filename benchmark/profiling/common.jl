@@ -104,11 +104,13 @@ end
 """
     absorb_first_model_slowdown(arch)
 
-Build and step a small throwaway `land` model. The first model stepped in a native process can be several
-times slower than later ones (see `compile_order.jl`), so tools that compare timings call this first.
+Build and step a small throwaway `land` model. The first grid size stepped in a native process can stay
+several times slower than others for the rest of the process (see `compile_order.jl`), so tools that
+compare timings call this first. The throwaway model uses `nlat_half = 3` (72 columns), a size that the
+tools do not use by default; do not measure at that size after calling this.
 """
 function absorb_first_model_slowdown(arch)
-    integrator, Δt = setup(:land, arch; nlat_half = 2)
+    integrator, Δt = setup(:land, arch; nlat_half = 3)
     time_steps(integrator, Δt, arch; nsteps = 10, reps = 1)
     return nothing
 end
