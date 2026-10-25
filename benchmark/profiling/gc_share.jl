@@ -29,8 +29,12 @@ with_output(OPTIONS.out) do io
             timestep!(integrator, Δt; finalize = false)
         end
         b = @benchmark timestep!($integrator, $Δt; finalize = false) evals = 1 seconds = 3
-        say(io, @sprintf("| %s | %d | %d | %.3g | %.0f%% | %.1f | %.3g | %.3g |",
-            config, ncolumns(nlat), nsteps, 1.0e3 * r.time / nsteps, 100 * r.gctime / r.time, r.bytes / nsteps / 2^20,
-            median(b).time / 1.0e6, mean(b).time / 1.0e6))
+        say(
+            io, @sprintf(
+                "| %s | %d | %d | %.3g | %.0f%% | %.1f | %.3g | %.3g |",
+                config, ncolumns(nlat), nsteps, 1.0e3 * r.time / nsteps, 100 * r.gctime / r.time, r.bytes / nsteps / 2^20,
+                median(b).time / 1.0e6, mean(b).time / 1.0e6
+            )
+        )
     end
 end

@@ -30,7 +30,11 @@ with_output(OPTIONS.out) do io
         nstep = @allocations timestep!(integrator, Δt; finalize = false)
         b = @benchmark timestep!($integrator, $Δt; finalize = false) evals = 1 seconds = 2
         ncells = ncolumns(nlat) * 30
-        say(io, @sprintf("| %s | %d | %.3g | %d | %d | %.2f |",
-            join(OPTIONS.order, ","), ncolumns(nlat), median(b).time / 1.0e6, nstep, nclosure, nclosure / ncells))
+        say(
+            io, @sprintf(
+                "| %s | %d | %.3g | %d | %d | %.2f |",
+                join(OPTIONS.order, ","), ncolumns(nlat), median(b).time / 1.0e6, nstep, nclosure, nclosure / ncells
+            )
+        )
     end
 end

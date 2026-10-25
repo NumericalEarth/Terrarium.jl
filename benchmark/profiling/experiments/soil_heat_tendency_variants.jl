@@ -118,6 +118,10 @@ with_output(OPTIONS.out) do io
         say(io, "| variant | arch | columns | cells | ns/cell, current | ns/cell, variant | speedup | allocations | largest relative difference | same, interior cells | largest tendency | nonzero tendencies |")
         say(io, "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     end
-    say(io, @sprintf("| %s | %s | %d | %d | %.1f | %.1f | %.2f× | %d | %.2e | %.2e | %.3e | %d |",
-        VARIANT, ARCHNAME, ncolumns(NLAT), NCELLS, t0 / NCELLS, t1 / NCELLS, t0 / t1, a1, maxrel_all, maxrel_int, maximum(abs, baseline), count(!iszero, baseline)))
+    say(
+        io, @sprintf(
+            "| %s | %s | %d | %d | %.1f | %.1f | %.2f× | %d | %.2e | %.2e | %.3e | %d |",
+            VARIANT, ARCHNAME, ncolumns(NLAT), NCELLS, t0 / NCELLS, t1 / NCELLS, t0 / t1, a1, maxrel_all, maxrel_int, maximum(abs, baseline), count(!iszero, baseline)
+        )
+    )
 end

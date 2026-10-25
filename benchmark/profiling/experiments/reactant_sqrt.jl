@@ -37,9 +37,13 @@ traced_scalar = ext === nothing ? nothing : ext.CuTracedRNumber{Float32, 1}
 has_sqrt = traced_scalar === nothing ? "n/a (ReactantCUDAExt not loaded)" : string(hasmethod(sqrt, Tuple{traced_scalar}))
 
 grid = benchmark_grid(ReactantState(), Float32; nlat_half = 4, nz = 30)
-model_with(conductivities) = SoilModel(grid;
-    soil = SoilEnergyWaterCarbon(Float32;
-        energy = SoilThermodynamics(Float32; thermal_properties = SoilThermalProperties(Float32; conductivities))))
+model_with(conductivities) = SoilModel(
+    grid;
+    soil = SoilEnergyWaterCarbon(
+        Float32;
+        energy = SoilThermodynamics(Float32; thermal_properties = SoilThermalProperties(Float32; conductivities))
+    )
+)
 cfg = build_model(:soil_heat, CPU(), Float32; nlat_half = 4, nz = 30)  # reuse the forcing and initializers only
 integrator0 = initialize(model_with(SoilThermalConductivities(Float32)); boundary_conditions = cfg.boundary_conditions, initializers = cfg.initializers)
 promoted = Reactant.to_rarray(SoilThermalConductivities(Float32); track_numbers = true)
@@ -52,8 +56,10 @@ function mean_temperature(integrator, Δt, nsteps)
     return sum(T) / length(T)
 end
 function grad!(integrator, dintegrator, Δt, nsteps)
-    _, value = Enzyme.autodiff(Enzyme.set_strong_zero(Enzyme.ReverseWithPrimal), mean_temperature, Enzyme.Active,
-        Enzyme.Duplicated(integrator, dintegrator), Enzyme.Const(Δt), Enzyme.Const(nsteps))
+    _, value = Enzyme.autodiff(
+        Enzyme.set_strong_zero(Enzyme.ReverseWithPrimal), mean_temperature, Enzyme.Active,
+        Enzyme.Duplicated(integrator, dintegrator), Enzyme.Const(Δt), Enzyme.Const(nsteps)
+    )
     return value
 end
 
@@ -74,8 +80,10 @@ dintegrator = Enzyme.make_zero(integrator)
 rev = attempt() do
     compiled = @compile raise = true raise_first = true sync = true grad!(integrator, dintegrator, Δt, nsteps)
     compiled(integrator, dintegrator, Δt, nsteps)
-    (∂T_∂κ_mineral = Reactant.to_number(dintegrator.model.soil.energy.thermal_properties.conductivities.mineral),
-     ∂T_∂κ_water = Reactant.to_number(dintegrator.model.soil.energy.thermal_properties.conductivities.water))
+    (
+        ∂T_∂κ_mineral = Reactant.to_number(dintegrator.model.soil.energy.thermal_properties.conductivities.mineral),
+        ∂T_∂κ_water = Reactant.to_number(dintegrator.model.soil.energy.thermal_properties.conductivities.water),
+    )
 end
 with_output(OPTIONS.out) do io
     if OPTIONS.header

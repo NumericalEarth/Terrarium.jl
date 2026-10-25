@@ -45,10 +45,12 @@ function ptx_stats(ptx)
     for part in split(ptx, ".entry ")[2:end]
         name = String(match(r"^\s*(\S+?)\(", part).captures[1])
         short = something(match(r"(cpu_|gpu_)?[A-Za-z_]+?_kernel[^\d]*|_fill_[a-z_]+_halo|_compute_z_bcs|gpu_[a-z_]+", name), (; match = name)).match
-        push!(rows, (
-            short = short, f64 = count_matches(F64_ARITH, part), cvt = count_matches(CVT_F64, part),
-            localops = count_matches(LOCAL, part), pow = count_matches(POW, part), lines = count('\n', part),
-        ))
+        push!(
+            rows, (
+                short = short, f64 = count_matches(F64_ARITH, part), cvt = count_matches(CVT_F64, part),
+                localops = count_matches(LOCAL, part), pow = count_matches(POW, part), lines = count('\n', part),
+            )
+        )
     end
     return rows
 end

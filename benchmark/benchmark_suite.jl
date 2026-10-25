@@ -309,9 +309,11 @@ function run_benchmark_suite!(suite::BenchmarkSuite)
             suite.init_time[i] = result.init_time
             suite.compile_time[i] = result.compile_time
             suite.status[i] = result.status
-            @info @sprintf("     %.3g SYPD | %.3g ms/step (median of %d, spread %s) | %.3g Mcell-steps/s | %s",
+            @info @sprintf(
+                "     %.3g SYPD | %.3g ms/step (median of %d, spread %s) | %.3g Mcell-steps/s | %s",
                 result.sypd, result.ms_per_step, result.repeats, format_spread(result.ms_per_step_min, result.ms_per_step_max, result.ms_per_step),
-                result.throughput, result.status)
+                result.throughput, result.status
+            )
         catch err
             @warn "Benchmark failed for $config at nlat_half=$nlat_half, nz=$nz on $(typeof(arch)); recording as failed" exception = (err, catch_backtrace())
             suite.status[i] = "failed: $(nameof(typeof(err)))"
