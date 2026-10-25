@@ -10,7 +10,7 @@ surface energy balance and the snow→soil conduction.
 Properties:
 $(TYPEDFIELDS)
 """
-@parameterized @kwdef struct SnowModel{
+@parameterized @kwdef mutable struct SnowModel{
         NF,
         GridType <: AbstractGrid,
         Snow <: AbstractSnow,
@@ -82,7 +82,8 @@ function Terrarium.timestep!(
     ) where {NF}
     # Enforce SWE >= 0
     # TODO: Rewrite to ensure mass conservation
-    out = (; snow_water_equivalent, snow_energy) = state
+    (; snow_water_equivalent, snow_energy) = state
+    out = (; snow_water_equivalent, snow_energy)
     launch!(model.grid, XY, enforce_snow_constraints!, out, snow)
     return nothing
 end

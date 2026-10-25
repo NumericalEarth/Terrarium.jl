@@ -31,6 +31,11 @@ const ReactantModel{NF} = AbstractModel{NF, <:ReactantGrid}
 # `convert(NF, Δt)` cannot produce a concrete `NF` from a traced value, so emit a traced conversion instead.
 Terrarium.convert_dt(::Type{NF}, Δt::TracedRNumber) where {NF <: Number} = TracedRNumber{NF}(Δt)
 
+# Reactant wraps numbers in `TracedRNumber`/`ConcreteRNumber` when tracing or when the value lives
+# on the device, so `eltype` alone would report the wrapper rather than the underlying number
+# format. Unwrap it so that components constructed from traced values still resolve their `NF`.
+@inline Terrarium.number_format(typ::Type{<:Reactant.RNumber}) = Reactant.unwrapped_eltype(typ)
+
 include("grids.jl")
 include("transfer.jl")
 include("integrator.jl")
