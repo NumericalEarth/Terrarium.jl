@@ -52,7 +52,7 @@ abstract type AbstractSoilHorizon{NF, name} end
 
 Base.nameof(::AbstractSoilHorizon{NF, name}) where {NF, name} = name
 
-ConstructionBase.constructorof(::Type{HT}) where {NF, name, HT<:AbstractSoilHorizon{NF, name}} =
+ConstructionBase.constructorof(::Type{HT}) where {NF, name, HT <: AbstractSoilHorizon{NF, name}} =
     (args...) -> HT.name.wrapper(name, args...)
 
 """

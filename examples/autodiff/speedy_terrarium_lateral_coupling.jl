@@ -287,15 +287,27 @@ heat_capacity = SoilHeatCapacities(NF).water
 # Write the raw fields first (one row per land column), so nothing downstream can lose them.
 open(joinpath(output_dir, "sensitivity.csv"), "w") do io
     print(io, "column,lond,latd,distance_km")
-    for k in 1:Nz; print(io, ",dT_dU0_layer$k"); end
-    for k in 1:Nz; print(io, ",heat_capacity_layer$k"); end
-    for k in 1:Nz; print(io, ",dT_dT0_layer$k"); end
+    for k in 1:Nz
+        print(io, ",dT_dU0_layer$k")
+    end
+    for k in 1:Nz
+        print(io, ",heat_capacity_layer$k")
+    end
+    for k in 1:Nz
+        print(io, ",dT_dT0_layer$k")
+    end
     println(io, ",dT_dT0_column")
     for j in 1:N_land
         @printf(io, "%d,%.6f,%.6f,%.2f", j, londs_land[j], latds_land[j], distance_from_target[j])
-        for k in 1:Nz; @printf(io, ",%.8e", ∂T_∂U₀[j, k]); end
-        for k in 1:Nz; @printf(io, ",%.8e", heat_capacity); end
-        for k in 1:Nz; @printf(io, ",%.8e", ∂T_∂T₀[j, k]); end
+        for k in 1:Nz
+            @printf(io, ",%.8e", ∂T_∂U₀[j, k])
+        end
+        for k in 1:Nz
+            @printf(io, ",%.8e", heat_capacity)
+        end
+        for k in 1:Nz
+            @printf(io, ",%.8e", ∂T_∂T₀[j, k])
+        end
         @printf(io, ",%.8e\n", ∂T_∂T₀_column[j])
     end
 end
