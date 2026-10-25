@@ -62,7 +62,11 @@ with_output(OPTIONS.out) do io
     t = time_steps(integrator, Δt, ARCH; nsteps, reps = OPTIONS.reps)
     nsub, total = count_subnormals(integrator)
     set_zero_subnormals(false)
-    say(io, @sprintf("| %s | %s | %s | %d | %d | %s | %s | %s | %d | %d | %s | %d/%d |",
-        OPTIONS.label, OPTIONS.config, OPTIONS.arch, ncolumns(OPTIONS.nlat), OPTIONS.nz, NF, OPTIONS.solver, OPTIONS.ftz,
-        nsteps, OPTIONS.reps, fmt_times(t), nsub, total))
+    say(
+        io, @sprintf(
+            "| %s | %s | %s | %d | %d | %s | %s | %s | %d | %d | %s | %d/%d |",
+            OPTIONS.label, OPTIONS.config, OPTIONS.arch, ncolumns(OPTIONS.nlat), OPTIONS.nz, NF, OPTIONS.solver, OPTIONS.ftz,
+            nsteps, OPTIONS.reps, fmt_times(t), nsub, total
+        )
+    )
 end

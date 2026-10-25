@@ -65,7 +65,11 @@ with_output(OPTIONS.out) do io
         say(io, "| label | config | backend | columns | steps/run | reps | compile time | ms/step median (min, max) | OS threads | all finite |")
         say(io, "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     end
-    say(io, @sprintf("| %s | %s | %s | %d | %d | %d | %.1f s | %s | %d | %s |",
-        OPTIONS.label, OPTIONS.config, OPTIONS.backend, ncolumns(OPTIONS.nlat), nsteps, OPTIONS.reps, compile_time,
-        fmt_times((median = median(times), min = minimum(times), max = maximum(times))), os_threads(), finite))
+    say(
+        io, @sprintf(
+            "| %s | %s | %s | %d | %d | %d | %.1f s | %s | %d | %s |",
+            OPTIONS.label, OPTIONS.config, OPTIONS.backend, ncolumns(OPTIONS.nlat), nsteps, OPTIONS.reps, compile_time,
+            fmt_times((median = median(times), min = minimum(times), max = maximum(times))), os_threads(), finite
+        )
+    )
 end

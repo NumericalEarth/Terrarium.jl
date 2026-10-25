@@ -155,8 +155,12 @@ with_output(OPTIONS.out) do io
         any(n -> n == "__run" || n == "__thread_run", names) && (in_run += 1)
     end
     nsamples = max(1, length(samples))
-    say(io, @sprintf("samples: %d; inside @kernel bodies (cpu_*): %.1f%%; inside KernelAbstractions' __run: %.1f%%",
-        length(samples), 100 * in_kernel / nsamples, 100 * in_run / nsamples))
+    say(
+        io, @sprintf(
+            "samples: %d; inside @kernel bodies (cpu_*): %.1f%%; inside KernelAbstractions' __run: %.1f%%",
+            length(samples), 100 * in_kernel / nsamples, 100 * in_run / nsamples
+        )
+    )
     flat = (isempty(OPTIONS.out) ? "host_overhead" : OPTIONS.out) * ".flat.txt"
     open(flat, "w") do pio
         Profile.print(IOContext(pio, :displaysize => (10000, 400)); format = :flat, sortedby = :count, C = false, mincount = 20)
