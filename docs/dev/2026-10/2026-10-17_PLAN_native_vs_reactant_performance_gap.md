@@ -388,7 +388,7 @@ Candidate fixes, in the expected order of payoff (reordered in Rev 4 after Phase
    None of the three allocates at present; making their optional arguments required would let them use the typed form as well.
    A new test, `test/coupled_models/kernel_allocations.jl`, checks that `closure!` and `compute_auxiliary!` allocate the same at 8 and 32 columns for a `SoilModel` and for a `LandModel` without vegetation but with Richards hydrology; it fails 3 of its 4 cases on the previous code and passes on the new.
    The full test suite passes.
-   Measured before and after on the same machine in the same session (native CPU, Julia 1.12.7, one thread, median of five repetitions; `benchmark/profiling/phase2_step_times.jl`):
+   Measured before and after on the same machine in the same session (native CPU, Julia 1.12.7, one thread, median of five repetitions; `benchmark/profiling/step_times.jl`):
 
    | Configuration | Columns | Before (ms/step) | After (ms/step) | Speedup | Allocations per step, before → after |
    | --- | --- | --- | --- | --- | --- |
@@ -448,7 +448,7 @@ Candidate fixes, in the expected order of payoff (reordered in Rev 4 after Phase
    *Implementation (Rev 13, branch `bg/host-overhead`):* `ntdiff` is now a `@generated` function that computes the retained keys from the types, and the snow `timestep!` passes a `NamedTuple` of the two fields it updates.
    A new test in `test/utils.jl` checks `ntdiff` on a 40-key `NamedTuple` with `@inferred`; the previous implementation fails it (it infers up to at least 20 keys, but not 40), on Julia 1.10 and 1.12.
    The full test suite passes.
-   Measured before (commit `4fa16da47`, a pinned worktree) and after, on the same machine in the same session (Julia 1.12.7, one thread, median of five repetitions; `phase2_step_times.jl`):
+   Measured before (the code after item 1, in a pinned worktree) and after, on the same machine in the same session (Julia 1.12.7, one thread, median of five repetitions; `step_times.jl`):
 
    | Configuration | Columns | GPU (A40), before → after (ms/step) | CPU, before → after (ms/step) | Allocations per step on GPU, before → after |
    | --- | --- | --- | --- | --- |
@@ -481,7 +481,7 @@ Candidate fixes, in the expected order of payoff (reordered in Rev 4 after Phase
    *Implementation (Rev 14, branch `bg/performance-fixes`):* the index-taking functions of the call graph (`compute_sensible_heat_flux`, `compute_latent_heat_flux`, both `compute_skin_temperature` methods, both `aerodynamic_resistance` methods, `shortwave_down`, `longwave_down`) and the `ObjectiveFunction` call operator now use `@propagate_inbounds`, which also inlines.
    The `RootSolver` residual closures apply `@inbounds` themselves, with a comment that `indices` must be valid for the target field, as they are when `solve!` is called from a kernel.
    Restructuring `specific_humidity_difference` was not done: the kernel takes about 4% of a `land` step at 165,888 columns, so further register savings would not show in the step time.
-   Measured with `benchmark/profiling/seb_kernel.jl` (A40, `land` at 165,888 columns; kernel time is the median of five repetitions of 50 launches), before (commit `1cdf17ec6`) and after, in the same session:
+   Measured with `benchmark/profiling/surface_energy_balance_kernel.jl` (A40, `land` at 165,888 columns; kernel time is the median of five repetitions of 50 launches), before (the code after item 5, in a pinned worktree) and after, in the same session:
 
    | Solver | Registers | Local memory (bytes) | `throw_boundserror` calls | PTX lines | Kernel time (µs) |
    | --- | --- | --- | --- | --- | --- |
@@ -489,7 +489,7 @@ Candidate fixes, in the expected order of payoff (reordered in Rev 4 after Phase
    | `RootSolver` (default) | 232 → 128 | 32 → 208 | 39 → 0 | 6511 → 5821 | 247 → 216 (1.14×) |
 
    The 208 bytes of local memory of the `RootSolver` variant are reserved by `ptxas`; the PTX itself has no local loads or stores.
-   Native step times (`phase2_step_times.jl`, same session) change by less than the 10% noise threshold, as expected for a kernel that is a small share of the step: for example, `land` on the GPU takes 0.92 and 0.87 ms/step at 128 columns and 3.29 and 3.15 ms/step at 165,888 columns, before and after, and 113.5 and 111.3 ms/step on the CPU at 4608 columns.
+   Native step times (`step_times.jl`, same session) change by less than the 10% noise threshold, as expected for a kernel that is a small share of the step: for example, `land` on the GPU takes 0.92 and 0.87 ms/step at 128 columns and 3.29 and 3.15 ms/step at 165,888 columns, before and after, and 113.5 and 111.3 ms/step on the CPU at 4608 columns.
    The same pattern (index-taking kernel functions marked only `@inline`) occurs in 44 functions elsewhere in `src`, so other kernels likely keep bounds checks too; this is recorded under future work.
 7. **Eliminate the remaining Float64 literals (H7)** in `carbon_dynamics.jl`, as a small cleanup.
 
@@ -514,10 +514,10 @@ Each Phase 2 item is measured on its own, in the order in which the items land, 
 
    | Item | Measurement |
    | --- | --- |
-   | 1, varargs specialization | `kernel_allocations.jl` (allocations per kernel must drop to zero), `closure_allocations.jl`, and native CPU and GPU step times for all three configurations |
-   | 5, GPU host overhead | `d2_gpu_profile.jl`: launches per step, CUDA API time, and wall time against device time at small sizes |
-   | 6, surface energy balance kernel | register count and time of `solve_surface_energy_balance_kernel!` from the `d2_gpu_profile.jl` trace |
-   | 7, Float64 literals | the PTX and IR audits (`d2_gpu_profile.jl`, `d6_kernel_ir_audit.jl`) for f64 instructions; no timing change is expected |
+   | 1, varargs specialization | `kernel_allocations.jl` (allocations per kernel must drop to zero), `allocation_sites.jl phase=closure`, and `step_times.jl` on the CPU and the GPU |
+   | 5, GPU host overhead | `launch_overhead.jl` (host time per launch stage and a host profile) and `step_times.jl` on the CPU and the GPU |
+   | 6, surface energy balance kernel | `surface_energy_balance_kernel.jl` (registers, throw paths, and kernel time) with both solvers, and `step_times.jl` |
+   | 7, Float64 literals | `gpu_profile.jl sections=ptx` and `kernel_ir_audit.jl` for f64 instructions; no timing change is expected |
 
 3. One full benchmark run per pull request on `cpu-x86` and `gpu-nvidia`.
    Since Rev 14, all Phase 2 fixes go into one pull request (`bg/performance-fixes`), so this is a single run after the last item, against the native CPU baseline of step 1 and the `gpu-nvidia` record of job 2554901.
