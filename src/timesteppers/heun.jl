@@ -31,11 +31,11 @@ struct HeunCache{NF, P, T, NS} <: AbstractTimeStepperCache{NF}
     namespaces::NS
 end
 
-# Allocate the Heun cache by deep-copying the prognostic and tendency field containers, recursing into
+# Allocate the Heun cache with a `similar` field for each prognostic and tendency field, recursing into
 # each namespace so the cache tree mirrors the state tree.
 function initialize(heun::Heun, state::AbstractStateVariables)
-    prognostic = map(deepcopy, getfield(state, :prognostic))
-    tendencies = map(deepcopy, getfield(state, :tendencies))
+    prognostic = map(similar, getfield(state, :prognostic))
+    tendencies = map(similar, getfield(state, :tendencies))
     namespaces = map(ns -> initialize(heun, ns), getfield(state, :namespaces))
     return HeunCache{eltype(state), typeof(prognostic), typeof(tendencies), typeof(namespaces)}(prognostic, tendencies, namespaces)
 end

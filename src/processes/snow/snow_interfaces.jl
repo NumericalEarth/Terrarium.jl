@@ -50,11 +50,11 @@ which is only valid once the soil resistance is genuinely negligible next to the
     hydrology = get_hydrology(soil)
     bgc = get_biogeochemistry(soil)
     energy = get_energy_balance(soil)
-    field_grid = get_field_grid(grid)
-    k = field_grid.Nz
+    ground_grid = ground_domain(grid)
+    k = ground_grid.Nz
     composition = soil_composition(i, j, k, grid, fields, strat, hydrology, bgc)
     κ_soil = compute_thermal_conductivity(energy.thermal_properties, composition)
-    Δz_soil = Δzᵃᵃᶜ(i, j, k, field_grid)
+    Δz_soil = Δzᵃᵃᶜ(i, j, k, ground_grid)
 
     ρ_snow = compute_snow_density(i, j, grid, fields, snow.density)
     κ_snow = compute_thermal_conductivity(snow, constants.material, ρ_snow)
@@ -73,7 +73,7 @@ end
 Blended soil-top heat flux [W/m²] at grid cell `i, j`: the snow-cover-fraction-weighted combination of
 the snow→soil basal conductive flux `Q_base` (see [`compute_snow_basal_heat_flux`](@ref)) and the
 *explicit* bare-ground conductive flux `G` (`ground_heat_flux`, already the unblended per-bare-ground-area
-quantity — see the `ImplicitSkinTemperature`-specific `compute_ground_heat_flux` in `skin_temperature.jl`),
+quantity — see the `ImplicitSkinTemperature`-specific `compute_ground_heat_flux` in `ground_heat_flux.jl`),
 `f_snow·Q_base + (1 − f_snow)·G`.
 """
 @propagate_inbounds function compute_snow_soil_heat_flux(
@@ -128,9 +128,9 @@ for the latent-flux partition).
     )
     f = snow_cover_fraction(i, j, grid, fields, snow)
     E_subl = compute_snow_sublimation_flux(i, j, grid, fields, snow, atmos, constants, seb.skin_temperature)
-    out.sublimation[i, j, 1] = f * E_subl
-    out.basal_heat_flux[i, j, 1] = compute_snow_soil_heat_flux(i, j, grid, fields, snow, constants, soil)
-    out.surface_heat_flux[i, j, 1] = compute_snow_surface_heat_flux(i, j, grid, fields, snow, constants)
+    out.sublimation[i, j, end] = f * E_subl
+    out.basal_heat_flux[i, j, end] = compute_snow_soil_heat_flux(i, j, grid, fields, snow, constants, soil)
+    out.surface_heat_flux[i, j, end] = compute_snow_surface_heat_flux(i, j, grid, fields, snow, constants)
     return nothing
 end
 

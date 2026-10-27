@@ -47,6 +47,8 @@ include("soil/stratigraphy/soil_stratigraphy.jl")
 
 export ConstantSoilCarbonDensity
 include("soil/biogeochem/constant_soil_carbon.jl")
+export SinglePoolSoilCarbon
+include("soil/biogeochem/single_pool_soil_carbon.jl")
 
 export ConstantSoilHydraulics, SoilHydraulicsSURFEX, UnsatKLinear, UnsatKVanGenuchten
 export saturated_hydraulic_conductivity, mineral_porosity, field_capacity, wilting_point
@@ -152,7 +154,10 @@ include("surface/skin_temperature.jl")
 export PrescribedTurbulentFluxes, DiagnosedTurbulentFluxes
 include("surface/turbulent_fluxes.jl")
 
-export SurfaceEnergyBalance
+export PrescribedGroundHeatFlux, DiagnosedGroundHeatFlux
+include("surface/ground_heat_flux.jl")
+
+export SurfaceEnergyBalance, PrescribedSurfaceEnergyBalance
 include("surface/surface_energy_balance.jl")
 
 export NoCanopyInterception, PALADYNCanopyInterception

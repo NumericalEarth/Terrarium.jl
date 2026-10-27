@@ -1,7 +1,13 @@
 """
     $TYPEDEF
-Stomatal conductance implementation from [willeitPALADYNV10Comprehensive2016](@cite) following the optimal stomatal conductance model
-of [medlynReconcilingOptimalEmpirical2011](@cite).
+Stomatal conductance following the optimal stomatal conductance model of
+[medlynReconcilingOptimalEmpirical2011](@cite), in the corrected form of
+[medlynCorrigendumReconcilingOptimal2012](@cite), which supplies the water/CO₂
+diffusivity ratio. The canopy scaling of the minimum conductance and the
+PFT-specific parameter values follow [willeitPALADYNV10Comprehensive2016](@cite), whose
+`g₁` are in turn those of [linOptimalStomatalBehaviour2015](@cite). Note that PALADYN
+keeps the diffusivity ratio in `λc` (its Eq. 71) rather than in the conductance (Eq. 68);
+this implementation uses the Medlyn convention for both.
 
 Authors: Maha Badri and Matteo Willeit
 
@@ -12,12 +18,13 @@ $TYPEDFIELDS
 
 * [linOptimalStomatalBehaviour2015](@cite) Lin et al., Nature Climate Change (2015)
 * [medlynReconcilingOptimalEmpirical2011](@cite) Medlyn et al., Global Change Biology (2011)
+* [medlynCorrigendumReconcilingOptimal2012](@cite) Medlyn et al., Global Change Biology (2012)
 * [willeitPALADYNV10Comprehensive2016](@cite) Willeit & Ganopolski, Geoscientific Model Development (2016)
 """
 @parameterized @kwdef struct MedlynStomatalConductance{NF} <: AbstractStomatalConductance{NF}
     "Parameter in optimal stomatal conductance formulation representing the quasi-linear
     relationship between conductance and net assimilation, [linOptimalStomatalBehaviour2015](@cite). PFT specific."
-    @param g₁::NF = 2.3 (bounds = Positive,) # TODO: value for Needleleaf tree PFT
+    @param g₁::NF = 2.3 (units = u"kPa^(1/2)", bounds = Positive) # TODO: value for Needleleaf tree PFT
 
     "Minimum stomatal conductance parameter"
     @param g_min::NF = 0.5 (units = u"mm/s", bounds = Positive)
@@ -29,10 +36,10 @@ end
 MedlynStomatalConductance(::Type{NF}; kwargs...) where {NF} = MedlynStomatalConductance{NF}(; kwargs...)
 
 variables(::MedlynStomatalConductance) = (
-    auxiliary(:canopy_water_conductance, XY(), units = u"m/s"), # Canopy conducatance for water vapor
-    input(:leaf_area_index, XY(), units = u"m^2/m^2"),
-    input(:net_assimilation, XY(), units = u"g/m^2/s"), # Net photosynthesis rate [gC/m²/s]
-    input(:soil_moisture_limiting_factor, XY()),
+    auxiliary(:canopy_water_conductance, Canopy(XY()), units = u"m/s"), # Canopy conducatance for water vapor
+    input(:leaf_area_index, Canopy(XY()), units = u"m^2/m^2"),
+    input(:net_assimilation, Canopy(XY()), units = u"g/m^2/s"), # Net photosynthesis rate [gC/m²/s]
+    input(:soil_moisture_limiting_factor, Ground(XY())),
 )
 
 @inline @propagate_inbounds stomatal_conductance(i, j, grid, fields, ::MedlynStomatalConductance) = fields.canopy_water_conductance[i, j]
@@ -40,12 +47,15 @@ variables(::MedlynStomatalConductance) = (
 """
     $TYPEDSIGNATURES
 
-Compute canopy-level water conductance [m/s] from the [medlynReconcilingOptimalEmpirical2011](@cite) optimal stomatal conductance model.
-Includes minimum conductance and light extinction effects based on LAI, scaled by soil moisture factor β.
+Compute canopy-level water conductance (m/s) from the [medlynReconcilingOptimalEmpirical2011](@cite)
+optimal stomatal conductance model, `gₛ = g₀ + D (1 + g₁/√VPD) Aₙ/cₐ`, where the diffusivity ratio
+`D` is that of the corrigendum [medlynCorrigendumReconcilingOptimal2012](@cite). Includes
+minimum conductance and light extinction effects based on LAI, scaled by soil moisture factor β.
 
 # References
 
 * [medlynReconcilingOptimalEmpirical2011](@cite) Medlyn et al., Global Change Biology (2011)
+* [medlynCorrigendumReconcilingOptimal2012](@cite) Medlyn et al., Global Change Biology (2012)
 """
 @inline function compute_stomatal_conductance(
         stomcond::MedlynStomatalConductance{NF},
@@ -59,7 +69,9 @@ Includes minimum conductance and light extinction effects based on LAI, scaled b
         D = stomcond.diffusivity_ratio_water_co2
         k_ext = traits.extinction_coefficient
         # We clamp VPD from below at 10 Pa (0.01 kPa) for numerical stability (division by zero risk)
-        vpd = max(vpd, NF(10.0))
+        # and convert to kPa, the units of VPD in Willeit & Ganopolski (2016), Table 2,
+        # and in which g₁ is therefore defined (see `compute_λc`).
+        vpd = pa_to_kpa(max(vpd, NF(10.0)))
         # We similarly clamp net assimilation from below at zero;
         # this assumes that the stomata are closed during respiration (An < 0) and ensures that
         # stomatal conductance remains nonnegative
@@ -69,7 +81,7 @@ Includes minimum conductance and light extinction effects based on LAI, scaled b
         g₀ = g_min * (1 - exp(-k_ext * LAI)) * β # m/s
         # Collect constants for An conversion factor
         M_C = constants.material.atomic_weight_carbon # atomic weight of carbon in gC/mol
-        M_air = constants.material.molecular_weight_dry_air / NF(1.0e3)
+        M_air = constants.material.molecular_weight_dry_air / NF(1.0e3) # gC / mol -> kgC / mol
         R = constants.thermodynamics.gas_constant_dry_air * M_air # Universal gas constant in J/(mol·K)
         T_K = celsius_to_kelvin(constants.thermodynamics, T_air)
         # Compute ideal gas conversion factor in m³/mol
@@ -86,20 +98,19 @@ end
 """
     $SIGNATURES
 
-Computes the ratio of leaf-internal and air CO2 concentration `λc`, 
-derived from the optimal stomatal conductance model ([medlynReconcilingOptimalEmpirical2011](@cite)),
-[willeitPALADYNV10Comprehensive2016; Eq. (71)](@cite).
+Computes the ratio of leaf-internal and air CO2 concentration `λc = cᵢ/cₐ`, derived from the
+optimal stomatal conductance model ([medlynReconcilingOptimalEmpirical2011](@cite)) in the
+corrected form of [medlynCorrigendumReconcilingOptimal2012](@cite).
 
 # References
 
 * [medlynReconcilingOptimalEmpirical2011](@cite) Medlyn et al., Global Change Biology (2011)
-* [willeitPALADYNV10Comprehensive2016](@cite) Willeit & Ganopolski, Geoscientific Model Development (2016)
+* [medlynCorrigendumReconcilingOptimal2012](@cite) Medlyn et al., Global Change Biology (2012)
 """
 @inline function compute_λc(stomcond::MedlynStomatalConductance{NF}, vpd) where {NF}
     # here we allow zero VPD since lim x⁻¹ as x → ∞ ≈ 0
     g₁ = stomcond.g₁
-    D = stomcond.diffusivity_ratio_water_co2
-    λc = NF(1.0) - D / (NF(1.0) + g₁ / sqrt(vpd * NF(1.0e-3)))
+    λc = NF(1.0) - NF(1.0) / (NF(1.0) + g₁ / sqrt(pa_to_kpa(vpd)))
     return λc
 end
 
@@ -167,7 +178,7 @@ Calls [`compute_stomatal_conductance`](@ref) and stores the result in `out`.
         args...
     ) where {NF}
     g_stm = compute_stomatal_conductance(i, j, grid, fields, stomcond, traits, constants, atmos, args...)
-    out.canopy_water_conductance[i, j, 1] = g_stm
+    out.canopy_water_conductance[i, j, end] = g_stm
     return out
 end
 

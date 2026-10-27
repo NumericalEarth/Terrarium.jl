@@ -7,16 +7,31 @@ CurrentModule = Terrarium
 Terrarium is based on the numerics and finite-volume method (FVM) operators provided by [Oceananigans.jl](https://github.com/CliMA/Oceananigans.jl). All state variables are realized as Oceananigans [`Field`s](https://clima.github.io/OceananigansDocumentation/stable/fields) defined over a particular choice of [grid](https://clima.github.io/OceananigansDocumentation/stable/grids) which discretizes physical space into a finite number of *volumes* or "cells". This page gives a brief overview of the basic concepts behind the numerical building blocks of Oceananigans and Terrarium.
 
 ## Grids
-Terrarium defines its own `AbstractLandGrid` types as wrappers around Oceananigans `AbstractGrid` types (note that these wrappers may be consolidated into full-fledged `AbstractGrid`s in the future). At the moment, Terrarium grids are based primarily on the Oceananigans [`RectilinearGrid`](@extref Oceananigans.Grids.RectilinearGrid), which represents a rectangular volume divided orthogonally into smaller control volumes along orthogonal X, Y, and Z axes. There are currently two `AbstractLandGrid` implementations:
 
-- [`ColumnGrid`](@ref) which represents an unstructured collection of 1D vertical columns discretized along the `Z` axis with the `X` axis corresponding to a non-spatial index over each of those columns and the `Y` axis ignored (assigned a `Flat` grid "topology" in the underlying `RectilinearGrid`).
-- [`ColumnRingGrid`](@ref) which is the same as `ColumnGrid` but with columns ordered according to a user-specified `RingGrid` from [RingGrids.jl](https://speedyweather.github.io/SpeedyWeatherDocumentation/stable/ringgrids/). Under this configuration, each dimension along the `X` axis corresponds to a point in the `RingGrid`, allowing for direct translation between Terrarium and RingGrids `Field`s. This is primarily motivated by our goal to couple Terrarium with [SpeedyWeather.jl](https://github.com/SpeedyWeather/SpeedyWeather.jl).
+Terrarium distinguishes between two layers of grid type.
 
-All Terrarium `AbstractLandGrid` implementations are required to implement the following methods:
+**Spatial discretizations** are ordinary Oceananigans [`AbstractGrid`](@extref Oceananigans.Grids.AbstractGrid)s and describe how physical space is divided into control volumes. Any Oceananigans grid can be used, and Terrarium additionally defines two of its own, both based on the Oceananigans [`RectilinearGrid`](@extref Oceananigans.Grids.RectilinearGrid):
+
+- [`ColumnGrid`](@ref) represents an unstructured collection of 1D vertical columns discretized along the `Z` axis with the `X` axis corresponding to a non-spatial index over each of those columns and the `Y` axis ignored (assigned a `Flat` grid "topology"). `ColumnGrid` is simply an *alias* for a `RectilinearGrid` with topology `(Periodic, Flat, Bounded)` rather than a distinct type, together with constructors which build one from a vertical discretization; a `ColumnGrid` is in every respect an ordinary `RectilinearGrid`.
+- [`ColumnRingGrid`](@ref) is the same as `ColumnGrid` but with columns ordered according to a user-specified `RingGrid` from [RingGrids.jl](https://speedyweather.github.io/SpeedyWeatherDocumentation/stable/ringgrids/). Under this configuration, each dimension along the `X` axis corresponds to a point in the `RingGrid`, allowing for direct translation between Terrarium and RingGrids `Field`s. This is primarily motivated by our goal to couple Terrarium with [SpeedyWeather.jl](https://github.com/SpeedyWeather/SpeedyWeatherDocumentation/stable/). `ColumnRingGrid` is a distinct grid type that carries the ring grid and its land-sea mask alongside the `RectilinearGrid` on which `Field`s are defined.
+
+**Land grids** (`AbstractLandGrid`) collect the spatial discretizations of each vertical domain of a land model — ground, snow, and canopy — into a single object, which is the grid stored by every model. There is exactly one implementation, [`LandGrid`](@ref). All of its domains share the same horizontal discretization and differ only vertically; domains which are not vertically resolved (currently snow and canopy, since all implemented snow and vegetation schemes are 0D) are represented by `nothing`.
+
+Models are constructed from a spatial discretization and build their land grid internally via [`create_land_grid`](@ref):
+
+```julia
+grid = ColumnGrid(ExponentialSpacing(Δz_min = 0.05, Δz_max = 100.0, N = 50), 10)
+model = SoilModel(grid)
+get_grid(model)                     # a `LandGrid` wrapping `grid`
+ground_domain(get_grid(model))        # the underlying domain `grid`
+```
+
+A pre-built `LandGrid` may also be passed to a model constructor directly, in which case it is stored as-is. The domain grids are retrieved with [`ground_domain`](@ref), [`snow_domain`](@ref), and [`canopy_domain`](@ref).
+
+`LandGrid` and `ColumnRingGrid` are both thin wrappers around another grid, and each forwards the `AbstractGrid` interface to the underlying grid. This includes `struct` fields such as `grid.Nx`, which Oceananigans accesses directly. A land grid is required to implement the following methods:
 - `architecture(grid)` (from Oceananigans) which returns the [`Architecture`](@extref Oceananigans.Architectures.AbstractArchitecture) (e.g. [`CPU`](@extref Oceananigans.Architectures.CPU) or [`GPU`](@extref Oceananigans.Architectures.GPU)) on which the grid is defined,
-- `get_field_grid(grid)` which returns the underlying `Oceananigans` grid.
+- [`ground_domain`](@ref) which returns the spatial discretization of the ground domain, i.e. the grid on which soil `Field`s are defined. For a grid which is not a land grid, such as a `ColumnGrid`, this returns the grid unchanged, so it is safe to call on any grid.
 
-The vertical `Z`-axis is currently limited to representing the subsurface (typically soil) domain, though we plan to expand this to include snow and canopy layers in the future.
 
 !!! info "Ordering of vertical layers"
     Oceananigans follows a **positive-upwards** convention for the vertical axis. This also implies that the vertical layer at the first index of a 3D Terrarium field is actually the **bottom-most layer** in the ground/soil column; i.e. `interior(temperature)[1,1,1]` for a `Field` called `temperature` would correspond to the vertical layer at the bottom of the first grid cell (i.e. `X = 1`). To get the topmost layer, use instead `interior(temperature)[1,1,end]`. Note that here [`interior`](@extref Oceananigans.Fields.interior) is a function from Oceananigans that retrieves a view of the `Field` excluding halo (boundary condition) cells.

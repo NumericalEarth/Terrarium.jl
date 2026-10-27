@@ -41,3 +41,16 @@ plots/
 
 # Scratchspace
 scratch/
+
+# Worktrees
+.worktrees/
+
+# Shell files
+.bashrc
+.bash_profile
+.profile
+.zshrc
+.zprofile
+.ripgreprc
+.idea
+.mcp.json

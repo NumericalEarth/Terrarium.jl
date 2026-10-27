@@ -9,7 +9,7 @@ conditions.
 """
 @parameterized @kwdef struct SurfaceEnergyModel{
         NF,
-        GridType <: AbstractLandGrid{NF},
+        GridType <: AbstractGrid{NF},
         SEB <: AbstractSurfaceEnergyBalance,
         Atmosphere <: AbstractAtmosphere,
         Initializer <: AbstractInitializer,

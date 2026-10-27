@@ -18,6 +18,7 @@
 # this implementation is meant only to serve as an example.
 
 using Terrarium
+using Terrarium: XYZ
 using KernelAbstractions: @kernel, @index
 using Oceananigans.Operators: ∂zᵃᵃᶜ, ∂zᵃᵃᶠ
 using Oceananigans.Utils: launch!
@@ -52,7 +53,7 @@ LinearHeatConduction(::Type{NF}; kwargs...) where {NF} = LinearHeatConduction{NF
 # by this process. Temperature is a 3D column variable ([`XYZ`](@ref)) since it varies with depth.
 
 Terrarium.variables(::LinearHeatConduction) = (
-    Terrarium.prognostic(:temperature, Terrarium.XYZ(); units = u"°C"),
+    Terrarium.prognostic(:temperature, XYZ(); units = u"°C"),
 )
 
 # `prognostic` means the timestepper integrates this variable based on its tendency at each
@@ -118,9 +119,9 @@ Base.@propagate_inbounds function compute_diffusion_tendency!(
         args...
     )
     ## Oceananigans operators require the underlying Oceananigans field grid, not the Terrarium wrapper
-    field_grid = get_field_grid(grid)
+    ground_grid = ground_domain(grid)
     ## ∂T/∂t = -(1/c) * ∂q/∂z,  where  q = -κ * ∂T/∂z
-    tendencies.temperature[i, j, k] += -∂zᵃᵃᶜ(i, j, k, field_grid, diffusive_heat_flux, fields, proc) / proc.c
+    tendencies.temperature[i, j, k] += -∂zᵃᵃᶜ(i, j, k, ground_grid, diffusive_heat_flux, fields, proc) / proc.c
     return tendencies
 end
 
@@ -133,9 +134,13 @@ end
 # physics and dispatch logic should be defined in the `compute_*` kernel functions.
 #
 # !!! note "Always use 3D indexing in kernel functions"
-#     Even for surface (`XY`) fields, write output as `out.name[i, j, 1]` (with `k = 1`).
-#     2D indexing (`out.name[i, j]`), especially in `setindex!`, will result in errors when
-#     compiling the kernel on GPU.
+#     Write output as `out.name[i, j, k]`. 2D indexing (`out.name[i, j]`), especially in
+#     `setindex!`, will result in errors when compiling the kernel on GPU.
+#
+#     For a field with no vertical extent, write `out.name[i, j, end]` rather than a literal
+#     index. A variable declared at the `Top` or `Bottom` of a domain is stored at that
+#     interface, not at `k = 1`, so `end` is the index which is correct for every such field;
+#     a literal `1` reads or writes outside the field, silently so under `@inbounds`.
 
 @kernel inbounds = true function compute_tendencies_kernel!(
         tendencies, grid, fields, proc::AbstractHeatConduction, args...
@@ -177,7 +182,7 @@ end
 
 @kwdef struct HeatModel{
         NF,
-        Grid <: Terrarium.AbstractLandGrid{NF},
+        Grid <: Terrarium.AbstractGrid{NF},
         Cond <: AbstractHeatConduction{NF},
         Init <: Terrarium.AbstractInitializer{NF},
         TS <: Terrarium.AbstractTimeStepper,
@@ -234,7 +239,7 @@ run!(sim)
 using CairoMakie
 import DisplayAs
 
-z = znodes(get_field_grid(grid), Center())
+z = znodes(ground_domain(grid), Center())
 T_final = vec(interior(integrator.state.temperature))
 
 let fig = Figure(),

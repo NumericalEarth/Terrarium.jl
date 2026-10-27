@@ -141,10 +141,10 @@ get_cache(cache::AbstractTimeStepperCache, ::AbstractTimeStepper) = cache
 Evaluate an explicit update `u += ∂u∂t*Δt` for the prognostic fields of `state` listed in `names` and
 their corresponding tendencies. By default, this is implemented as a simple Euler update `u += dudt*Δt`
 which can serve as a building block for more complex, multi-stage timesteppers. Where necessary,
-additional dispatches of `explicit_step_kernel!(field, tendency, ::AbstractLandGrid, ::TimeStepper, Δt)`
+additional dispatches of `explicit_step_kernel!(field, tendency, ::AbstractGrid, ::TimeStepper, Δt)`
 can be defined to implement more specialized time-stepping schemes.
 """
-function explicit_step!(state, grid::AbstractLandGrid, timestepper::AbstractTimeStepper, Δt, names::Tuple{Vararg{Symbol}})
+function explicit_step!(state, grid::AbstractGrid, timestepper::AbstractTimeStepper, Δt, names::Tuple{Vararg{Symbol}})
     # step only this namespace's prognostic variables that are also selected in `names`
     fastiterate(prognostic_names(state)) do name
         if name ∈ names
@@ -169,7 +169,7 @@ timestepping schemes as needed.
 function explicit_step!(
         field::AbstractField{LX, LY, LZ},
         tendency::AbstractField{LX, LY, LZ},
-        grid::AbstractLandGrid{NF},
+        grid::AbstractGrid{NF},
         timestepper::AbstractTimeStepper,
         Δt,
         args...
@@ -182,10 +182,36 @@ function explicit_step!(
     return nothing
 end
 
+"""
+Alias for a `Field` restricted to a single vertical index, i.e. one declared at the [`Top`](@ref) or
+[`Bottom`](@ref) of a domain. Such a field carries a `Center` or `Face` vertical location, so it is
+not distinguishable from a fully resolved (`XYZ`) field by its location parameters alone; the
+`indices` type parameter is what separates the two.
+"""
+const VerticallySlicedField{LX, LY, LZ} = Field{LX, LY, LZ, <:Any, <:Any, Tuple{Colon, Colon, UnitRange{Int}}}
+
+# A vertically sliced field occupies exactly one `k`, so it is stepped by a 2D kernel which resolves
+# that index with `end`. Launching the 3D kernel over the full column would index outside the slice.
+function explicit_step!(
+        field::VerticallySlicedField{LX, LY, LZ},
+        tendency::VerticallySlicedField{LX, LY, LZ},
+        grid::AbstractGrid{NF},
+        timestepper::AbstractTimeStepper,
+        Δt,
+        args...
+    ) where {LX, LY, LZ, NF}
+    Δt = convert_dt(NF, Δt)
+    launch!(
+        grid, XY, explicit_step_slab_kernel!,
+        field, tendency, timestepper, Δt, args...
+    )
+    return nothing
+end
+
 function explicit_step!(
         field::AbstractField{LX, LY, Nothing},
         tendency::AbstractField{LX, LY, Nothing},
-        grid::AbstractLandGrid,
+        grid::AbstractGrid,
         timestepper::AbstractTimeStepper,
         Δt,
         args...
@@ -207,7 +233,7 @@ end
     i, j, k = @index(Global, NTuple)
     u = field
     ∂u∂t = tendency
-    @inbounds let Δt = convert(eltype(tendency), Δt)
+    @inbounds let Δt = convert(eltype(eltype(tendency)), Δt) # eltype of a scalar type is itself, so this also handles e.g. `SVector` element types
         u[i, j, k] += ∂u∂t[i, j, k] * Δt
     end
 end
@@ -222,8 +248,23 @@ end
     i, j = @index(Global, NTuple)
     u = field
     ∂u∂t = tendency
-    @inbounds let Δt = convert(eltype(tendency), Δt)
-        u[i, j, 1] += ∂u∂t[i, j] * Δt
+    @inbounds let Δt = convert(eltype(eltype(tendency)), Δt) # eltype of a scalar type is itself, so this also handles e.g. `SVector` element types
+        u[i, j, 1] += ∂u∂t[i, j, 1] * Δt
+    end
+end
+
+@kernel function explicit_step_slab_kernel!(
+        field,
+        grid,
+        tendency,
+        ::AbstractTimeStepper,
+        Δt
+    )
+    i, j = @index(Global, NTuple)
+    u = field
+    ∂u∂t = tendency
+    @inbounds let Δt = convert(eltype(eltype(tendency)), Δt) # eltype of a scalar type is itself, so this also handles e.g. `SVector` element types
+        u[i, j, end] += ∂u∂t[i, j, end] * Δt
     end
 end
 

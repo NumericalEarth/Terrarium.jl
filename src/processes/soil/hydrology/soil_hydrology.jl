@@ -76,10 +76,10 @@ if not defined for the given configuration.
 @inline get_closure(hydrology::SoilHydrology) = hydrology.closure
 
 variables(hydrology::SoilHydrology{NF}) where {NF} = (
-    auxiliary(:saturation_water_ice, XYZ(), bounds = UnitInterval, desc = "Saturation level of water and ice in the pore space"),
-    auxiliary(:water_table, XY(), units = u"m", desc = "Elevation of the water table in meters"),
-    auxiliary(:hydraulic_conductivity, XYZ(z = Face()), units = u"m/s", desc = "Hydraulic conductivity of soil volumes in m/s"),
-    input(:liquid_water_fraction, XYZ(), default = 1, bounds = UnitInterval, desc = "Fraction of unfrozen water in the pore space"),
+    auxiliary(:saturation_water_ice, Ground(XYZ()), bounds = UnitInterval, desc = "Saturation level of water and ice in the pore space"),
+    auxiliary(:water_table, Ground(XY()), units = u"m", desc = "Elevation of the water table in meters"),
+    auxiliary(:hydraulic_conductivity, Ground(XYZ(z = Face())), units = u"m/s", desc = "Hydraulic conductivity of soil volumes in m/s"),
+    input(:liquid_water_fraction, Ground(XYZ()), default = 1, bounds = UnitInterval, desc = "Fraction of unfrozen water in the pore space"),
 )
 
 function compute_water_table!(state, grid, hydrology::SoilHydrology)
@@ -171,9 +171,9 @@ compute_hydraulics!(out, i, j, k, grid, fields, hydrology::SoilHydrology, args..
 Kernel function that diagnoses the water table at grid cell `i, j` given the current soil saturation profile.
 """
 @propagate_inbounds function compute_water_table!(water_table, i, j, grid, sat, ::SoilHydrology{NF}) where {NF}
-    zs = znodes(get_field_grid(grid), Center(), Center(), Face())
+    zs = znodes(ground_domain(grid), Center(), Center(), Face())
     # scan z axis starting from the bottom (index 1) to find first non-saturated grid cell
-    water_table[i, j, 1] = findfirst_z(i, j, <(one(NF)), zs, sat)
+    water_table[i, j, end] = findfirst_z(i, j, <(one(NF)), zs, sat)
     return nothing
 end
 
@@ -189,8 +189,8 @@ into a surface water pool or discard it.
 @propagate_inbounds function redistribute_saturation_profile!(sat, i, j, grid, hydrology::SoilHydrology{NF}) where {NF}
     props = get_hydraulic_properties(hydrology)
     sat_min = residual_saturation(props)
-    field_grid = get_field_grid(grid)
-    N = field_grid.Nz
+    ground_grid = ground_domain(grid)
+    N = ground_grid.Nz
 
     # First iterate over soil layers from bottom to top, transferring water from
     # overfilled layers to the layer above
@@ -200,7 +200,7 @@ into a surface water pool or discard it.
         # subtract excess water and add to layer above;
         # note that we need to rescale by the cell thickness to properly conserve mass
         sat[i, j, k] -= excess_sat
-        sat[i, j, k + 1] += excess_sat * Δzᵃᵃᶜ(i, j, k, field_grid) / Δzᵃᵃᶜ(i, j, k + 1, field_grid)
+        sat[i, j, k + 1] += excess_sat * Δzᵃᵃᶜ(i, j, k, ground_grid) / Δzᵃᵃᶜ(i, j, k + 1, ground_grid)
     end
 
     # then from top to bottom, extracting water for underfilled cells from layers below
@@ -209,13 +209,13 @@ into a surface water pool or discard it.
         deficit_sat = max(-sat[i, j, k] + sat_min, zero(NF))
         # add back saturation deficit and subtract from layer below
         sat[i, j, k] += deficit_sat
-        sat[i, j, k - 1] -= deficit_sat * Δzᵃᵃᶜ(i, j, k, field_grid) / Δzᵃᵃᶜ(i, j, k - 1, field_grid)
+        sat[i, j, k - 1] -= deficit_sat * Δzᵃᵃᶜ(i, j, k, ground_grid) / Δzᵃᵃᶜ(i, j, k - 1, ground_grid)
     end
 
     # If the uppermost (surface) layer is oversaturated, remove the excess and return it as a water depth
     excess_sat = max(sat[i, j, N] - one(NF), zero(NF))
     sat[i, j, N] -= excess_sat
-    surface_excess = excess_sat * Δzᵃᵃᶜ(i, j, N, field_grid)
+    surface_excess = excess_sat * Δzᵃᵃᶜ(i, j, N, ground_grid)
 
     # If the lowermost (bottom) layer has a deficit, just set to the residual saturation level.
     # This constitutes a mass balance violation but should not happen under realistic conditions.
@@ -246,7 +246,7 @@ surface into the `surface_excess_water` pool owned by the given surface `runoff`
         runoff::AbstractSurfaceRunoff
     ) where {NF}
     surface_excess = redistribute_saturation_profile!(out.saturation_water_ice, i, j, grid, hydrology)
-    out.surface_excess_water[i, j, 1] += surface_excess
+    out.surface_excess_water[i, j, end] += surface_excess
     return nothing
 end
 

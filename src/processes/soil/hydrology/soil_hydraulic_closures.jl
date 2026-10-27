@@ -12,7 +12,7 @@ which is here defined in implementations of [`AbstractSoilHydraulics`](@ref).
 @kwdef struct SoilSaturationPressureClosure <: AbstractSoilWaterClosure end
 
 variables(::SoilSaturationPressureClosure) = (
-    auxiliary(:pressure_head, XYZ(), units = u"m", desc = "Total hydraulic pressure head in m water displaced at standard pressure"),
+    auxiliary(:pressure_head, Ground(XYZ()), units = u"m", desc = "Total hydraulic pressure head in m water displaced at standard pressure"),
 )
 
 """
@@ -85,17 +85,17 @@ end
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry
     )
-    fgrid = get_field_grid(grid)
+    ground_grid = ground_domain(grid)
     ψ = fields.pressure_head[i, j, k] # assumed given
     # get the elevation (z-coord) of k'th layer and reference (surface)
-    z = znode(i, j, k, fgrid, Center(), Center(), Center())
+    z = znode(i, j, k, ground_grid, Center(), Center(), Center())
     # TODO: we need a more user friendly interface for this...
-    z_ref = znode(i, j, fgrid.Nz + 1, fgrid, Center(), Center(), Face())
+    z_ref = znode(i, j, ground_grid.Nz + 1, ground_grid, Center(), Center(), Face())
     # elevation pressure head
     ψz = z - z_ref
     # compute hydrostatic pressure head assuming impermeable lower boundary
     # TODO: relax this assumption in the future?
-    z₀ = fields.water_table[i, j, 1]
+    z₀ = fields.water_table[i, j, end]
     ψh = max(0, z₀ - z)
     # remove hydrostatic and elevation components
     ψm = ψ - ψh - ψz
@@ -113,11 +113,11 @@ end
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry
     )
-    fgrid = get_field_grid(grid)
+    ground_grid = ground_domain(grid)
     sat = fields.saturation_water_ice[i, j, k] # assumed given
     # get the elevation (z-coord) of k'th layer and reference (surface)
-    z = znode(i, j, k, fgrid, Center(), Center(), Center())
-    z_ref = znode(i, j, fgrid.Nz + 1, fgrid, Center(), Center(), Face())
+    z = znode(i, j, k, ground_grid, Center(), Center(), Center())
+    z_ref = znode(i, j, ground_grid.Nz + 1, ground_grid, Center(), Center(), Face())
     # get inverse of SWRC
     inv_swrc = inv(get_swrc(hydrology))
     por = porosity(i, j, k, grid, fields, strat, bgc)
@@ -129,7 +129,7 @@ end
     ψz = z - z_ref
     # compute hydrostatic pressure head assuming impermeable lower boundary
     # TODO: can we generalize this for arbitrary lower boundaries?
-    z₀ = fields.water_table[i, j, 1]
+    z₀ = fields.water_table[i, j, end]
     ψh = max(0, z₀ - z)
     # compute total pressure head as sum of ψh + ψm + ψz
     # note that ψh and ψz will cancel out in the saturated zone

@@ -19,9 +19,11 @@ using KernelAbstractions: @kernel, @index
 # Oceananigans numerics
 using Oceananigans.AbstractOperations: Average, Integral, ConditionalOperation, KernelFunctionOperation
 using Oceananigans.Architectures: Architectures, AbstractArchitecture, CPU, GPU, ReactantState, architecture, on_architecture, array_type
-using Oceananigans.Fields: Field, FunctionField, AbstractField, Center, Face, set!, compute!, interior, location
+using Oceananigans.Fields: Field, FunctionField, AbstractField, Center, Face, set!, compute!, interior, indices, location
 using Oceananigans.Forcings: Forcing, ContinuousForcing, DiscreteForcing
-using Oceananigans.Grids: Periodic, Flat, Bounded, znodes, znode, zspacings
+using Oceananigans.Grids: AbstractGrid, RectilinearGrid, CallableDiscretization, ExponentialDiscretization,
+    LatitudeLongitudeGrid, Periodic, Flat, Bounded, halo_size, isrectilinear, nodes, topology,
+    xnodes, ynodes, znodes, λnodes, φnodes, znode, zspacings, ξnode, ηnode, rnode
 using Oceananigans.Operators: ∂zᵃᵃᶜ, ∂zᵃᵃᶠ, ℑzᵃᵃᶠ, Δzᵃᵃᶜ
 using Oceananigans.OutputReaders: FieldTimeSeries
 using Oceananigans.Simulations: Simulation, run!, timestepper, TimeStepWizard, conjure_time_step_wizard!, Callback, add_callback!
@@ -81,11 +83,16 @@ Alias for Oceananigans `AbstractBoundaryConditionClassification`
 """
 const BCType = AbstractBoundaryConditionClassification
 
+"""
+Alias for Oceananigans location types, i.e. `Center` or `Face`.
+"""
+const CenterOrFace = Union{Center, Face}
+
 # Re-export selected types and methods from Oceananigans
 export Simulation, Clock, Field, FieldTimeSeries, KernelFunctionOperation, Center, Face
 export CPU, GPU, ReactantState, architecture, on_architecture
 export Value, Flux, Gradient, ValueBoundaryCondition, GradientBoundaryCondition, FluxBoundaryCondition, NoFluxBoundaryCondition
-export run!, time_step!, set!, reset!, compute!, interior, znodes, zspacings, location
+export run!, time_step!, set!, reset!, compute!, interior, znodes, λnodes, φnodes, zspacings, location
 export TimeStepWizard, conjure_time_step_wizard!, Callback, add_callback!, IterationInterval, TimeInterval
 
 # Re-export selected types from FreezeCurves
@@ -114,14 +121,17 @@ end
 export @assert_kernel
 include("utils/utils.jl")
 
+include("domains.jl")
+
 export XY, XYZ
 include("abstract_variables.jl")
 
 # grids
-export UniformSpacing, ExponentialSpacing, PrescribedSpacing
+export UniformSpacing, ExponentialSpacing, num_layers
 include("grids/vertical_discretization.jl")
 
-export ColumnGrid, ColumnRingGrid, get_field_grid
+export ColumnGrid, ColumnRingGrid, LandGrid
+export create_land_grid, ground_domain, snow_domain, canopy_domain
 include("grids/grids.jl")
 
 export ERA5LandForcings, ERA5LandInvariants, ERA5LandLeafAreaIndex
@@ -141,7 +151,7 @@ export StateVariables, get_fields
 include("state_variables.jl")
 
 # default initializers
-export DefaultInitializer
+export DefaultInitializer, LatitudinalClimatology
 include("initializers.jl")
 
 # boundary condition helper functions

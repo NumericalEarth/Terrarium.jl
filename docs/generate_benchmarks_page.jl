@@ -22,7 +22,7 @@ const DOCS_ASSETS_DIR = joinpath(@__DIR__, "src", "assets", "benchmarks")
 const DOCS_PAGE_PATH = joinpath(@__DIR__, "src", "benchmarks.md")
 
 ## Stable architecture ordering — matches benchmark/manual_benchmarking.jl
-const ARCH_ORDER = ["cpu-arm", "cpu-x86", "gpu-nvidia", "reactant-cpu", "reactant-gpu"]
+const ARCH_ORDER = ["cpu-arm", "cpu-x86", "gpu-nvidia", "reactant-cpu-arm", "reactant-cpu-x86", "reactant-gpu"]
 
 ## Reference resolutions drawn as vertical lines in the scaling figures.
 const REFERENCE_RESOLUTIONS = [(5.0, "5°"), (2.0, "2°"), (1.0, "1°"), (0.5, "0.5°")]
@@ -197,7 +197,7 @@ function write_empty_page(path)
         write(io, "```\n")
         write(io, "julia --project=. manual_benchmarking.jl                # CPU\n")
         write(io, "julia --project=. manual_benchmarking.jl gpu            # CUDA GPU\n")
-        write(io, "julia --project=. manual_benchmarking.jl reactant-cpu   # Reactant/XLA, CPU backend\n")
+        write(io, "julia --project=. manual_benchmarking.jl reactant-cpu   # Reactant/XLA, CPU backend (auto-labelled reactant-cpu-arm or reactant-cpu-x86)\n")
         write(io, "julia --project=. manual_benchmarking.jl reactant-gpu   # Reactant/XLA, CUDA backend\n")
         write(io, "```\n\n")
         write(io, "Results are stored in `benchmark/assets/benchmark_results.json` and read from there by the documentation build.\n")

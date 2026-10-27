@@ -54,9 +54,9 @@ end
 PALADYNPhenology(::Type{NF}; kwargs...) where {NF} = PALADYNPhenology{NF}(; kwargs...)
 
 variables(::PALADYNPhenology) = (
-    prognostic(:growing_degree_days, XY(), units = u"K*d"), # Growing degree days [K⋅day]
-    auxiliary(:phenology_factor, XY()), # Phenology factor [-]
-    auxiliary(:leaf_area_index, XY()), # Leaf Area Index [m²/m²]
+    prognostic(:growing_degree_days, Canopy(XY()), units = u"K*d"), # Growing degree days [K⋅day]
+    auxiliary(:phenology_factor, Canopy(XY())), # Phenology factor [-]
+    auxiliary(:leaf_area_index, Canopy(XY())), # Leaf Area Index [m²/m²]
 )
 
 """
@@ -157,8 +157,8 @@ Mutating wrapper for [`compute_phenology`](@ref) that stores the result in `out`
 """
 @propagate_inbounds function compute_phenology!(out, i, j, grid, fields, phenol::PALADYNPhenology, atmos::AbstractAtmosphere)
     ϕ, LAI = compute_phenology(i, j, grid, fields, phenol, atmos)
-    out.phenology_factor[i, j, 1] = ϕ
-    out.leaf_area_index[i, j, 1] = LAI
+    out.phenology_factor[i, j, end] = ϕ
+    out.leaf_area_index[i, j, end] = LAI
     return out
 end
 
@@ -170,7 +170,7 @@ Mutating wrapper for [`compute_gdd_tendency`](@ref) that stores the growing-degr
 @propagate_inbounds function compute_gdd_tendency!(tend, i, j, grid, fields, phenol::PALADYNPhenology, atmos::AbstractAtmosphere)
     gdd = fields.growing_degree_days[i, j]
     T_air = air_temperature(i, j, grid, fields, atmos)
-    tend.growing_degree_days[i, j, 1] = compute_gdd_tendency(phenol, gdd, T_air)
+    tend.growing_degree_days[i, j, end] = compute_gdd_tendency(phenol, gdd, T_air)
     return tend
 end
 

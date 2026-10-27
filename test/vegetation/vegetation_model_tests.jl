@@ -32,3 +32,7 @@ end
 @testset "Plant Available Water" begin
     include("plant_available_water_tests.jl")
 end
+
+@testset "Vegetation carbon cycle integration" begin
+    include("integration_tests.jl")
+end

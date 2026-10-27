@@ -6,6 +6,7 @@ CurrentModule = Terrarium
 
 ```@setup variables
 using Terrarium
+using Terrarium: Ground, Snow, Canopy, Surface, Atmosphere, Top, Bottom
 using Oceananigans
 ```
 
@@ -22,10 +23,11 @@ Variables are typically constructed using one of the convenience functions [`pro
 
 These variable definitions are purely symbolic; they do not hold any data and cannot be used for computation. Constructing [`StateVariables`](@ref) from a model, process, or [`Variables`](@ref) container (see following sections) results in corresponding [Fields](@ref) being allocated for each variable. 
 
-A default implementation of `variables` is provided for all [`AbstractModel`](@ref) and `AbstractCoupledProcesses` types that automatically collects variables from all [`AbstractProcess`](@ref) types defined therein:
+A default implementation of `variables` is provided for all [`AbstractModel`](@ref) and `AbstractCoupledProcesses` types that automatically collects variables from all [`AbstractProcess`](@ref) types defined therein. For models, any variables declared by the model's initializer are included as well:
 
 ```@docs; canonical = false
-variables(obj::Union{AbstractCoupledProcesses, AbstractModel})
+variables(obj::AbstractCoupledProcesses)
+variables(model::AbstractModel)
 ```
 
 Most state variables will thus be defined by implementation of `AbstractProcess`. As an example, suppose we are implementing a new process `MyProcess` and we want to define the necessary state variables. We do this by defining a new dispatch of the `variables` method:
@@ -33,13 +35,20 @@ Most state variables will thus be defined by implementation of `AbstractProcess`
 struct MyProcess{NF} <: Terrarium.AbstractProcess{NF} end
 
 Terrarium.variables(::MyProcess) = (
-    Terrarium.prognostic(:progvar, XYZ()),
-    Terrarium.auxiliary(:auxvar, XYZ()),
-    Terrarium.auxiliary(:bc, XY()),
+    Terrarium.prognostic(:progvar, Ground(XYZ())),
+    Terrarium.auxiliary(:auxvar, Ground(XYZ())),
+    Terrarium.auxiliary(:top_flux, Ground(Top())),
+    Terrarium.auxiliary(:bottom_flux, Ground(Bottom())),
     Terrarium.input(:input, XY())
 )
 ```
-This will result in a total of five state variables being allocated upon initialization: one input variable, two auxiliary variables named `auxvar` and `bc` and one prognostic variable named `progvar` along with its corresponding tendency variable which is created automatically. The second argument to the variable metadata constructors `prognostic` and `auxiliary` is a subtype of `VarDims` which specifies on which spatial dimensions the state variable should be defined. [`XYZ()`](@ref) corresponds to a 3D `Field` which varies both laterally and with depth. [`XY()`](@ref) corresponds to a 2D field which is discretized along the lateral X and Y dimensions only.
+This will result in a total of five state variables being allocated upon initialization: one input variable, two auxiliary variables named `auxvar` and `bc` and one prognostic variable named `progvar` along with its corresponding tendency variable which is created automatically. The second argument to the variable metadata constructors `prognostic` and `auxiliary` is a [`VarDims`](@ref) or [`VarLocation`](@ref) which specifies the dimensions, and optionally domain, of the variable in space. Variables with dimensions [`XYZ()`](@ref) are allocated a 3D `Field` varying both laterally in the X and Y dimensions as well as with elevation/depth `Z`, while [`XY()`](@ref) corresponds to a 2D "reduced" `Field` discretized only along the lateral X and Y dimensions.
+
+Both `XY` and `XYZ` are aliases for [`VarDims`](@ref) and accept keyword arguments `x`, `y`, and `z`, each of which can be set to one of [`Center`](@extraref Oceananigans.Fields.Center), [`Face`](@extraref Oceananigans.Fields.Face), or a prespecified [`Coordinate`](@ref). `Center` and `Face` declare the variable's discretized location along Oceananigans' staggered finite volume grids (i.e. cell centers vs. faces) while `Coordinate` restricts the variable to a specific point along the axis. This point may be represented either by a hardcoded integer index (not generally recommended for values $>1$) or a function `f(axis)` that computes the index dynamically from the given `axis` at `Field` construction time. Terrarium provides convenience dispatches covering two common cases: [`Top`](@ref) and [`Bottom`](@ref) which correspond to `XY` fields located respectively at the top or bottom of the vertical domain. This is the suitable for choice for fluxes which are applied as boundary conditions to another `Field`, as implied above by `top_flux` and `bottom_flux`.
+
+The outer [`VarDomain`](@ref), `Ground` in the above example, indicates the spatial domain on which the variables should be discretized. Currently, Terrarium defines five `VarDomain`s: `Ground`, `Snow`, `Canopy`, `Surface`, and `Atmosphere`, with the first three mapping to distinct vertical discretizations in [`LandGrid`](@ref)s. In contrast, the [`Surface`](@ref) domain refers to the interface between the land and atmosphere, while [`Atmosphere`](@ref) is reserved for atmospheric forcing variables. Neither is discretized vertically, so their variables must be declared with dimensions `XY`.
+
+A variable may also be declared with bare dimensions and no domain at all, as show above for the `input` variable. Such a declaration indicates that the code is agnostic to where the variable lives: it is compatible with any domain and will automatically promote the domain to match conflicting definitions of the same variable. [`InputSource`](@ref)s always default to assigning their declared input variables `domain = nothing` unless otherwise specified.
 
 ## Merging and promotion rules
 
@@ -84,7 +93,7 @@ function hypotenuse(grid, clock, fields, ::Pythagoras)
     return hypotenuse
 end
 
-grid = ColumnGrid(CPU(), Float64, UniformSpacing(N = 1))
+grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 1))
 state = StateVariables(Pythagoras{Float64}(), grid)
 state.hypotenuse
 ```
@@ -104,7 +113,7 @@ As another more concrete example, consider the [`soil_moisture_limiting_factor`]
 
 ```julia
 function soil_moisture_limiting_factor(grid, clock, fields, ::FieldCapacityLimitedPAW)
-    Δz = zspacings(get_field_grid(grid), Center(), Center(), Center())
+    Δz = zspacings(ground_domain(grid), Center(), Center(), Center())
     β = Integral(fields.plant_available_water * fields.root_fraction / Δz, dims = 3)
     return Field(β)
 end

@@ -112,15 +112,15 @@ using Test
         end
 
         function expected_flux(state, W_snow)
-            field_grid = Terrarium.get_field_grid(landgrid)
-            k = field_grid.Nz
+            ground_grid = ground_domain(landgrid)
+            k = ground_grid.Nz
             strat = Terrarium.get_stratigraphy(soil)
             hydrology = Terrarium.get_hydrology(soil)
             bgc = Terrarium.get_biogeochemistry(soil)
             energy = Terrarium.get_energy_balance(soil)
             composition = Terrarium.soil_composition(1, 1, k, landgrid, state, strat, hydrology, bgc)
             κ_soil = Terrarium.compute_thermal_conductivity(energy.thermal_properties, composition)
-            Δz_soil = Terrarium.Δzᵃᵃᶜ(1, 1, k, field_grid)
+            Δz_soil = Terrarium.Δzᵃᵃᶜ(1, 1, k, ground_grid)
             d_min = Terrarium.min_snow_conduction_thickness(1, 1, landgrid, state, snow)
             ρ_snow = Terrarium.compute_snow_density(1, 1, landgrid, state, snow.density)
             κ_snow = Terrarium.compute_thermal_conductivity(snow, constants.material, ρ_snow)

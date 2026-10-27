@@ -1,0 +1,84 @@
+# [Ground heat flux](@id ground_heat_flux_docs)
+
+```@meta
+CurrentModule = Terrarium
+```
+
+```@setup ghf
+using Terrarium
+```
+
+!!! warning
+    This page is a work in progress. If you have any questions or notice any errors, please [raise an issue](https://github.com/NumericalEarth/Terrarium.jl/issues).
+
+## Overview
+
+The **ground heat flux** $G$ (W/m²) is the energy flux across the top of the ground (soil) column. It is the term through which the surface energy balance influences the heat balance of the soil. Without snow, the `ground_heat_flux` field is the Neumann boundary condition on the soil's internal energy (see [`SoilHeatFlux`](@ref)), and with snow it feeds the blended conductive flux across the snow base.
+
+Following the standard convention of Terrarium and Oceananigans, all surface energy fluxes are defined **positive upward**. A positive $G$ therefore removes energy from the ground column.
+
+The quantity that the rest of the surface energy balance *demands* of the ground is the residual of the remaining three flux terms,
+```math
+G^\star = R_{\text{net}} + H_s + H_l
+```
+where $G^\star$ is the ground heat flux *demanded* by the SEB, $R_{\text{net}}$ is the net radiation budget, $H_s$ is the sensible heat flux, and $H_l$ is the latent heat flux. How that demand is realized, and whether it is imposed at all, is the responsibility of the [`AbstractGroundHeatFlux`](@ref) sub-process.
+
+```@docs; canonical = false
+AbstractGroundHeatFlux
+```
+
+## Implementations
+
+### Diagnosed ground heat flux
+
+```@docs; canonical = false
+DiagnosedGroundHeatFlux
+```
+
+[`DiagnosedGroundHeatFlux`](@ref) closes the surface energy balance internally. How the corresponding heat flux is calculated depends on the associated skin temperature scheme:
+
+- With [`PrescribedSkinTemperature`](@ref), there is no separate conduction target, so the ground heat flux is simply equal to the demand, $G = G^\star = R_{\text{net}} + H_s + H_l$.
+- With [`ImplicitSkinTemperature`](@ref), the stored flux is the explicit bare-ground conductive flux evaluated at the current skin temperature, $G = 2\kappa_s (T_g - T_s) / \Delta z_1$. This coincides with the demand only at convergence of the skin temperature solve (see [Skin temperature](@ref "Skin temperature")).
+
+```@example ghf
+variables(DiagnosedGroundHeatFlux(Float32))
+```
+
+### Prescribed ground heat flux
+
+```@docs; canonical = false
+PrescribedGroundHeatFlux
+```
+
+[`PrescribedGroundHeatFlux`](@ref) declares `ground_heat_flux` as an *input* variable and computes nothing. Whatever is written into the field (e.g. by a land-atmosphere coupler),  is not modified by  `compute_auxiliary!`. This is the configuration that makes [`PrescribedSurfaceEnergyBalance`](@ref) possible; see [Surface energy balance](@ref surface_energy_balance_docs) for the supported combinations.
+
+```@example ghf
+variables(PrescribedGroundHeatFlux(Float32))
+```
+
+!!! warning "Consistency of energy balance"
+    [`PrescribedGroundHeatFlux`](@ref) is primarily intended for use with external land surface couplers. Thus, the energy balance $G = R_{\text{net}} + H_s + H_l$ is not enforced when the ground heat flux is prescribed alongside prescribed radiative and turbulent fluxes. It is the caller's responsibility to specify a consistent energy balance. Furthermore, use of [`PrescribedGroundHeatFlux`](@ref) with snow and canopy processes is not tested and may yield inconsistent results.
+
+## Process interface
+
+```@docs; canonical = false
+compute_auxiliary!(state, grid, ghf::AbstractGroundHeatFlux, seb::AbstractSurfaceEnergyBalance, args...)
+```
+
+## Methods
+
+```@docs; canonical = false
+ground_heat_flux(i, j, grid, fields, ::AbstractGroundHeatFlux)
+compute_ground_heat_flux_demand(::DiagnosedGroundHeatFlux, R_net, H_s, H_l)
+compute_ground_heat_flux!(state, grid, ghf::AbstractGroundHeatFlux, skinT::AbstractSkinTemperature, seb::AbstractSurfaceEnergyBalance)
+```
+
+## Kernel functions
+
+```@docs; canonical = false
+compute_ground_heat_flux_demand(i, j, grid, fields, ghf::DiagnosedGroundHeatFlux, seb::AbstractSurfaceEnergyBalance)
+compute_ground_heat_flux_demand(i, j, grid, fields, ghf::PrescribedGroundHeatFlux, ::AbstractSurfaceEnergyBalance)
+compute_ground_heat_flux(i, j, grid, fields, ghf::DiagnosedGroundHeatFlux, ::PrescribedSkinTemperature, seb::AbstractSurfaceEnergyBalance)
+compute_ground_heat_flux(i, j, grid, fields, ::DiagnosedGroundHeatFlux, skinT::ImplicitSkinTemperature, ::AbstractSurfaceEnergyBalance)
+compute_ground_heat_flux!(out, i, j, grid, fields, ghf::DiagnosedGroundHeatFlux, skinT::AbstractSkinTemperature, seb::AbstractSurfaceEnergyBalance)
+```

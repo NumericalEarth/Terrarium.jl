@@ -41,12 +41,12 @@ ground_evaporation_resistance_factor(i, j, grid, fields, ::SoilMoistureResistanc
         res::SoilMoistureResistanceFactor{NF},
         soil::AbstractSoil
     ) where {NF}
-    fgrid = get_field_grid(grid)
+    ground_grid = ground_domain(grid)
     strat = get_stratigraphy(soil)
     hydrology = get_hydrology(soil)
     bgc = get_biogeochemistry(soil)
     props = get_hydraulic_properties(hydrology)
-    comp = soil_composition(i, j, fgrid.Nz, grid, fields, strat, hydrology, bgc)
+    comp = soil_composition(i, j, ground_grid.Nz, grid, fields, strat, hydrology, bgc)
     texture = mineral_texture(comp)
     fracs = volumetric_fractions(comp)
     # Get field capacity, water content, and residual water content

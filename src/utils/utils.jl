@@ -1,9 +1,4 @@
 """
-Alias for `Type{Val{x}}`
-"""
-const ValType{x} = Type{Val{x}} where {x}
-
-"""
 Alias for `Union{Nothing, T}` indicating that an argument or field of type `T` is optional and
 can be replaced with `nothing`.
 """

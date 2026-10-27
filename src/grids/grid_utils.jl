@@ -1,23 +1,27 @@
-# Convenience dispatches for Oceananigans.launch!
-function Oceananigans.launch!(grid::AbstractLandGrid, workspec, kernel!::Function, first_arg, other_args...; kwargs...)
-    fgrid = get_field_grid(grid)
-    launch!(fgrid.architecture, fgrid, get_workspec(workspec), kernel!, first_arg, grid, other_args...; kwargs...)
+"""
+    $SIGNATURES
+
+Launch `kernel!` over `grid` with the work layout given by `workspec`, passing `grid` itself as the
+kernel's second argument so that kernels can be written in terms of the model's grid. The work specification
+muist be given as a Terrarium [`VarDims`](@ref), i.e. `XY` or `XYZ`.
+"""
+@inline Oceananigans.launch!(grid::AbstractGrid, ::Union{XY, Type{<:XY}}, kernel!::Function, first_arg, other_args...; kwargs...) =
+    launch_kernel!(grid, Val{:xy}(), kernel!, first_arg, other_args...; kwargs...)
+
+@inline Oceananigans.launch!(grid::AbstractGrid, ::Union{XYZ, Type{<:XYZ}}, kernel!::Function, first_arg, other_args...; kwargs...) =
+    launch_kernel!(grid, Val{:xyz}(), kernel!, first_arg, other_args...; kwargs...)
+
+"""
+    $SIGNATURES
+
+Launch `kernel!` over `grid` with the Oceananigans `workspec`. `grid` is passed to the kernel as
+its second argument, after `first_arg`.
+"""
+@inline function launch_kernel!(grid::AbstractGrid, workspec::Val, kernel!::Function, first_arg, other_args...; kwargs...)
+    launch!(architecture(grid), grid, workspec, kernel!, first_arg, grid, other_args...; kwargs...)
     debugsite!(kernel!, first_arg, grid, other_args...)
     return nothing
 end
-
-"""
-Returns the appropriate workspec for the given `AbstractField` or based on the given
-field locations.
-"""
-@inline get_workspec(::AbstractField{LX, LY, LZ}) where {LX, LY, LZ} = get_workspec(LX(), LY(), LZ())
-@inline get_workspec(dims::VarDims) = get_workspec(typeof(dims))
-@inline get_workspec(::Type{<:XY}) = Val{:xy}()
-@inline get_workspec(::Type{<:XYZ}) = Val{:xyz}()
-@inline get_workspec(::Any, ::Any, ::Nothing) = Val{:xy}()
-@inline get_workspec(::Any, ::Any, ::Union{Center, Face}) = Val{:xyz}()
-@inline get_workspec(::ValType{workspec}) where {workspec} = Val{workspec}()
-@inline get_workspec(workspec) = workspec # fallback; pass directly to launch!
 
 # Helper functions for checking if a `RingGrids` or `Oceananigans` `Field` matches the given grid
 field_matches_grid(field, grid) = field.grid == grid
@@ -38,55 +42,112 @@ RingGrids.Architectures.architecture(::CPU) = RingGrids.Architectures.CPU()
 
 """
     Field(
-        grid::AbstractLandGrid,
-        dims::VarDims,
+        grid::AbstractGrid,
+        loc::VarLocation,
         boundary_conditions = nothing,
         args...;
         kwargs...
     )
 
-Auxiliary constructor for an Oceananigans `Field` on `grid` with the given Terrarium variable `dims` and boundary conditions.
-Additional arguments are passed direclty to the `Field` constructor. The location of the `Field`
-is determined by `VarDims` defined on `var`.
+Auxiliary constructor for an Oceananigans `Field` on `grid` at the given Terrarium variable location
+and boundary conditions. Additional arguments are passed directly to the `Field` constructor.
+
+[`VarLocation`](@ref) determines both *where* the field is allocated and *what shape* it has: its
+[`VarDomain`](@ref) selects the domain discretization via [`variable_grid`](@ref), and its
+[`VarDims`](@ref) give the Oceananigans location and, for variables declared at a single point such
+as [`Top`](@ref) or [`Bottom`](@ref), the `indices` which restrict the field to that point.
+
+Note that the `Field` is allocated on the domain discretization rather than on the land grid itself, so
+that `field.grid` names the domain the field lives on and Oceananigans' own grid methods, many of
+which dispatch on concrete grid types, apply to it unchanged.
 """
 function Oceananigans.Field(
         grid::AbstractLandGrid,
-        dims::VarDims,
+        loc::VarLocation,
         boundary_conditions = nothing,
         args...;
         kwargs...
     )
-    # infer the location of the Field on the Oceananigans grid from `dims`
-    loc = location(dims)
-    FT = Field{map(typeof, loc)...}
+    return create_field(variable_grid(grid, loc), loc, boundary_conditions, args...; kwargs...)
+end
+
+# A plain grid has a single discretization, so there is no domain to resolve and `loc`'s domain (if
+# any) is ignored; only its dimensions matter.
+function Oceananigans.Field(
+        grid::AbstractGrid,
+        loc::VarLocation,
+        boundary_conditions = nothing,
+        args...;
+        kwargs...
+    )
+    return create_field(grid, loc, boundary_conditions, args...; kwargs...)
+end
+
+# Bare dimensions declare a domainless variable; see `var`.
+Oceananigans.Field(grid::AbstractGrid, dims::VarDims, args...; kwargs...) =
+    Field(grid, VarLocation(dims), args...; kwargs...)
+
+# Allocate the field on an already-resolved `domain` discretization.
+function create_field(
+        domain::AbstractGrid,
+        loc::VarLocation,
+        boundary_conditions = nothing,
+        args...;
+        kwargs...
+    )
+    dims = vardims(loc)
+    # infer the location and index restriction of the Field on the Oceananigans grid from `dims`
+    field_loc = location(dims)
+    FT = Field{map(typeof, field_loc)...}
+    field_indices = indices(domain, dims)
     # Specify BCs if defined
     field = if isa(boundary_conditions, FieldBoundaryConditions)
-        FT(get_field_grid(grid), args...; boundary_conditions, kwargs...)
+        FT(domain, args...; indices = field_indices, boundary_conditions, kwargs...)
     elseif isa(boundary_conditions, NamedTuple)
         # assume that named tuple corresponds to FieldBoundaryConditions positions
-        field_bcs = FieldBoundaryConditions(get_field_grid(grid), (Center(), Center(), nothing); boundary_conditions...)
-        FT(get_field_grid(grid), args...; boundary_conditions = field_bcs, kwargs...)
+        field_bcs = FieldBoundaryConditions(domain, (Center(), Center(), nothing); boundary_conditions...)
+        FT(domain, args...; indices = field_indices, boundary_conditions = field_bcs, kwargs...)
     else
-        FT(get_field_grid(grid), args...; kwargs...)
+        FT(domain, args...; indices = field_indices, kwargs...)
     end
     return field
 end
 
 """
     FieldTimeSeries(
-        grid::AbstractLandGrid,
-        dims::VarDims,
-        times=eltype(grid)[]
+        grid::AbstractGrid,
+        loc::VarLocation,
+        times=eltype(grid)[];
+        kwargs...
     )
 
-Construct a `FieldTimeSeries` on the given land `grid` with the given `dims` and `times`.
+Construct a `FieldTimeSeries` on the domain discretization of `grid` selected by `loc`, with the
+given `times`.  Additional keyword arguments (e.g. `time_indexing = Cyclical()` for a periodically
+repeating climatology) are forwarded to the Oceananigans `FieldTimeSeries` constructor.
 """
 function Oceananigans.FieldTimeSeries(
         grid::AbstractLandGrid,
-        dims::VarDims,
-        times = eltype(grid)[]
+        loc::VarLocation,
+        times = eltype(grid)[];
+        kwargs...
     )
-    loc = location(dims)
-    arch = architecture(grid)
-    return FieldTimeSeries(loc, get_field_grid(grid), on_architecture(arch, times))
+    return create_field_time_series(variable_grid(grid, loc), loc, architecture(grid), times; kwargs...)
+end
+
+# As for `Field`: a plain grid resolves no domain.
+function Oceananigans.FieldTimeSeries(
+        grid::AbstractGrid,
+        loc::VarLocation,
+        times = eltype(grid)[];
+        kwargs...
+    )
+    return create_field_time_series(grid, loc, architecture(grid), times; kwargs...)
+end
+
+Oceananigans.FieldTimeSeries(grid::AbstractGrid, dims::VarDims, times = eltype(grid)[]; kwargs...) =
+    FieldTimeSeries(grid, VarLocation(dims), times; kwargs...)
+
+function create_field_time_series(domain::AbstractGrid, loc::VarLocation, arch, times; kwargs...)
+    dims = vardims(loc)
+    return FieldTimeSeries(location(dims), domain, on_architecture(arch, times); indices = indices(domain, dims), kwargs...)
 end

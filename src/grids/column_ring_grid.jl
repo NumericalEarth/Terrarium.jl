@@ -8,9 +8,9 @@ struct ColumnRingGrid{
         NF,
         Arch,
         RingGrid <: RingGrids.AbstractGrid,
-        RectGrid <: Oceananigans.Grids.RectilinearGrid,
+        RectGrid <: RectilinearGrid,
         Mask <: Union{AbstractArray, RingGrids.AbstractField},
-    } <: AbstractColumnGrid{NF, Arch}
+    } <: AbstractGrid{NF, Periodic, Flat, Bounded, Arch, Nothing}
     "RingGrid specfying the lateral spatial discretization of the globe"
     rings::RingGrid
 
@@ -23,7 +23,7 @@ struct ColumnRingGrid{
     function ColumnRingGrid(
             rings::RingGrids.AbstractGrid,
             mask::AbstractArray,
-            grid::Oceananigans.Grids.RectilinearGrid{NF}
+            grid::RectilinearGrid{NF}
         ) where {NF}
         arch = architecture(grid)
         return new{NF, typeof(arch), typeof(rings), typeof(grid), typeof(mask)}(rings, mask, grid)
@@ -32,26 +32,23 @@ struct ColumnRingGrid{
     """
         $SIGNATURES
 
-    Constructs a `ColumnRingGrid` over the given `rings`.
+    Constructs a `ColumnRingGrid` over the given `rings` with the given `vertical_coordinate`,
+    which may be any [`VerticalCoordinate`](@ref).
     """
     function ColumnRingGrid(
             arch::AbstractArchitecture,
             ::Type{NF},
-            vert::AbstractVerticalSpacing,
+            vertical_coordinate::VerticalCoordinate,
             rings::RingGrids.AbstractGrid,
             mask::RingGrids.AbstractField{Bool} = convert.(Bool, ones(rings))
         ) where {NF <: AbstractFloat}
         assert_field_matches_grid(mask, rings)
         # get number of horizontal grid points by summing over mask
         Nh = sum(mask)
-        # get number of vertical grid points
-        Nz = num_layers(vert)
         # TODO: Need to consider ordering of array dimensions;
         # using the z-axis here probably results in inefficient memory access patterns
         # since most or all land computations will be along this axis
-        z_thick = get_spacing(vert)
-        z_coords = convert.(NF, vcat(-reverse(cumsum(z_thick)), zero(eltype(z_thick))))
-        grid = Oceananigans.Grids.RectilinearGrid(arch, NF, size = (Nh, Nz), x = (1, Nh), z = z_coords, topology = (Periodic, Flat, Bounded))
+        grid = RectilinearGrid(arch, NF, size = (Nh, num_layers(vertical_coordinate)), x = (1, Nh), z = vertical_coordinate, topology = (Periodic, Flat, Bounded))
         # adapt ring grid and mask
         rings = on_architecture(arch, rings)
         mask = on_architecture(arch, mask)
@@ -60,39 +57,106 @@ struct ColumnRingGrid{
 
     ColumnRingGrid(
         arch::AbstractArchitecture,
-        vert::AbstractVerticalSpacing,
+        vertical_coordinate::VerticalCoordinate,
         rings::RingGrids.AbstractGrid,
         mask::RingGrids.AbstractField{Bool} = convert.(Bool, ones(rings))
-    ) = ColumnRingGrid(arch, Float32, vert, rings, mask)
+    ) = ColumnRingGrid(arch, Float32, vertical_coordinate, rings, mask)
 
     ColumnRingGrid(
         arch::AbstractArchitecture,
         ::Type{NF},
-        vert::AbstractVerticalSpacing,
+        vertical_coordinate::VerticalCoordinate,
         mask::RingGrids.AbstractField{Bool},
-    ) where {NF} = ColumnRingGrid(arch, NF, vert, mask.grid, mask)
+    ) where {NF} = ColumnRingGrid(arch, NF, vertical_coordinate, mask.grid, mask)
 
     ColumnRingGrid(
         arch::AbstractArchitecture,
-        vert::AbstractVerticalSpacing,
+        vertical_coordinate::VerticalCoordinate,
         mask::RingGrids.AbstractField{Bool}
-    ) = ColumnRingGrid(arch, Float32, vert, mask.grid, mask)
+    ) = ColumnRingGrid(arch, Float32, vertical_coordinate, mask.grid, mask)
 
     ColumnRingGrid(
-        vert::AbstractVerticalSpacing,
+        vertical_coordinate::VerticalCoordinate,
         rings::RingGrids.AbstractGrid,
         mask::RingGrids.AbstractField{Bool} = convert.(Bool, ones(rings))
-    ) = ColumnRingGrid(CPU(), Float32, vert, rings, mask)
+    ) = ColumnRingGrid(CPU(), Float32, vertical_coordinate, rings, mask)
 
     ColumnRingGrid(
-        vert::AbstractVerticalSpacing,
+        vertical_coordinate::VerticalCoordinate,
         mask::RingGrids.AbstractField{Bool}
-    ) = ColumnRingGrid(CPU(), Float32, vert, mask.grid, mask)
+    ) = ColumnRingGrid(CPU(), Float32, vertical_coordinate, mask.grid, mask)
 end
 
 @adapt_structure ColumnRingGrid
 
-get_field_grid(grid::ColumnRingGrid) = getfield(grid, :grid)
+
+# Forwarding of the Oceananigans `AbstractGrid` interface to the wrapped `RectilinearGrid`, which
+# is the grid `Field`s are defined on. `ColumnRingGrid` is a grid wrapper like `AbstractLandGrid`,
+# but the two are unrelated in the type hierarchy, so each defines its own forwarding.
+
+Base.summary(grid::ColumnRingGrid) = "ColumnRingGrid with dimensions $(size(grid))"
+Base.size(grid::ColumnRingGrid) = size(getfield(grid, :grid))
+
+Architectures.architecture(grid::ColumnRingGrid) = architecture(getfield(grid, :grid))
+
+Oceananigans.Grids.halo_size(grid::ColumnRingGrid) = halo_size(getfield(grid, :grid))
+Oceananigans.Grids.isrectilinear(grid::ColumnRingGrid) = isrectilinear(getfield(grid, :grid))
+
+@inline Oceananigans.Grids.nodes(grid::ColumnRingGrid, args...; kwargs...) = nodes(getfield(grid, :grid), args...; kwargs...)
+@inline Oceananigans.Grids.xnodes(grid::ColumnRingGrid, args...; kwargs...) = xnodes(getfield(grid, :grid), args...; kwargs...)
+@inline Oceananigans.Grids.ynodes(grid::ColumnRingGrid, args...; kwargs...) = ynodes(getfield(grid, :grid), args...; kwargs...)
+@inline Oceananigans.Grids.znodes(grid::ColumnRingGrid, args...; kwargs...) = znodes(getfield(grid, :grid), args...; kwargs...)
+
+# Generalized coordinate names and nodes. These are not part of the documented `AbstractGrid`
+# interface and `ξname`/`ηname`/`rname` are not even exported by `Oceananigans.Grids`, but
+# `set!(::Field, ::Function)` needs them to name and evaluate the coordinates of each node.
+Oceananigans.Grids.ξname(grid::ColumnRingGrid) = Oceananigans.Grids.ξname(getfield(grid, :grid))
+Oceananigans.Grids.ηname(grid::ColumnRingGrid) = Oceananigans.Grids.ηname(getfield(grid, :grid))
+Oceananigans.Grids.rname(grid::ColumnRingGrid) = Oceananigans.Grids.rname(getfield(grid, :grid))
+
+@inline Oceananigans.Grids.ξnode(i, j, k, grid::ColumnRingGrid, ℓx, ℓy, ℓz) = ξnode(i, j, k, getfield(grid, :grid), ℓx, ℓy, ℓz)
+@inline Oceananigans.Grids.ηnode(i, j, k, grid::ColumnRingGrid, ℓx, ℓy, ℓz) = ηnode(i, j, k, getfield(grid, :grid), ℓx, ℓy, ℓz)
+@inline Oceananigans.Grids.rnode(i, j, k, grid::ColumnRingGrid, ℓx, ℓy, ℓz) = rnode(i, j, k, getfield(grid, :grid), ℓx, ℓy, ℓz)
+
+"""
+    $SIGNATURES
+
+Longitudes (degrees) of the active (masked) columns of `grid`, as a host `Vector` ordered like the
+horizontal index of the grid. This extends the Oceananigans accessor for curvilinear grids so that
+`λnodes`/`φnodes` give the geographic coordinates of a horizontal position on both a
+`LatitudeLongitudeGrid` and a `ColumnRingGrid`; on the latter, both are indexed by column.
+"""
+Oceananigans.Grids.λnodes(grid::ColumnRingGrid, ::CenterOrFace = Center(), args...; kwargs...) = first(active_column_lonlats(grid))
+
+"""
+    $SIGNATURES
+
+Latitudes (degrees) of the active (masked) columns of `grid`, as a host `Vector` ordered like the
+horizontal index of the grid. See [`λnodes`](@ref).
+"""
+Oceananigans.Grids.φnodes(grid::ColumnRingGrid, ::CenterOrFace = Center(), args...; kwargs...) = last(active_column_lonlats(grid))
+
+# Host-side gather of the (longitude, latitude) pairs of the active columns, in degrees.
+function active_column_lonlats(grid::ColumnRingGrid)
+    rings = on_architecture(CPU(), grid.rings)
+    mask = on_architecture(CPU(), grid.mask)
+    lond, latd = RingGrids.get_londlatds(rings)
+    return lond[mask], latd[mask]
+end
+
+# Horizontal grid metrics. Oceananigans defines these four spacings per concrete grid type and derives
+# all areas and volumes from them, e.g. the `Az / volume` scaling of flux boundary conditions in
+# `compute_z_bcs!`. The vertical spacings need no forwarding since they read `grid.z`, which is
+# covered by the `getproperty` forwarding below.
+for Δ in (:Δxᶠᵃᵃ, :Δxᶜᵃᵃ, :Δyᵃᶠᵃ, :Δyᵃᶜᵃ)
+    @eval @inline Oceananigans.Operators.$Δ(i, j, k, grid::ColumnRingGrid) = Oceananigans.Operators.$Δ(i, j, k, getfield(grid, :grid))
+end
+
+# See the corresponding note for land grids in `grids.jl`: Oceananigans accesses grid dimensions and
+# discretization data as struct fields, so forward anything that is not one of our own fields.
+@inline Base.getproperty(grid::ColumnRingGrid, name::Symbol) = hasfield(typeof(grid), name) ? getfield(grid, name) : getproperty(getfield(grid, :grid), name)
+
+Base.propertynames(grid::ColumnRingGrid) = (fieldnames(typeof(grid))..., propertynames(getfield(grid, :grid))...)
 
 """
     $SIGNATURES
@@ -122,7 +186,7 @@ Converts a `RingGrids.Field` to an Oceananigans `Field`
 using the given `ColumnRingGrid`. Only masked grid points are copied to the Oceananigans field.
 For 2D RingGrids fields, returns a 2D Oceananigans field. For 3D fields, returns a 3D field.
 """
-function Oceananigans.Field(ring_field::RingGrids.AbstractField, grid::ColumnRingGrid; default_value = zero(eltype(ring_field)))
+function Oceananigans.Field(ring_field::RingGrids.AbstractField, grid::ColumnRingGrid; domain = nothing)
     if ndims(ring_field) == 1
         # 2D field (horizontal only): treat the data as a single-column matrix so one masked gather
         # (`data[mask, :]`) serves both the 1D and 2D cases. There's a related Reactant bug that makes this necessary: https://github.com/EnzymeAD/Reactant.jl/issues/3087
@@ -140,20 +204,30 @@ function Oceananigans.Field(ring_field::RingGrids.AbstractField, grid::ColumnRin
     mask = grid.mask.data   # host boolean mask (see note above)
     gathered = data[mask, :]
     values = reshape(gathered, size(gathered, 1), 1, size(gathered, 2))
-    oceananigans_field = Field(grid, dims)
+    loc = VarLocation(dims, domain)
+    oceananigans_field = Field(grid, loc)
     set!(oceananigans_field, values)
     return oceananigans_field
 end
 
-function Oceananigans.FieldTimeSeries(ring_field::RingGrids.AbstractField, grid::ColumnRingGrid, times::AbstractVector; default_value = zero(eltype(ring_field)))
+"""
+    $SIGNATURES
+
+Converts a `RingGrids.Field` whose last dimension is time to an Oceananigans `FieldTimeSeries` on the given
+`ColumnRingGrid`, one snapshot per entry of `times`. Only masked grid points are copied. A 2D RingGrids field
+(horizontal × time) yields a 2D series, a 3D field (horizontal × vertical × time) a 3D series. Additional
+keyword arguments (e.g. `time_indexing = Cyclical()`) are forwarded to the `FieldTimeSeries` constructor.
+"""
+function Oceananigans.FieldTimeSeries(ring_field::RingGrids.AbstractField, grid::ColumnRingGrid, times::AbstractVector; domain = nothing, kwargs...)
     @assert last(size(ring_field)) == length(times) "Last dimension of RingGrids Field must match the length of `times`"
     arch = architecture(grid)
 
     if ndims(ring_field) == 2
-        # 2D field (horizontal only): treat the data as a single-column matrix so one masked gather
-        # (`data[mask, :]`) serves both the 1D and 2D cases. There's a related Reactant bug that makes this necessary: https://github.com/EnzymeAD/Reactant.jl/issues/3087
+        # 2D field (horizontal + time): insert a singleton vertical dimension so one masked gather
+        # (`data[mask, :, :]`) serves both the 2D and 3D cases; the time axis must stay last.
+        # There's a related Reactant bug that makes this necessary: https://github.com/EnzymeAD/Reactant.jl/issues/3087
         dims = XY()
-        data = reshape(on_architecture(arch, ring_field.data), :, 1)
+        data = reshape(on_architecture(arch, ring_field.data), size(ring_field, 1), 1, size(ring_field, 2))
     elseif ndims(ring_field) == 3
         # 3D field (horizontal + vertical or other dimensions)
         @assert size(grid.grid, 3) == size(ring_field, 2) "Vertical dimension mismatch: grid has $(size(grid.grid, 3)) layers, but field has $(size(ring_field, 2)) layers"
@@ -166,7 +240,8 @@ function Oceananigans.FieldTimeSeries(ring_field::RingGrids.AbstractField, grid:
     mask = grid.mask.data   # host boolean mask (see note above)
     gathered = data[mask, :, :]
     values = reshape(gathered, size(gathered, 1), 1, size(gathered)[2:end]...)
-    oceananigans_fts = FieldTimeSeries(grid, dims, times)
+    loc = VarLocation(dims, domain)
+    oceananigans_fts = FieldTimeSeries(grid, loc, times; kwargs...)
     copyto!(interior(oceananigans_fts), values)
     return oceananigans_fts
 end
@@ -185,3 +260,19 @@ function Base.show(io::IO, mime::MIME"text/plain", grid::ColumnRingGrid{NF}) whe
     println(io)
     return show(io, mime, grid.grid)
 end
+
+# Land grids delegate the ring grid conversions to the discretization of their ground domain,
+# which is the domain that carries the `rings` and `mask`.
+RingGrids.Field(field::Union{AbstractField, AbstractArray}, grid::AbstractLandGrid; kwargs...) = RingGrids.Field(field, ground_domain(grid); kwargs...)
+RingGrids.Field(arch::AbstractArchitecture, field::Union{AbstractField, AbstractArray}, grid::AbstractLandGrid; kwargs...) = RingGrids.Field(arch, field, ground_domain(grid); kwargs...)
+Oceananigans.Field(ring_field::RingGrids.AbstractField, grid::AbstractLandGrid; kwargs...) = Oceananigans.Field(ring_field, ground_domain(grid); kwargs...)
+Oceananigans.FieldTimeSeries(ring_field::RingGrids.AbstractField, grid::AbstractLandGrid, times::AbstractVector; kwargs...) = Oceananigans.FieldTimeSeries(ring_field, ground_domain(grid), times; kwargs...)
+
+"""
+    $SIGNATURES
+
+Serialize a `ColumnRingGrid` as the `RectilinearGrid` it wraps. The `rings` and `mask` fields are
+intentionally discarded, so `Field`s will be read back as plain `RectilinearGrid`s.
+"""
+Oceananigans.OutputWriters.serializeproperty!(file, address, grid::ColumnRingGrid) =
+    Oceananigans.OutputWriters.serializeproperty!(file, address, getfield(grid, :grid))

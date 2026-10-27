@@ -1,18 +1,18 @@
 using Terrarium
 using Test
 
-using Terrarium: AbstractLandGrid, VarDims, XY, XYZ, prognostic, auxiliary, input, namespace
+using Terrarium: AbstractGrid, VarDims, XY, XYZ, prognostic, auxiliary, input, namespace
 
 DEFAULT_NF = Float32
 
 module StateVariablesTestTypes
 
     using Terrarium
-    using Terrarium: AbstractLandGrid, VarDims, XY, XYZ, prognostic, auxiliary, input, namespace
+    using Terrarium: AbstractGrid, VarDims, XY, XYZ, prognostic, auxiliary, input, namespace
 
     using Test
 
-    @kwdef struct SubModel{NF, Grid <: AbstractLandGrid{NF}} <: Terrarium.AbstractModel{NF, Grid}
+    @kwdef struct SubModel{NF, Grid <: AbstractGrid{NF}} <: Terrarium.AbstractModel{NF, Grid}
         grid::Grid
         initializer = DefaultInitializer(eltype(grid))
         timestepper = ForwardEuler(eltype(grid))
@@ -25,7 +25,7 @@ module StateVariablesTestTypes
         input(:forcing, XY()),
     )
 
-    @kwdef struct TestModel{NF, Grid <: AbstractLandGrid{NF}, Sub} <: Terrarium.AbstractModel{NF, Grid}
+    @kwdef struct TestModel{NF, Grid <: AbstractGrid{NF}, Sub} <: Terrarium.AbstractModel{NF, Grid}
         grid::Grid
         submodel::Sub = SubModel(; grid)
         initializer = DefaultInitializer(eltype(grid))
@@ -51,7 +51,7 @@ end
 
 @testset "State variable initialization" begin
     grid = ColumnGrid(CPU(), DEFAULT_NF, ExponentialSpacing(N = 10))
-    model = StateVariablesTestTypes.TestModel(; grid)
+    model = StateVariablesTestTypes.TestModel(grid)
     state = StateVariables(model)
     # Check that all prognostic variables are defined correctly
     @test hasproperty(state, :progvar3D) && isa(state.prognostic.progvar3D, Field{Center, Center, Center})
@@ -75,7 +75,7 @@ end
 
 @testset "State variable utilities" begin
     grid = ColumnGrid(CPU(), DEFAULT_NF, ExponentialSpacing(N = 10))
-    model = StateVariablesTestTypes.TestModel(; grid)
+    model = StateVariablesTestTypes.TestModel(grid)
     state = StateVariables(model)
     for input in state.inputs
         set!(input, 1)

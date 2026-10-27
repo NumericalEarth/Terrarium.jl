@@ -10,6 +10,7 @@ if FLAG_ENZYME_TESTS
         include("differentiability/soil_hydrology_diff.jl")
         include("differentiability/vegetation_model_diff.jl")
         include("differentiability/snow_model_diff.jl")
+        include("differentiability/prescribed_seb_diff.jl")
         include("checkpointing/autodiff.jl")
     end
 end
@@ -27,6 +28,18 @@ if MAIN_TESTS
         include("state_variables.jl")
     end
 
+    @testset "Initializers" begin
+        include("initializers.jl")
+    end
+
+    @testset "Parameter handling" begin
+        include("parameter_handling.jl")
+    end
+
+    @testset "Boundary conditions" begin
+        include("boundary_conditions.jl")
+    end
+
     @testset "Inputs" begin
         include("inputs/inputs.jl")
         include("inputs/namespaced_inputs.jl")
@@ -38,6 +51,7 @@ if MAIN_TESTS
         include("timestepping/explicit_step.jl")
         include("timestepping/run_simulation.jl")
         include("timestepping/heun.jl")
+        include("timestepping/vector_eltype.jl")
         include("timestepping/imex.jl")
         include("timestepping/adaptive_timestep.jl")
     end

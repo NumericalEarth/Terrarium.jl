@@ -16,8 +16,8 @@ end
     albd = PrescribedAlbedo(eltype(grid))
     state = (
         inputs = (
-            albedo = set!(Field(grid, XY()), 0.4),
-            emissivity = set!(Field(grid, XY()), 0.8),
+            albedo = set!(Field(grid, Terrarium.Ground(XY())), 0.4),
+            emissivity = set!(Field(grid, Terrarium.Ground(XY())), 0.8),
         )
     )
     @test albedo(1, 1, grid, state, albd) == 0.4

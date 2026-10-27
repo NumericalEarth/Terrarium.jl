@@ -13,4 +13,4 @@
 # specialization.
 
 Terrarium.default_clock(model::ReactantModel) =
-    Oceananigans.TimeSteppers.Clock(get_field_grid(get_grid(model)))
+    Oceananigans.TimeSteppers.Clock(ground_domain(get_grid(model)))

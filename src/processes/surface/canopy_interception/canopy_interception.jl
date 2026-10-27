@@ -9,7 +9,7 @@ struct NoCanopyInterception{NF} <: AbstractCanopyInterception{NF} end
 NoCanopyInterception(::Type{NF}) where {NF} = NoCanopyInterception{NF}()
 
 variables(noop::NoCanopyInterception) = (
-    auxiliary(:rainfall_ground, XY(), passthrough_rainfall, noop; desc = "Rainfall rate reaching the ground", units = u"m/s"),
+    auxiliary(:rainfall_ground, Ground(XY()), passthrough_rainfall, noop; desc = "Rainfall rate reaching the ground", units = u"m/s"),
 )
 
 passthrough_rainfall(grid, clock, fields, ::NoCanopyInterception) = fields.rainfall # assumes existence of rainfall field
@@ -74,13 +74,13 @@ end
 PALADYNCanopyInterception(::Type{NF}; kwargs...) where {NF} = PALADYNCanopyInterception{NF}(; kwargs...)
 
 variables(::PALADYNCanopyInterception) = (
-    prognostic(:canopy_water, XY(); desc = "Canopy liquid water", units = u"m", bounds = Nonnegative),
-    auxiliary(:canopy_water_interception, XY(); desc = "Canopy rain interception rate", units = u"m/s"),
-    auxiliary(:canopy_water_removal, XY(); desc = "Canopy water removal rate", units = u"m/s"),
-    auxiliary(:saturation_canopy_water, XY(); desc = "Fraction of the canopy saturated with water"),
-    auxiliary(:rainfall_ground, XY(); desc = "Rainfall rate reaching the ground", units = u"m/s"),
-    input(:leaf_area_index, XY(); desc = "Leaf Area Index", units = u"m^2/m^2"),
-    input(:stem_area_index, XY(); desc = "Stem Area Index", units = u"m^2/m^2"),
+    prognostic(:canopy_water, Canopy(XY()); desc = "Canopy liquid water", units = u"m", bounds = Nonnegative),
+    auxiliary(:canopy_water_interception, Canopy(XY()); desc = "Canopy rain interception rate", units = u"m/s"),
+    auxiliary(:canopy_water_removal, Canopy(XY()); desc = "Canopy water removal rate", units = u"m/s"),
+    auxiliary(:saturation_canopy_water, Canopy(XY()); desc = "Fraction of the canopy saturated with water"),
+    auxiliary(:rainfall_ground, Ground(Top()); desc = "Rainfall rate reaching the ground", units = u"m/s"),
+    input(:leaf_area_index, Canopy(XY()); desc = "Leaf Area Index", units = u"m^2/m^2"),
+    input(:stem_area_index, Canopy(XY()); desc = "Stem Area Index", units = u"m^2/m^2"),
 )
 
 @propagate_inbounds canopy_water(i, j, grid, fields, ::PALADYNCanopyInterception) = fields.canopy_water[i, j]
@@ -214,10 +214,10 @@ end
     rainfall_ground = compute_precip_ground(canopy_interception, rain, I_can, R_can)
 
     # Store results
-    out.canopy_water_interception[i, j, 1] = I_can
-    out.canopy_water_removal[i, j, 1] = R_can
-    out.saturation_canopy_water[i, j, 1] = f_can
-    out.rainfall_ground[i, j, 1] = rainfall_ground
+    out.canopy_water_interception[i, j, end] = I_can
+    out.canopy_water_removal[i, j, end] = R_can
+    out.saturation_canopy_water[i, j, end] = f_can
+    out.rainfall_ground[i, j, end] = rainfall_ground
     return out
 end
 
@@ -233,7 +233,7 @@ end
     R_can = fields.canopy_water_removal[i, j]
 
     # Compute canopy water tendency
-    tendencies.canopy_water[i, j, 1] = compute_canopy_water_tendency(canopy_interception, I_can, E_can, R_can)
+    tendencies.canopy_water[i, j, end] = compute_canopy_water_tendency(canopy_interception, I_can, E_can, R_can)
     return tendencies
 end
 

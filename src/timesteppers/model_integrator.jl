@@ -10,9 +10,9 @@ treated as a "model" in `Oceananigans` `Simulation`s and output reading/writing 
 struct ModelIntegrator{
         NF,
         Arch <: AbstractArchitecture,
-        Grid <: AbstractLandGrid{NF},
-        TimeStepper <: AbstractTimeStepper{NF},
-        Model <: AbstractModel{NF, Grid},
+        Grid <: AbstractGrid,
+        TimeStepper <: AbstractTimeStepper,
+        Model <: AbstractModel,
         StateVars <: AbstractStateVariables,
         ClockType <: Clock,
         Inits <: NamedTuple,
@@ -62,7 +62,7 @@ function Base.getproperty(integrator::ModelIntegrator, name::Symbol)
     # TODO: Raise an issue in Oceananigans for better long-term solution
     if name == :grid
         model = getfield(integrator, :model)
-        return get_field_grid(get_grid(model))
+        return ground_domain(get_grid(model))
     else
         return getfield(integrator, name)
     end
@@ -160,6 +160,8 @@ function initialize!(integrator::ModelIntegrator)
     # reset state variables and clock
     reset!(integrator.state)
     reset!(integrator.clock)
+    # reset inputs to the defaults declared by the (possibly reconstructed) model
+    reset_inputs!(integrator.state, Variables(variables(integrator.model)))
     # set inputs based on updated clock/state
     initialize!(integrator.state, get_grid(integrator.model), integrator.inputs)
     # evaluate user-specified field initializers
@@ -168,6 +170,8 @@ function initialize!(integrator::ModelIntegrator)
     initialize!(integrator.state, integrator.model)
     return integrator
 end
+
+initialize!(simulation::Simulation{<:ModelIntegrator}) = initialize!(simulation.model)
 
 current_time(integrator::ModelIntegrator) = integrator.clock.time
 

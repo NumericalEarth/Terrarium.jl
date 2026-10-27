@@ -38,7 +38,7 @@ Implementations of `AbstractModel` are required to implement, at minimum, three 
 Note that a default implementation of `variables` is provided which automatically collects all
 variables declared by `AbstractProcess`es defined as fields (properties) of `struct`s that subtype `AbstractModel`.
 """
-abstract type AbstractModel{NF, Grid <: AbstractLandGrid{NF}}  end
+abstract type AbstractModel{NF, Grid <: AbstractGrid}  end
 
 # Method interface for AbstractModel and AbstractProcess
 
@@ -113,13 +113,22 @@ function compute_tendencies! end
 variables(::Any) = ()
 
 """
-    variables(obj::Union{AbstractCoupledProcesses, AbstractModel})
+    variables(obj::AbstractCoupledProcesses)
 
-Default implementation of [`variables`](@ref) for composite [`AbstractModel`](@ref) and
-[`AbstractCoupledProcesses`](@ref) types that automatically collects all variables from all processes defined
-as properties/fields on the given `obj`.
+Default implementation of [`variables`](@ref) for composite [`AbstractCoupledProcesses`](@ref) types
+that automatically collects all variables from all processes defined as properties/fields on the given `obj`.
 """
-variables(obj::Union{AbstractCoupledProcesses, AbstractModel}) = tuplejoin(fastmap(variables, processes(obj))...)
+variables(obj::AbstractCoupledProcesses) = tuplejoin(fastmap(variables, processes(obj))...)
+
+"""
+    variables(model::AbstractModel)
+
+Default implementation of [`variables`](@ref) for [`AbstractModel`](@ref) types that collects all
+variables from all processes defined as properties/fields on the given `model`, followed by any
+variables declared by its initializer (see [`get_initializer`](@ref)). Initializers may declare
+`input` variables for their parameters; see [`AbstractInitializer`](@ref).
+"""
+variables(model::AbstractModel) = tuplejoin(fastmap(variables, processes(model))..., variables(get_initializer(model)))
 
 # Fallback dispatches to make implementing compute_boundary_conditions! optional
 compute_boundary_conditions!(state, ::AbstractModel) = nothing
@@ -165,7 +174,7 @@ Note that this is a type-stable, `@generated` function that is compiled for each
 end
 
 """
-    get_grid(model::AbstractModel)::AbstractLandGrid
+    get_grid(model::AbstractModel)::AbstractGrid
 
 Return the spatial grid associated with the given `model`.
 """
@@ -239,20 +248,24 @@ defined by the coupling interface for the process type.
 invclosure!(state, grid, closure::AbstractClosureRelation, ::AbstractProcess, args...) = nothing
 
 """
-    (::Type{Model})(grid::AbstractLandGrid; kwargs...) where {Model <: AbstractModel}
+    (::Type{Model})(grid::AbstractGrid; kwargs...) where {Model <: AbstractModel}
 
 Convenience constructor for all `AbstractModel` types that accepts `grid` as a positional argument.
 """
-(::Type{Model})(grid::AbstractLandGrid; kwargs...) where {Model <: AbstractModel} = Model(; grid, kwargs...)
+(::Type{Model})(grid::AbstractGrid; kwargs...) where {Model <: AbstractModel} = Model(; grid, kwargs...)
 
 # Default parameters collection for processes
-function ParameterEditing.parameters(proc::AbstractProcess; kwargs...)
+function ParameterEditing.parameters(::Type{PT}, proc::AbstractProcess; kwargs...) where {PT <: ModelParameters.AbstractParam}
     proc_params = map(fieldnames(typeof(proc))) do name
-        name => ParameterEditing.parameters(getproperty(proc, name))
+        name => ParameterEditing.parameters(PT, getproperty(proc, name))
     end
     nonempty_params = filter(p -> length(p[2]) > 0, proc_params)
     return ParameterEditing.ParameterTable((; nonempty_params...))
 end
+
+# `Field`s used as initial values (e.g. in a `@param` field of an initializer) are state, not parameters;
+# without this, ParameterEditing would treat them as array-valued parameters since `AbstractField <: AbstractArray`.
+ParameterEditing.parameters(::Type{PT}, ::AbstractField; kwargs...) where {PT <: ParameterEditing.AbstractParam} = (;)
 
 function Base.show(io::IO, model::AbstractModel{NF}) where {NF}
     println(io, "$(nameof(typeof(model))){$NF} on $(architecture(get_grid(model)))")

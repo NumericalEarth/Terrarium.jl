@@ -39,7 +39,7 @@ using Test
         @test haskey(vars.namespaces, :h2)
 
         # Test soil_horizon
-        grid = ColumnGrid(CPU(), Float64, UniformSpacing(N = 10, Δz = 0.1))
+        grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 10))
         state = StateVariables(vars, grid)
         fields = Terrarium.get_fields(state, strat)
         horizon = Terrarium.soil_horizon(1, 1, 10, grid, fields, strat)
@@ -69,12 +69,12 @@ using Test
 end
 
 @testset "Texture normalization" begin
-    grid = ColumnGrid(CPU(), Float64, UniformSpacing(N = 10), 10)
-    sand = Field(grid, XY())
+    grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 10), 10)
+    sand = Field(grid, Terrarium.Ground(XY()))
     set!(sand, 0.5)
-    silt = Field(grid, XY())
+    silt = Field(grid, Terrarium.Ground(XY()))
     set!(silt, 0.4)
-    clay = Field(grid, XY())
+    clay = Field(grid, Terrarium.Ground(XY()))
     set!(clay, 0.2) # violate bounds
     normalize_texture!(sand, silt, clay)
     # all entries sum to unity
@@ -87,7 +87,7 @@ end
     porosity = ConstantSoilPorosity(Float64)
     thickness = 0.5
     horizon = ConstantSoilHorizon(Float64, :ch; texture, porosity, thickness)
-    grid = ColumnGrid(CPU(), Float64, UniformSpacing(N = 10))
+    grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 10))
     @test Terrarium.soil_thickness(1, 1, grid, (;), horizon) == thickness
     @test Terrarium.soil_texture(1, 1, grid, (;), horizon) == texture
     # Prescribed (input) horizon
@@ -132,7 +132,7 @@ end
     @test haskey(vars.namespaces, :h2)
 
     # Test soil_horizon
-    grid = ColumnGrid(CPU(), Float64, UniformSpacing(N = 10, Δz = 0.1))
+    grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 10))
     state = StateVariables(vars, grid)
     fields = Terrarium.get_fields(state, strat)
     horizon = Terrarium.soil_horizon(1, 1, 10, grid, fields, strat)

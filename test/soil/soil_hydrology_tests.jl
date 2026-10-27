@@ -210,12 +210,12 @@ end
     # Unit check: the discrete BC function itself equals -infiltration / porosity pointwise. `fields`
     # only needs an (empty) `:soil` namespace entry since the default `ConstantSoilHorizon` declares
     # no variables of its own; `clock` is unused by this particular condition.
-    fgrid = get_field_grid(grid)
-    infiltration = Field{Center, Center, Nothing}(fgrid)
+    ground_grid = ground_domain(grid)
+    infiltration = Field{Center, Center, Nothing}(ground_grid)
     set!(infiltration, 2.0e-7)
     fields = (; infiltration, soil = (;))
     parameters = (; strat, bgc = biogeochem)
-    value = Terrarium.saturation_infiltration_bc(1, 1, fgrid, nothing, fields, parameters)
+    value = Terrarium.saturation_infiltration_bc(1, 1, ground_grid, nothing, fields, parameters)
     @test value ≈ -2.0e-7 / mineral_porosity
 
     # End-to-end check, at the `SoilHydrology` level (no full model needed): the top-cell
@@ -226,7 +226,7 @@ end
         strat = HomogeneousSoilStratigraphy(eltype(grid); porosity = ConstantSoilPorosity(eltype(grid); mineral_porosity))
         bgc = ConstantSoilCarbonDensity(eltype(grid))
         hydrology = SoilHydrology(eltype(grid), RichardsEq())
-        infiltration_var = auxiliary(:infiltration, XY(), units = u"m/s", desc = "Infiltration flux")
+        infiltration_var = auxiliary(:infiltration, Terrarium.Ground(Terrarium.Top()), units = u"m/s", desc = "Infiltration flux")
         # `strat`'s own variables (the per-horizon namespace `porosity_top` reaches into) must be part
         # of the state too, not just `hydrology`'s.
         vars = merge(Variables(hydrology), Variables(strat), Variables((infiltration_var,)))

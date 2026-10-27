@@ -118,6 +118,8 @@ SoilModel(grid; soil = SoilEnergyWaterCarbon(eltype(grid)), ...)
 
 This is equivalent to `SoilModel(; grid, soil, ...)` and is the recommended calling convention for all model types.
 
+The `grid` field of every model is an [`AbstractLandGrid`](@ref), but the positional constructor also accepts an ordinary spatial discretization (any Oceananigans `AbstractGrid`, including [`ColumnGrid`](@ref) and [`ColumnRingGrid`](@ref)) and converts it via [`create_land_grid`](@ref). The default conversion builds a ground-only [`LandGrid`](@ref); models which resolve a vertical snow or canopy profile should define their own constructor that passes the relevant process components to `create_land_grid`.
+
 ### Required method implementations
 
 A concrete `AbstractModel` subtype must implement at minimum the same basic interface as `AbstractProcess`:
@@ -141,7 +143,7 @@ Both models and processes may optionally implement [`compute_boundary_conditions
 
 ### The `AbstractInitializer` interface
 
-Standardized model initialization routines can be defined using the [`AbstractInitializer`](@ref) interface (see also [Initialization](@ref)). Each implementation of `AbstractModel` must allow for a user-defined `initializer` (the type can be constrained where appropriate). The simplest initializer is `DefaultInitializer`, which is a no-op that leaves all `Field`s at their default (zero) values. More complex models define their own composite initializers; for example, `SoilInitializer` composes separate initializers for the energy, hydrology, and biogeochemistry state variables. See [Soil models](@ref) for the full list of available initializer types.
+Standardized model initialization routines can be defined using the [`AbstractInitializer`](@ref) interface (see also [Initialization](@ref)). Each implementation of `AbstractModel` must allow for a user-defined `initializer` (the type can be constrained where appropriate). The simplest initializer is `DefaultInitializer`, which is a no-op that leaves all `Field`s at their default (zero) values. More complex models define their own composite initializers; for example, `SoilInitializer` composes separate initializers for the energy, hydrology, and biogeochemistry state variables. See [Soil models](@ref) for the full list of available initializer types. Initializers may declare `input` variables by implementing [`variables`](@ref); these are included in the variables of the model.
 
 ```@docs; canonical = false
 AbstractInitializer
