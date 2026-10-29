@@ -64,9 +64,16 @@ Terrarium.jl is being developed as part of the NumericalEarth project, which is 
 
 # Statement of need
 
-Most existing ESM land components, such as those involved in the international Coupled Model Intercomparison Project (CMIP), are implemented in languages such as Fortran and C++; these languages, despite their advantages, incur a significant engineering burden and limit the accessibility of the model code for many scientists and researchers.
-Furthermore, Fortran/C++ make it far more difficult for these models to take advantage of state-of-the-art tools for high-level GPU programming and AD which have served as the foundation of recent advances in machine learning and data-driven modeling [@gelbrechtDifferentiableProgrammingEarth2023].
-As such, there is a general need for a new generation of ESM components that are built using modern numerical computing tools in higher level languages such as Julia or Python, which can greatly improve accessibility and productivity.
+Most existing ESM land components, including those involved in the international Coupled Model Intercomparison Project (CMIP), are implemented in statically compiled languages such as Fortran and C++; these languages, despite their advantages, incur a significant engineering burden and limit the accessibility of the model code for many scientists and researchers.
+Furthermore, the use of Fortran/C++ inhibits the adoption of state-of-the-art tools for high-level GPU programming and AD which have served as the foundation of recent advances in machine learning and data-driven modeling [@gelbrechtDifferentiableProgrammingEarth2023].
+As such, there is a general need for a new generation of ESM components that are built using modern numerical computing tools in higher level, dynamic languages such as Julia or Python, which can greatly improve productivity as well as accessibility for researchers who lack extensive programming experience.
+
+Another limitation of many existing land models is that they tend to mix physics and numerics in an *ad hoc* and inconsistent manner [@clarkNumericalImplementationLand2021].
+This makes it difficult for land models to take advantage of state-of-the-art numerical methods since incorporating them would also require reformulating the simulated physics.
+Terrarium.jl strives to overcome this limitation by formulating all physical processes in terms of continuous-time dynamics and enforcing a clear separation between the instantaneous tendencies of the system and the numerical scheme used to discretize the corresponding governing equations in time.
+In addition, state variables are classified as *prognostic* (evolved in time), *auxiliary* (instantaneously derived from the prognostic state), or *inputs* (externally prescribed).
+Constitutive relationships between prognostic and auxiliary variables are explicitly declared and evaluated separately from the tendency and timestepping scheme.
+This design facilitates the implementation and comparison of new solvers and time discretization schemes while also helping to maintain mathematical consistency between model components.
 
 # State of the field
 
@@ -144,7 +151,7 @@ These coupling interfaces will allow Terrarium.jl to directly contribute to ongo
 # AI usage disclosure
 
 No generative AI was used in the preparation of this manuscript.
-Some parts of the software, including tests and documentation, are developed with limited AI assistance under strict human oversight.
+Some parts of the software, including tests and documentation, are developed with AI assistance under strict human oversight.
 All pull requests are reviewed and signed off by human developers.
 
 # Acknowledgements
