@@ -4,7 +4,8 @@
 # Figure 2: SoilModel performance — SYPD vs grid resolution for CPU, GPU and
 #           Reactant, plotted from `benchmark/assets/benchmark_results.json`
 #           (suite `bench202`, the `:soil_heat` SoilModel sweep) produced by
-#           `benchmark/manual_benchmarking.jl`.
+#           `benchmark/manual_benchmarking.jl`. The benchmarked SoilModel solves
+#           heat conduction only (immobile soil water, i.e. no hydrology).
 # Figure 3: land-surface climatology, 2x3 panels.
 #           top:    skin temperature, GPP, max annual snow depth
 #           bottom: sensible heat flux, evaporative fraction, albedo
@@ -16,13 +17,15 @@
 # Run from the repository root with
 #     julia --project=docs/joss docs/joss/figures.jl
 
+using Terrarium: ThermodynamicConstants
 using Rasters, NCDatasets
 using CairoMakie, GeoMakie
 using JSON3
 using Statistics
 using Dates
 
-# run_0004 is the coupled run that also writes the 3D Terrarium `temperature`.
+# Output of the coupled run produced by `run_terrarium_speedy_simulation.jl`,
+# which also writes Terrarium's `skin_temperature`.
 run_dir = "outputs/run_0004"
 output_dir = joinpath(@__DIR__, "assets")
 mkpath(output_dir)
@@ -34,9 +37,10 @@ outputs = RasterStack(joinpath(run_dir, "output.nc"), lazy = true)
 times = Array(dims(outputs[:shf], Ti))
 years = year.(times)
 
-# Latent heat of vaporization [J/kg], used to convert the surface humidity
-# flux [kg/s/m²] into a latent heat flux [W/m²] for the evaporative fraction.
-const latent_heat_vaporization = 2.501e6
+# Latent heat of vaporization (J/kg), taken from Terrarium's thermodynamic
+# constants, used to convert the surface humidity flux (kg/s/m²) into a latent
+# heat flux (W/m²) for the evaporative fraction.
+const latent_heat_vaporization = ThermodynamicConstants(Float64).latent_heat_vaporization
 
 """
     to_map_order(lon, lat, data)
@@ -146,19 +150,22 @@ end
 
 # Plots simulated years per wallclock day (SYPD) for `SoilModel` across grid
 # resolutions, one curve per architecture. The data is the `bench202` suite (the
-# `:soil_heat` configuration) in the benchmark JSON store, written by
+# `:soil_heat` configuration, i.e. soil heat conduction without hydrology) in the
+# benchmark JSON store, written by
 # `benchmark/manual_benchmarking.jl` (see `docs/joss/joss_benchmark.slurm` for a
 # single-node run of all four architectures). Architectures absent from the store
 # — or resolutions skipped/failed there — are simply not drawn.
 const BENCHMARK_RESULTS_JSON = normpath(joinpath(@__DIR__, "..", "..", "benchmark", "assets", "benchmark_results.json"))
 const BENCHMARK_SOIL_SUITE = "bench202" # the :soil_heat SoilModel resolution sweep
 
-# Store label => (legend name, color, annotation offset). Both CPU labels share one
-# curve; the first present wins (see the `plotted_names` guard below).
+# Store label => (legend name, color, annotation offset). The CPU and the Reactant (CPU)
+# labels each share one curve; the first present wins (see the `plotted_names` guard below).
 const BENCHMARK_ARCH_STYLES = (
     "cpu-x86" => ("CPU", :navy, (6, 6)),
     "cpu-arm" => ("CPU", :navy, (6, 6)),
     "gpu-nvidia" => ("GPU", :forestgreen, (6, -16)),
+    "reactant-cpu-x86" => ("Reactant (CPU)", :darkorange, (-38, 8)),
+    "reactant-cpu-arm" => ("Reactant (CPU)", :darkorange, (-38, 8)),
     "reactant-cpu" => ("Reactant (CPU)", :darkorange, (-38, 8)),
     "reactant-gpu" => ("Reactant (GPU)", :crimson, (6, 20)),
 )
@@ -169,7 +176,9 @@ ax2 = Axis(
     xlabel = "Number of land columns",
     ylabel = "Simulated years per wallclock day (SYPD)",
     xscale = log10, yscale = log10,
-    title = "Terrarium SoilModel performance"
+    # label every decade of SYPD (e.g. 10¹ and 10³) for easier comparison with other models
+    yticks = LogTicks(-3:9),
+    title = "Terrarium SoilModel performance (heat conduction only)"
 )
 
 plotted_names = String[]
@@ -218,25 +227,21 @@ save(joinpath(output_dir, "figure2.png"), fig2)
 #   bottom: sensible heat flux, evaporative fraction, albedo
 # ---------------------------------------------------------------------------
 
-# In the coupled SpeedyWeather-Terrarium setup the NetCDF `st` variable is the
-# SpeedyWeather soil mirror, which the coupling fills from Terrarium's
-# `skin_temperature` (see SpeedyWeatherTerrariumExt/coupling.jl).
 
 # GPP is stored as kg C / m² / s; rescale to g C / m² / day for readability.
 gpp_raw = time_mean(outputs[:gross_primary_production])
 gpp = gpp_raw * 8.64e7
 
 # Terrarium output variables are `missing` over ocean (and become NaN32 after
-# `time_mean`), while the SpeedyWeather fields (`st`, `shf`, `shuf`, `albedo`)
+# `time_mean`), while the SpeedyWeather fields (`shf`, `shuf`, `albedo`)
 # carry values or a constant fallback over ocean. To keep every panel on the
 # same land-only footprint, the land mask is recovered from GPP and applied to
 # the SpeedyWeather panels.
 land_mask = isfinite.(gpp_raw)
 
-# `st` carries a singleton soil-layer dimension, which is dropped so it matches
-# the 2D land mask.
-skin_temperature = dropdims(time_mean(outputs[:st]); dims = 3)
-skin_temperature[.!land_mask] .= NaN32
+# Skin temperature (°C) is written directly from the Terrarium state, so it is
+# already 2D and `missing` over ocean.
+skin_temperature = time_mean(outputs[:skin_temperature])
 
 snow_depth = annual_max_mean(outputs[:sd])
 
@@ -271,7 +276,7 @@ map_panel!(
 )
 map_panel!(
     fig3, (1, 3), (1, 4), gpp;
-    title = "Gross primary production", units = "g C m⁻² day⁻¹",
+    title = "Mean gross primary production", units = "g C m⁻² day⁻¹",
     colormap = :YlGn, colorrange = robust_colorrange(gpp; bounds = (0, 0.99)), width = 10
 )
 map_panel!(
