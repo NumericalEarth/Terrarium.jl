@@ -161,13 +161,13 @@ function compute_tendencies!(state, grid, veg::VegetationCarbonCycle, constants:
     return nothing
 end
 
-@propagate_inbounds function vegetation_area_fraction(i, j, grid, fields, veg::VegetationCarbonCycle)
-    if isnothing(veg.vegetation_dynamics)
-        LAI = fields.leaf_area_index[i, j, end]
-        LAI_max = maximum_leaf_area_index(i, j, grid, fields, veg.traits)
-        f_veg = LAI / LAI_max
-        return f_veg
-    else
-        return vegetation_area_fraction(i, j, grid, fields, veg.vegetation_dynamics)
-    end
-end
+@propagate_inbounds vegetation_area_fraction(i, j, grid, fields, veg::VegetationCarbonCycle) =
+    vegetation_area_fraction(i, j, grid, fields, veg.vegetation_dynamics, veg.traits)
+
+# With vegetation dynamics, the vegetated fraction is the prognostic coverage fraction
+@propagate_inbounds vegetation_area_fraction(i, j, grid, fields, dynamics::AbstractVegetationDynamics, ::PlantTraits) =
+    vegetation_area_fraction(i, j, grid, fields, dynamics)
+
+# Without vegetation dynamics, the vegetated fraction is diagnosed from the relative leaf area
+@propagate_inbounds vegetation_area_fraction(i, j, grid, fields, ::Nothing, traits::PlantTraits) =
+    compute_relative_leaf_area(i, j, grid, fields, traits)
