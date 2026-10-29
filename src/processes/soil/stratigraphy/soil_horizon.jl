@@ -28,10 +28,6 @@ function ConstantSoilHorizon(
     return ConstantSoilHorizon(name, porosity, texture, thickness)
 end
 
-# `reconstruct` passes the fields in declaration order: porosity, texture, thickness
-ConstructionBase.constructorof(::Type{<:ConstantSoilHorizon{NF, name}}) where {NF, name} =
-    (porosity, texture, thickness) -> ConstantSoilHorizon(name, texture, porosity, thickness)
-
 @inline soil_texture(i, j, grid, fields, horizon::ConstantSoilHorizon) = horizon.texture
 
 @inline soil_thickness(i, j, grid, fields, horizon::ConstantSoilHorizon) = horizon.thickness
