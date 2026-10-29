@@ -66,24 +66,40 @@ mean_lst.data[missing_lst] .= fallback.(rad2deg.(ring_lat[missing_lst]))
 
 T₀_source = InputSource(land_grid, mean_lst; name = :initial_surface_temperature, domain = Terrarium.Ground(), units = u"°C")
 energy_initializer = QuasiThermalSteadyState(Float32; Qgeo = 0.05f0)
-initializer = SoilInitializer(eltype(land_grid); energy = energy_initializer, hydrology = DefaultInitializer(eltype(land_grid)))
+
+# Initial soil moisture above the water table is given by the mean annual volumetric water content (m³/m³) of the
+# root-zone layer of SpeedyWeather's monthly soil moisture climatology, which is converted to saturation using the
+# porosity of each soil layer; the soil below the water table (5 m depth by default) is fully saturated
+swl_climatology = RingGrids.get_asset(
+    "data/boundary_conditions/soil_moisture.nc";
+    from_assets = true,
+    name = "swl2",
+    ArrayType = RingGrids.FullGaussianField,
+    FileFormat = NCDataset,
+    output_grid = on_architecture(CPU(), ring_grid),
+)
+mean_vwc = RingGrids.Field(on_architecture(CPU(), ring_grid))
+mean_vwc.data .= vec(mean(swl_climatology.data, dims = 2))
+
+# Fall back to the global median water content for coastal columns where the climatology is undefined
+missing_vwc = .!isfinite.(mean_vwc.data)
+mean_vwc.data[missing_vwc] .= median(filter(isfinite, mean_vwc.data))
+
+vwc_source = InputSource(land_grid, mean_vwc; name = :vadose_zone_saturation, domain = Terrarium.Ground())
+hydrology_initializer = SaturationWaterTable(Float32; vadose_zone_saturation = VolumetricWaterContent(0.25f0))
+initializer = SoilInitializer(eltype(land_grid); energy = energy_initializer, hydrology = hydrology_initializer)
 terrarium_model = Terrarium.LandModel(land_grid; vegetation, soil, surface_energy_balance, initializer)
 
 initial_date = DateTime(2024)
 soilgrids_inputs = InputSources(SoilGrids2(), land_grid)
 lai_highveg_fts = FieldTimeSeries(cat(lai_highveg_fields..., dims = 2), land_grid, 0.0:1day:365day)
 lai_inputs = InputSource(lai_highveg_fts, name = :leaf_area_index, reftime = Speedy.DEFAULT_DATE; domain = Terrarium.Canopy())
-inputs = InputSources(T₀_source, lai_inputs, soilgrids_inputs.sources...) # combine input sources
-
-initializers = (
-    saturation_water_ice = 1.0, # fully saturated soil everywhere
-)
+inputs = InputSources(T₀_source, vwc_source, lai_inputs, soilgrids_inputs.sources...) # combine input sources
 
 land = Speedy.LandModel(
     spectral_grid,
     terrarium_model;
     inputs,
-    initializers,
     Δt = Minute(5)
 )
 
@@ -115,7 +131,7 @@ Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model
 Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :sublimation))
 Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :gross_primary_production))
 Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :surface_runoff))
-Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :temperature))
+Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :skin_temperature))
 
 # Initialize the coupled simulation
 @info "Initializing coupled simulation"
