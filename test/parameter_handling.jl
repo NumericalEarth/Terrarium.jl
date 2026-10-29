@@ -9,15 +9,16 @@ using Test
     soil_params = vec(parameters(soil))
     @test length(soil_params) > 0
     @test all(map(Base.Fix1(haskey, soil_params), (:biogeochem, :energy, :hydrology)))
-    # The stratigraphy stores its horizons in a `Tuple`, which parameter collection does not descend into,
-    # so the parameters of the horizons (e.g. their porosity) are currently not collected.
-    @test_broken haskey(soil_params, :strat)
+    @test haskey(soil_params, :strat)
     # check that collected parameters for thermal conductivities match the values in the struct
     @test all(map(==, soil_params.energy.thermal_properties.conductivities, getproperties(soil.energy.thermal_properties.conductivities)))
     model = SoilModel(grid; soil)
     model_params = vec(parameters(model))
-    # increase all parameters by 5%
+    # increase all parameters by 5%, except the texture fractions, which must sum to one
+    texture = getproperty(model_params.soil.strat.horizons, Symbol(1)).texture
+    unperturbed_texture = copy(texture)
     model_params .*= 1.05
+    texture .= unperturbed_texture
     integrator = initialize(model, model_params)
     @test all(vec(parameters(integrator.model)) .≈ model_params)
     # test reinitialization of integrator
