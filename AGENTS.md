@@ -38,6 +38,12 @@ dynamics are allowed except in very special cases where they must be clearly doc
   mitigate this, always write test output to temporary files and analyze this output using `grep`
   and similar tools.
 - After running the full test suite, always run a draft doc build with ``julia --project=docs docs/make.jl --local --draft` and check for errors due to, e.g. stale docstring entires. Ignore errors from missing files due to the example scripts not being executed.
+- The docs environment must load the local checkout of Terrarium, not a registered release; otherwise the build documents
+  the release, and every docstring added since shows up as an "undefined binding" error. Before the first draft build in
+  a new clone or worktree, run `julia --project=docs -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'`
+  (as the documentation CI workflow does) and check that `docs/Manifest.toml` lists a `path` for Terrarium. Errors about
+  InterLinks inventories that cannot be loaded, and the unresolved external links that follow from them, mean that there
+  is no network access and can be ignored.
 
 ## Critical Rules
 
