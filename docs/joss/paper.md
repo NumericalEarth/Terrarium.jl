@@ -52,7 +52,7 @@ bibliography: paper.bib
 
 The land surface is a crucial component of Earth's climate system.
 Terrestrial ecosystems, as well as the solid earth that hosts them, exchange heat, water, and carbon with the atmosphere on timescales ranging from seconds to millenia, driving key feedbacks that significantly affect both local and global climate conditions.
-Land surface and terrestrial ecosystem models aim to simulate the physical processes governing the land's response to changes in both weather and climate.
+Land surface and terrestrial ecosystem models aim to simulate the physical processes governing the land and ecosystem response to changes in both weather and climate as well as interactions between the land surface and the atmosphere.
 They are therefore critically important components of *Earth System Models* (ESMs) which aim to simulate the natural variability of the Earth system, as well as its long-term response to changes in both natural and anthropogenic forcing.
 
 Terrarium.jl is a software package in the Julia programming language [@bezansonJuliaFreshApproach2017] that aims to enable fast, flexible, and user-friendly land surface and terrestrial ecosystem modeling both standalone and coupled to other Earth system component models.
@@ -78,7 +78,7 @@ This design facilitates the implementation and comparison of new solvers and tim
 # State of the field
 
 Terrarium.jl represents a significant step towards modernizing physics-based land modeling, and it is not alone in doing so.
-There have been numerous recent efforts to reinvent land models in modern programming languages, such as DifferLand [@fangDifferentiableLandModel2026] and JAX-CanVeg [@jiangJAXCanVegDifferentiableLand2025], both of which enable GPU-accelerated and AD-compatible land modeling using Python/JAX.
+There have been numerous recent efforts to reformulate land models in modern programming languages, such as DifferLand [@fangDifferentiableLandModel2026] and JAX-CanVeg [@jiangJAXCanVegDifferentiableLand2025], both of which enable GPU-accelerated and AD-compatible land modeling using Python/JAX.
 Similarly, recent work by the Climate Modeling Alliance (CliMA) on ClimaLand.jl [@deckClimaLandLandSurface2026] has demonstrated the promise of GPU-accelerated land modeling in Julia as part of the Clima projects efforts to build a new, CMIP-class ESM capable of being automatically calibrated using global observational datasets.
 In contrast, Terrarium.jl enables not only GPU-accelerated, global land simulations but also full comaptibility with both forward- and reverse-mode AD via Enzyme.jl and Reactant.jl [@mosesInsteadRewritingForeign2020; @mosesDJ4EarthDifferentiablePerformancePortable2026].
 In addition, Terrarium.jl is designed to allow for fast and efficient coupling with other global or regional, GPU-accelerated ESM components such as the SpeedyWeather.jl [@klowerSpeedyWeatherjlReinventingAtmospheric2024] and Breeze.jl [@wagnerBreezejl2026] atmospheric models.
@@ -89,7 +89,7 @@ In addition, Terrarium.jl is designed to allow for fast and efficient coupling w
 
 Terrarium.jl is designed to be highly modular, acting as a framework for constructing a multitude of different land model configurations rather than implementing a single, monolithic model.
 This allows Terrarium to serve as a common set of numerical tools and physical process implementations which can serve as the basis for a wide range of land and ecosystem models, spanning both highly detailed local-scale simulations with prescribed boundary conditions and intermediate-complexity global-scale simulations as part of a coupled Earth system model.
-Terrarium models are composed of four basic components: one or more `Process`es (subtyping `AbstractProcess`) implementing specific physical relationship and governing equations, a `grid` that describes the discretization of the underlying spatial domain, a `timestepper` that determines how the prognosic variables of the model are advanced in time, and an `initializer` that specifies how the initial state of the prognostic variables is determined.
+Terrarium models are composed of four basic components: one or more `Process`es (subtyping `AbstractProcess`) implementing specific physical relationships and governing equations, a `grid` that describes the discretization of the underlying spatial domain, a `timestepper` that determines how the prognosic variables of the model are advanced in time, and an `initializer` that specifies how the initial state of the prognostic variables is determined.
 
 Terrarium currently provides four user-facing model types:
 
@@ -104,10 +104,10 @@ This model can be used to test and evaluate vegetation processes in idealized si
 - `LandModel`: An integrated model that couples together soil, snow, vegetation, and surface hydrology processes given prescribed atmospheric inputs.
 This is the primary model type used for realistic, global-scale land simulations.
 
-Each of the above model types represent different combinations of `Process`es orchestrated together to serve distinct use cases.
+Each of the above model types combine two or more `Process`es to serve distinct use cases.
 Users can also extend this interface by implementing their models based on Terrarium's `AbstractModel` interface.
-Similarly, custom `Process`es can also be implemented based on the `AbstractProcess` interface.
-Each `Process` is then required to implement the following:
+Similarly, custom `Process`es can also be implemented following the `AbstractProcess` method interface.
+Each `Process` is then required to implement the following methods:
 
 - A method `variables(::Process)` that returns a tuple of state variables required by the `Process`.
 Each variable must be declared as `prognostic`, `auxiliary`, or `input`,
@@ -124,7 +124,7 @@ Terrarium simultaneously prioritizes support for multi-architecture parallelizat
 Maximizing modularity would necessitate each `Process` launching its own GPU kernel, which can incur significant overhead in models that involve coupling together several different highly interdependent physical processes.
 To balance modularity with efficient parallelization, Terrarium `Process`es are typically implemented at three different levels of abstraction: a top-level interface (`compute_auxiliary!` and `compute_tendencies!`) which can be used to evaluate and test each `Process` type standalone, a grid-aware kernel function interface (e.g. `compute_energy_tendency(i, j, k, grid, fields, ::Process, args...)`) called at the given grid indices `i, j, k` within a device-agnostic compute kernel, and primitive functions (e.g. `physical_quantity(::Process, args...)`) that implement scalar equations independent of any particular spatial grid.
 This pattern allows for most of the actual physics code (defined at the kernel level) to be reused across different kernels.
-Terrarium makes use of this in "coupled*" `Process` types which define fused kernels that bundle multiple `Process`es into a single component.
+Terrarium makes use of this in "coupled" `Process` types which define fused kernels that bundle multiple `Process`es into a single component.
 This allows developers to balance modularity with GPU efficiency, at the cost of some additional boilerplate incurred by the need to split functions across the different abstraction levels.
 
 ![CPU vs. GPU benchmark of the `SoilModel` in Terrarium.jl\label{fig:benchmark}](assets/figure2.png)
