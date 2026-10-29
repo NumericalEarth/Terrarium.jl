@@ -9,16 +9,17 @@ using Test
     soil_params = vec(parameters(soil))
     @test length(soil_params) > 0
     @test all(map(Base.Fix1(haskey, soil_params), (:biogeochem, :energy, :hydrology)))
+    # parameters of the soil horizons are collected from the `Tuple` of horizons held by the stratigraphy
     @test haskey(soil_params, :strat)
     # check that collected parameters for thermal conductivities match the values in the struct
     @test all(map(==, soil_params.energy.thermal_properties.conductivities, getproperties(soil.energy.thermal_properties.conductivities)))
     model = SoilModel(grid; soil)
     model_params = vec(parameters(model))
-    # increase all parameters by 5%, except the texture fractions, which must sum to one
-    texture = getproperty(model_params.soil.strat.horizons, Symbol(1)).texture
-    unperturbed_texture = copy(texture)
+    # increase all parameters by 5%, except the soil texture fractions, which must remain a valid mixture
+    original_params = copy(model_params)
     model_params .*= 1.05
-    texture .= unperturbed_texture
+    horizon_params(params) = getproperty(params.soil.strat.horizons, Symbol(1))
+    horizon_params(model_params).texture .= horizon_params(original_params).texture
     integrator = initialize(model, model_params)
     @test all(vec(parameters(integrator.model)) .≈ model_params)
     # test reinitialization of integrator

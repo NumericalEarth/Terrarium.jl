@@ -44,7 +44,7 @@ $$L_{\uparrow} = \epsilon \sigma T_0^4 + (1-\epsilon) L_{\downarrow}$$
 
 ## Implementations
 
-Terrarium currently provides only two very simple formulations of albedo and emissivity. The simplest scheme is [`ConstantAlbedo`](@ref) which treats both albedo and emissivity as spatially and temporally constants parameters:
+Terrarium currently provides three simple formulations of albedo and emissivity. The simplest scheme is [`ConstantAlbedo`](@ref) which treats both albedo and emissivity as spatially and temporally constants parameters:
 
 ```@docs; canonical = false
 ConstantAlbedo
@@ -58,7 +58,16 @@ PrescribedAlbedo
 
 In the case where they are prescribed, they are permitted to vary in time and/or space at the discretion of the user and/or the corresponding [`InputSource`](@ref). However, their values will not be derived from the model state and thus could lead to inconsistencies.
 
-Dynamic (state-dependent) albedo and emissivity are not yet implemented but will be added soon!
+Finally, [`DiagnosticAlbedo`](@ref), the default scheme of [`SurfaceEnergyBalance`](@ref), diagnoses albedo and emissivity from the model state as an area-weighted blend of bare ground, vegetation, and snow:
+$$\alpha = (1 - f_{\text{snow}})(1 - f_{\text{veg}}) \alpha_{\text{bg}} + (1 - f_{\text{snow}}) f_{\text{veg}} \alpha_{\text{veg}} + f_{\text{snow}} \alpha_{\text{snow}}$$
+and likewise for the emissivity $\epsilon$.
+Here $f_{\text{veg}}$ is the vegetated area fraction given by the vegetation component, which is either diagnosed from the leaf area index relative to its maximum, $\min(\text{LAI} / \text{LAI}_{\max}, 1)$, or taken from the prognostic vegetation coverage fraction when vegetation dynamics are enabled.
+$f_{\text{snow}}$ is the snow-covered area fraction of the snow component; snow-covered bare and vegetated areas are assumed to share the same snow albedo and emissivity.
+Without a vegetation or snow component, the corresponding fraction is zero.
+
+```@docs; canonical = false
+DiagnosticAlbedo
+```
 
 ## Methods
 
@@ -68,4 +77,10 @@ albedo
 
 ```@docs; canonical = false
 emissivity
+```
+
+## Kernel functions
+
+```@docs; canonical = false
+Terrarium.compute_albedo!
 ```

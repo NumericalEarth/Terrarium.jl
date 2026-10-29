@@ -90,5 +90,9 @@ function compute_auxiliary!(
     return nothing
 end
 
+# The vegetated fraction is diagnosed from the relative leaf area
+@propagate_inbounds vegetation_area_fraction(i, j, grid, fields, veg::PrescribedVegetation) =
+    compute_relative_leaf_area(i, j, grid, fields, veg.traits)
+
 # No tendencies for prescribed vegetation
 @inline compute_tendencies!(state, grid, veg::PrescribedVegetation, args...) = nothing
