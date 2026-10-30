@@ -149,12 +149,52 @@ end
     compute_auxiliary!(state, land)
     # meltwater outflow implied by the diagnosed liquid fraction
     θ_liq = Array(interior(state.snow_liquid_fraction))
-    M_r = Terrarium.compute_meltwater_outflow.(Ref(snow.hydraulic_properties), θ_liq)
+    W_snow = Array(interior(state.snow_water_equivalent))
+    M_r = Terrarium.compute_meltwater_outflow.(Ref(snow.hydraulic_properties), θ_liq, W_snow)
     @test all(θ_liq .≈ 1)                     # fully melted pack
     @test all(M_r .> 0)                       # meltwater draining
     infil = Array(interior(state.infiltration))
     runoff = Array(interior(state.surface_runoff))
     @test all(isapprox.(infil .+ runoff, M_r; rtol = 1.0e-6))
+end
+
+@testset "LandModel: thin melting snowpack conserves water independently of Δt" begin
+    # A thin, fully liquid pack must not release more water than it stores: the meltwater outflow is limited
+    # by the stored excess liquid water (see `compute_meltwater_outflow`), so the water reaching the soil
+    # surface (infiltration + surface runoff) never exceeds the initial snow water equivalent and does not
+    # depend on the time step. Soil water is immobile (`NoFlow`) so that
+    # the explicit Richards equation, which is unstable on this grid at these time steps, does not interfere.
+    grid = ColumnGrid(CPU(), ExponentialSpacing(Δz_max = 1.0, N = 50))
+    soil = SoilEnergyWaterCarbon(eltype(grid))
+    snow = SingleLayerSnow(eltype(grid))
+    land = LandModel(grid; soil, snow, vegetation = nothing)
+    W₀ = 0.005
+    initializers = (
+        temperature = (x, z) -> 1.0 - 0.02 * z,
+        saturation_water_ice = (x, z) -> 0.5,
+        snow_water_equivalent = W₀,
+        snow_temperature = 0.0,
+    )
+    duration = 6 * 3600.0
+    released = map((450.0, 60.0)) do Δt
+        integrator = initialize(land; initializers)
+        state = integrator.state
+        set!(state.rainfall, 0.0)
+        set!(state.snow_energy, 0.0) # fully melted pack
+        Terrarium.closure!(state, land)
+        compute_auxiliary!(state, land)
+        water_to_soil = 0.0
+        for _ in 1:round(Int, duration / Δt)
+            # fluxes applied by the forward Euler step from the current state
+            water_to_soil += Δt * (only(interior(state.infiltration)) + only(interior(state.surface_runoff)))
+            Terrarium.timestep!(integrator, Δt)
+        end
+        @test all(interior(state.snow_water_equivalent) .>= 0)
+        water_to_soil
+    end
+    @test all(released .<= W₀ * (1 + 1.0e-6))  # no water is created
+    @test all(released .> 0)                   # the pack drains
+    @test isapprox(released[1], released[2]; rtol = 0.05)
 end
 
 @testset "LandModel: latent flux partitioned between ground evaporation and sublimation" begin
