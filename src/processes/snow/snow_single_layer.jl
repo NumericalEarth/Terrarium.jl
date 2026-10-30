@@ -183,12 +183,14 @@ end
 """
     $TYPEDSIGNATURES
 
-Snow meltwater outflow `M_r` [m/s SWE] at grid cell `i, j`: the Darcy-type drainage
-(see [`compute_meltwater_outflow`](@ref)) evaluated at the diagnosed liquid water fraction.
+Snow meltwater outflow `M_r` [m/s SWE] at grid cell `i, j`: the storage-limited Darcy-type drainage
+(see [`compute_meltwater_outflow`](@ref)) evaluated at the diagnosed liquid water fraction and the snow
+water equivalent of the pack.
 """
 @propagate_inbounds function snow_meltwater_flux(i, j, grid, fields, snow::SingleLayerSnow)
     θ_liq = liquid_water_fraction(i, j, grid, fields, snow)
-    M = compute_meltwater_outflow(snow.hydraulic_properties, θ_liq)
+    W_snow = snow_water_equivalent(i, j, grid, fields, snow)
+    M = compute_meltwater_outflow(snow.hydraulic_properties, θ_liq, W_snow)
     return M
 end
 
