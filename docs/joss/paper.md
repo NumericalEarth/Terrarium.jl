@@ -79,7 +79,7 @@ Most existing ESM land components, including those involved in the international
 The reliance on Fortran/C++ also inhibits the adoption of state-of-the-art tools for high-level GPU programming and AD which have served as the technological foundation on which of recent developments in machine learning and data-driven modeling are built [@gelbrechtDifferentiableProgrammingEarth2023]. As such, we believe that there is a general need for a new generation of ESM components that are built using modern numerical computing software written in higher level, dynamic languages such as Julia or Python that offer robust and easy-to-use tooling for GPU acceleration and AD. Such modernized ESMs have the potential to greatly improve productivity as well as accessibility for researchers who lack extensive programming experience.
 
 Another limitation of many existing land models is that they tend to mix physics and numerics in an *ad hoc* and inconsistent manner [@clarkNumericalImplementationLand2021].
-This makes it difficult for land models to take advantage of state-of-the-art numerical methods since incorporating them would also require reformulating the simulated physics.
+This makes it difficult for land models to take advantage of state-of-the-art numerical tools since incorporating them would also require reformulating the simulated physics.
 Terrarium.jl strives to overcome this limitation by formulating all physical processes in terms of continuous-time dynamics and enforcing a clear separation between the instantaneous tendencies of the system and the numerical scheme used to discretize the corresponding governing equations in time.
 In addition, state variables are classified as *prognostic* (evolved in time), *auxiliary* (instantaneously derived from the prognostic state), or *inputs* (externally prescribed).
 Constitutive relationships between prognostic and auxiliary variables are explicitly declared and evaluated separately from the tendency and timestepping scheme.
@@ -115,8 +115,11 @@ This model can be used to test and evaluate vegetation processes in idealized si
 This is the primary model type used for realistic, global-scale land simulations.
 
 Each of the above model types combine two or more `Process`es by defining all additional orchestration logic needed to wire together the various components.
-Users can implement their models by defining subtypes of `AbstractModel` that satisfy its documented method interface.
-Similarly, custom processes can extend `AbstractProcess` and be plugged into existing or newly defined models.
+Users can implement their models by defining subtypes of `AbstractModel` that satisfy its documented *method interface*.
+In Julia, "methods" refer to variants of a function defined for a particular set of input argument types.
+Julia's runtime then "dispatches" a function call to the matching method based on the types of the arguments supplied by the caller.
+
+Similar to models, users can define new processes by extending `AbstractProcess`.
 Each subtype of `AbstractProcess` is then required to implement the following:
 
 - A method `variables(::Process)` that returns a tuple of state variables required by the `Process`.
