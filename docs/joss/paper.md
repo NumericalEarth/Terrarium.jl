@@ -23,12 +23,20 @@ authors:
   - name: Olivier Bonte
     orcid: 0000-0003-1806-7572
     affiliation: 3
+  - name: Mohammed Ayoub Chettouh
+    affiliation: 4
+  - name: Yunan Lin
+    orcid: 0009-0008-5464-7447
+    affiliation: "1, 2"
   - name: Kieran Hunt
     orcid: 0000-0003-1480-3755
-    affiliation: 4
+    affiliation: 5
   - name: Pier Luigi Vidale
     orcid: 0000-0002-1800-8460
-    affiliation: 4
+    affiliation: 5
+  - name: Sebastian Bathiany
+    orcid: 0000-0001-9904-1619
+    affiliation: "1, 2"
   - name: Niklas Boers
     orcid: 0000-0002-1239-9034
     affiliation: "1, 2"
@@ -42,8 +50,11 @@ affiliations:
  - name: Ghent University, Belgium 
    index: 3
    ror: "05v62cm79"
- - name: National Centre for Atmospheric Science, Department of Meteorology, University of Reading
+ - name: Max Planck Institute for Biogeochemistry, Germany
+   ror: "051yxp643"
    index: 4
+ - name: National Centre for Atmospheric Science, Department of Meteorology, University of Reading
+   index: 5
 date: July 2026
 bibliography: paper.bib
 ---
