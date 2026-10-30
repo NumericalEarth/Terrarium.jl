@@ -50,6 +50,9 @@ For the same reason, and because the first model stepped in a process can be slo
 | `allocation_sites.jl` | CPU | Allocation count and allocation sites of one phase of a step (`closure!`, `compute_auxiliary!`, and so on). |
 | `compile_order.jl` | CPU | Step times of one configuration at several grid sizes, in a given order, in one process; exposes timings that depend on what was compiled first. |
 | `gc_share.jl` | CPU | Share of garbage collection in the step time. |
+| `step_times.jl` | CPU, GPU | Step times and allocations per step of several configurations and grid sizes after a throwaway model, as rows for comparing two versions of the code. |
+| `launch_overhead.jl` | GPU | Host time of each stage of one kernel launch (Terrarium, Oceananigans, KernelAbstractions, and CUDA.jl), against a trivial CUDA.jl kernel, and a host profile of many steps. |
+| `surface_energy_balance_kernel.jl` | GPU | Registers, local memory, PTX statistics (Float64 instructions, traps, calls such as `throw_boundserror`), and device time of the surface energy balance kernel, with either skin temperature solver. |
 | `common.jl` | | Shared helpers: option parsing, model setup, timing with repetitions, and the skin temperature solver settings. Not run directly. |
 
 ## Experiments

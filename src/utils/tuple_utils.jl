@@ -12,11 +12,12 @@ tuplejoin(x, y, z...) = (x..., tuplejoin(y, z...)...)
     $TYPEDSIGNATURES
 
 Filters out all entries from `nt` that exist in `other`; like `setdiff` but for `NamedTuple`.
+The retained keys are determined from the types alone, so no key filtering happens at run time.
 """
-@inline function ntdiff(nt::NamedTuple, other::NamedTuple{excluded}) where {excluded}
-    nt_keys = keys(nt)
-    filtered_keys = filter(∉(excluded), nt_keys)
-    return NamedTuple{filtered_keys}(map(k -> getproperty(nt, k), filtered_keys))
+@generated function ntdiff(nt::NamedTuple{names}, other::NamedTuple{excluded}) where {names, excluded}
+    kept = Tuple(name for name in names if name ∉ excluded)
+    values = map(name -> :(getfield(nt, $(QuoteNode(name)))), kept)
+    return :(NamedTuple{$kept}(($(values...),)))
 end
 
 """

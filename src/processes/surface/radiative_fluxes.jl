@@ -218,7 +218,7 @@ end
 
 ## Kernels
 
-@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, rad::AbstractRadiativeFluxes, args...)
+@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, rad::AbstractRadiativeFluxes, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_radiative_fluxes!(out, i, j, grid, fields, rad, args...)
 end

@@ -115,7 +115,7 @@ end
 
 # Kernels
 
-@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, paw::AbstractPlantAvailableWater, args...)
+@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, paw::AbstractPlantAvailableWater, args::Vararg{Any, N}) where {N}
     i, j, k = @index(Global, NTuple)
     compute_plant_available_water!(out, i, j, k, grid, fields, paw, args...)
 end

@@ -78,14 +78,16 @@ build_residual(
 
     dstep_func! = step_func!.dfunc
 
+    # RootSolvers.jl calls these closures, so the caller's `@inbounds` cannot propagate into them;
+    # `indices` must be valid for `target_field`, as they are when `solve!` is called from a kernel
     function residual!(x)
-        target_field[field_indices(indices)...] = x
-        return step_func!(out, indices..., grid, fields, func_args...; func_kwargs...)
+        @inbounds target_field[field_indices(indices)...] = x
+        return @inbounds step_func!(out, indices..., grid, fields, func_args...; func_kwargs...)
     end
 
     function dresidual!(x)
-        target_field[field_indices(indices)...] = x
-        return dstep_func!(out, indices..., grid, fields, func_args...; func_kwargs...)
+        @inbounds target_field[field_indices(indices)...] = x
+        return @inbounds dstep_func!(out, indices..., grid, fields, func_args...; func_kwargs...)
     end
 
     return x -> (residual!(x), dresidual!(x))
@@ -100,9 +102,11 @@ end
         func_kwargs...
     ) where {NF, F}
 
+    # RootSolvers.jl calls these closures, so the caller's `@inbounds` cannot propagate into them;
+    # `indices` must be valid for `target_field`, as they are when `solve!` is called from a kernel
     function residual!(x)
-        target_field[field_indices(indices)...] = x
-        return step_func!(out, indices..., grid, fields, func_args...; func_kwargs...)
+        @inbounds target_field[field_indices(indices)...] = x
+        return @inbounds step_func!(out, indices..., grid, fields, func_args...; func_kwargs...)
     end
 
     function residual_with_derivative!(x)

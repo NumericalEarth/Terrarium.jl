@@ -153,12 +153,12 @@ end
 # `@kernel` does not support multiple methods of one kernel — the soil energy closures define 3D (XYZ)
 # kernels under the base names.
 
-@kernel inbounds = true function snow_energy_to_temperature_kernel!(out, grid, fields, closure::SnowEnergyTemperatureClosure, args...)
+@kernel inbounds = true function snow_energy_to_temperature_kernel!(out, grid, fields, closure::SnowEnergyTemperatureClosure, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     energy_to_temperature!(out, i, j, grid, fields, closure, args...)
 end
 
-@kernel inbounds = true function snow_temperature_to_energy_kernel!(out, grid, fields, closure::SnowEnergyTemperatureClosure, args...)
+@kernel inbounds = true function snow_temperature_to_energy_kernel!(out, grid, fields, closure::SnowEnergyTemperatureClosure, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     temperature_to_energy!(out, i, j, grid, fields, closure, args...)
 end

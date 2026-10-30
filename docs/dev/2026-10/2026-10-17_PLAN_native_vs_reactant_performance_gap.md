@@ -1,12 +1,12 @@
 # Investigating the performance gap between native and Reactant execution
 
-> Status: **in progress**. Phases 0 and 1 are complete, including a clean native GPU baseline on an H100; Phase 2 awaits sign-off.
+> Status: **in progress**. Phases 0 and 1 are complete; Phase 2 items 1, 5, and 6 are implemented on `bg/performance-fixes`, item 7 remains (items 2 to 4 are deferred), and the native CPU baseline and the full benchmark runs are pending Slurm.
 
 Date of initial draft: 2026-10-17
 
 Author: Claude Opus 5.5 (`claude-opus-5-5`), Claude Code 2.1.269
 
-Reviewer: Brian Groenke (brian.groenke@pik-potsdam.de); approval covers Phase 0 only (Rev 6)
+Reviewer: Brian Groenke (brian.groenke@pik-potsdam.de); Phase 0 approved in Rev 6, the plan as a whole in Rev 10
 
 Base revision: `0577a277cd7a4f32c36c01db2f745bcf4af02716` (tip of local `main`, branch `bg/reactant-speedup-investigation`)
 
@@ -35,9 +35,19 @@ Base revision: `0577a277cd7a4f32c36c01db2f745bcf4af02716` (tip of local `main`, 
 - **Rev 7 (2026-10-18, Claude Opus 5.5):** First Phase 0 GPU re-run on an H100.
   Found that the published native GPU baseline was dominated by a one-off compilation of about 1.8 s in the first timed run of every new grid size, and fixed the harness to absorb it in the warm-up (second attempt, after the first did not hold up on job 2554084).
 - **Rev 8 (2026-10-18, Claude Opus 5.5):** Final Phase 0 GPU re-run with the corrected warm-up; Phase 0 complete.
+- **Rev 9 (2026-10-18, Claude Opus 5.5):** Phase 2 items 2 (the soil moisture limiting factor in a kernel) and 3 (hoisting parameter-only computations, and `sqrt`) deferred by the author.
+- **Rev 10 (2026-10-18, Claude Opus 5.5):** Plan approved by the author. Added the protocol for measuring each Phase 2 change on its own, preceded by a native CPU baseline with the Phase 0 harness.
+- **Rev 11 (2026-10-22, Claude Opus 5.5):** Implemented Phase 2 item 1 (31 kernels, a regression test, and before/after measurements).
+  Moved the native CPU baseline to a worktree pinned at the pre-Phase 2 commit, with the author's approval, because Slurm could not accept jobs.
+- **Rev 12 (2026-10-22, Claude Opus 5.5), approved by the author on 2026-10-24:** Profiled the host side of a native GPU step for item 5 and found that the per-launch cost is about 5.5 µs, not 20 µs, and that two host-side defects outside the item's original scope cost more than all of its planned changes together.
+  Proposed to add both fixes to item 5 and to demote the launch merging and the `reset_tendencies!` rewrite.
+- **Rev 13 (2026-10-24, Claude Opus 5.5):** Implemented item 5 as rescoped in Rev 12 (compile-time `ntdiff`, the snow `out` fix, a regression test, and before/after measurements: 1.4× to 1.7× on the GPU and up to 1.2× on the CPU at small sizes).
+  The re-profile finds that launch merging is not worth doing and identifies field `NamedTuple`s of more than 32 entries as the largest remaining per-launch host cost, recorded under future work.
+- **Rev 14 (2026-10-24, Claude Opus 5.5):** Implemented item 6 (bounds checks elided in the surface energy balance kernel; see the item for the scope that turned out to be unnecessary).
+  The author decided on two pull requests: the investigation (this plan, the profiling scripts, and the Phase 0 harness) from `bg/reactant-speedup-investigation`, and all Phase 2 fixes from `bg/performance-fixes`, with one full benchmark run for the latter.
+  Corrected the item 5 baseline commit, which a reword of the item 1 commits had replaced.
 - **Rev 15 (2026-10-24, Claude Opus 5.5):** At the author's request, turned the profiling scripts into general tools: plan-specific names (`d1_` to `d7_`) replaced by descriptive ones, `key=value` options with defaults and `--help` on every tool, and the three scripts that test one specific change moved to `benchmark/profiling/experiments/`.
   The diagnostics map to the tools as listed in the Phase 1 findings.
-  Revisions 9 to 14 concern Phase 2 and are recorded on `bg/performance-fixes`.
 
 ## Problem description
 
@@ -367,16 +377,37 @@ On the GPU, V3 costs a separate launch and halo fill, which outweighs the saved 
 
 Candidate fixes, in the expected order of payoff (reordered in Rev 4 after Phase 1):
 
-1. **Force specialization of pass-through varargs in kernels (H9).**
+1. **Force specialization of pass-through varargs in kernels (H9). Implemented (Rev 11).**
    Change the trailing `args...` of the `@kernel` definitions that only pass their arguments through to `args::Vararg{Any, N}) where {N}`.
    Five kernels are measured to despecialize (D6); there are 28 kernels with the pattern, and all of them are changed in one pull request (decided in Rev 5), so that the outcome no longer depends on Julia's heuristics.
    This is a signature-only change with a measured 620× speedup of `soil_heat`'s `closure!` and bitwise-identical results.
    It must be checked that KernelAbstractions' `@kernel` accepts the `where` clause on both backends and under Reactant.
-2. **Compute the soil moisture limiting factor inside a kernel (H9).**
+
+   *Implementation (Rev 11, branch `bg/vararg-kernel-specialization`):* 31 kernels were changed, not 28: the original count missed kernels whose signatures span several lines, including `saturation_to_pressure_kernel!` and `pressure_to_saturation_kernel!`.
+   Three further kernels keep a plain `args...`, because Julia does not allow a typed `Vararg` after optional positional arguments: `solve_surface_energy_balance_kernel!`, `compute_surface_energy_fluxes_kernel!`, and the canopy evapotranspiration `compute_auxiliary_kernel!`.
+   None of the three allocates at present; making their optional arguments required would let them use the typed form as well.
+   A new test, `test/coupled_models/kernel_allocations.jl`, checks that `closure!` and `compute_auxiliary!` allocate the same at 8 and 32 columns for a `SoilModel` and for a `LandModel` without vegetation but with Richards hydrology; it fails 3 of its 4 cases on the previous code and passes on the new.
+   The full test suite passes.
+   Measured before and after on the same machine in the same session (native CPU, Julia 1.12.7, one thread, median of five repetitions; `benchmark/profiling/step_times.jl`):
+
+   | Configuration | Columns | Before (ms/step) | After (ms/step) | Speedup | Allocations per step, before → after |
+   | --- | --- | --- | --- | --- | --- |
+   | `land` | 128 | 6.98 | 4.20 | 1.66× | 60,771 → 1,350 |
+   | `land` | 4608 | 203 | 116 | 1.75× | 2,489,546 → 1,361 |
+   | `land_no_vegetation` | 128 | 5.79 | 3.28 | 1.76× | 60,033 → 612 |
+   | `land_no_vegetation` | 4608 | 192 | 104 | 1.85× | 2,488,803 → 618 |
+   | `soil_heat` | 128 | 3.07 | 1.95 | 1.57× | 27,186 → 6 |
+   | `soil_heat` | 4608 | 110 | 70 | 1.58× | 1,090,897 → 7 |
+
+   All 24 kernel instances of a `land` step now allocate nothing (`kernel_allocations.jl`; before: five kernels, 59,421 allocations per step at 128 columns), and the allocations that remain are host-side and independent of the grid size.
+   What remains of `soil_heat` at 4608 columns (70 ms) is almost exactly the cost of the soil energy tendency kernel measured in D3 (499 ns per cell), which deferred items 2 and 3 address.
+   On the GPU (local A40), there is no change, as expected, because GPU kernels are always compiled fully specialized: `land` takes 1.43 and 1.45 ms/step at 128 columns, `land_no_vegetation` 2.50 and 2.50 at 165,888, and `soil_heat` 1.40 and 1.40 at 165,888, before and after, and host allocations per step are identical (for example 5,112 for `land`).
+   The remaining GPU differences (for example `land` at 165,888 columns, 3.45 and 2.95 ms/step, with maxima above 38 ms in both runs) are run-to-run noise; a first GPU comparison that ran alongside the test suite was discarded because the suite also uses the GPU.
+2. **Compute the soil moisture limiting factor inside a kernel (H9). Deferred (Rev 9).**
    Replace `compute!(state.soil_moisture_limiting_factor)`, the Oceananigans `Integral` over a lazy operation, with a column sum in an XY kernel function, or fold it into the existing plant-available-water XYZ kernel as the fused-kernels plan already proposes in its future work.
    This removes the dominant host cost of `land` at small sizes, the compile-order anomaly, and the `serial_mapreduce_kernel` on the GPU.
    The root fraction can stay a lazy `FunctionField` read inside the kernel, so it stays differentiable with respect to its parameters.
-3. **Hoist parameter-only computations out of kernels (H2).**
+3. **Hoist parameter-only computations out of kernels (H2). Deferred (Rev 9).**
    Compute derived constants such as the bulk mineral conductivity and square-rooted constituent conductivities on the host immediately before each launch, as a plain function of the process parameters, and pass the result as an `isbits` kernel argument.
    Computing them per launch rather than storing them in the struct keeps them differentiable with respect to parameters and compatible with `reconstruct`.
    Measured: 36× for the soil energy tendency on CPU and 1.2× on GPU.
@@ -389,12 +420,77 @@ Candidate fixes, in the expected order of payoff (reordered in Rev 4 after Phase
    The placement and conflict notes from Rev 3 still apply: implement on `main`, place the new kernel function next to `compute_auxiliary!` in `soil_energy.jl`, and leave the reuse in `linearize!` to `bg/implicit-timestepping`.
    An alternative that avoids the extra field is to evaluate κ at k−1, k, and k+1 once per thread, which cuts four evaluations to three; this has not been measured.
    The decision should be revisited after items 1 to 3, since they change what remains of the CPU cost.
-5. **Reduce host overhead per step on the GPU (H1).**
+5. **Reduce host overhead per step on the GPU (H1). Rescoped in Rev 12.**
    Merge the per-variable `explicit_step!` launches into one launch per variable shape; seven of the 43 `land` launches are single-variable XY steps.
    Replace the 8 memsets and 2 `fill` kernels of `reset_tendencies!` with a single launch.
    Profile the roughly 20 µs of Julia host work per launch (argument conversion and kernel lookup) and explore caching the configured kernels and their converted arguments across steps.
-6. **Slim the surface energy balance kernel.**
+   *Findings (Rev 12):* `benchmark/profiling/launch_overhead.jl` splits one `explicit_step_xy_kernel!` launch of `land` at 128 columns on the A40 into its stages.
+   The whole `explicit_step!` path costs 5.5 µs of host time per launch, of which 2.4 µs is the CUDA.jl kernel lookup (`@cuda launch=false`) and 2.7 µs the argument packing and driver call; Oceananigans' `configure_kernel` (0.2 µs) and `convert_to_device` (1 µs) are small.
+   A trivial kernel launched directly through CUDA.jl costs 2.1 to 2.9 µs, so Terrarium and Oceananigans add only about 3 µs per launch, and caching configured kernels would save at most about 3 µs × 43 launches, roughly 0.1 ms per step.
+   Merging the seven single-variable `explicit_step!` launches saves about 35 µs, and the `reset_tendencies!` path takes about 2% of host time, so both are small.
+   A host profile of 2000 `land` steps instead points to two defects:
+   - `ntdiff` (`src/utils/tuple_utils.jl`), which `get_fields(...; except = out)` calls in the canopy evapotranspiration, surface energy balance, and snow interface `compute_auxiliary!` methods, filters the key tuple with `filter(∉(excluded), keys)` at run time; for these large `NamedTuple`s the filter is not constant-folded, so the `NamedTuple` is built dynamically on every call (13% of host samples).
+     A `@generated` `ntdiff` that computes the kept keys at compile time removes this.
+   - In `timestep!(state, model, ::AbstractSnow)` (`src/models/snow/snow_model.jl`), `out = (; snow_water_equivalent, snow_energy) = state` binds `out` to the whole `state`, not to a `NamedTuple` of the two fields, so every step converts the entire `StateVariables` for the launch of `enforce_snow_constraints!` (about 4% of host samples).
+   The plant-available-water `Integral` (deferred item 2) took 60% of the samples, but this profile ran on the first model built in the process, which suffers the compile-order slowdown, so that share is an overestimate.
+
+   Measured with both fixes applied as method overrides in a scratch script (Julia 1.12.7, one thread, median of five repetitions, a throwaway model built first):
+
+   | Configuration | Columns | GPU (A40), current → `ntdiff` → both (ms/step) | CPU, current → `ntdiff` → both (ms/step) |
+   | --- | --- | --- | --- |
+   | `land` | 128 | 1.50 → 1.00 → 0.86 | 4.20 → 3.78 → 3.58 |
+   | `land` | 4608 | 1.55 → 1.00 → 0.89 | 113 → 113 → 113 |
+   | `land_no_vegetation` | 128 | 0.74 → 0.52 → 0.48 | 3.22 → 3.02 → 3.03 |
+   | `land_no_vegetation` | 4608 | 0.75 → 0.53 → 0.49 | 103 → 102 → 103 |
+
+   *Scope of item 5 (Rev 12, approved):* (a) a compile-time `ntdiff`; (b) the snow `out` fix; (c) a re-profile afterwards to decide whether launch merging and the `reset_tendencies!` rewrite are still worth doing.
+
+   *Implementation (Rev 13, branch `bg/host-overhead`):* `ntdiff` is now a `@generated` function that computes the retained keys from the types, and the snow `timestep!` passes a `NamedTuple` of the two fields it updates.
+   A new test in `test/utils.jl` checks `ntdiff` on a 40-key `NamedTuple` with `@inferred`; the previous implementation fails it (it infers up to at least 20 keys, but not 40), on Julia 1.10 and 1.12.
+   The full test suite passes.
+   Measured before (the code after item 1, in a pinned worktree) and after, on the same machine in the same session (Julia 1.12.7, one thread, median of five repetitions; `step_times.jl`):
+
+   | Configuration | Columns | GPU (A40), before → after (ms/step) | CPU, before → after (ms/step) | Allocations per step on GPU, before → after |
+   | --- | --- | --- | --- | --- |
+   | `land` | 128 | 1.45 → 0.84 (1.71×) | 4.25 → 3.56 (1.19×) | 5112 → 4117 |
+   | `land` | 4608 | 1.45 → 0.89 (1.63×) | 115 → 112 | 5131 → 4135 |
+   | `land` | 165,888 | 3.00 → 2.92 | not measured | 5125 → 4131 |
+   | `land_no_vegetation` | 128 | 0.72 → 0.53 (1.36×) | 3.25 → 3.04 (1.07×) | 2643 → 2436 |
+   | `land_no_vegetation` | 4608 | 0.71 → 0.52 (1.37×) | 103 → 102 | 2656 → 2449 |
+   | `land_no_vegetation` | 165,888 | 2.96 → 2.50 | not measured | 2658 → 2452 |
+   | `soil_heat` | all | unchanged | unchanged | unchanged |
+
+   `soil_heat` does not use `get_fields(...; except)` or snow, so it is unaffected, as expected.
+
+   *Re-profile (Rev 13):* with a throwaway model built first, the host time of a `land` step at 128 columns on the A40 drops from 1.20 ms to 0.77 ms (`launch_overhead.jl`), and the profile no longer shows a dominant cost.
+   In this steady state the plant-available-water `Integral` (deferred item 2) takes only 4% to 7% of host time; its 60% share in Rev 12 was an artifact of profiling the first model built in the process.
+   `explicit_step!` takes 12% and `reset_tendencies!` 6% of the remaining host time, about 90 and 45 µs per step, so merging their launches would save at most about 0.1 ms; this is left undone.
+   The largest remaining host costs are three single launches, of the canopy evapotranspiration `compute_auxiliary_kernel!` (13%), `solve_surface_energy_balance_kernel!` (8%), and `compute_snow_interface_fluxes!` (8%), at about 50 to 100 µs each instead of about 6 µs.
+   Their field `NamedTuple`s, from `get_fields` over several components, have more than 32 entries, and Julia's `map` over a tuple of more than 32 elements falls back to an untyped `Vector{Any}` path; both Oceananigans' `convert_to_device` and CUDA.jl's `cudaconvert` adapt the arguments with such a `map`, so each of these launches converts its fields twice without type inference.
+   This only affects GPU (and presumably Reactant tracing) launches, because `convert_to_device` is the identity on the CPU.
+   Passing only the fields each kernel reads, or splitting the `NamedTuple`s below 33 entries, would remove it; this is a change to the kernel interfaces and is proposed as future work, not done here.
+6. **Slim the surface energy balance kernel. Implemented (Rev 14).**
    Its 232 registers limit GPU occupancy; inline or restructure `specific_humidity_difference`, remove the Float64 `power_by_squaring`, and check whether the 24 bounds-check throw paths can be elided.
+
+   *Findings (Rev 14):* the 232 registers measured in D2 belong to the default skin temperature solver, `RootSolver(NF; max_iterations = 10)`, which wraps the Newton method of RootSolvers.jl with a convergence test and a finite-difference derivative (two residual evaluations per iteration).
+   D2 ran before Phase 0 switched the benchmarks to Terrarium's `NewtonSolver(NF; iterations = 5)`, which performs five unrolled iterations without a convergence test; with it, the kernel uses 111 registers.
+   Neither variant contains Float64 arithmetic in its PTX on the current code, so there is no `power_by_squaring` left to remove.
+   Both variants still carried bounds checks (27 and 39 calls to `throw_boundserror`) despite `@kernel inbounds = true`, because `@inbounds` reaches a field access only if every function in between propagates it.
+   In the surface energy balance call graph it was cut off by functions marked `@inline` (which does not propagate `@inbounds`), by two unannotated atmosphere accessors (`shortwave_down`, `longwave_down`), by the `@inline` call operator of `ObjectiveFunction`, and, for `RootSolver`, by RootSolvers.jl itself, which calls Terrarium's residual closures.
+
+   *Implementation (Rev 14, branch `bg/performance-fixes`):* the index-taking functions of the call graph (`compute_sensible_heat_flux`, `compute_latent_heat_flux`, both `compute_skin_temperature` methods, both `aerodynamic_resistance` methods, `shortwave_down`, `longwave_down`) and the `ObjectiveFunction` call operator now use `@propagate_inbounds`, which also inlines.
+   The `RootSolver` residual closures apply `@inbounds` themselves, with a comment that `indices` must be valid for the target field, as they are when `solve!` is called from a kernel.
+   Restructuring `specific_humidity_difference` was not done: the kernel takes about 4% of a `land` step at 165,888 columns, so further register savings would not show in the step time.
+   Measured with `benchmark/profiling/surface_energy_balance_kernel.jl` (A40, `land` at 165,888 columns; kernel time is the median of five repetitions of 50 launches), before (the code after item 5, in a pinned worktree) and after, in the same session:
+
+   | Solver | Registers | Local memory (bytes) | `throw_boundserror` calls | PTX lines | Kernel time (µs) |
+   | --- | --- | --- | --- | --- | --- |
+   | `NewtonSolver` (benchmarks) | 111 → 106 | 32 → 0 | 27 → 0 | 2452 → 1934 | 134 → 124 (1.08×) |
+   | `RootSolver` (default) | 232 → 128 | 32 → 208 | 39 → 0 | 6511 → 5821 | 247 → 216 (1.14×) |
+
+   The 208 bytes of local memory of the `RootSolver` variant are reserved by `ptxas`; the PTX itself has no local loads or stores.
+   Native step times (`step_times.jl`, same session) change by less than the 10% noise threshold, as expected for a kernel that is a small share of the step: for example, `land` on the GPU takes 0.92 and 0.87 ms/step at 128 columns and 3.29 and 3.15 ms/step at 165,888 columns, before and after, and 113.5 and 111.3 ms/step on the CPU at 4608 columns.
+   The same pattern (index-taking kernel functions marked only `@inline`) occurs in 44 functions elsewhere in `src`, so other kernels likely keep bounds checks too; this is recorded under future work.
 7. **Eliminate the remaining Float64 literals (H7)** in `carbon_dynamics.jl`, as a small cleanup.
 
 Skipping diagnostic-only auxiliaries (the former item 7, H4) is dropped, because D5 found no evidence that XLA removes such work.
@@ -407,6 +503,26 @@ Skipping diagnostic-only auxiliaries (the former item 7, H4) is dropped, because
 - Phase 2 fixes touch kernel code that Reactant and Enzyme compile, so the Reactant and Enzyme suites must pass in CI.
   Following the repository rules, they are run locally only if the extensions or their tests are edited.
 - Each Phase 2 fix is a major revision of model compute functions, so the benchmarks are re-run on at least `cpu-x86` and `gpu-nvidia`, with the improvement reported against the current README baseline.
+
+### Measuring each Phase 2 change (added in Rev 10)
+
+Each Phase 2 item is measured on its own, in the order in which the items land, against the state just before it (not against `main`), because the changes interact; for example, item 1 also reduces garbage collection elsewhere.
+
+1. The native CPU baseline is re-run with the Phase 0 harness (`cpu-x86`, through `benchmark/run_benchmarks.sbatch`), because the stored `cpu-x86` record predates it; the `gpu-nvidia` record from Slurm job 2554901 is already current.
+   Since Slurm could not accept jobs when Phase 2 started, the baseline is run from a separate worktree pinned at commit `0af879626` (`.worktrees/cpu-baseline`; same code as `ade540f81` on the investigation branch), which holds the code before item 1 (Rev 11).
+2. For every item, a targeted before/after measurement with the scripts in `benchmark/profiling/`, on the same machine and in the same session:
+
+   | Item | Measurement |
+   | --- | --- |
+   | 1, varargs specialization | `kernel_allocations.jl` (allocations per kernel must drop to zero), `allocation_sites.jl phase=closure`, and `step_times.jl` on the CPU and the GPU |
+   | 5, GPU host overhead | `launch_overhead.jl` (host time per launch stage and a host profile) and `step_times.jl` on the CPU and the GPU |
+   | 6, surface energy balance kernel | `surface_energy_balance_kernel.jl` (registers, throw paths, and kernel time) with both solvers, and `step_times.jl` |
+   | 7, Float64 literals | `gpu_profile.jl sections=ptx` and `kernel_ir_audit.jl` for f64 instructions; no timing change is expected |
+
+3. One full benchmark run per pull request on `cpu-x86` and `gpu-nvidia`.
+   Since Rev 14, all Phase 2 fixes go into one pull request (`bg/performance-fixes`), so this is a single run after the last item, against the native CPU baseline of step 1 and the `gpu-nvidia` record of job 2554901.
+
+Differences of less than about 10% are treated as noise: the medians reproduce within a few percent, but single points still show occasional outliers.
 
 ## Documentation changes
 
@@ -427,6 +543,8 @@ Skipping diagnostic-only auxiliaries (the former item 7, H4) is dropped, because
 
 ## Future work
 
+- Replace `@inline` with `@propagate_inbounds` on the remaining index-taking kernel functions (44 found in Rev 14), and check the compiled kernels for `throw_boundserror` calls, possibly in a test; item 6 did this only for the surface energy balance call graph.
+- Keep the field `NamedTuple`s passed to kernels at 32 entries or fewer, or pass only the fields each kernel reads (found in Rev 13): the canopy evapotranspiration, surface energy balance, and snow interface launches each spend 50 to 100 µs of host time per step adapting such tuples through Julia's untyped `map` fallback.
 - A generic mechanism for declaring parameter-derived constants once per process, so that new processes do not reintroduce H2.
 - A regression check in the benchmark harness that flags fixed per-step costs above a threshold.
 - Revisit CUDA graphs or other launch batching for the native GPU path, if host overhead remains significant after Phase 2.

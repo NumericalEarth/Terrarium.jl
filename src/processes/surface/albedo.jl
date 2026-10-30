@@ -136,7 +136,7 @@ end
 
 # Kernels
 
-@kernel inbounds = true function compute_albedo_kernel!(out, grid, fields, albedo::DiagnosticAlbedo, args...)
+@kernel inbounds = true function compute_albedo_kernel!(out, grid, fields, albedo::DiagnosticAlbedo, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_albedo!(out, i, j, grid, fields, albedo, args...)
 end

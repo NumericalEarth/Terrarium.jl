@@ -198,12 +198,12 @@ end
 
 # Kernels
 
-@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, soc::SinglePoolSoilCarbon, args...)
+@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, soc::SinglePoolSoilCarbon, args::Vararg{Any, N}) where {N}
     i, j, k = @index(Global, NTuple)
     compute_respiration!(out, i, j, k, grid, fields, soc, args...)
 end
 
-@kernel inbounds = true function compute_tendencies_kernel!(out, grid, fields, soc::SinglePoolSoilCarbon, args...)
+@kernel inbounds = true function compute_tendencies_kernel!(out, grid, fields, soc::SinglePoolSoilCarbon, args::Vararg{Any, N}) where {N}
     i, j, k = @index(Global, NTuple)
     compute_soc_tendency!(out, i, j, k, grid, fields, soc, args...)
 end

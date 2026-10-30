@@ -117,7 +117,7 @@ variables(atmos::PrescribedAtmosphere{NF}) where {NF} = (
 
 Compute the aerodynamic resistance (inverse conductance) at grid cell `i, j`.
 """
-@inline function aerodynamic_resistance(i, j, grid, fields, atmos::PrescribedAtmosphere{NF}) where {NF}
+@propagate_inbounds function aerodynamic_resistance(i, j, grid, fields, atmos::PrescribedAtmosphere{NF}) where {NF}
     let C = drag_coefficient(i, j, grid, fields, atmos.aerodynamics)
         Vₐ = windspeed(i, j, grid, fields, atmos)
         rₐ = 1 / (C * Vₐ)
@@ -271,14 +271,14 @@ variables(::LongShortWaveRadiation) = (
 
 Retrieve or compute the incoming/downwelling shortwave radiation at the current time step.
 """
-shortwave_down(i, j, grid, fields, ::AbstractAtmosphere{NF, PR, <:LongShortWaveRadiation}) where {NF, PR} = fields.surface_shortwave_down[i, j]
+@propagate_inbounds shortwave_down(i, j, grid, fields, ::AbstractAtmosphere{NF, PR, <:LongShortWaveRadiation}) where {NF, PR} = fields.surface_shortwave_down[i, j]
 
 """
     longwave_down(i, j, grid, fields, ::AbstractAtmosphere{NF, PR, <:LongShortWaveRadiation})
 
 Retrieve or compute the incoming/downwelling longwave radiation at the current time step.
 """
-longwave_down(i, j, grid, fields, ::AbstractAtmosphere{NF, PR, <:LongShortWaveRadiation}) where {NF, PR} = fields.surface_longwave_down[i, j]
+@propagate_inbounds longwave_down(i, j, grid, fields, ::AbstractAtmosphere{NF, PR, <:LongShortWaveRadiation}) where {NF, PR} = fields.surface_longwave_down[i, j]
 
 """
     daytime_length(i, j, grid, fields, ::AbstractAtmosphere{PR, <:LongShortWaveRadiation})

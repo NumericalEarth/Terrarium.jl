@@ -208,12 +208,12 @@ end
 
 # Kernels
 
-@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, snow::AbstractSnow, args...)
+@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, snow::AbstractSnow, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_snow_properties!(out, i, j, grid, fields, snow, args...)
 end
 
-@kernel inbounds = true function compute_tendencies_kernel!(tendencies, grid, fields, snow::SingleLayerSnow, args...)
+@kernel inbounds = true function compute_tendencies_kernel!(tendencies, grid, fields, snow::SingleLayerSnow, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_snow_tendencies!(tendencies, i, j, grid, fields, snow, args...)
 end

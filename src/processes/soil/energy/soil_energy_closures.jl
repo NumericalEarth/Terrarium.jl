@@ -130,12 +130,12 @@ end
 
 # Kernels
 
-@kernel inbounds = true function temperature_to_energy_kernel!(out, grid, fields, args...)
+@kernel inbounds = true function temperature_to_energy_kernel!(out, grid, fields, args::Vararg{Any, N}) where {N}
     i, j, k = @index(Global, NTuple)
     temperature_to_energy!(out, i, j, k, grid, fields, args...)
 end
 
-@kernel inbounds = true function energy_to_temperature_kernel!(out, grid, fields, args...)
+@kernel inbounds = true function energy_to_temperature_kernel!(out, grid, fields, args::Vararg{Any, N}) where {N}
     i, j, k = @index(Global, NTuple)
     energy_to_temperature!(out, i, j, k, grid, fields, args...)
 end
