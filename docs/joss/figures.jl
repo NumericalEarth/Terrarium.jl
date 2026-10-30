@@ -26,9 +26,9 @@ using Dates
 
 # Output of the coupled run produced by `run_terrarium_speedy_simulation.jl`,
 # which also writes Terrarium's `skin_temperature`.
-run_dir = "outputs/run_0004"
-output_dir = joinpath(@__DIR__, "assets")
-mkpath(output_dir)
+run_dir = joinpath(@__DIR__, "outputs", "run_0001")
+assets_dir = joinpath(@__DIR__, "assets")
+mkpath(assets_dir)
 
 outputs = RasterStack(joinpath(run_dir, "output.nc"), lazy = true)
 
@@ -218,7 +218,7 @@ if isempty(plotted_names)
 else
     axislegend(ax2; position = :lb)
 end
-save(joinpath(output_dir, "figure2.png"), fig2)
+save(joinpath(assets_dir, "figure2.png"), fig2)
 @info "Saved figure2.png"
 
 # ---------------------------------------------------------------------------
@@ -228,22 +228,32 @@ save(joinpath(output_dir, "figure2.png"), fig2)
 # ---------------------------------------------------------------------------
 
 
-# GPP is stored as kg C / m² / s; rescale to g C / m² / day for readability.
-gpp_raw = time_mean(outputs[:gross_primary_production])
-gpp = gpp_raw * 8.64e7
+# The SpeedyWeather fields (`shf`, `shuf`, `albedo`, `sd`) carry values or a
+# constant fallback over ocean, and the Terrarium output variables should be NaN
+# there. On GPU, however, SpeedyWeather's bitrounding of the output turns those
+# NaNs into -0.0 (its interpolation produces NaNs with all mantissa bits set,
+# which the rounding carry turns into the sign bit). A skin temperature of
+# exactly -0.0 °C does not occur over land, so the bitwise -0.0 (or NaN) points
+# of the raw skin temperature mark the ocean, including coastal points that
+# touch the ocean in the output interpolation. The resulting land mask is
+# applied to every panel so that they share the same land-only footprint.
+land_mask = NCDataset(joinpath(run_dir, "output.nc")) do ds
+    raw_skin_temperature = ds["skin_temperature"].var[:, :, end]
+    ocean = isnan.(raw_skin_temperature) .| (signbit.(raw_skin_temperature) .& (raw_skin_temperature .== 0))
+    .!ocean
+end
 
-# Terrarium output variables are `missing` over ocean (and become NaN32 after
-# `time_mean`), while the SpeedyWeather fields (`shf`, `shuf`, `albedo`)
-# carry values or a constant fallback over ocean. To keep every panel on the
-# same land-only footprint, the land mask is recovered from GPP and applied to
-# the SpeedyWeather panels.
-land_mask = isfinite.(gpp_raw)
+# GPP is stored as kg C / m² / s; rescale to g C / m² / day for readability.
+gpp = time_mean(outputs[:gross_primary_production]) * 8.64e7
+gpp[.!land_mask] .= NaN32
 
 # Skin temperature (°C) is written directly from the Terrarium state, so it is
-# already 2D and `missing` over ocean.
+# already 2D.
 skin_temperature = time_mean(outputs[:skin_temperature])
+skin_temperature[.!land_mask] .= NaN32
 
 snow_depth = annual_max_mean(outputs[:sd])
+snow_depth[.!land_mask] .= NaN32
 
 # Sensible heat flux is a SpeedyWeather flux defined over the whole globe; mask
 # it to land so it lines up with the other panels of this figure.
@@ -299,5 +309,5 @@ map_panel!(
     title = "Mean surface albedo", units = "-",
     colormap = :viridis, colorrange = robust_colorrange(albedo), width = 10
 )
-save(joinpath(output_dir, "figure3.png"), fig3)
+save(joinpath(assets_dir, "figure3.png"), fig3)
 @info "Saved figure3.png"

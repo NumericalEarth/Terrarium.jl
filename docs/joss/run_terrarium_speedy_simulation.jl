@@ -27,6 +27,7 @@ ring_grid = spectral_grid.grid
 lai_asset = ERA5LandLeafAreaIndex(Terrarium.N72)
 lai_highveg = Terrarium.load_asset(lai_asset, "lai_hv"; NF = Float32, fill_value = 0.0f0)
 lai_highveg_fields = []
+@info "Loading LAI data"
 @showprogress for t in dims(lai_highveg, :dayofyear)
     LAI_t = lai_highveg[dayofyear = At(t)]
     data = reshape(Array(LAI_t), :, 1)
@@ -100,7 +101,9 @@ land = Speedy.LandModel(
     spectral_grid,
     terrarium_model;
     inputs,
-    Δt = Minute(5)
+    # must evenly divide the atmospheric time step (450 s at T64, see `time_stepping` below), since the
+    # land is advanced by a whole number of land steps per atmospheric step
+    Δt = Second(450)
 )
 
 # Build the coupled PrimitiveWetModel
