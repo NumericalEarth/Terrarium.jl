@@ -76,8 +76,7 @@ Terrarium.jl is being developed as part of the NumericalEarth project, which is 
 # Statement of need
 
 Most existing ESM land components, including those involved in the international Coupled Model Intercomparison Project (CMIP), are implemented in statically compiled languages such as Fortran (and less commonly, C/C++); these languages, despite their advantages, incur a significant engineering burden and limit the accessibility of the model code for many scientists and researchers.
-Furthermore, the use of Fortran/C++ inhibits the adoption of state-of-the-art tools for high-level GPU programming and AD which have served as the foundation of recent advances in machine learning and data-driven modeling [@gelbrechtDifferentiableProgrammingEarth2023].
-As such, there is a general need for a new generation of ESM components that are built using modern numerical computing tools in higher level, dynamic languages such as Julia or Python, which can greatly improve productivity as well as accessibility for researchers who lack extensive programming experience.
+The reliance on Fortran/C++ also inhibits the adoption of state-of-the-art tools for high-level GPU programming and AD which have served as the technological foundation on which of recent developments in machine learning and data-driven modeling are built [@gelbrechtDifferentiableProgrammingEarth2023]. As such, we believe that there is a general need for a new generation of ESM components that are built using modern numerical computing software written in higher level, dynamic languages such as Julia or Python that offer robust and easy-to-use tooling for GPU acceleration and AD. Such modernized ESMs have the potential to greatly improve productivity as well as accessibility for researchers who lack extensive programming experience.
 
 Another limitation of many existing land models is that they tend to mix physics and numerics in an *ad hoc* and inconsistent manner [@clarkNumericalImplementationLand2021].
 This makes it difficult for land models to take advantage of state-of-the-art numerical methods since incorporating them would also require reformulating the simulated physics.
@@ -89,9 +88,9 @@ This design facilitates the implementation and comparison of new solvers and tim
 # State of the field
 
 There have been numerous recent efforts to reformulate land models in modern programming languages, such as DifferLand [@fangDifferentiableLandModel2026] and JAX-CanVeg [@jiangJAXCanVegDifferentiableLand2025], both of which enable GPU-accelerated and AD-compatible land modeling using Python/JAX.
-Similarly, recent work by the Climate Modeling Alliance (CliMA) on ClimaLand.jl [@deckClimaLandLandSurface2026] has demonstrated the promise of GPU-accelerated land modeling in Julia as part of the Clima projects efforts to build a new, CMIP-class ESM capable of being automatically calibrated using global observational datasets.
-In contrast, Terrarium.jl enables not only GPU-accelerated, global land simulations but also full comaptibility with both forward- and reverse-mode AD via Enzyme.jl and Reactant.jl [@mosesInsteadRewritingForeign2020; @mosesDJ4EarthDifferentiablePerformancePortable2026].
-In addition, Terrarium.jl is designed to allow for fast and efficient coupling with other global or regional, GPU-accelerated ESM components such as the SpeedyWeather.jl [@klowerSpeedyWeatherjlReinventingAtmospheric2024] and Breeze.jl [@wagnerBreezejl2026] atmospheric models. 
+Similarly, recent work by the Climate Modeling Alliance (CliMA) on ClimaLand.jl [@deckClimaLandLandSurface2026] has demonstrated the promise of GPU-accelerated land modeling in Julia as part of the CliMA project, which aims to build a new, CMIP-class ESM capable of being automatically calibrated using global observational datasets [@schneiderEarthSystemModeling2017; @dunbarCalibrationUncertaintyQuantification2021].
+In contrast, Terrarium.jl enables not only GPU-accelerated land simulations but also full comaptibility with both forward- and reverse-mode AD via Enzyme.jl and Reactant.jl [@mosesInsteadRewritingForeign2020; @mosesDJ4EarthDifferentiablePerformancePortable2026].
+Moreover, Terrarium.jl is designed to allow for fast and efficient coupling with other global or regional, GPU-accelerated ESM components such as the SpeedyWeather.jl [@klowerSpeedyWeatherjlReinventingAtmospheric2024] and Breeze.jl [@wagnerBreezejl2026] atmospheric models. 
 As such, Terrarium.jl represents a significant step towards modernizing process-based land modeling.
 
 # Software design
