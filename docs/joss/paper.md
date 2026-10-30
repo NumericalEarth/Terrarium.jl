@@ -153,7 +153,7 @@ Terrarium is being actively used to develop and evaluate the capabilities of suc
 This has the potential to help geoscientific researchers move beyond existing workflows where physics-based simulations are used only to generate training and validation data for machine learning models, towards a new generation of scientific models that are capable of learning from data while still respecting physical laws.
 
 Terrarium.jl is also being developed as part of a larger effort to build a new generation of hybrid data- and physics-driven ESMs that are GPU- and AD-compatible.
-To facilitate this effort, we maintain an extension module in NumericalEarth.jl that allows Terrarium simulations to be plugged in as a land component in `EarthSystemModel`, which provides a unified coupling interface for atmosphere, ocean, land, and sea ice models.
+To facilitate this effort, we maintain an extension module in NumericalEarth.jl [@wagnerNumericalEarthjl2026] that allows Terrarium simulations to be plugged in as a land component in `EarthSystemModel`, which provides a unified coupling interface for atmosphere, ocean, land, and sea ice models.
 In addition, Terrarium supports direct coupling with the SpeedyWeather.jl atmosphere model [@klowerSpeedyWeatherjlReinventingAtmospheric2024], allowing for coupled land-atmosphere simulations using SpeedyWeather's native simulation interface.
 These coupling interfaces will allow Terrarium.jl to directly contribute to ongoing research applying cutting-edge computational technologies to advance the frontiers of Earth system modeling.
 
