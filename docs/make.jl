@@ -48,6 +48,7 @@ end
 running_scripts = [
     "Soil column heat conduction" => "soil_heat_column.jl",
     "Global soil heat conduction" => "soil_heat_global.jl",
+    "Choosing a time stepper" => "soil_timestepping.jl",
 ]
 extending_scripts = [
     "Simple exponential growth model" => "linear_ode_exp_growth.jl",

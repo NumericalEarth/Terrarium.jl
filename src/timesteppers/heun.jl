@@ -14,7 +14,10 @@ timestepping(::Heun) = Explicit()
 
 default_dt(heun::Heun) = heun.Δt
 
-is_adaptive(heun::Heun) = false
+# Multi-stage explicit partners of an IMEX require a per-stage implicit correction, which is not yet supported.
+function validate_timestepper(::Heun, ::AbstractIMEX)
+    throw(ArgumentError("`Heun` is not yet supported as the explicit sub-stepper of an `IMEX` timestepper; use `ForwardEuler` instead"))
+end
 
 """
     $TYPEDEF
@@ -89,7 +92,7 @@ end
 function timestep!(integrator::ModelIntegrator, timestepper::Heun, Δt, names::Tuple)
     (; model, state, inputs) = integrator
     grid = get_grid(model)
-    # fetch Heun's cache (the whole timestepper_cache for a single Heun, or the explicit slot under IMEX)
+    # fetch Heun's cache
     cache = get_cache(state.timestepper_cache, timestepper)
 
     # Predictor: compute tendencies ∂u∂t₀ at the current state u₀
@@ -104,8 +107,14 @@ function timestep!(integrator::ModelIntegrator, timestepper::Heun, Δt, names::T
     # Apply closure relations
     closure!(state, model)
 
-    # Recompute tendencies ∂u∂t₁ at the predictor state (u_pred, t + Δt)
+    # Recompute tendencies ∂u∂t₁ at the predictor state (u_pred, t + Δt), with the clock advanced to t + Δt so
+    # that time-dependent inputs and boundary conditions are evaluated at the end of the step; the clock is then
+    # restored to t, since the caller advances it by the full step
+    time = state.clock.time
+    tick_stage!(state.clock, Δt)
     update_state!(state, model, inputs, compute_tendencies = true)
+    state.clock.time = time
+    state.clock.stage = 1
     # Average tendencies in place: state.tendencies ← (∂u∂t₀ + ∂u∂t₁) / 2
     average_tendencies!(cache, state, names)
     # Restore the prognostic state to u₀ before the corrector explicit step

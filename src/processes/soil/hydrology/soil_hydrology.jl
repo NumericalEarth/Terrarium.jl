@@ -82,6 +82,23 @@ variables(hydrology::SoilHydrology{NF}) where {NF} = (
     input(:liquid_water_fraction, Ground(XYZ()), default = 1, bounds = UnitInterval, desc = "Fraction of unfrozen water in the pore space"),
 )
 
+"""
+    default_timestepping(hydrology::AbstractSoilHydrology)
+
+Default [`Timestepping`](@ref) class of `saturation_water_ice` under an [`AbstractIMEX`](@ref)
+timestepper: [`Implicit`](@ref) for the Richards equation (`SoilHydrology{NF, RichardsEq}`) and
+[`Explicit`](@ref) otherwise.
+
+```jldoctest
+julia> Terrarium.default_timestepping(SoilHydrology(Float64, RichardsEq()))
+Implicit()
+
+julia> Terrarium.default_timestepping(SoilHydrology(Float64, NoFlow()))
+Explicit()
+```
+"""
+default_timestepping(::AbstractSoilHydrology) = Explicit()
+
 function compute_water_table!(state, grid, hydrology::SoilHydrology)
     launch!(
         grid, XY, compute_water_table_kernel!,
@@ -90,18 +107,40 @@ function compute_water_table!(state, grid, hydrology::SoilHydrology)
     return nothing
 end
 
-function adjust_saturation_profile!(state, grid, hydrology::SoilHydrology, runoff::Optional{AbstractSurfaceRunoff} = nothing)
-    saturation_water_ice = state.saturation_water_ice
-    # When a surface runoff process is present, excess water is routed into the runoff-owned
-    # `surface_excess_water` pool; standalone (no runoff) the excess is discarded.
-    out = if isnothing(runoff)
-        (; saturation_water_ice)
-    else
-        (; saturation_water_ice, surface_excess_water = state.surface_excess_water)
-    end
-    launch!(grid, XY, adjust_saturation_profile_kernel!, out, hydrology, runoff)
+"""
+    adjust_saturation_profile!(state, grid, hydrology::SoilHydrology, runoff = nothing, strat = nothing, bgc = nothing, energy = nothing)
+
+Redistribute over- and undersaturation in the soil columns of `state` (see
+[`redistribute_saturation_profile!`](@ref)). With `runoff = nothing`, excess water reaching the surface
+is discarded; otherwise it is routed into the `surface_excess_water` pool of `runoff` as a water depth
+(m), using the porosity of the topmost layer from `strat` and `bgc`.
+
+With an optional [`SoilThermodynamics`](@ref) `energy` process, the sensible heat of the water moves
+with it ([`compute_redistributed_heat!`](@ref)), so the heat of the excess water leaves the column; this
+requires `strat` and `bgc`.
+"""
+function adjust_saturation_profile!(
+        state, grid,
+        hydrology::SoilHydrology,
+        runoff::Optional{AbstractSurfaceRunoff} = nothing,
+        strat::Optional{AbstractStratigraphy} = nothing,
+        bgc::Optional{AbstractSoilBiogeochemistry} = nothing,
+        energy::Optional{AbstractSoilThermodynamics} = nothing
+    )
+    out = adjust_saturation_profile_fields(state, runoff, energy)
+    fields = isnothing(strat) ? (;) : get_fields(state, strat, bgc)
+    # the heat of the redistributed water is that of the cell it leaves
+    fields = isnothing(energy) ? fields : merge(fields, (; temperature = state.temperature))
+    launch!(grid, XY, adjust_saturation_profile_kernel!, out, fields, hydrology, runoff, energy, strat, bgc)
     return nothing
 end
+
+# Fields modified by `adjust_saturation_profile!`: saturation, the excess water pool of `runoff`, and the internal energy from `SoilThermodynamics`.
+adjust_saturation_profile_fields(state, ::Nothing, ::Nothing) = (; state.saturation_water_ice)
+adjust_saturation_profile_fields(state, ::AbstractSurfaceRunoff, ::Nothing) = (; state.saturation_water_ice, state.surface_excess_water)
+adjust_saturation_profile_fields(state, ::Nothing, ::AbstractSoilThermodynamics) = (; state.saturation_water_ice, state.internal_energy)
+adjust_saturation_profile_fields(state, ::AbstractSurfaceRunoff, ::AbstractSoilThermodynamics) =
+    (; state.saturation_water_ice, state.surface_excess_water, state.internal_energy)
 
 function compute_hydraulics!(state, grid, hydrology::SoilHydrology, soil::AbstractSoil, args...)
     strat = get_stratigraphy(soil)
@@ -187,10 +226,19 @@ end
 Kernel function that adjusts saturation profiles to account for oversaturation and undersaturation
 arising due to numerical error. This implementation scans over the saturation profiles at each lateral
 grid cell and redistributes excess water upward layer-by-layer until reaching the topmost layer. The
-remaining surface excess (as a water depth in m³/m²) is returned so that the caller can either route it
-into a surface water pool or discard it.
+remaining surface excess is returned as the excess saturation of the topmost layer times its thickness
+(m); the caller multiplies by the topmost porosity to get a water depth (m³/m²) to route into a surface
+water pool, or discards it. With an `energy` process, every saturation change also changes the internal
+energy in `out` by the sensible heat of the water ([`compute_redistributed_heat!`](@ref)).
 """
-@propagate_inbounds function redistribute_saturation_profile!(sat, i, j, grid, hydrology::SoilHydrology{NF}) where {NF}
+@propagate_inbounds function redistribute_saturation_profile!(
+        out, i, j, grid, fields,
+        hydrology::SoilHydrology{NF},
+        energy = nothing,
+        strat = nothing,
+        bgc = nothing
+    ) where {NF}
+    sat = out.saturation_water_ice
     props = get_hydraulic_properties(hydrology)
     sat_min = residual_saturation(props)
     ground_grid = ground_domain(grid)
@@ -203,30 +251,44 @@ into a surface water pool or discard it.
         excess_sat = max(sat[i, j, k] - one(NF), zero(NF))
         # subtract excess water and add to layer above;
         # note that we need to rescale by the cell thickness to properly conserve mass
+        Δs_above = excess_sat * Δzᵃᵃᶜ(i, j, k, ground_grid) / Δzᵃᵃᶜ(i, j, k + 1, ground_grid)
         sat[i, j, k] -= excess_sat
-        sat[i, j, k + 1] += excess_sat * Δzᵃᵃᶜ(i, j, k, ground_grid) / Δzᵃᵃᶜ(i, j, k + 1, ground_grid)
+        sat[i, j, k + 1] += Δs_above
+        # the water carries the temperature of cell k
+        compute_redistributed_heat!(out, i, j, k, grid, fields, energy, strat, bgc, k, -excess_sat)
+        compute_redistributed_heat!(out, i, j, k + 1, grid, fields, energy, strat, bgc, k, Δs_above)
     end
 
     # then from top to bottom, extracting water for underfilled cells from layers below
     for k in N:-1:2
         # calculate saturation deficit from residual saturation level
         deficit_sat = max(-sat[i, j, k] + sat_min, zero(NF))
+        Δs_below = deficit_sat * Δzᵃᵃᶜ(i, j, k, ground_grid) / Δzᵃᵃᶜ(i, j, k - 1, ground_grid)
         # add back saturation deficit and subtract from layer below
         sat[i, j, k] += deficit_sat
-        sat[i, j, k - 1] -= deficit_sat * Δzᵃᵃᶜ(i, j, k, ground_grid) / Δzᵃᵃᶜ(i, j, k - 1, ground_grid)
+        sat[i, j, k - 1] -= Δs_below
+        # the water carries the temperature of cell k - 1
+        compute_redistributed_heat!(out, i, j, k, grid, fields, energy, strat, bgc, k - 1, deficit_sat)
+        compute_redistributed_heat!(out, i, j, k - 1, grid, fields, energy, strat, bgc, k - 1, -Δs_below)
     end
 
     # If the uppermost (surface) layer is oversaturated, remove the excess and return it as a water depth
     excess_sat = max(sat[i, j, N] - one(NF), zero(NF))
     sat[i, j, N] -= excess_sat
+    compute_redistributed_heat!(out, i, j, N, grid, fields, energy, strat, bgc, N, -excess_sat)
     surface_excess = excess_sat * Δzᵃᵃᶜ(i, j, N, ground_grid)
 
     # If the lowermost (bottom) layer has a deficit, just set to the residual saturation level.
     # This constitutes a mass balance violation but should not happen under realistic conditions.
-    sat[i, j, 1] = max(sat[i, j, 1], sat_min)
+    deficit_bottom = max(sat_min - sat[i, j, 1], zero(NF))
+    sat[i, j, 1] += deficit_bottom
+    compute_redistributed_heat!(out, i, j, 1, grid, fields, energy, strat, bgc, 1, deficit_bottom)
 
     return surface_excess
 end
+
+# Heat moved with redistributed water; the `SoilThermodynamics` method is in `soil_energy.jl`.
+@inline compute_redistributed_heat!(out, i, j, k, grid, fields, energy, args...) = nothing
 
 """
     $TYPEDSIGNATURES
@@ -234,8 +296,8 @@ end
 Kernel function that adjusts the saturation profile at `i, j` and discards any excess water reaching the
 surface. Used for standalone soil hydrology, where no surface runoff process owns a water pool.
 """
-@propagate_inbounds function adjust_saturation_profile!(out, i, j, grid, hydrology::SoilHydrology{NF}, ::Nothing) where {NF}
-    redistribute_saturation_profile!(out.saturation_water_ice, i, j, grid, hydrology)
+@propagate_inbounds function adjust_saturation_profile!(out, i, j, grid, fields, hydrology::SoilHydrology{NF}, ::Nothing, energy, strat, bgc) where {NF}
+    redistribute_saturation_profile!(out, i, j, grid, fields, hydrology, energy, strat, bgc)
     return nothing
 end
 
@@ -243,14 +305,21 @@ end
     $TYPEDSIGNATURES
 
 Kernel function that adjusts the saturation profile at `i, j` and routes any excess water reaching the
-surface into the `surface_excess_water` pool owned by the given surface `runoff` process.
+surface into the `surface_excess_water` pool owned by the given surface `runoff` process, as a water
+depth (m): the excess saturation times the thickness and porosity ([`porosity_top`](@ref)) of the
+topmost layer.
 """
 @propagate_inbounds function adjust_saturation_profile!(
-        out, i, j, grid, hydrology::SoilHydrology{NF},
-        runoff::AbstractSurfaceRunoff
+        out, i, j, grid, fields,
+        hydrology::SoilHydrology{NF},
+        runoff::AbstractSurfaceRunoff,
+        energy,
+        strat::AbstractStratigraphy,
+        bgc::AbstractSoilBiogeochemistry
     ) where {NF}
-    surface_excess = redistribute_saturation_profile!(out.saturation_water_ice, i, j, grid, hydrology)
-    out.surface_excess_water[i, j, end] += surface_excess
+    surface_excess = redistribute_saturation_profile!(out, i, j, grid, fields, hydrology, energy, strat, bgc)
+    por = porosity_top(i, j, grid, fields, strat, bgc)
+    out.surface_excess_water[i, j, end] += por * surface_excess
     return nothing
 end
 
@@ -261,10 +330,11 @@ end
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry,
         constants::PhysicalConstants,
-        evtr::Optional{AbstractEvapotranspiration}
+        evtr::Optional{AbstractEvapotranspiration},
+        timestepping::Timestepping = Explicit()
     )
     # Compute volumetic water content tendency
-    ∂θ∂t = compute_volumetric_water_content_tendency(i, j, k, grid, clock, fields, hydrology, constants, evtr)
+    ∂θ∂t = compute_volumetric_water_content_tendency(i, j, k, grid, clock, fields, hydrology, constants, evtr, timestepping)
     # Get porosity
     por = porosity(i, j, k, grid, fields, strat, bgc)
     # Rescale by porosity to get saturation tendency
@@ -282,7 +352,8 @@ the porosity and is thus not the same as the saturation tendency.
         i, j, k, grid, clock, fields,
         hydrology::SoilHydrology{NF},
         constants::PhysicalConstants,
-        evtr::Optional{AbstractEvapotranspiration}
+        evtr::Optional{AbstractEvapotranspiration},
+        ::Timestepping = Explicit()
     ) where {NF}
     # Compute divergence of water fluxes due to forcings only
     ET_loss = forcing(i, j, k, grid, clock, fields, evtr, hydrology, constants) # ET forcing
@@ -299,10 +370,10 @@ end
 end
 
 @kernel inbounds = true function adjust_saturation_profile_kernel!(
-        out, grid, hydrology::SoilHydrology{NF}, runoff::Optional{AbstractSurfaceRunoff}
+        out, grid, fields, hydrology::SoilHydrology{NF}, runoff::Optional{AbstractSurfaceRunoff}, energy, strat, bgc
     ) where {NF}
     i, j = @index(Global, NTuple)
-    adjust_saturation_profile!(out, i, j, grid, hydrology, runoff)
+    adjust_saturation_profile!(out, i, j, grid, fields, hydrology, runoff, energy, strat, bgc)
 end
 
 @kernel inbounds = true function compute_hydraulics_kernel!(out, grid, fields, hydrology::SoilHydrology, args...)

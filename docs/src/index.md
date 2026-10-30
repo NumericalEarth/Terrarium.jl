@@ -59,7 +59,8 @@ using Terrarium
 num_columns = 1
 arch = CPU()
 grid = ColumnGrid(arch, Float32, ExponentialSpacing(N=10), num_columns)
-model = SoilModel(grid)
+# Prescribed surface temperatures currently require explicit time stepping (the default is IMEX)
+model = SoilModel(grid; timestepper = ForwardEuler(Float32))
 # Prescribe a constant surface temperature of 1°C
 bcs = PrescribedSurfaceTemperature(:T_ub, 1.0)
 integrator = initialize(model, boundary_conditions = bcs)
@@ -81,7 +82,7 @@ using CUDA # needs to be separately installed
 rings = FullGaussianGrid(8) # Gaussian grid with 16 latitudinal rings, 8 per hemisphere (512 points, ~9.0˚ lat/lon)
 arch = CUDA.functional() ? GPU() : CPU() # run on the GPU (if available)
 grid = ColumnRingGrid(arch, Float32, ExponentialSpacing(N=10), rings) # create grid
-model = SoilModel(grid)
+model = SoilModel(grid; timestepper = ForwardEuler(Float32))
 # Prescribe a constant surface temperature of 1°C
 bcs = PrescribedSurfaceTemperature(:T_ub, 1.0)
 integrator = initialize(model, boundary_conditions = bcs)

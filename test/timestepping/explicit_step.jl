@@ -17,7 +17,6 @@ Terrarium.variables(closure::TestClosure) = (
 @testset "Forward Euler" begin
     Δt = 10.0
     euler = ForwardEuler(; Δt)
-    @test !is_adaptive(euler)
     @test default_dt(euler) == Δt
     # set up grid and fields
     grid = ColumnGrid(CPU(), Float64, ExponentialSpacing(N = 10))
