@@ -106,7 +106,7 @@ Terrarium currently provides four primary model types that can be used to run si
 - `SoilModel`: A standalone model of energy, water, and carbon transport within a finite soil volume.
 Currently, only vertical transport is considered; however, the `grid` abstraction is designed such that this assumption can be easily relaxed in the future.
 
-- `VegetationModel`: A standalone model of the vegetation carbon cycle given prescribed atmosphere and soil inputs.
+- `VegetationModel`: A standalone model of the vegetation carbon cycle with atmosphere and soil state given as prescribed inputs.
 This model can be used to test and evaluate vegetation processes in idealized simulations or when appropriate forcing inputs are available.
 
 - `SnowModel`: A standalone model of snow accumulation and melt given prescribed atmosphere and soil inputs.
@@ -134,7 +134,7 @@ Terrarium therefore relies heavily on Julia's system for multiple dispatch to ch
 
 While the modular design of Terrarium.jl provides a powerful framework for mixing and matching various process implementations, it also comes with some important trade-offs.
 Terrarium simultaneously prioritizes support for multi-architecture parallelization via KernelAbstractions.jl and automatic differentiation via Enzyme.jl and Reactant.jl.
-Maximizing modularity would necessitate each `Process` launching its own GPU kernel, which can incur significant overhead in models that involve coupling together several different highly interdependent physical processes.
+Maximizing modularity would necessitate each `Process` launching its own GPU kernel, which can incur significant overhead in models that involve coupling together many interdependent physical processes.
 To balance modularity with efficient parallelization, Terrarium `Process`es are typically implemented at three different levels of abstraction: a top-level interface (`compute_auxiliary!` and `compute_tendencies!`) which can be used to evaluate and test each `Process` type standalone, a grid-aware kernel function interface (e.g. `compute_energy_tendency(i, j, k, grid, fields, ::Process, args...)`) called at the given grid indices `i, j, k` within a device-agnostic compute kernel, and primitive functions (e.g. `physical_quantity(::Process, args...)`) that implement scalar equations independent of any particular spatial grid.
 This pattern allows for most of the actual physics code (defined at the kernel level) to be reused across different kernels.
 Terrarium makes use of this in "coupled" `Process` types which define fused kernels that bundle multiple `Process`es into a single component.
