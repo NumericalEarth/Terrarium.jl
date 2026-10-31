@@ -26,7 +26,7 @@ using Dates
 
 # Output of the coupled run produced by `run_terrarium_speedy_simulation.jl`,
 # which also writes Terrarium's `skin_temperature`.
-run_dir = joinpath(@__DIR__, "outputs", "run_0002")
+run_dir = joinpath(@__DIR__, "outputs", "run_0003")
 assets_dir = joinpath(@__DIR__, "assets")
 mkpath(assets_dir)
 
