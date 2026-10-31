@@ -747,7 +747,7 @@ Convenience constructor method for `InputVariable`.
 Creates an `AuxiliaryVariable` for the tendency of a prognostic variable with the given name, dimensions, and physical units.
 This constructor is primarily used internally by other constructors and does not usually need to be called by implementations of `variables`.
 """
-@inline tendency(var::Variable) = auxiliary(varname(var), vardims(var), units = upreferred(varunits(var)) / u"s", eltype = Base.eltype(var))
+@inline tendency(var::Variable) = auxiliary(varname(var), varloc(var), units = upreferred(varunits(var)) / u"s", eltype = Base.eltype(var))
 
 """
     $SIGNATURES
