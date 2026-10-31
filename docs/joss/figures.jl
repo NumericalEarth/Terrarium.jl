@@ -26,7 +26,7 @@ using Dates
 
 # Output of the coupled run produced by `run_terrarium_speedy_simulation.jl`,
 # which also writes Terrarium's `skin_temperature`.
-run_dir = joinpath(@__DIR__, "outputs", "run_0001")
+run_dir = joinpath(@__DIR__, "outputs", "run_0002")
 assets_dir = joinpath(@__DIR__, "assets")
 mkpath(assets_dir)
 
@@ -35,7 +35,9 @@ outputs = RasterStack(joinpath(run_dir, "output.nc"), lazy = true)
 # The first snapshot is the uninitialized initial condition, so every time
 # reduction below drops it.
 times = Array(dims(outputs[:shf], Ti))
-years = year.(times)
+# Snow years run from October to September, so that each contains one full
+# snow season in both hemispheres (the simulation starts on October 1st).
+snow_years = year.(times .- Month(9))
 
 # Latent heat of vaporization (J/kg), taken from Terrarium's thermodynamic
 # constants, used to convert the surface humidity flux (kg/s/m²) into a latent
@@ -76,16 +78,22 @@ end
 """
     annual_max_mean(var)
 
-For each calendar year, take the maximum over time, then average those annual
-maxima. `var` must be 2D in space with `Ti` as its last dimension. The
-uninitialized first snapshot is excluded.
+For each complete snow year (October to September, see `snow_years`), take the
+maximum over time, then average those annual maxima. Snow years that the output
+does not cover completely (e.g. a final snapshot on October 1st) are excluded.
+`var` must be 2D in space with `Ti` as its last dimension. The uninitialized
+first snapshot is excluded.
 """
 function annual_max_mean(var)
     nd = ndims(var)
     @assert nd == 3 "annual_max_mean expects a (lon, lat, time) Raster"
     arr = replace(Array(var[:, :, 2:end]), missing => NaN32)
-    yr = years[2:end]
-    annual_maxima = [dropdims(maximum(arr[:, :, yr .== y]; dims = 3); dims = 3) for y in unique(yr)]
+    yr = snow_years[2:end]
+    t = times[2:end]
+    # a snow year is complete if its snapshots span (almost) a full year
+    complete_years = filter(y -> last(t[yr .== y]) - first(t[yr .== y]) >= Day(360), unique(yr))
+    @assert !isempty(complete_years) "the output does not cover a complete snow year (October to September)"
+    annual_maxima = [dropdims(maximum(arr[:, :, yr .== y]; dims = 3); dims = 3) for y in complete_years]
     return sum(annual_maxima) / length(annual_maxima)
 end
 

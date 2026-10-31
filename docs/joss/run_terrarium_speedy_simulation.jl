@@ -6,6 +6,7 @@ using NumericalEarth
 using NumericalEarth.DataWrangling
 using NumericalEarth.DataWrangling.SoilGrids
 using Oceananigans.Units: day
+using Oceananigans.OutputReaders: Cyclical
 using ProgressMeter
 using Rasters, NCDatasets
 using Statistics
@@ -24,16 +25,31 @@ spectral_grid = Speedy.SpectralGrid(truncation = 64, architecture = speedy_arch)
 ring_grid = spectral_grid.grid
 @info "Setting up simulation on grid $(ring_grid)"
 
+# Interpolate a 2D raster given on the `native_grid` of an asset onto the model ring grid
+function interpolate_to_ring_grid(raster, asset)
+    # convert explicitly: materializing a lazily loaded raster can give an `Array{Any}`
+    data = reshape(Float32.(Array(raster)), :, 1)
+    src_field = RingGrids.Field(data, Terrarium.native_grid(asset))
+    return RingGrids.interpolate(ring_grid, on_architecture(arch, src_field))
+end
+
+# ERA5-Land provides the leaf area index separately for high and low vegetation, each per unit area covered by
+# that vegetation type, so the grid-cell mean leaf area index is cvh * lai_hv + cvl * lai_lv with the high and
+# low vegetation cover fractions cvh and cvl
+@info "Loading vegetation cover fractions"
+invariants_asset = ERA5LandInvariants()
+cover_highveg = interpolate_to_ring_grid(Terrarium.load_asset(invariants_asset, "cvh"; NF = Float32, fill_value = 0.0f0), invariants_asset)
+cover_lowveg = interpolate_to_ring_grid(Terrarium.load_asset(invariants_asset, "cvl"; NF = Float32, fill_value = 0.0f0), invariants_asset)
+
 lai_asset = ERA5LandLeafAreaIndex(Terrarium.N72)
 lai_highveg = Terrarium.load_asset(lai_asset, "lai_hv"; NF = Float32, fill_value = 0.0f0)
-lai_highveg_fields = []
+lai_lowveg = Terrarium.load_asset(lai_asset, "lai_lv"; NF = Float32, fill_value = 0.0f0)
+lai_fields = []
 @info "Loading LAI data"
 @showprogress for t in dims(lai_highveg, :dayofyear)
-    LAI_t = lai_highveg[dayofyear = At(t)]
-    data = reshape(Array(LAI_t), :, 1)
-    src_field = RingGrids.Field(data, Terrarium.native_grid(lai_asset))
-    dst_field = RingGrids.interpolate(ring_grid, on_architecture(arch, src_field))
-    push!(lai_highveg_fields, dst_field)
+    lai_highveg_t = interpolate_to_ring_grid(lai_highveg[dayofyear = At(t)], lai_asset)
+    lai_lowveg_t = interpolate_to_ring_grid(lai_lowveg[dayofyear = At(t)], lai_asset)
+    push!(lai_fields, cover_highveg .* lai_highveg_t .+ cover_lowveg .* lai_lowveg_t)
 end
 
 Nz = 30
@@ -45,6 +61,9 @@ strat = SoilGridsStratigraphy(eltype(land_grid); porosity)
 soil = SoilEnergyWaterCarbon(eltype(land_grid); strat)
 vegetation = PrescribedVegetation(eltype(land_grid))
 surface_energy_balance = SurfaceEnergyBalance(eltype(land_grid); albedo = DiagnosticAlbedo(eltype(land_grid)))
+# limit bare-ground evaporation by the moisture of the top soil layer relative to field capacity
+evapotranspiration = PALADYNCanopyEvapotranspiration(eltype(land_grid); ground_resistance = SoilMoistureResistanceFactor(eltype(land_grid)))
+surface_hydrology = SurfaceHydrology(eltype(land_grid); evapotranspiration)
 
 # Initial soil temperature profiles are linear in depth via QuasiThermalSteadyState, with the surface
 # temperature given by the mean annual land surface temperature from SpeedyWeather's monthly climatology (°C)
@@ -89,18 +108,39 @@ mean_vwc.data[missing_vwc] .= median(filter(isfinite, mean_vwc.data))
 vwc_source = InputSource(land_grid, mean_vwc; name = :vadose_zone_saturation, domain = Terrarium.Ground())
 hydrology_initializer = SaturationWaterTable(Float32; vadose_zone_saturation = VolumetricWaterContent(0.25f0))
 initializer = SoilInitializer(eltype(land_grid); energy = energy_initializer, hydrology = hydrology_initializer)
-terrarium_model = Terrarium.LandModel(land_grid; vegetation, soil, surface_energy_balance, initializer)
+terrarium_model = Terrarium.LandModel(land_grid; vegetation, soil, surface_energy_balance, surface_hydrology, initializer)
 
-initial_date = DateTime(2024)
+# start before the Northern Hemisphere snow season (and towards the end of the Southern Hemisphere one) to limit
+# the spin-up of the seasonal snow cover, which starts from zero outside the ice sheets
+initial_date = DateTime(2024, 10, 1)
 soilgrids_inputs = InputSources(SoilGrids2(), land_grid)
-lai_highveg_fts = FieldTimeSeries(cat(lai_highveg_fields..., dims = 2), land_grid, 0.0:1day:365day)
-lai_inputs = InputSource(lai_highveg_fts, name = :leaf_area_index, reftime = Speedy.DEFAULT_DATE; domain = Terrarium.Canopy())
+# the LAI is a day-of-year climatology: repeat it cyclically, with times counted from January 1st of the start year
+lai_fts = FieldTimeSeries(cat(lai_fields..., dims = 2), land_grid, 0.0:1day:365day; time_indexing = Cyclical())
+lai_inputs = InputSource(lai_fts, name = :leaf_area_index, reftime = DateTime(year(initial_date)); domain = Terrarium.Canopy())
 inputs = InputSources(T₀_source, vwc_source, lai_inputs, soilgrids_inputs.sources...) # combine input sources
+
+# The ice sheets (Antarctica and Greenland) are represented as a deep, permanent snowpack. SpeedyWeather's
+# snow-free surface albedo climatology assigns a constant albedo of 0.48 to land ice, well above that of any
+# ice-free land (the Sahara reaches about 0.38), which gives the ice sheet mask.
+albedo_climatology = RingGrids.get_asset(
+    "data/boundary_conditions/albedo.nc";
+    from_assets = true,
+    name = "alb",
+    ArrayType = RingGrids.FullGaussianField,
+    FileFormat = NCDataset,
+    output_grid = on_architecture(CPU(), ring_grid),
+)
+ice_sheet_snow_water_equivalent = 0.5f0 # (m)
+initial_snow_water_equivalent = RingGrids.Field(on_architecture(CPU(), ring_grid))
+is_ice_sheet = (on_architecture(CPU(), land_sea_mask.land_fraction).data .> 0.5) .& (albedo_climatology.data .>= 0.45f0)
+initial_snow_water_equivalent.data .= ice_sheet_snow_water_equivalent .* is_ice_sheet
+initializers = (snow_water_equivalent = Field(initial_snow_water_equivalent, land_grid),)
 
 land = Speedy.LandModel(
     spectral_grid,
     terrarium_model;
     inputs,
+    initializers,
     # must evenly divide the atmospheric time step (450 s at T64, see `time_stepping` below), since the
     # land is advanced by a whole number of land steps per atmospheric step
     Δt = Second(450)
