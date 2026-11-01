@@ -8,7 +8,7 @@
 #           heat conduction only (immobile soil water, i.e. no hydrology).
 # Figure 3: land-surface climatology, 2x3 panels.
 #           top:    skin temperature, GPP, max annual snow depth
-#           bottom: sensible heat flux, evaporative fraction, albedo
+#           bottom: evapotranspiration, evaporative fraction, albedo
 #
 # All maps use a linear equirectangular (plate carrée) projection because
 # `heatmap!` warps only the corners of its textured quad, so a nonlinear
@@ -25,8 +25,21 @@ using Statistics
 using Dates
 
 # Output of the coupled run produced by `run_terrarium_speedy_simulation.jl`,
-# which also writes Terrarium's `skin_temperature`.
-run_dir = joinpath(@__DIR__, "outputs", "run_0003")
+# which also writes Terrarium's `skin_temperature`. Defaults to the latest run in
+# `outputs/` (the highest-numbered `run_*` directory with an `output.nc`); pass a
+# run directory name (e.g. `run_0003`) as the first argument to use another run.
+outputs_dir = joinpath(@__DIR__, "outputs")
+run_name = if isempty(ARGS)
+    runs = filter(readdir(outputs_dir)) do name
+        startswith(name, "run_") && isfile(joinpath(outputs_dir, name, "output.nc"))
+    end
+    @assert !isempty(runs) "no run_* directory with an output.nc found in $outputs_dir"
+    last(sort(runs))
+else
+    first(ARGS)
+end
+run_dir = joinpath(outputs_dir, run_name)
+@info "Plotting the coupled simulation output in $run_dir"
 assets_dir = joinpath(@__DIR__, "assets")
 mkpath(assets_dir)
 
@@ -109,37 +122,29 @@ function robust_colorrange(data; bounds = (0.01, 0.99))
     return (Float64(range[1]), Float64(range[2]))
 end
 
-"""
-    diverging_colorrange(data; bounds = (0.01, 0.99))
-
-Symmetric color range centered on the median of the finite values, for use with
-diverging colormaps so the midpoint of the colormap falls at the central value.
-"""
-function diverging_colorrange(data; bounds = (0.01, 0.99))
-    finite = data[isfinite.(data)]
-    center = median(finite)
-    spread = max(abs(quantile(finite, bounds[2]) - center), abs(center - quantile(finite, bounds[1])))
-    return (Float64(center - spread), Float64(center + spread))
-end
+# Latitude range (degrees) shown on the maps; Antarctica is cropped out since its
+# ice sheet dominates or adds noise to several of the land-surface panels.
+const MAP_LATITUDES = (-60, 90)
 
 """
-    map_panel!(fig, panel, cb, data; title, units, colormap, colorrange, width = 14)
+    map_panel!(fig, panel, cb, data; title, units, colormap, colorrange, width = 14, heatmap_kwargs...)
 
 Draw one map with coastlines and its own colorbar. `panel` and `cb` are layout
 positions for the axis and colorbar respectively; `width` is the colorbar width
-in pixels.
+in pixels. Further keyword arguments (e.g. `lowclip`) are passed to `heatmap!`.
 """
-function map_panel!(fig, panel, cb, data; title, units = nothing, colormap, colorrange, width = 14)
+function map_panel!(fig, panel, cb, data; title, units = "", colormap, colorrange, width = 14, heatmap_kwargs...)
     lon, lat, data = to_map_order(Array(dims(outputs[:shf], X)), Array(dims(outputs[:shf], Y)), data)
     # `tellwidth/tellheight = false` keeps the aspect-driven size suggestion out of
     # the layout solver, which otherwise collapses the cells to wildly unequal
     # sizes; the aspect then just letterboxes the map inside its (even) cell.
     ax = GeoAxis(
-        fig[panel...]; dest = "+proj=longlat +datum=WGS84", title, aspect = 2,
+        fig[panel...]; dest = "+proj=longlat +datum=WGS84", title,
+        aspect = 360 / (MAP_LATITUDES[2] - MAP_LATITUDES[1]), limits = ((-180, 180), MAP_LATITUDES),
         tellwidth = false, tellheight = false, titlesize = 14, titlegap = 2
     )
-    hm = heatmap!(ax, lon, lat, data; colormap, colorrange)
-    lines!(ax, GeoMakie.coastlines(); color = :white, linewidth = 1.2)
+    hm = heatmap!(ax, lon, lat, data; colormap, colorrange, heatmap_kwargs...)
+    lines!(ax, GeoMakie.coastlines(); color = :gray25, linewidth = 0.6)
     hidedecorations!(ax)
     # With a fixed aspect the map only fills part of the axis box; the map itself
     # occupies `ax.scene.viewport`, so size the colorbar to that rectangle. The
@@ -232,7 +237,7 @@ save(joinpath(assets_dir, "figure2.png"), fig2)
 # ---------------------------------------------------------------------------
 # Figure 3: land-surface climatology, 2x3 panels
 #   top:    skin temperature, GPP, max annual snow depth
-#   bottom: sensible heat flux, evaporative fraction, albedo
+#   bottom: evapotranspiration, evaporative fraction, albedo
 # ---------------------------------------------------------------------------
 
 
@@ -248,7 +253,9 @@ save(joinpath(assets_dir, "figure2.png"), fig2)
 land_mask = NCDataset(joinpath(run_dir, "output.nc")) do ds
     raw_skin_temperature = ds["skin_temperature"].var[:, :, end]
     ocean = isnan.(raw_skin_temperature) .| (signbit.(raw_skin_temperature) .& (raw_skin_temperature .== 0))
-    .!ocean
+    # also drop the cropped-out latitudes so that they do not affect the color ranges
+    on_map = (ds["lat"][:] .>= MAP_LATITUDES[1])'
+    .!ocean .& on_map
 end
 
 # GPP is stored as kg C / m² / s; rescale to g C / m² / day for readability.
@@ -263,10 +270,16 @@ skin_temperature[.!land_mask] .= NaN32
 snow_depth = annual_max_mean(outputs[:sd])
 snow_depth[.!land_mask] .= NaN32
 
-# Sensible heat flux is a SpeedyWeather flux defined over the whole globe; mask
-# it to land so it lines up with the other panels of this figure.
-sensible_heat_flux = time_mean(outputs[:shf])
-sensible_heat_flux[.!land_mask] .= NaN32
+# Total evapotranspiration is the sum of Terrarium's ground evaporation, canopy
+# evaporation, transpiration, and sublimation fluxes, each stored in m (liquid
+# water) / s; rescale to mm / day.
+evapotranspiration = (
+    time_mean(outputs[:evaporation_ground]) +
+    time_mean(outputs[:evaporation_canopy]) +
+    time_mean(outputs[:transpiration]) +
+    time_mean(outputs[:sublimation])
+) * 8.64e7
+evapotranspiration[.!land_mask] .= NaN32
 
 # Evaporative fraction EF = LE / (LE + H), with LE = L_v * (humidity flux).
 # Points where the time-mean total turbulent flux LE + H is not positive have no
@@ -284,9 +297,9 @@ ef[.!land_mask] .= NaN32
 albedo = time_mean(outputs[:albedo])
 albedo[.!land_mask] .= NaN32
 
-# Height chosen so each row's cell ≈ map height (width/2) + title, minimizing the
-# vertical letterboxing that the fixed 2:1 aspect leaves inside each cell.
-fig3 = Figure(size = (1400, 440), padding = (5, 5, 5, 5), colgap = 4, rowgap = 8)
+# Height chosen so each row's cell ≈ map height (width / aspect) + title, minimizing the
+# vertical letterboxing that the fixed map aspect leaves inside each cell.
+fig3 = Figure(size = (1400, 400), padding = (5, 5, 5, 5), colgap = 4, rowgap = 8)
 map_panel!(
     fig3, (1, 1), (1, 2), skin_temperature;
     title = "Mean skin temperature", units = "°C",
@@ -297,24 +310,26 @@ map_panel!(
     title = "Mean gross primary production", units = "g C m⁻² day⁻¹",
     colormap = :YlGn, colorrange = robust_colorrange(gpp; bounds = (0, 0.99)), width = 10
 )
+# Snow-free land (annual maximum below 1 mm of water) is drawn white rather than in the
+# lightest color of the colormap; values above 0.5 m saturate.
 map_panel!(
     fig3, (1, 5), (1, 6), snow_depth;
-    title = "Max annual snow depth", units = "m",
-    colormap = :Blues, colorrange = robust_colorrange(snow_depth; bounds = (0, 0.99)), width = 10
+    title = "Max annual snow depth water equivalent", units = "m",
+    colormap = :Blues, colorrange = (1.0e-3, 0.3), lowclip = :white, width = 10
 )
 map_panel!(
-    fig3, (2, 1), (2, 2), sensible_heat_flux;
-    title = "Mean sensible heat flux", units = "W m⁻²",
-    colormap = :balance, colorrange = diverging_colorrange(sensible_heat_flux), width = 10
+    fig3, (2, 1), (2, 2), evapotranspiration;
+    title = "Mean evapotranspiration", units = "mm day⁻¹",
+    colormap = :YlGnBu, colorrange = (0, robust_colorrange(evapotranspiration; bounds = (0, 0.99))[2]), width = 10
 )
 map_panel!(
     fig3, (2, 3), (2, 4), ef;
-    title = "Evaporative fraction", units = "-",
+    title = "Evaporative fraction",
     colormap = :viridis, colorrange = (0, 1), width = 10
 )
 map_panel!(
     fig3, (2, 5), (2, 6), albedo;
-    title = "Mean surface albedo", units = "-",
+    title = "Mean surface albedo",
     colormap = :viridis, colorrange = robust_colorrange(albedo), width = 10
 )
 save(joinpath(assets_dir, "figure3.png"), fig3)

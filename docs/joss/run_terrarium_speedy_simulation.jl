@@ -198,7 +198,20 @@ land = Speedy.LandModel(
 surface_heat_flux = Speedy.SurfaceHeatFlux(land.spectral_grid, land = Speedy.PrescribedLandHeatFlux())
 surface_humidity_flux = Speedy.SurfaceHumidityFlux(land.spectral_grid, land = Speedy.PrescribedLandHumidityFlux())
 albedo = Speedy.OceanLandAlbedo(land.spectral_grid, land = Speedy.PrescribedAlbedo(land.spectral_grid))
-output = Speedy.NetCDFOutput(land.spectral_grid, Speedy.PrimitiveDryModel; interval = Hour(4), nlayers_soil = land.geometry.nlayers, path = output_dir)
+# Pragmatic retuning of SpeedyWeather's default one-band radiation, whose clouds reflect too much sunlight
+# (planetary albedo ≈ 0.43) so that the default atmosphere drifts far too cold: less reflective clouds
+# (defaults 0.6 and 0.5), more shortwave absorption by water vapor (default 75), and a larger longwave optical
+# depth (defaults 6 at the equator and 1.5 at the poles). This is not a calibration, only enough to give a
+# reasonable near-surface climate for demonstrating the coupling.
+clouds = Speedy.DiagnosticClouds(land.spectral_grid, cloud_albedo = 0.4, stratocumulus_albedo = 0.3)
+shortwave_transmissivity = Speedy.BackgroundShortwaveTransmissivity(land.spectral_grid, absorptivity_water_vapor = 150)
+longwave_transmissivity = Speedy.FriersonLongwaveTransmissivity(land.spectral_grid, τ₀_equator = 8, τ₀_pole = 2)
+radiation = Speedy.Radiation(
+    land.spectral_grid;
+    shortwave = Speedy.OneBandShortwave(land.spectral_grid; clouds, transmissivity = shortwave_transmissivity),
+    longwave = Speedy.OneBandLongwave(land.spectral_grid; transmissivity = longwave_transmissivity),
+)
+output =Speedy.NetCDFOutput(land.spectral_grid, Speedy.PrimitiveDryModel; interval = Hour(4), nlayers_soil = land.geometry.nlayers, path = output_dir)
 time_stepping = Speedy.Leapfrog(land.spectral_grid, Δt_at_T32 = Minute(15))
 primitive_wet_coupled = Speedy.PrimitiveWetModel(
     land.spectral_grid;
@@ -206,23 +219,24 @@ primitive_wet_coupled = Speedy.PrimitiveWetModel(
     surface_heat_flux,
     surface_humidity_flux,
     albedo,
+    radiation,
     land_sea_mask,
     time_stepping,
     output,
 )
-Speedy.add!(primitive_wet_coupled.output, Speedy.SoilTemperatureOutput())
-Speedy.add!(primitive_wet_coupled.output, Speedy.SnowDepthOutput())
-Speedy.add!(primitive_wet_coupled.output, Speedy.PrecipitationOutput())
-Speedy.add!(primitive_wet_coupled.output, Speedy.SurfaceSensibleHeatFluxOutput())
-Speedy.add!(primitive_wet_coupled.output, Speedy.SurfaceHumidityFluxOutput())
-Speedy.add!(primitive_wet_coupled.output, Speedy.AlbedoOutput())
-Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :evaporation_ground))
-Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :evaporation_canopy))
-Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :transpiration))
-Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :sublimation))
-Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :gross_primary_production))
-Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :surface_runoff))
-Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model, :skin_temperature))
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.SoilTemperature())
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.SnowDepth())
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Precipitation())
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.SurfaceSensibleHeatFlux())
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.SurfaceHumidityFlux())
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Albedo())
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Terrarium(terrarium_model, :evaporation_ground))
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Terrarium(terrarium_model, :evaporation_canopy))
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Terrarium(terrarium_model, :transpiration))
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Terrarium(terrarium_model, :sublimation))
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Terrarium(terrarium_model, :gross_primary_production))
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Terrarium(terrarium_model, :surface_runoff))
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Terrarium(terrarium_model, :skin_temperature))
 
 # Initialize the coupled simulation
 @info "Initializing coupled simulation"
