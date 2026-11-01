@@ -3,7 +3,8 @@
 
 Launch [`compute_snow_interface_fluxes!`](@ref) to diagnose the snow↔surface/soil coupling fluxes from the
 snow state and the surface energy balance outputs: the blended soil-top heat flux (`soil_heat_flux`), the
-snow-top conductive flux (`surface_heat_flux`, drives the snowpack's own energy tendency), and the snow
+grid-cell-mean snow-base flux (`basal_heat_flux`), the grid-cell-mean snow-top conductive flux
+(`surface_heat_flux`; both drive the snowpack's own energy tendency), and the snow
 surface sublimation rate (`sublimation`, the snow-fraction bulk-aerodynamic vapor flux at the converged
 skin temperature). Must run after the surface energy balance (which sets `ground_heat_flux` and the skin
 temperature). No-op when there is no snowpack (`snow === nothing`).
@@ -20,6 +21,7 @@ function compute_snow_interface_fluxes!(
     # atmosphere fields (air temperature/pressure/humidity, windspeed) are needed for the sublimation flux
     out = (
         sublimation = state.sublimation,
+        soil_heat_flux = state.soil_heat_flux,
         basal_heat_flux = state.basal_heat_flux,
         surface_heat_flux = state.surface_heat_flux,
     )
@@ -70,34 +72,12 @@ end
 """
     $TYPEDSIGNATURES
 
-Blended soil-top heat flux [W/m²] at grid cell `i, j`: the snow-cover-fraction-weighted combination of
-the snow→soil basal conductive flux `Q_base` (see [`compute_snow_basal_heat_flux`](@ref)) and the
-*explicit* bare-ground conductive flux `G` (`ground_heat_flux`, already the unblended per-bare-ground-area
-quantity — see the `ImplicitSkinTemperature`-specific `compute_ground_heat_flux` in `ground_heat_flux.jl`),
-`f_snow·Q_base + (1 − f_snow)·G`.
-"""
-@propagate_inbounds function compute_snow_soil_heat_flux(
-        i, j, grid, fields,
-        snow::SingleLayerSnow,
-        constants::PhysicalConstants,
-        soil::AbstractSoil
-    )
-    G = fields.ground_heat_flux[i, j]
-    f = fields.snow_cover_fraction[i, j]
-    Q_base = compute_snow_basal_heat_flux(i, j, grid, fields, snow, soil, constants)
-    return f * Q_base + (one(f) - f) * G
-end
-
-"""
-    $TYPEDSIGNATURES
-
 Snow-top conductive heat flux [W/m²] at grid cell `i, j` (positive upward, i.e. energy leaving the snow
 top into the skin), `S = 2κ_snow(T_snow − T_skin)/max(d_snow, d_min)` — the same unblended snow
 conduction target the skin-temperature solve closes against (see
-[`Terrarium.snow_thermal_interface`](@ref)). This is the per-unit-snow-area flux that drives the
-snowpack's own top-of-pack energy tendency ([`compute_snow_energy_tendency`](@ref)'s `Q_top`); it replaces
-a previous unweighted alias to the whole-grid-cell `ground_heat_flux`, which forced the entire snowpack
-with a flux sized for the whole cell regardless of how small the snow-covered fraction actually was.
+[`Terrarium.snow_thermal_interface`](@ref)). This is a per-unit-snow-area flux; the snowpack energy
+tendency ([`compute_snow_energy_tendency`](@ref)'s `Q_top`) uses the grid-cell mean `f_snow·S`, which is
+applied at the call site in [`compute_snow_interface_fluxes!`](@ref).
 """
 @propagate_inbounds function compute_snow_surface_heat_flux(
         i, j, grid, fields,
@@ -113,10 +93,13 @@ end
     $TYPEDSIGNATURES
 
 Diagnose the snow↔surface/soil coupling fluxes at grid cell `i, j`, run after the surface energy balance:
-the blended soil-top heat flux (see [`compute_snow_soil_heat_flux`](@ref)), the snow-top conductive flux
-(see [`compute_snow_surface_heat_flux`](@ref)), and the snow surface sublimation rate (see
+the blended soil-top heat flux `f·Q_base + (1 − f)·G` (with `G` the bare-ground `ground_heat_flux`; used only as the soil's top boundary condition), the grid-cell-mean snow-base
+flux `f·Q_base` (see [`compute_snow_basal_heat_flux`](@ref)), the grid-cell-mean snow-top conductive flux
+`f·S` (see [`compute_snow_surface_heat_flux`](@ref)), and the snow surface sublimation rate (see
 [`compute_snow_sublimation_flux`](@ref), the same snow-fraction vapor flux the surface energy balance uses
-for the latent-flux partition).
+for the latent-flux partition). All snowpack fluxes are grid-cell means scaled by the snow cover fraction `f`
+(as is the sublimation) since the snow state is a grid-cell mean. The column (soil + snow) then loses
+`(1 − f)·G + f·S`, the flux delivered to the skin.
 """
 @propagate_inbounds function compute_snow_interface_fluxes!(
         out, i, j, grid, fields,
@@ -129,8 +112,12 @@ for the latent-flux partition).
     f = snow_cover_fraction(i, j, grid, fields, snow)
     E_subl = compute_snow_sublimation_flux(i, j, grid, fields, snow, atmos, constants, seb.skin_temperature)
     out.sublimation[i, j, end] = f * E_subl
-    out.basal_heat_flux[i, j, end] = compute_snow_soil_heat_flux(i, j, grid, fields, snow, constants, soil)
-    out.surface_heat_flux[i, j, end] = compute_snow_surface_heat_flux(i, j, grid, fields, snow, constants)
+    G = fields.ground_heat_flux[i, j]
+    Q_base = compute_snow_basal_heat_flux(i, j, grid, fields, snow, soil, constants)
+    S = compute_snow_surface_heat_flux(i, j, grid, fields, snow, constants)
+    out.soil_heat_flux[i, j, end] = f * Q_base + (one(f) - f) * G
+    out.basal_heat_flux[i, j, end] = f * Q_base
+    out.surface_heat_flux[i, j, end] = f * S
     return nothing
 end
 

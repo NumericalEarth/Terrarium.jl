@@ -63,7 +63,8 @@ Depth-integrated snow energy tendency [W/m²] at grid cell `i, j` (all fluxes po
 ```
 dŪ_snow/dt = Q_base − Q_top + Q_precip + Q_subl
 ```
-where `Q_top`/`Q_base` are the surface/basal heat fluxes, `Q_precip` the advected precipitation heat
+where `Q_top`/`Q_base` are the surface/basal heat fluxes, which like the snow state are grid-cell means
+scaled by the snow cover fraction `f` (`f·S` and `f·Q_base`, see [`compute_snow_interface_fluxes!`](@ref)), `Q_precip` the advected precipitation heat
 (see [`compute_snow_precip_heat_flux`](@ref)), and `Q_subl` an advective correction for sublimation.
 
 The sublimation correction `Q_subl = ρ_w·L_sl·E_subl` is required because the latent heat flux

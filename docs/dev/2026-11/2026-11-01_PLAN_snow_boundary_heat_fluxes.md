@@ -1,12 +1,12 @@
 # Area-consistent snow boundary heat fluxes in the coupled snow–soil model
 
-> Status: **planned**. Thin snowpacks are melted by the bare-ground heat flux; this plan gives the snowpack its own, area-consistent boundary fluxes.
+> Status: **in progress**. Implemented and tested, with one deviation (Rev 3) awaiting approval; the draft doc build and the optional end-to-end coupled run are not yet verified.
 
 Date of initial draft: 2026-11-01
 
 Author: Claude Opus 5.5 (`claude-opus-5-5`), Claude Code
 
-Reviewer:
+Reviewer: Brian Groenke (brian.groenke@pik-potsdam.de)
 
 Base revision: `887c8849f8c30acbce4b59284802419821094bae` (`joss-paper`); the fix should be branched from `main` (`077c8a9ed`)
 
@@ -22,6 +22,11 @@ Base revision: `887c8849f8c30acbce4b59284802419821094bae` (`joss-paper`); the fi
   Corrected the field-allocation note in change 1 (the input field is allocated automatically once the alias is dropped).
   Clarified the `(W > 0)` gate in change 3, the standalone `SnowModel` docstring in change 6, and how to obtain the atmosphere-side flux `G₀` in test 2.
   Noted the stale `W_ref = 0.1 m` comments in existing tests as out of scope.
+  Approved by Brian Groenke on 2026-11-01.
+- **Rev 3 (2026-11-01, Claude Sonnet, Claude Code; logged by Claude Opus 5.5):** Deviation made during implementation.
+  Removed the kernel function `compute_snow_soil_heat_flux` and its doc page entry instead of keeping it unchanged as change 2 specified.
+  The blend `f·Q_base + (1 − f)·G` is now computed inline in `compute_snow_interface_fluxes!`, so `Q_base` is evaluated once per cell.
+  The formula itself is unchanged.
   Pending human approval.
 
 ## Problem description
@@ -63,7 +68,7 @@ So the snowpack receives two inconsistent boundary fluxes:
 1. **Basal:** the blended soil flux, which for a thin pack (`f → 0`) is the bare-ground flux `G`, applied in full to the cell-mean snow energy. In early winter `G` is typically positive upward (the soil releases its summer heat) at 10–30 W/m², which melts a fresh 0.02 mm pack (latent energy about −7 kJ/m²) within minutes. This is the bug behind the missing snow.
 2. **Top:** `S` per unit snow area applied to the cell-mean snow energy, overstating the top exchange by `1/f`.
 
-The blend `f·Q_base + (1 − f)·G` itself is correct as the **soil's** top boundary condition and should stay.
+The blend `f·Q_base + (1 − f)·G` itself is correct as the **soil**'s top boundary condition and should stay.
 
 Energy accounting with all quantities as cell means (skin massless):
 

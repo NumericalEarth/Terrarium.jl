@@ -96,18 +96,20 @@ function StateVariables(
     else
         initialize(vars.snow_surface_heat_flux, grid, clock, fields, boundary_conditions)
     end
-    # The snow energy tendency reads its boundary heat fluxes from the `surface_heat_flux`/`basal_heat_flux`
-    # input fields; alias them to the snow-top conductive flux (`snow_surface_heat_flux`) and the
-    # blended soil-top flux (`soil_heat_flux`) so no additional state fields are allocated (no-op without snow).
-    snow_flux_aliases = isnothing(model.snow) ? (;) : (; surface_heat_flux = snow_surface_heat_flux, basal_heat_flux = soil_heat_flux)
+    # The snow energy tendency reads its top boundary flux from the `surface_heat_flux` input, which is aliased
+    # to `snow_surface_heat_flux` (the grid-cell-mean snow-top flux f·S, no additional field is allocated).
+    # Its basal flux input `basal_heat_flux` (grid-cell-mean f·Q_base) is deliberately *not* aliased to the
+    # blended `soil_heat_flux`: that would apply the bare-ground flux (1 − f)·G to the snowpack. It is
+    # allocated automatically as a snow input and filled by `compute_snow_interface_fluxes!`.
+    snow_flux_aliases = isnothing(model.snow) ? (;) : (; surface_heat_flux = snow_surface_heat_flux)
     # Merge user-defined fields with BC fields
     fields = merge((; ground_heat_flux, infiltration, soil_heat_flux, snow_surface_heat_flux), snow_flux_aliases, fields)
     return StateVariables(vars, grid; clock, timestepper = get_timestepper(model), model, boundary_conditions = bcs, fields)
 end
 
 interface_variables(::LandModel) = (
-    auxiliary(:soil_heat_flux, Ground(Top()); units = u"W/m^2", desc = "Blended heat flux into the soil top (snow base + bare ground)"),
-    auxiliary(:snow_surface_heat_flux, Snow(Top()); units = u"W/m^2", desc = "Conductive heat flux from the skin into the top of the snowpack (positive upward); drives the snowpack's own energy tendency"),
+    auxiliary(:soil_heat_flux, Ground(Top()); units = u"W/m^2", desc = "Blended heat flux (W/m^2 of grid cell) out of the soil top: snow-covered fraction times the snow-base flux plus bare fraction times the ground heat flux"),
+    auxiliary(:snow_surface_heat_flux, Snow(Top()); units = u"W/m^2", desc = "Grid-cell-mean conductive heat flux out of the top of the snowpack into the skin (positive upward, snow cover fraction times the per-snow-area flux); drives the snowpack's own energy tendency"),
 )
 
 function initialize!(state, model::LandModel)

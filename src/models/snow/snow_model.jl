@@ -5,7 +5,8 @@ Minimal standalone model of a single-layer snowpack, intended for unit and diffe
 Couples an [`AbstractSnow`](@ref) process with a prescribed atmosphere providing precipitation and air
 temperature. The surface and basal heat fluxes (`surface_heat_flux`, `basal_heat_flux`) and the
 `sublimation` rate are prescribed input fields; in a coupled land model these are supplied by the
-surface energy balance and the snow→soil conduction.
+surface energy balance and the snow→soil conduction. Like the snow state, these fluxes are grid-cell means,
+i.e. already scaled by the snow cover fraction `f` (`f·S` at the top and `f·Q_base` at the base in the coupled model).
 
 Properties:
 $(TYPEDFIELDS)
