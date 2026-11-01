@@ -163,8 +163,8 @@ These coupling interfaces will allow Terrarium.jl to directly contribute to ongo
 
 # AI usage disclosure
 
-No generative AI was used in the preparation of this manuscript.
-Some parts of the software, including tests and documentation, are developed with AI assistance under strict human oversight.
+No generative AI was used in writing this manuscript.
+Some parts of the software, including tests and documentation, are actively developed with AI assistance under careful human oversight.
 All pull requests are reviewed and signed off by human developers.
 
 # Acknowledgements
