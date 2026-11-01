@@ -99,7 +99,7 @@ function update_inputs!(inputs, grid, clock, fields, src::IdealizedSeasonalForci
     ## pack (whose depth-averaged temperature is poorly conditioned).
     T_snow = interior(fields.snow_temperature)[:, 1, 1]
     f_snow = interior(fields.snow_cover_fraction)[:, 1, 1]
-    interior(inputs.surface_heat_flux)[:, 1, 1] .= f_snow .* h .* (T_snow .- T_air)
+    interior(inputs.snow_surface_heat_flux)[:, 1, 1] .= f_snow .* h .* (T_snow .- T_air)
     return nothing
 end
 

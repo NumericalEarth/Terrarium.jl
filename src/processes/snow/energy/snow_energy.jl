@@ -97,8 +97,8 @@ fully melted, triggering spurious immediate Darcy drainage regardless of how col
     ρ_w = constants.material.density_water
     L_sl = constants.thermodynamics.latent_heat_fusion
     W = fields.snow_water_equivalent[i, j]
-    Q_top = fields.surface_heat_flux[i, j]   # positive upward: energy leaving the snow top
-    Q_base = fields.basal_heat_flux[i, j]    # positive upward: energy entering the snow base from soil
+    Q_top = fields.snow_surface_heat_flux[i, j]   # positive upward: energy leaving the snow top
+    Q_base = fields.snow_basal_heat_flux[i, j]    # positive upward: energy entering the snow base from soil
     E_subl = fields.sublimation[i, j]        # positive upward: snow mass loss to water vapor
     f_snow = snow_cover_fraction(i, j, grid, fields, snow)
     P_s = snowfall(i, j, grid, fields, atmos)

@@ -94,8 +94,8 @@ function build_model(::Val{:snow_column}, arch, NF)
     inits = (
         snow_water_equivalent = NF(0.3),
         snow_temperature = NF(-5),
-        basal_heat_flux = NF(2),
-        surface_heat_flux = NF(10),
+        snow_basal_heat_flux = NF(2),
+        snow_surface_heat_flux = NF(10),
     )
     return (; model, boundary_conditions = (;), initializers = inits, Δt = NF(600))
 end

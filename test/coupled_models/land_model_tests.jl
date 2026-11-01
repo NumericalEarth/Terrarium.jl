@@ -122,7 +122,7 @@ end
     @test all(isfinite.(integrator.state.snow_energy))
     @test all(isfinite.(integrator.state.snow_water_equivalent))
     @test all(isfinite.(integrator.state.snow_temperature))
-    @test all(isfinite.(integrator.state.basal_heat_flux))
+    @test all(isfinite.(integrator.state.snow_basal_heat_flux))
     @test all(isfinite.(integrator.state.soil_heat_flux))
     @test all(isfinite.(integrator.state.internal_energy))
 end
@@ -255,7 +255,7 @@ end
     T_snow = interior(integrator.state.snow_temperature)
     @test all(isfinite.(T_snow))
     @test all(isfinite.(interior(integrator.state.skin_temperature)))
-    @test all(isfinite.(interior(integrator.state.basal_heat_flux)))
+    @test all(isfinite.(interior(integrator.state.snow_basal_heat_flux)))
     @test all(isfinite.(interior(integrator.state.internal_energy)))
     # snow temperature must remain physically bounded (never dive toward absolute zero)
     @test all(T_snow .>= -60)
