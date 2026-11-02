@@ -1,6 +1,6 @@
 # Area-consistent snow boundary heat fluxes in the coupled snow–soil model
 
-> Status: **in progress**. Implemented and tested, with one deviation (Rev 3) awaiting approval; the draft doc build and the optional end-to-end coupled run are not yet verified.
+> Status: **completed**. Implemented with Revs 3 and 4 and verified by the test suite and a four-month coupled SpeedyWeather run.
 
 Date of initial draft: 2026-11-01
 
@@ -27,7 +27,11 @@ Base revision: `887c8849f8c30acbce4b59284802419821094bae` (`joss-paper`); the fi
   Removed the kernel function `compute_snow_soil_heat_flux` and its doc page entry instead of keeping it unchanged as change 2 specified.
   The blend `f·Q_base + (1 − f)·G` is now computed inline in `compute_snow_interface_fluxes!`, so `Q_base` is evaluated once per cell.
   The formula itself is unchanged.
-  Pending human approval.
+  Approved by Brian Groenke on 2026-11-01.
+- **Rev 4 (2026-11-01, Claude Opus 5.5, Claude Code):** Requested and approved by Brian Groenke on 2026-11-01.
+  Renamed the `SingleLayerSnow` inputs `surface_heat_flux` and `basal_heat_flux` to `snow_surface_heat_flux` and `snow_basal_heat_flux`.
+  The new input name coincides with the former `LandModel` auxiliary `snow_surface_heat_flux`, so that auxiliary and the input alias are removed; both snow fluxes are now snow inputs that `StateVariables` allocates automatically and `compute_snow_interface_fluxes!` fills.
+  Without snow, the state no longer contains a `snow_surface_heat_flux` field (it was previously an alias of `ground_heat_flux`).
 
 ## Problem description
 
