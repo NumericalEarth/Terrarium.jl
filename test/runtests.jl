@@ -86,6 +86,7 @@ if MAIN_TESTS
 
     @testset "Coupled models" begin
         include("coupled_models/land_model_tests.jl")
+        include("coupled_models/kernel_allocations.jl")
     end
 
     @testset "Utilities" begin

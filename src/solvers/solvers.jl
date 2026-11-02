@@ -23,7 +23,7 @@ struct ObjectiveFunction{target, F, DF}
     ObjectiveFunction(func, target::Symbol) = ObjectiveFunction(func, nothing, target)
 end
 
-@inline (func::ObjectiveFunction)(args...) = func.func(args...)
+@propagate_inbounds (func::ObjectiveFunction)(args...) = func.func(args...)
 
 """
     $TYPEDEF

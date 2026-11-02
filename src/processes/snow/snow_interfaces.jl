@@ -134,7 +134,7 @@ for the latent-flux partition).
     return nothing
 end
 
-@kernel inbounds = true function compute_snow_interface_fluxes_kernel!(out, grid, fields, snow::SingleLayerSnow, args...)
+@kernel inbounds = true function compute_snow_interface_fluxes_kernel!(out, grid, fields, snow::SingleLayerSnow, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_snow_interface_fluxes!(out, i, j, grid, fields, snow, args...)
 end

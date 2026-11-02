@@ -257,7 +257,7 @@ end
 
 Compute the aerodynamic resistance between the ground and canopy as a function of LAI and SAI.
 """
-@inline function aerodynamic_resistance(
+@propagate_inbounds function aerodynamic_resistance(
         i, j, grid, fields,
         atmos::AbstractAtmosphere,
         evapotranspiration::PALADYNCanopyEvapotranspiration{NF},
