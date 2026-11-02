@@ -32,6 +32,14 @@ $FIELDS
 
     "Snow energy-temperature closure"
     @component closure::Closure
+
+    function SingleLayerSnow(cover, density, thermal_conductivity, hydraulic_properties, albedo, closure)
+        # `closure` is excluded from the promotion since it currently holds no parameters
+        NF = number_format(cover, density, thermal_conductivity, hydraulic_properties, albedo)
+        return new{NF, typeof(cover), typeof(density), typeof(thermal_conductivity), typeof(hydraulic_properties), typeof(albedo), typeof(closure)}(
+            cover, density, thermal_conductivity, hydraulic_properties, albedo, closure
+        )
+    end
 end
 
 function SingleLayerSnow(
@@ -41,14 +49,11 @@ function SingleLayerSnow(
         thermal_conductivity = PowerLawSnowThermalConductivity(NF),
         hydraulic_properties = ConstantSnowHydraulics(NF),
         albedo = ConstantSnowAlbedo(NF),
-        closure = SnowEnergyTemperatureClosure(NF),
+        closure = SnowEnergyTemperatureClosure(),
     ) where {NF}
-    # No field is directly typed `NF` (the minimum conduction thickness is now derived from the grid
-    # rather than stored, see `min_snow_conduction_thickness`), so `NF` is supplied explicitly here and
-    # carried only via the `AbstractSnow{NF}` supertype bound, mirroring `LandModel`/`SnowModel`.
-    return SingleLayerSnow{NF, typeof(cover), typeof(density), typeof(thermal_conductivity), typeof(hydraulic_properties), typeof(albedo), typeof(closure)}(
-        cover, density, thermal_conductivity, hydraulic_properties, albedo, closure
-    )
+    # `NF` is given here only to build the default sub-components; the positional constructor
+    # derives it from them via `number_format`.
+    return SingleLayerSnow(cover, density, thermal_conductivity, hydraulic_properties, albedo, closure)
 end
 
 """

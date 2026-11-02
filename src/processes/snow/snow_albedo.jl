@@ -12,7 +12,7 @@
 Basic constant albedo scheme for snow that treats both albedo and emissivity as both spatially and temporally constants.
 The default values are for freshly fallen snow, taken from [westermannCryoGrid3Simulating2016](@cite).
 """
-@parameterized @kwdef struct ConstantSnowAlbedo{NF}
+@parameterized @kwdef struct ConstantSnowAlbedo{NF} <: AbstractSnowAlbedo{NF}
     "Albedo of (fresh) snow"
     @param snow_albedo::NF = 0.8 (bounds = UnitInterval,)
 
