@@ -52,18 +52,6 @@ For the same reason, and because the first model stepped in a process can be slo
 | `gc_share.jl` | CPU | Share of garbage collection in the step time. |
 | `common.jl` | | Shared helpers: option parsing, model setup, timing with repetitions, and the skin temperature solver settings. Not run directly. |
 
-## Experiments
-
-The tools in `experiments/` each test one specific change by redefining Terrarium methods, so they depend on the internals they replace and may need adapting when those change.
-They are kept as worked examples and to reproduce the results recorded in the plan.
-Run them from this directory, for example `julia --project=. experiments/reactant_sqrt.jl mode=sqrt`.
-
-| Experiment | What it tests |
-| --- | --- |
-| `experiments/soil_heat_tendency_variants.jl` | Cost per cell of the soil energy tendency kernel for four alternative implementations (hoisted constants, `sqrt`, conductivity computed once per cell, and both), and how much each changes the tendencies. |
-| `experiments/vararg_specialization.jl` | Allocations and time of `closure!` before and after forcing `Vararg` specialization of `energy_to_temperature_kernel!`. |
-| `experiments/reactant_sqrt.jl` | Whether `sqrt` instead of `x^(1/2)` in `InverseQuadratic` compiles and differentiates under Reactant when the soil conductivities are traced scalars. |
-
 ## Run times
 
 Most native CPU and GPU tools take a few minutes with their defaults.
