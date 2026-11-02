@@ -114,6 +114,10 @@ end
 
 # Immobile soil water (NoFlow)
 
+# Immobile soil water has no dynamic hydraulic properties, so the (no-op) hydraulics kernel is not launched;
+# an empty kernel currently cannot be raised by Reactant and would otherwise block reverse-mode AD of the whole model
+compute_hydraulics!(state, grid, ::SoilHydrology{NF, NoFlow}, ::AbstractSoil, args...) where {NF} = nothing
+
 """ $TYPEDSIGNATURES """
 function initialize!(state, grid, hydrology::SoilHydrology, soil::AbstractSoil, args...)
     compute_hydraulics!(state, grid, hydrology, soil)

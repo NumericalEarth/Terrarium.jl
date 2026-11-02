@@ -82,7 +82,9 @@ using Test
         set!(state.snow_energy, NF(1000))                            # E > 0 -> θ_liq = 1 (fully melted)
         step_tendencies!(state)
         @test all(state.snow_liquid_fraction .≈ 1)
-        M_r = snow.hydraulic_properties.saturated_conductivity      # S* = 1 at θ_liq = 1
+        # outflow at θ_liq = 1: the Darcy rate K_sat, limited by the excess liquid water drained over τ_m
+        M_r = Terrarium.compute_meltwater_outflow(snow.hydraulic_properties, one(NF), NF(W0))
+        @test M_r ≈ min(snow.hydraulic_properties.saturated_conductivity, (1 - snow.hydraulic_properties.capillary_retention) * W0 / snow.hydraulic_properties.drainage_timescale)
         @test all(state.tendencies.snow_water_equivalent .≈ -M_r)   # meltwater drains
         # meltwater is liquid at 0°C (U = 0 reference), so it carries no enthalpy: energy is conserved
         @test all(isapprox.(interior(state.tendencies.snow_energy), 0; atol = 1.0e-9))

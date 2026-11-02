@@ -50,7 +50,7 @@ function SurfaceEnergyBalance(
         turbulent_fluxes::AbstractTurbulentFluxes = DiagnosedTurbulentFluxes(NF),
         skin_temperature::AbstractSkinTemperature = ImplicitSkinTemperature(NF),
         ground_heat_flux::AbstractGroundHeatFlux = DiagnosedGroundHeatFlux(NF),
-        albedo::AbstractAlbedo = ConstantAlbedo(NF)
+        albedo::AbstractAlbedo = DiagnosticAlbedo(NF)
     ) where {NF}
     return SurfaceEnergyBalance(skin_temperature, radiative_fluxes, turbulent_fluxes, ground_heat_flux, albedo)
 end

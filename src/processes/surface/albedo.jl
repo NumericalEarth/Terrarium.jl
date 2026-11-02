@@ -46,11 +46,13 @@ Return the surface emissivity at grid point `i, j`.
 """
     $TYPEDEF
 
-Diagnosed surface albedo and emissivity. The values are computed in [`compute_auxiliary!`](@ref) as a
-snow-cover-weighted blend of a snow-free background and snow, `α = (1 − f_snow)·α_bg + f_snow·α_snow`
-(and likewise for emissivity), where `f_snow` is the snow-covered area fraction of the optional snow
-component passed to `compute_auxiliary!`. Without a snow component (`snow === nothing`), `f_snow = 0` and
-the background values are used.
+Diagnosed surface albedo and emissivity. The values are computed in [`compute_auxiliary!`](@ref) as an
+area-weighted blend of bare ground, vegetation, and snow,
+`α = (1 − f_snow)·(1 − f_veg)·α_bg + (1 − f_snow)·f_veg·α_veg + f_snow·α_snow` (and likewise for
+emissivity), where `f_veg` is the vegetated area fraction of the optional vegetation component and
+`f_snow` the snow-covered area fraction of the optional snow component passed to `compute_auxiliary!`.
+Snow-covered bare and vegetated areas are assumed to share the same snow albedo and emissivity. Without
+a vegetation or snow component (`nothing`), the corresponding fraction is zero.
 
 Properties:
 $TYPEDFIELDS
@@ -73,8 +75,9 @@ variables(::DiagnosticAlbedo) = (
 """
     $TYPEDSIGNATURES
 
-Diagnose the blended surface albedo and emissivity, weighting the snow-free background and snow values
-by the snow-covered area fraction of the optional `snow` component.
+Diagnose the blended surface albedo and emissivity, weighting the bare-ground, vegetation, and snow
+values by the vegetated area fraction of the optional `vegetation` component and the snow-covered area
+fraction of the optional `snow` component.
 """
 function compute_auxiliary!(
         state, grid,

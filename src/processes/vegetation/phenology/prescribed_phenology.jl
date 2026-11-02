@@ -20,12 +20,8 @@ variables(phenol::PrescribedPhenology, traits::PlantTraits) = (
     variables(phenol)...,
 )
 
-function phenology_factor(i, j, grid, fields, ::PrescribedPhenology{NF}, traits::PlantTraits{NF}) where {NF}
-    LAI = fields.leaf_area_index[i, j]
-    LAI_max = maximum_leaf_area_index(i, j, grid, fields, traits)
-    ϕ = clamp(LAI / LAI_max, NF(0), NF(1))
-    return ϕ
-end
+@propagate_inbounds phenology_factor(i, j, grid, fields, ::PrescribedPhenology{NF}, traits::PlantTraits{NF}) where {NF} =
+    compute_relative_leaf_area(i, j, grid, fields, traits)
 
 @inline compute_auxiliary!(state, grid, phenology::PrescribedPhenology, args...) = nothing
 

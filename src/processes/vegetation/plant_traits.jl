@@ -37,6 +37,18 @@ PlantTraits(::Type{NF}; kwargs...) where {NF} = PlantTraits{NF}(; kwargs...)
 
 @inline maximum_leaf_area_index(i, j, grid, fields, traits::PlantTraits) = traits.maximum_leaf_area_index
 
+"""
+    $TYPEDSIGNATURES
+
+Return the leaf area index at grid point `i, j` relative to the maximum leaf area index of the given
+plant `traits`, `LAI / LAI_max`, clamped to the unit interval.
+"""
+@propagate_inbounds function compute_relative_leaf_area(i, j, grid, fields, traits::PlantTraits{NF}) where {NF}
+    LAI = fields.leaf_area_index[i, j, end]
+    LAI_max = maximum_leaf_area_index(i, j, grid, fields, traits)
+    return clamp(LAI / LAI_max, zero(NF), one(NF))
+end
+
 @inline extinction_coefficient(i, j, grid, fields, traits::PlantTraits) = traits.extinction_coefficient
 
 @inline albedo(i, j, grid, fields, traits::PlantTraits) = traits.albedo

@@ -29,7 +29,7 @@ variables(::PALADYNVegetationDynamics) = (
     input(:net_primary_production, Canopy(XY()), units = u"kg/m^2/s"),
 )
 
-@propagate_inbounds vegetation_area_fraction(i, j, grid, fields, ::PALADYNVegetationDynamics) = fields.vegetation_area_fraction[i, j]
+@propagate_inbounds vegetation_area_fraction(i, j, grid, fields, ::PALADYNVegetationDynamics) = fields.vegetation_area_fraction[i, j, end]
 
 """
     $SIGNATURES

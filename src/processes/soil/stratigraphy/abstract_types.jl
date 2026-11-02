@@ -52,8 +52,9 @@ abstract type AbstractSoilHorizon{NF, name} end
 
 Base.nameof(::AbstractSoilHorizon{NF, name}) where {NF, name} = name
 
-ConstructionBase.constructorof(::Type{HT}) where {NF, name, HT <: AbstractSoilHorizon{NF, name}} =
-    (args...) -> HT.name.wrapper(name, args...)
+# Assumes all subtypes have a constructor HorizonType(name::Symbol, fields...) on the bare type (not the fully
+# parameterized `HT`), taking the struct fields in declaration order
+ConstructionBase.constructorof(HT::Type{<:AbstractSoilHorizon{NF, name}}) where {NF, name} = (fields...) -> Base.typename(HT).wrapper(name, fields...)
 
 """
     $TYPEDSIGNATURES
