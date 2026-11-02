@@ -84,9 +84,13 @@ with_output(OPTIONS.out) do io
         say(io, "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     end
     mem = CUDA.memory(compiled)
-    say(io, @sprintf("| %s | %s | %d | %d | %d | %d | %d | %d | %d | %d | %d | %.1f (%.1f) | %s |",
-        OPTIONS.label, solver_name, ncolumns(OPTIONS.nlat), CUDA.registers(compiled), mem.local, CUDA.maxthreads(compiled),
-        count_matches(F64_ARITH, ptx), count_matches(CVT_F64, ptx), count_matches(r"\btrap;", ptx),
-        count_matches(r"\bcall(\.uni)?\b", ptx), count('\n', ptx),
-        1.0e3 * median(times), 1.0e3 * minimum(times), fmt_times(step_time)))
+    say(
+        io, @sprintf(
+            "| %s | %s | %d | %d | %d | %d | %d | %d | %d | %d | %d | %.1f (%.1f) | %s |",
+            OPTIONS.label, solver_name, ncolumns(OPTIONS.nlat), CUDA.registers(compiled), mem.local, CUDA.maxthreads(compiled),
+            count_matches(F64_ARITH, ptx), count_matches(CVT_F64, ptx), count_matches(r"\btrap;", ptx),
+            count_matches(r"\bcall(\.uni)?\b", ptx), count('\n', ptx),
+            1.0e3 * median(times), 1.0e3 * minimum(times), fmt_times(step_time)
+        )
+    )
 end
