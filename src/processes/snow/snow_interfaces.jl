@@ -112,7 +112,7 @@ for the latent-flux partition). All snowpack fluxes are grid-cell means scaled b
     f = snow_cover_fraction(i, j, grid, fields, snow)
     E_subl = compute_snow_sublimation_flux(i, j, grid, fields, snow, atmos, constants, seb.skin_temperature)
     out.sublimation[i, j, end] = f * E_subl
-    G = fields.ground_heat_flux[i, j]
+    G = fields.ground_heat_flux[i, j, end]
     Q_base = compute_snow_basal_heat_flux(i, j, grid, fields, snow, soil, constants)
     S = compute_snow_surface_heat_flux(i, j, grid, fields, snow, constants)
     out.soil_heat_flux[i, j, end] = f * Q_base + (one(f) - f) * G
