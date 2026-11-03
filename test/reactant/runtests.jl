@@ -45,4 +45,25 @@ include("setup.jl")
     test_model(:land_default)                 # default LandModel: soil + snow + vegetation (NewtonSolver skin temperature)
 end
 
+# A compiled run updates the Reactant clock's `ConcreteRNumber` time in place; `initialize!` must
+# still restore the start time rather than the time the clock has advanced to.
+@testset "Reactant: initialize! restores the initial clock time" begin
+    NF = DEFAULT_NF
+    cfg = build_model(Val(:soil_heat_column), ReactantState(), NF)
+    clock = Terrarium.default_clock(cfg.model)
+    clock.time = 3600.0
+    integrator = Terrarium.initialize(
+        cfg.model;
+        clock,
+        boundary_conditions = cfg.boundary_conditions,
+        initializers = cfg.initializers
+    )
+    @test Reactant.to_number(integrator.clock.time) == 3600
+    run!(integrator; steps = 3, Δt = cfg.Δt)
+    @test Reactant.to_number(integrator.clock.time) == 3600 + 3 * cfg.Δt
+    Terrarium.initialize!(integrator)
+    @test Reactant.to_number(integrator.clock.time) == 3600
+    @test Reactant.to_number(integrator.clock.iteration) == 0
+end
+
 include("autodiff.jl")
