@@ -381,7 +381,7 @@ end
         @test isapprox(ΔE, expected; rtol = 1.0e-9)
     end
 end
-                        
+
 # `ColumnGrid` is an alias for an Oceananigans `RectilinearGrid`, so the testsets above exercise
 # Oceananigans' own grid metrics. `ColumnRingGrid` is a grid *wrapper* and must forward those
 # metrics itself; when it did not, every `LandModel` on a ring grid failed on the first timestep
