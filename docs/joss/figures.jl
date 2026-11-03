@@ -315,7 +315,7 @@ map_panel!(
 map_panel!(
     fig3, (1, 5), (1, 6), snow_depth;
     title = "Max annual snow depth water equivalent", units = "m",
-    colormap = :Blues, colorrange = (1.0e-3, 0.3), lowclip = :white, width = 10
+    colormap = :Blues, colorrange = (1.0e-3, 0.5), lowclip = :white, width = 10
 )
 map_panel!(
     fig3, (2, 1), (2, 2), evapotranspiration;
