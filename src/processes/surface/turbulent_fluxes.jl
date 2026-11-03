@@ -139,7 +139,7 @@ end
 
 Compute the sensible heat flux at `i, j` based on the current skin temperature and atmospheric conditions.
 """
-@inline function compute_sensible_heat_flux(
+@propagate_inbounds function compute_sensible_heat_flux(
         i, j, grid, fields,
         tur::DiagnosedTurbulentFluxes,
         skinT::AbstractSkinTemperature,
@@ -171,7 +171,7 @@ fraction `(1 − f_snow)` evaporates from the ground/canopy (latent heat of vapo
 snow-covered fraction sublimates from the snowpack (latent heat of sublimation, see
 [`compute_snow_sublimation_flux`](@ref)). Without snow it reduces to the bare ground/canopy latent flux.
 """
-@inline function compute_latent_heat_flux(
+@propagate_inbounds function compute_latent_heat_flux(
         i, j, grid, fields,
         tur::DiagnosedTurbulentFluxes{NF},
         skinT::AbstractSkinTemperature,
@@ -211,7 +211,7 @@ end
 
 # Kernels
 
-@kernel function compute_auxiliary_kernel!(out, grid, fields, tur::DiagnosedTurbulentFluxes, args...)
+@kernel function compute_auxiliary_kernel!(out, grid, fields, tur::DiagnosedTurbulentFluxes, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     # compute sensible heat flux
     out.sensible_heat_flux[i, j, end] = compute_sensible_heat_flux(i, j, grid, fields, tur, args...)

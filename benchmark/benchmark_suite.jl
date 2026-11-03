@@ -6,6 +6,7 @@
 
 using BenchmarkTools: prettymemory
 using Printf: @sprintf
+using Statistics: median
 
 import KernelAbstractions
 using Oceananigans.Architectures: device
@@ -35,17 +36,19 @@ end
 
 """
 How long the suite should run. `timestep_multiplier` scales every timed run; `max_ncolumns` caps the
-resolution sweeps (configurations above it are skipped and reported as `—`).
+resolution sweeps (configurations above it are skipped and reported as `—`); `repeats` is the number of
+timed repetitions of every run, of which the median is reported.
 """
 struct BenchmarkMode
     name::String
     timestep_multiplier::Float64
     max_ncolumns::Int
+    repeats::Int
 end
 
-const QUICK_MODE = BenchmarkMode("quick", 0.25, 8192)      # nlat_half ≤ 32
-const DEFAULT_MODE = BenchmarkMode("default", 1.0, typemax(Int))
-const LONG_MODE = BenchmarkMode("long", 10.0, typemax(Int))
+const QUICK_MODE = BenchmarkMode("quick", 0.25, 8192, 2)      # nlat_half ≤ 32
+const DEFAULT_MODE = BenchmarkMode("default", 1.0, typemax(Int), 5)
+const LONG_MODE = BenchmarkMode("long", 10.0, typemax(Int), 5)
 
 """
     parse_mode(arg)
@@ -61,7 +64,7 @@ function parse_mode(arg::AbstractString)
     multiplier = tryparse(Float64, a)
     isnothing(multiplier) && error("Unknown mode `$arg`. Use one of: quick, default, long, or a numeric multiplier.")
     multiplier > 0 || error("Timestep multiplier must be > 0, got $multiplier.")
-    return BenchmarkMode(@sprintf("%gx", multiplier), multiplier, typemax(Int))
+    return BenchmarkMode(@sprintf("%gx", multiplier), multiplier, typemax(Int), DEFAULT_MODE.repeats)
 end
 
 # --- suite -------------------------------------------------------------------------------
@@ -82,13 +85,21 @@ Base.@kwdef mutable struct BenchmarkSuite
     model_kwargs::Vector = fill(NamedTuple(), nruns)
     "Optional label for the varying quantity of this suite, e.g. the time stepper name"
     label::Vector{String} = fill("", nruns)
+    "Extra factor on the mode's timestep multiplier, for suites that only need short runs"
+    timestep_multiplier::Float64 = 1.0
+    "Skip this suite under Reactant, where each configuration costs a long XLA compilation"
+    native_only::Bool = false
 
     ## --- results (filled by `run_benchmark_suite!`) ---
     ncolumns::Vector{Int} = fill(0, nruns)
     Δt::Vector{Float64} = fill(NaN, nruns)
     nsteps::Vector{Int} = fill(0, nruns)
     sypd::Vector{Float64} = fill(NaN, nruns)
+    "Median over the timed repetitions"
     ms_per_step::Vector{Float64} = fill(NaN, nruns)
+    ms_per_step_min::Vector{Float64} = fill(NaN, nruns)
+    ms_per_step_max::Vector{Float64} = fill(NaN, nruns)
+    repeats::Vector{Int} = fill(0, nruns)
     "Throughput in million cell-steps per second"
     throughput::Vector{Float64} = fill(NaN, nruns)
     memory::Vector{Int} = fill(0, nruns)
@@ -117,18 +128,17 @@ const WARMUP_STEPS = 3
 """
     build_runner(arch, integrator, Δt, nsteps)
 
-Return `(; run, warmup, compile_time)`, where `run()` advances `integrator` by `nsteps` steps of size
-`Δt` and `warmup()` does the same thing more cheaply. The generic method calls `run!` and warms up
-with a handful of steps; `reactant_runner.jl` adds the `ReactantState` method, which compiles the
-stepping loop once (for a fixed step count, so its warm-up is a full run) and reports the compile
-time.
+Return `(; step!, compile_time)`, where `step!(n)` advances `integrator` by `n` steps of size `Δt`.
+The harness warms up with `step!(WARMUP_STEPS)` and times `step!(nsteps)`. Both go through the same
+function on purpose: when the warm-up and the timed run used two different closures, the first timed
+repetition of every new grid size carried a one-off compilation (about 2 s on an H100 node), which
+the warm-up had not absorbed. `reactant_runner.jl` adds the `ReactantState` method, which compiles the
+stepping loop once for a fixed step count (so `n` is ignored and its warm-up is a full run) and
+reports the compile time.
 """
 function build_runner(arch, integrator, Δt, nsteps)
-    return (
-        run = () -> run!(integrator; steps = nsteps, Δt),
-        warmup = () -> run!(integrator; steps = min(nsteps, WARMUP_STEPS), Δt),
-        compile_time = NaN,
-    )
+    step!(n) = run!(integrator; steps = n, Δt)
+    return (step! = step!, compile_time = NaN)
 end
 
 # Recursive walk over the (possibly namespaced) NamedTuples returned by `get_fields`.
@@ -176,16 +186,18 @@ end
 # --- the timed run -----------------------------------------------------------------------
 
 """
-    benchmark_configuration(config, arch, NF; nlat_half, nz, model_kwargs, multiplier)
+    benchmark_configuration(config, arch, NF; nlat_half, nz, model_kwargs, multiplier, repeats)
 
 Build, initialize, warm up and time one model configuration. Returns a NamedTuple of metrics.
 
 Initialization and (under Reactant) compilation are measured separately and excluded from the
-timing: the timed section covers only the stepping loop, which is what SYPD describes.
+timing: the timed section covers only the stepping loop, which is what SYPD describes. The stepping
+loop is timed `repeats` times, each from the re-initialized state; SYPD, ms/step, and throughput
+describe the median repetition, and the fastest and slowest repetitions are returned as well.
 """
 function benchmark_configuration(
         config::Symbol, arch, ::Type{NF};
-        nlat_half::Integer, nz::Integer, model_kwargs = (;), multiplier::Real = 1
+        nlat_half::Integer, nz::Integer, model_kwargs = (;), multiplier::Real = 1, repeats::Integer = 1
     ) where {NF}
 
     cfg = build_model(config, arch, NF; nlat_half, nz, model_kwargs)
@@ -204,33 +216,46 @@ function benchmark_configuration(
     runner = build_runner(arch, integrator, cfg.Δt, nsteps)
 
     ## Warm up: JIT (and, on the GPU, the first kernel launches) must not land in the timed run.
-    runner.warmup()
+    ## The warm-up starts from `initialize!` and calls the same stepping function as the timed run, so
+    ## that it compiles everything the timed repetitions need (see `build_runner`).
+    Terrarium.initialize!(integrator)
+    device_synchronize(arch)
+    runner.step!(min(nsteps, WARMUP_STEPS))
     device_synchronize(arch)
 
-    ## Restart from the initial state so the timed run starts where the warm-up did. This is a
-    ## convenience, not a requirement — the amount of work per step does not depend on the state — so
-    ## a failure here is reported and the timing still goes ahead.
-    try
-        Terrarium.initialize!(integrator)
+    ## Each repetition restarts from the initial state, so that every one starts where the warm-up did.
+    ## This is a convenience, not a requirement (the amount of work per step does not depend on the
+    ## state), so a failure is reported once and the timing still goes ahead.
+    elapsed_times = Float64[]
+    reinitialize_failed = false
+    for _ in 1:repeats
+        if !reinitialize_failed
+            try
+                Terrarium.initialize!(integrator)
+                device_synchronize(arch)
+            catch err
+                @warn "Could not re-initialize before the timed run; timing continues from the current state" exception = err
+                reinitialize_failed = true
+            end
+        end
+        t0 = time()
+        runner.step!(nsteps)
         device_synchronize(arch)
-    catch err
-        @warn "Could not re-initialize before the timed run; timing continues from the warmed-up state" exception = err
+        push!(elapsed_times, time() - t0)
     end
-
-    t0 = time()
-    runner.run()
-    device_synchronize(arch)
-    elapsed = time() - t0
+    elapsed = median(elapsed_times)
 
     ## SYPD: simulated seconds per wallclock second, converted to years per day.
     sypd = Δt * nsteps / (elapsed * 365.25)
     ms_per_step = 1.0e3 * elapsed / nsteps
+    ms_per_step_min = 1.0e3 * minimum(elapsed_times) / nsteps
+    ms_per_step_max = 1.0e3 * maximum(elapsed_times) / nsteps
     throughput = ncols * nz * nsteps / elapsed / 1.0e6
 
     status = state_is_finite(integrator) ? "ok" : "unstable"
     return (;
-        ncolumns = ncols, Δt, nsteps, sypd, ms_per_step, throughput, memory,
-        init_time, compile_time = runner.compile_time, status,
+        ncolumns = ncols, Δt, nsteps, sypd, ms_per_step, ms_per_step_min, ms_per_step_max, repeats,
+        throughput, memory, init_time, compile_time = runner.compile_time, status,
     )
 end
 
@@ -251,6 +276,12 @@ function run_benchmark_suite!(suite::BenchmarkSuite)
         ncols = ncolumns(nlat_half)
         suite.ncolumns[i] = ncols
 
+        if suite.native_only && arch isa ReactantState
+            @info "  ↳ skipping $config at nlat_half=$nlat_half: this suite is not run under Reactant"
+            suite.status[i] = "skipped"
+            continue
+        end
+
         if ncols > suite.mode.max_ncolumns
             @info "  ↳ skipping $config at nlat_half=$nlat_half ($ncols columns): above the $(suite.mode.name) mode cap of $(suite.mode.max_ncolumns) columns"
             suite.status[i] = "skipped"
@@ -263,18 +294,26 @@ function run_benchmark_suite!(suite::BenchmarkSuite)
                 config, arch, NF;
                 nlat_half, nz,
                 model_kwargs = suite.model_kwargs[i],
-                multiplier = suite.mode.timestep_multiplier,
+                multiplier = suite.mode.timestep_multiplier * suite.timestep_multiplier,
+                repeats = suite.mode.repeats,
             )
             suite.Δt[i] = result.Δt
             suite.nsteps[i] = result.nsteps
             suite.sypd[i] = result.sypd
             suite.ms_per_step[i] = result.ms_per_step
+            suite.ms_per_step_min[i] = result.ms_per_step_min
+            suite.ms_per_step_max[i] = result.ms_per_step_max
+            suite.repeats[i] = result.repeats
             suite.throughput[i] = result.throughput
             suite.memory[i] = result.memory
             suite.init_time[i] = result.init_time
             suite.compile_time[i] = result.compile_time
             suite.status[i] = result.status
-            @info @sprintf("     %.3g SYPD | %.3g ms/step | %.3g Mcell-steps/s | %s", result.sypd, result.ms_per_step, result.throughput, result.status)
+            @info @sprintf(
+                "     %.3g SYPD | %.3g ms/step (median of %d, spread %s) | %.3g Mcell-steps/s | %s",
+                result.sypd, result.ms_per_step, result.repeats, format_spread(result.ms_per_step_min, result.ms_per_step_max, result.ms_per_step),
+                result.throughput, result.status
+            )
         catch err
             @warn "Benchmark failed for $config at nlat_half=$nlat_half, nz=$nz on $(typeof(arch)); recording as failed" exception = (err, catch_backtrace())
             suite.status[i] = "failed: $(nameof(typeof(err)))"
@@ -304,6 +343,16 @@ format_integer(x) = (x isa Number && isfinite(x)) ? string(round(Int, x)) : "—
 format_seconds(x) = (x isa Number && isfinite(x)) ? @sprintf("%.1f s", x) : "—"
 format_memory(bytes) = bytes > 0 ? prettymemory(bytes) : "—"
 
+"""
+    format_spread(min, max, median)
+
+Spread of the timed repetitions, `(max - min) / median`, as a percentage; `—` if not available.
+"""
+function format_spread(lo, hi, mid)
+    all(x -> x isa Number && isfinite(x), (lo, hi, mid)) && mid > 0 || return "—"
+    return string(round(Int, 100 * (hi - lo) / mid), "%")
+end
+
 varies(v) = any(x -> x != v[1], v)
 
 """
@@ -326,7 +375,7 @@ function write_results(io, suite::BenchmarkSuite)
     header *= print_label ? "| Variant " : ""
     header *= "| Res | Columns "
     header *= print_nz ? "| L " : ""
-    header *= "| Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory "
+    header *= "| Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory "
     header *= print_compile ? "| Compile " : ""
     header *= print_status ? "| Status " : ""
     header *= "|"
@@ -345,6 +394,7 @@ function write_results(io, suite::BenchmarkSuite)
         row *= "| $(suite.nsteps[i] > 0 ? string(suite.nsteps[i]) : "—") "
         row *= "| $(format_sypd(suite.sypd[i])) "
         row *= "| $(format_metric(suite.ms_per_step[i])) "
+        row *= "| $(format_spread(suite.ms_per_step_min[i], suite.ms_per_step_max[i], suite.ms_per_step[i])) "
         row *= "| $(format_metric(suite.throughput[i])) "
         row *= "| $(format_memory(suite.memory[i])) "
         row *= print_compile ? "| $(format_seconds(suite.compile_time[i])) " : ""
@@ -370,6 +420,9 @@ function overview_data(suite::BenchmarkSuite)
         "nz" => collect(suite.nz),
         "sypd" => map(json_safe, suite.sypd),
         "ms_per_step" => map(json_safe, suite.ms_per_step),
+        "ms_per_step_min" => map(json_safe, suite.ms_per_step_min),
+        "ms_per_step_max" => map(json_safe, suite.ms_per_step_max),
+        "repeats" => collect(suite.repeats),
         "throughput" => map(json_safe, suite.throughput),
         "memory" => map(json_safe, suite.memory),
         "compile_time" => map(json_safe, suite.compile_time),

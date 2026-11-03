@@ -15,9 +15,7 @@ with `C(T)` the temperature-dependent volumetric heat capacity of the snowpack (
 the fraction of the total (liquid water + ice) volumetric water content that is liquid. 
 
 """
-struct SnowEnergyTemperatureClosure{NF} <: AbstractEnergyClosure end
-
-SnowEnergyTemperatureClosure(::Type{NF}) where {NF} = SnowEnergyTemperatureClosure{NF}()
+struct SnowEnergyTemperatureClosure <: AbstractEnergyClosure end
 
 variables(::SnowEnergyTemperatureClosure) = (
     auxiliary(:snow_temperature, Snow(XY()), units = u"°C", desc = "Depth-averaged snow temperature in °C (≤ 0)"),
@@ -94,8 +92,8 @@ Recover the snow temperature and liquid water fraction from the depth-integrated
 """
 @propagate_inbounds function energy_to_temperature!(
         out, i, j, grid, fields,
-        ::SnowEnergyTemperatureClosure{NF},
-        snow::SingleLayerSnow,
+        ::SnowEnergyTemperatureClosure,
+        snow::SingleLayerSnow{NF},
         constants::PhysicalConstants
     ) where {NF}
     W_snow = fields.snow_water_equivalent[i, j] # assumed given (prognostic)
@@ -153,12 +151,12 @@ end
 # `@kernel` does not support multiple methods of one kernel — the soil energy closures define 3D (XYZ)
 # kernels under the base names.
 
-@kernel inbounds = true function snow_energy_to_temperature_kernel!(out, grid, fields, closure::SnowEnergyTemperatureClosure, args...)
+@kernel inbounds = true function snow_energy_to_temperature_kernel!(out, grid, fields, closure::SnowEnergyTemperatureClosure, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     energy_to_temperature!(out, i, j, grid, fields, closure, args...)
 end
 
-@kernel inbounds = true function snow_temperature_to_energy_kernel!(out, grid, fields, closure::SnowEnergyTemperatureClosure, args...)
+@kernel inbounds = true function snow_temperature_to_energy_kernel!(out, grid, fields, closure::SnowEnergyTemperatureClosure, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     temperature_to_energy!(out, i, j, grid, fields, closure, args...)
 end

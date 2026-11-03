@@ -126,8 +126,8 @@ pool), then phenology (which reads it to set `leaf_area_index` and `phenology_fa
         veg::VegetationCarbonCycle,
         constants::PhysicalConstants,
         atmos::AbstractAtmosphere,
-        args...
-    )
+        args::Vararg{Any, N}
+    ) where {N}
     i, j = @index(Global, NTuple)
     compute_veg_carbon_auxiliary!(out, i, j, grid, fields, veg.carbon_dynamics, veg.traits)
     compute_phenology!(out, i, j, grid, fields, veg.phenology, atmos)

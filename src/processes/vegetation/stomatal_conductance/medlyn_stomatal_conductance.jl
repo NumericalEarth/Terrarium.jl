@@ -184,7 +184,7 @@ end
 
 # Kernels
 
-@kernel function compute_auxiliary_kernel!(out, grid, fields, stomcond::AbstractStomatalConductance, args...)
+@kernel function compute_auxiliary_kernel!(out, grid, fields, stomcond::AbstractStomatalConductance, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_stomatal_conductance!(out, i, j, grid, fields, stomcond, args...)
 end

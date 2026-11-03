@@ -63,7 +63,8 @@ Depth-integrated snow energy tendency [W/m²] at grid cell `i, j` (all fluxes po
 ```
 dŪ_snow/dt = Q_base − Q_top + Q_precip + Q_subl
 ```
-where `Q_top`/`Q_base` are the surface/basal heat fluxes, `Q_precip` the advected precipitation heat
+where `Q_top`/`Q_base` are the surface/basal heat fluxes, which like the snow state are grid-cell means
+scaled by the snow cover fraction `f` (`f·S` and `f·Q_base`, see [`compute_snow_interface_fluxes!`](@ref)), `Q_precip` the advected precipitation heat
 (see [`compute_snow_precip_heat_flux`](@ref)), and `Q_subl` an advective correction for sublimation.
 
 The sublimation correction `Q_subl = ρ_w·L_sl·E_subl` is required because the latent heat flux
@@ -96,8 +97,8 @@ fully melted, triggering spurious immediate Darcy drainage regardless of how col
     ρ_w = constants.material.density_water
     L_sl = constants.thermodynamics.latent_heat_fusion
     W = fields.snow_water_equivalent[i, j]
-    Q_top = fields.surface_heat_flux[i, j]   # positive upward: energy leaving the snow top
-    Q_base = fields.basal_heat_flux[i, j]    # positive upward: energy entering the snow base from soil
+    Q_top = fields.snow_surface_heat_flux[i, j, end] # positive upward: energy leaving the snow top
+    Q_base = fields.snow_basal_heat_flux[i, j, end]  # positive upward: energy entering the snow base from soil
     E_subl = fields.sublimation[i, j]        # positive upward: snow mass loss to water vapor
     f_snow = snow_cover_fraction(i, j, grid, fields, snow)
     P_s = snowfall(i, j, grid, fields, atmos)

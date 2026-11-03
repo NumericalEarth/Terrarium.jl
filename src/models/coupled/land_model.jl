@@ -7,7 +7,7 @@ vegetation, and soil processes.
 Properties:
 $(TYPEDFIELDS)
 """
-@parameterized @kwdef struct LandModel{
+@parameterized @kwdef mutable struct LandModel{
         NF,
         GridType <: AbstractLandGrid{NF},
         Vegetation <: Optional{AbstractVegetation{NF}},
@@ -88,26 +88,16 @@ function StateVariables(
     # field namespace `porosity_top` needs) does not exist yet at this point in construction.
     infiltration_bc = InfiltrationFlux(get_stratigraphy(model.soil), get_biogeochemistry(model.soil))
     bcs = merge_boundary_conditions(boundary_conditions, soil_heat_flux_bc, infiltration_bc)
-    # The snow-top conductive flux (drives the snowpack's own energy tendency) is a genuinely distinct
-    # quantity from the bare-ground `ground_heat_flux` once snow is present (see `skin_temperature.jl`'s
-    # per-fraction `G`/`S` split), so it gets its own field rather than aliasing `ground_heat_flux`.
-    snow_surface_heat_flux = if isnothing(model.snow)
-        ground_heat_flux
-    else
-        initialize(vars.snow_surface_heat_flux, grid, clock, fields, boundary_conditions)
-    end
-    # The snow energy tendency reads its boundary heat fluxes from the `surface_heat_flux`/`basal_heat_flux`
-    # input fields; alias them to the snow-top conductive flux (`snow_surface_heat_flux`) and the
-    # blended soil-top flux (`soil_heat_flux`) so no additional state fields are allocated (no-op without snow).
-    snow_flux_aliases = isnothing(model.snow) ? (;) : (; surface_heat_flux = snow_surface_heat_flux, basal_heat_flux = soil_heat_flux)
+    # With snow, the snowpack's boundary fluxes `snow_surface_heat_flux` (f·S) and `snow_basal_heat_flux`
+    # (f·Q_base) are grid-cell means distinct from both `ground_heat_flux` and the blended `soil_heat_flux`
+    # (see `compute_snow_interface_fluxes!`); they are snow inputs, allocated automatically.
     # Merge user-defined fields with BC fields
-    fields = merge((; ground_heat_flux, infiltration, soil_heat_flux, snow_surface_heat_flux), snow_flux_aliases, fields)
+    fields = merge((; ground_heat_flux, infiltration, soil_heat_flux), fields)
     return StateVariables(vars, grid; clock, timestepper = get_timestepper(model), model, boundary_conditions = bcs, fields)
 end
 
 interface_variables(::LandModel) = (
-    auxiliary(:soil_heat_flux, Ground(Top()); units = u"W/m^2", desc = "Blended heat flux into the soil top (snow base + bare ground)"),
-    auxiliary(:snow_surface_heat_flux, Snow(Top()); units = u"W/m^2", desc = "Conductive heat flux from the skin into the top of the snowpack (positive upward); drives the snowpack's own energy tendency"),
+    auxiliary(:soil_heat_flux, Ground(Top()); units = u"W/m^2", desc = "Blended heat flux (W/m^2 of grid cell) out of the soil top: snow-covered fraction times the snow-base flux plus bare fraction times the ground heat flux"),
 )
 
 function initialize!(state, model::LandModel)

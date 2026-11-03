@@ -158,12 +158,12 @@ end
 
 # Kernels
 
-@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, runoff::AbstractSurfaceRunoff, args...)
+@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, runoff::AbstractSurfaceRunoff, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_surface_runoff!(out, i, j, grid, fields, runoff, args...)
 end
 
-@kernel inbounds = true function compute_tendencies_kernel!(tendencies, grid, fields, runoff::AbstractSurfaceRunoff, args...)
+@kernel inbounds = true function compute_tendencies_kernel!(tendencies, grid, fields, runoff::AbstractSurfaceRunoff, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_surface_excess_water_tendency!(tendencies, i, j, grid, fields, runoff, args...)
 end

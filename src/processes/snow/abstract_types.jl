@@ -50,12 +50,23 @@ Base type for snow density schemes.
 """
 abstract type AbstractSnowDensity{NF} end
 
+number_format(::Type{<:AbstractSnowDensity{NF}}) where {NF} = NF
+
 """
     snow_density(i, j, grid, fields, ::AbstractSnowDensity)
 
 Compute or retrieve the bulk snow density `ρ_snow` [kg/m³].
 """
 function compute_snow_density end
+
+"""
+    $TYPEDEF
+
+Base type for snow albedo parameterizations.
+"""
+abstract type AbstractSnowAlbedo{NF} end
+
+number_format(::Type{<:AbstractSnowAlbedo{NF}}) where {NF} = NF
 
 # Defaults for snow = nothing
 

@@ -32,6 +32,14 @@ $FIELDS
 
     "Snow energy-temperature closure"
     @component closure::Closure
+
+    function SingleLayerSnow(cover, density, thermal_conductivity, hydraulic_properties, albedo, closure)
+        # `closure` is excluded from the promotion since it currently holds no parameters
+        NF = number_format(cover, density, thermal_conductivity, hydraulic_properties, albedo)
+        return new{NF, typeof(cover), typeof(density), typeof(thermal_conductivity), typeof(hydraulic_properties), typeof(albedo), typeof(closure)}(
+            cover, density, thermal_conductivity, hydraulic_properties, albedo, closure
+        )
+    end
 end
 
 function SingleLayerSnow(
@@ -41,14 +49,11 @@ function SingleLayerSnow(
         thermal_conductivity = PowerLawSnowThermalConductivity(NF),
         hydraulic_properties = ConstantSnowHydraulics(NF),
         albedo = ConstantSnowAlbedo(NF),
-        closure = SnowEnergyTemperatureClosure(NF),
+        closure = SnowEnergyTemperatureClosure(),
     ) where {NF}
-    # No field is directly typed `NF` (the minimum conduction thickness is now derived from the grid
-    # rather than stored, see `min_snow_conduction_thickness`), so `NF` is supplied explicitly here and
-    # carried only via the `AbstractSnow{NF}` supertype bound, mirroring `LandModel`/`SnowModel`.
-    return SingleLayerSnow{NF, typeof(cover), typeof(density), typeof(thermal_conductivity), typeof(hydraulic_properties), typeof(albedo), typeof(closure)}(
-        cover, density, thermal_conductivity, hydraulic_properties, albedo, closure
-    )
+    # `NF` is given here only to build the default sub-components; the positional constructor
+    # derives it from them via `number_format`.
+    return SingleLayerSnow(cover, density, thermal_conductivity, hydraulic_properties, albedo, closure)
 end
 
 """
@@ -99,8 +104,8 @@ variables(snow::SingleLayerSnow) = (
     prognostic(:snow_water_equivalent, Snow(XY()); units = u"m", desc = "Snow water equivalent (ice + retained liquid)"),
     auxiliary(:snow_depth, Snow(XY()); units = u"m", desc = "Snow layer depth"),
     auxiliary(:snow_cover_fraction, Snow(XY()); bounds = UnitInterval, desc = "Sub-grid snow-covered area fraction"),
-    input(:surface_heat_flux, Snow(Top()); units = u"W/m^2", desc = "Net heat flux at the snow surface (positive upward)"),
-    input(:basal_heat_flux, Snow(Bottom()); units = u"W/m^2", desc = "Conductive heat flux at the snow base (positive upward, soil → snow)"),
+    input(:snow_surface_heat_flux, Snow(Top()); units = u"W/m^2", desc = "Grid-cell-mean net heat flux at the snow surface (positive upward), scaled by the snow cover fraction"),
+    input(:snow_basal_heat_flux, Snow(Bottom()); units = u"W/m^2", desc = "Grid-cell-mean conductive heat flux at the snow base (positive upward, soil → snow), scaled by the snow cover fraction"),
     input(:sublimation, Snow(Top()); units = u"m/s", desc = "Sublimation/evaporation rate from the snow surface (SWE)"),
 )
 
@@ -210,12 +215,12 @@ end
 
 # Kernels
 
-@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, snow::AbstractSnow, args...)
+@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, snow::AbstractSnow, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_snow_properties!(out, i, j, grid, fields, snow, args...)
 end
 
-@kernel inbounds = true function compute_tendencies_kernel!(tendencies, grid, fields, snow::SingleLayerSnow, args...)
+@kernel inbounds = true function compute_tendencies_kernel!(tendencies, grid, fields, snow::SingleLayerSnow, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_snow_tendencies!(tendencies, i, j, grid, fields, snow, args...)
 end
