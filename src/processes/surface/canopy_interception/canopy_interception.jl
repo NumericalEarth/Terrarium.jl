@@ -239,12 +239,12 @@ end
 
 # Kernels
 
-@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, canopy_interception::AbstractCanopyInterception, args...)
+@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, canopy_interception::AbstractCanopyInterception, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_canopy_auxiliary!(out, i, j, grid, fields, canopy_interception, args...)
 end
 
-@kernel inbounds = true function compute_tendencies_kernel!(out, grid, fields, canopy_interception::AbstractCanopyInterception, args...)
+@kernel inbounds = true function compute_tendencies_kernel!(out, grid, fields, canopy_interception::AbstractCanopyInterception, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_canopy_water_tendency!(out, i, j, grid, fields, canopy_interception, args...)
 end

@@ -120,7 +120,7 @@ end
 
 # Kernels
 
-@kernel inbounds = true function compute_tendencies_kernel!(tendencies, grid, fields, energy::SoilThermodynamics, args...)
+@kernel inbounds = true function compute_tendencies_kernel!(tendencies, grid, fields, energy::SoilThermodynamics, args::Vararg{Any, N}) where {N}
     i, j, k = @index(Global, NTuple)
     compute_energy_tendencies!(tendencies, i, j, k, grid, fields, energy, args...)
 end

@@ -1,5 +1,7 @@
 abstract type AbstractSnowThermalConductivity{NF} end
 
+number_format(::Type{<:AbstractSnowThermalConductivity{NF}}) where {NF} = NF
+
 """
     $TYPEDEF
 

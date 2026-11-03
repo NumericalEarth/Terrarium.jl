@@ -1,0 +1,19 @@
+[deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
+KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
+Oceananigans = "9e8cae18-63c1-5223-a75c-80ca9d6e9a09"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Profile = "9abbd945-dff8-562f-b5e8-e1ebf5ef1b79"
+Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
+RingGrids = "d1845624-ad4f-453b-8ff4-a8db365bf3a7"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+Terrarium = "80418d68-07fa-499d-ae2b-c12e531f5cd8"
+
+[sources]
+Terrarium = {path = "../.."}
+
+[compat]
+Reactant = "0.2"

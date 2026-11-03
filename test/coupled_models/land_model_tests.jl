@@ -5,6 +5,8 @@ using Oceananigans.BoundaryConditions: BoundaryCondition, Flux
 using Oceananigans: Face, znodes
 using Oceananigans.TimeSteppers: update_state!
 
+import RingGrids
+
 @testset "LandModel: Soil, no vegetation" begin
     grid = ColumnGrid(CPU(), ExponentialSpacing(Δz_max = 1.0, N = 50))
     swrc = VanGenuchten(α = 2.0, n = 2.0)
@@ -297,7 +299,7 @@ end
 # Shared setup for the snow boundary heat flux tests below: a snowpack of water equivalent `W₀` (m) at
 # `T_snow` over warm soil (+5 °C near the top) under cold air, night-time radiation, and no precipitation. Soil water is
 # immobile (`NoFlow` is the default soil hydrology) so only the energy balance is exercised.
-function cold_air_snow_integrator(W₀; T_snow = -5.0, T_air = -10.0)
+function cold_air_snow_simulation(W₀; T_snow = -5.0, T_air = -10.0)
     grid = ColumnGrid(CPU(), ExponentialSpacing(Δz_max = 1.0, N = 50))
     soil = SoilEnergyWaterCarbon(eltype(grid))
     land = LandModel(grid; soil, snow = SingleLayerSnow(eltype(grid)), vegetation = nothing)
@@ -327,7 +329,7 @@ end
     # soil this melted a 1 mm pack within minutes even at subfreezing temperatures. With cell-mean boundary
     # fluxes (basal flux f·Q_base), the pack must persist and no meltwater may be produced.
     W₀ = 1.0e-3
-    land, integrator = cold_air_snow_integrator(W₀)
+    land, integrator = cold_air_snow_simulation(W₀)
     state = integrator.state
     Δt = 300.0
     for _ in 1:round(Int, 6 * 3600 / Δt)
@@ -352,7 +354,7 @@ end
     # fields the step then applies. (Reading the fields left over from the end of the previous step would be
     # stale by one step, since the closure relations modify the prognostic state after the last evaluation.)
     for W₀ in (1.0e-3, 0.1)
-        land, integrator = cold_air_snow_integrator(W₀)
+        land, integrator = cold_air_snow_simulation(W₀)
         state = integrator.state
         grid = get_grid(land)
         ρ_w = land.constants.material.density_water
@@ -378,4 +380,35 @@ end
         expected = -flux_integral + subl_correction
         @test isapprox(ΔE, expected; rtol = 1.0e-9)
     end
+end
+                        
+# `ColumnGrid` is an alias for an Oceananigans `RectilinearGrid`, so the testsets above exercise
+# Oceananigans' own grid metrics. `ColumnRingGrid` is a grid *wrapper* and must forward those
+# metrics itself; when it did not, every `LandModel` on a ring grid failed on the first timestep
+# with a `MethodError` on `Δxᶜᵃᵃ`, because the surface energy balance imposes a flux boundary
+# condition and Oceananigans divides the flux by the cell area.
+@testset "LandModel: ColumnRingGrid" begin
+    rings = RingGrids.FullGaussianGrid(4)
+    mask = RingGrids.Field(rings)
+    mask .= 1
+    grid = ColumnRingGrid(CPU(), Float64, ExponentialSpacing(Δz_max = 1.0, N = 10), rings, mask .> 0)
+    soil = SoilEnergyWaterCarbon(eltype(grid); hydrology = SoilHydrology(eltype(grid), RichardsEq()))
+    land = LandModel(grid; soil, vegetation = nothing)
+    integrator = initialize(
+        land; initializers = (
+            temperature = (x, z) -> 5.0 - 0.02 * z,
+            saturation_water_ice = (x, z) -> 0.5,
+        )
+    )
+    state = integrator.state
+    # The surface energy balance is coupled through a flux boundary condition, which is what needs
+    # the cell metrics of the wrapped grid.
+    @test isa(state.internal_energy.boundary_conditions.top, BoundaryCondition{<:Flux})
+    # One column per unmasked ring grid point
+    @test size(interior(state.temperature), 1) == sum(mask .> 0)
+
+    timestep!(integrator, 60.0)
+    @test all(isfinite.(state.temperature))
+    @test all(isfinite.(state.saturation_water_ice))
+    @test all(isfinite.(state.ground_heat_flux))
 end

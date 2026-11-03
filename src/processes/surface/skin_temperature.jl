@@ -136,7 +136,7 @@ This is the no-snow special case (`f_snow = 0`) of the snow-aware method below; 
 (rather than a default `snow = nothing`) purely so it can skip the unused
 `snow_thermal_interface`/`snow_cover_fraction` calls.
 """
-@inline function compute_skin_temperature(
+@propagate_inbounds function compute_skin_temperature(
         i, j, grid, fields,
         skinT::ImplicitSkinTemperature{NF},
         seb::AbstractSurfaceEnergyBalance,
@@ -156,7 +156,7 @@ atmosphere-side demanded flux `G` (see [`compute_ground_heat_flux_demand`](@ref)
 area-weighted sum of the *unblended* ground and snow-top conductive fluxes,
 `(1 − f_snow)·2κg(Tg − Ts)/Δzg + f_snow·2κsnow(Tsnow − Ts)/dsnow`.
 """
-@inline function compute_skin_temperature(
+@propagate_inbounds function compute_skin_temperature(
         i, j, grid, fields,
         skinT::ImplicitSkinTemperature{NF},
         seb::AbstractSurfaceEnergyBalance,

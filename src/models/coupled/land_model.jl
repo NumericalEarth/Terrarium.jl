@@ -7,7 +7,7 @@ vegetation, and soil processes.
 Properties:
 $(TYPEDFIELDS)
 """
-@parameterized @kwdef struct LandModel{
+@parameterized @kwdef mutable struct LandModel{
         NF,
         GridType <: AbstractLandGrid{NF},
         Vegetation <: Optional{AbstractVegetation{NF}},

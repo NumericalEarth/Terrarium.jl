@@ -6,6 +6,7 @@ MAIN_TESTS = !FLAG_ENZYME_TESTS ? true : false
 
 if FLAG_ENZYME_TESTS
     @testset "Enzyme" begin
+        include("differentiability/clock_diff.jl")
         include("differentiability/soil_energy_diff.jl")
         include("differentiability/soil_hydrology_diff.jl")
         include("differentiability/vegetation_model_diff.jl")
@@ -85,6 +86,7 @@ if MAIN_TESTS
 
     @testset "Coupled models" begin
         include("coupled_models/land_model_tests.jl")
+        include("coupled_models/kernel_allocations.jl")
     end
 
     @testset "Utilities" begin
