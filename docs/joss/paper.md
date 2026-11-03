@@ -142,11 +142,13 @@ This allows developers to balance modularity with GPU efficiency, at the cost of
 
 ![CPU vs. GPU benchmark of the `SoilModel` in Terrarium.jl\label{fig:benchmark}](assets/figure2.png)
 
-In terms of process implementations, Terrarium.jl currently provides an implementation of a soil energy-hydrology scheme that is loosely based on the equations and parameterizations of CryoGrid [@westermannCryoGridCommunityModel2023; @langerEvolutionArcticPermafrost2024; @groenkeCryoGridJL2024] with pedotransfer functions taken from SURFEX/ISBA [@massonSURFEXv72LandOcean2013; @noilhanISBALandSurface1996].
+Terrarium.jl is expressly designed to accommodate multiple parallel formulations of physical processes and is thus not tied to any one set of governing equations.
+Currently, however, Terrarium.jl implements a soil energy-hydrology scheme that is loosely based on the equations and parameterizations of CryoGrid [@westermannCryoGridCommunityModel2023; @langerEvolutionArcticPermafrost2024; @groenkeCryoGridJL2024] with pedotransfer functions taken from SURFEX/ISBA [@massonSURFEXv72LandOcean2013; @noilhanISBALandSurface1996].
 The surface energy balance, evapotranpsiration schemes, and vegetation/canopy processes are based primarily on PALADYN [@willeitPALADYNV10Comprehensive2016] which presently serves as the land component of the CLIMBER-X intermediate-complexity land surface model [@willeitEarthSystemModel2022].
 Implementation of vegetation and soil carbon biogeochemistry is still underway but will be initially based on the approaches outlined by [@luoMatrixApproachLand2022] and [@ahrensCombinationEnergyLimitation2020] respectively.
-It should be emphasized, however, that Terrarium.jl is expressly designed to accommodate multiple parallel formulations of physical processes and is thus not tied to any one set of governing equations.
-It is, however, limited to the FVM spatial discretizations provided by Oceananigans.jl.
+Example outputs from a prototype Terrarium-SpeedyWeather coupled simulation are shown in \autoref{fig:coupled}.
+
+![Land surface variables from a two-year simulation with Terrarium.jl coupled to the SpeedyWeather.jl atmosphere model with slab ocean at T64 spectral resolution (about 1.9°), starting on 1 October 2024. The simulation includes soil thermodynamics with static soil hydrology and prescribed vegetation based on a leaf area index climatology calculated from ERA5-Land (1980-2010). All panels show means over the simulation period, except for snow water equivalent, which shows the mean of the annual maxima over the two snow years (October to September); Antarctica is included in the simulation as snow-covered land but not shown.\label{fig:coupled}](assets/figure3.png)
 
 # Research impact statement
 
@@ -158,8 +160,6 @@ Terrarium.jl is also being developed as part of a larger effort to build a new g
 To facilitate this effort, we maintain an extension module in NumericalEarth.jl [@wagnerNumericalEarthjl2026] that allows Terrarium simulations to be plugged in as a land component in `EarthSystemModel`, which provides a unified coupling interface for atmosphere, ocean, land, and sea ice models.
 In addition, Terrarium supports direct coupling with the SpeedyWeather.jl atmosphere model [@klowerSpeedyWeatherjlReinventingAtmospheric2024], allowing for coupled land-atmosphere simulations using SpeedyWeather's native simulation interface.
 These coupling interfaces will allow Terrarium.jl to directly contribute to ongoing research applying cutting-edge computational technologies to advance the frontiers of Earth system modeling.
-
-![Land surface variables simulated with Terrarium.jl coupled to SpeedyWeather.jl\label{fig:benchmark}](assets/figure3.png)
 
 # AI usage disclosure
 
