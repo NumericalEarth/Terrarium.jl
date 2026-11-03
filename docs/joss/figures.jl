@@ -275,9 +275,9 @@ snow_depth[.!land_mask] .= NaN32
 # water) / s; rescale to mm / day.
 evapotranspiration = (
     time_mean(outputs[:evaporation_ground]) +
-    time_mean(outputs[:evaporation_canopy]) +
-    time_mean(outputs[:transpiration]) +
-    time_mean(outputs[:sublimation])
+        time_mean(outputs[:evaporation_canopy]) +
+        time_mean(outputs[:transpiration]) +
+        time_mean(outputs[:sublimation])
 ) * 8.64e7
 evapotranspiration[.!land_mask] .= NaN32
 

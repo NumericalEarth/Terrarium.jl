@@ -211,7 +211,7 @@ radiation = Speedy.Radiation(
     shortwave = Speedy.OneBandShortwave(land.spectral_grid; clouds, transmissivity = shortwave_transmissivity),
     longwave = Speedy.OneBandLongwave(land.spectral_grid; transmissivity = longwave_transmissivity),
 )
-output =Speedy.NetCDFOutput(land.spectral_grid, Speedy.PrimitiveDryModel; interval = Hour(4), nlayers_soil = land.geometry.nlayers, path = output_dir)
+output = Speedy.NetCDFOutput(land.spectral_grid, Speedy.PrimitiveDryModel; interval = Hour(4), nlayers_soil = land.geometry.nlayers, path = output_dir)
 time_stepping = Speedy.Leapfrog(land.spectral_grid, Δt_at_T32 = Minute(15))
 primitive_wet_coupled = Speedy.PrimitiveWetModel(
     land.spectral_grid;
