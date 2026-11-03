@@ -18,7 +18,7 @@ using Test
     # Build a fresh state with all forcing zeroed; caller sets the prognostic/forcing of interest.
     function fresh_state()
         state = StateVariables(model)
-        for f in (:snowfall, :rainfall, :air_temperature, :surface_heat_flux, :basal_heat_flux, :sublimation)
+        for f in (:snowfall, :rainfall, :air_temperature, :snow_surface_heat_flux, :snow_basal_heat_flux, :sublimation)
             set!(getproperty(state, f), 0)
         end
         return state
@@ -107,8 +107,8 @@ using Test
         set!(state.snow_water_equivalent, W0)
         set!(state.snow_temperature, NF(-5))                        # frozen -> no melt
         Terrarium.initialize!(state, model.grid, snow, constants)
-        set!(state.basal_heat_flux, NF(10))                         # soil -> snow: gain
-        set!(state.surface_heat_flux, NF(30))                       # snow -> sky: loss
+        set!(state.snow_basal_heat_flux, NF(10))                         # soil -> snow: gain
+        set!(state.snow_surface_heat_flux, NF(30))                       # snow -> sky: loss
         step_tendencies!(state)
         @test all(state.tendencies.snow_energy .≈ NF(10) - NF(30))  # dE/dt = Q_base - Q_top
         @test all(state.tendencies.snow_water_equivalent .≈ 0)
@@ -165,7 +165,7 @@ using Test
 
     @testset "conservation: sublimation nets the vaporization enthalpy" begin
         # The surface energy balance folds the full sublimation enthalpy ρ_w·L_s·E_subl into Q_top
-        # (surface_heat_flux), but the departing mass leaves the snowpack as ice, whose enthalpy relative to
+        # (snow_surface_heat_flux), but the departing mass leaves the snowpack as ice, whose enthalpy relative to
         # liquid water at 0 °C is −L_f. The advective correction +ρ_w·L_f·E_subl therefore leaves a net
         # pack loss of exactly ρ_w·L_v·E_subl, the vaporization enthalpy carried by the departing vapor.
         # (Without the correction the snowpack would lose the full L_s and spuriously overcool.)
@@ -177,7 +177,7 @@ using Test
         L_v = constants.thermodynamics.latent_heat_vaporization
         E_subl = NF(2.0e-7)
         set!(state.sublimation, E_subl)
-        set!(state.surface_heat_flux, ρ_w * L_s * E_subl)   # SEB latent contribution to Q_top
+        set!(state.snow_surface_heat_flux, ρ_w * L_s * E_subl)   # SEB latent contribution to Q_top
         step_tendencies!(state)
         dE = Array(interior(state.tendencies.snow_energy))
         @test all(dE .≈ -ρ_w * L_v * E_subl)                # net loss = vaporization enthalpy only

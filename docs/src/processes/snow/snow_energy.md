@@ -58,10 +58,21 @@ compute_snow_energy_tendency
 The snow→soil basal conductive flux and the blended soil-top flux, together with the snow surface
 sublimation rate, are diagnosed after the surface energy balance solve.
 
+The snow state is a grid-cell mean, so the fluxes entering its energy tendency must be grid-cell means too.
+With snow cover fraction ``f``, per-snow-area basal conduction ``Q_\text{base}``, per-snow-area top
+conduction ``S``, and per-bare-area ground heat flux ``G`` (all positive upward):
+
+- the snowpack receives ``f\,Q_\text{base}`` at its base and loses ``f\,S`` at its top;
+- the soil loses the blended flux ``f\,Q_\text{base} + (1 - f)\,G`` through its top boundary;
+- the skin receives ``G_0 = (1 - f)\,G + f\,S`` and passes it to the atmosphere.
+
+The column (soil plus snow) therefore loses exactly ``G_0`` (plus the sublimation and precipitation enthalpy
+terms of the snow energy tendency), so energy is conserved. In particular, the bare-ground flux ``G``
+is never applied to the snowpack, which keeps a thin pack from being melted by heat that belongs to the
+snow-free part of the grid cell.
+
 ```@docs; canonical = false
 compute_snow_basal_heat_flux
-
-compute_snow_soil_heat_flux
 
 compute_snow_sublimation_flux
 

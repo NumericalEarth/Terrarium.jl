@@ -110,8 +110,8 @@ end
         initializers = (
             snow_water_equivalent = 0.3,
             snow_temperature = -5.0,
-            surface_heat_flux = 50.0,
-            basal_heat_flux = 0.0,
+            snow_surface_heat_flux = 50.0,
+            snow_basal_heat_flux = 0.0,
         )
     )
     state = integrator.state

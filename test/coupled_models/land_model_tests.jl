@@ -2,6 +2,8 @@ using Terrarium
 using Test
 
 using Oceananigans.BoundaryConditions: BoundaryCondition, Flux
+using Oceananigans: Face, znodes
+using Oceananigans.TimeSteppers: update_state!
 
 import RingGrids
 
@@ -122,7 +124,7 @@ end
     @test all(isfinite.(integrator.state.snow_energy))
     @test all(isfinite.(integrator.state.snow_water_equivalent))
     @test all(isfinite.(integrator.state.snow_temperature))
-    @test all(isfinite.(integrator.state.basal_heat_flux))
+    @test all(isfinite.(integrator.state.snow_basal_heat_flux))
     @test all(isfinite.(integrator.state.soil_heat_flux))
     @test all(isfinite.(integrator.state.internal_energy))
 end
@@ -255,7 +257,7 @@ end
     T_snow = interior(integrator.state.snow_temperature)
     @test all(isfinite.(T_snow))
     @test all(isfinite.(interior(integrator.state.skin_temperature)))
-    @test all(isfinite.(interior(integrator.state.basal_heat_flux)))
+    @test all(isfinite.(interior(integrator.state.snow_basal_heat_flux)))
     @test all(isfinite.(interior(integrator.state.internal_energy)))
     # snow temperature must remain physically bounded (never dive toward absolute zero)
     @test all(T_snow .>= -60)
@@ -292,6 +294,92 @@ end
     analytic = [S₀ * (1 - Δt / τ)^n for n in 0:5]
     @test all(isapprox.(pools, analytic; rtol = 1.0e-9))
     @test all(isfinite.(state.saturation_water_ice))
+end
+
+# Shared setup for the snow boundary heat flux tests below: a snowpack of water equivalent `W₀` (m) at
+# `T_snow` over warm soil (+5 °C near the top) under cold air, night-time radiation, and no precipitation. Soil water is
+# immobile (`NoFlow` is the default soil hydrology) so only the energy balance is exercised.
+function cold_air_snow_simulation(W₀; T_snow = -5.0, T_air = -10.0)
+    grid = ColumnGrid(CPU(), ExponentialSpacing(Δz_max = 1.0, N = 50))
+    soil = SoilEnergyWaterCarbon(eltype(grid))
+    land = LandModel(grid; soil, snow = SingleLayerSnow(eltype(grid)), vegetation = nothing)
+    initializers = (
+        temperature = (x, z) -> 5.0 - 0.1 * z,
+        saturation_water_ice = (x, z) -> 0.5,
+        snow_water_equivalent = W₀,
+        snow_temperature = T_snow,
+    )
+    integrator = initialize(land; initializers)
+    state = integrator.state
+    set!(state.air_temperature, T_air)
+    set!(state.rainfall, 0.0)
+    set!(state.snowfall, 0.0)
+    # night-time radiation (no sunlight; cold sky) and moderate wind, so the skin stays near the air temperature
+    set!(state.surface_shortwave_down, 0.0)
+    set!(state.surface_longwave_down, 230.0)
+    set!(state.windspeed, 2.0)
+    Terrarium.closure!(state, land)
+    compute_auxiliary!(state, land)
+    return land, integrator
+end
+
+@testset "LandModel: thin cold snowpack over warm soil is not melted by the bare-ground flux" begin
+    # Regression: the snow base used to receive the blended soil flux f·Q_base + (1 − f)·G, which for a thin
+    # pack (f → 0) is the bare-ground flux G applied in full to the grid-cell-mean snow energy. Over warm
+    # soil this melted a 1 mm pack within minutes even at subfreezing temperatures. With cell-mean boundary
+    # fluxes (basal flux f·Q_base), the pack must persist and no meltwater may be produced.
+    W₀ = 1.0e-3
+    land, integrator = cold_air_snow_simulation(W₀)
+    state = integrator.state
+    Δt = 300.0
+    for _ in 1:round(Int, 6 * 3600 / Δt)
+        Terrarium.timestep!(integrator, Δt)
+    end
+    W = only(interior(state.snow_water_equivalent))
+    @test isapprox(W, W₀; rtol = 0.05)
+    @test all(interior(state.snow_liquid_fraction) .< 1.0e-6)
+    @test all(isfinite.(interior(state.snow_temperature)))
+end
+
+@testset "LandModel: soil + snow column energy balance closes against the atmosphere-side flux" begin
+    # The column (soil + snow) must lose exactly G₀, the conductive flux delivered to the skin and passed on
+    # to the atmosphere. G₀ is not stored directly; it is reconstructed from the area-weighted conduction
+    # G₀ = (1 − f)·G + f·S, with G = `ground_heat_flux` (per unit bare area), f = `snow_cover_fraction`, and
+    # f·S = `snow_surface_heat_flux` (the cell-mean snow-top flux). Precipitation is zero, so there is no
+    # precipitation enthalpy term. The snow energy tendency also contains the advective sublimation
+    # correction Q_subl = ρ_w·L_sl·E_subl (applied while W > 0), which is not part of G₀ and is added to
+    # the budget. The soil bottom boundary is the default (zero-flux) condition. Forward Euler `timestep!`
+    # begins with `update_state!`, which recomputes the auxiliaries (including all fluxes) from the current
+    # prognostic state, so `update_state!` is called here first and the fluxes are accumulated from the same
+    # fields the step then applies. (Reading the fields left over from the end of the previous step would be
+    # stale by one step, since the closure relations modify the prognostic state after the last evaluation.)
+    for W₀ in (1.0e-3, 0.1)
+        land, integrator = cold_air_snow_simulation(W₀)
+        state = integrator.state
+        grid = get_grid(land)
+        ρ_w = land.constants.material.density_water
+        L_sl = land.constants.thermodynamics.latent_heat_fusion
+        Δz = diff(Array(znodes(Terrarium.ground_domain(grid), Face())))
+        column_energy() = sum(vec(Array(interior(state.internal_energy))) .* Δz) + only(interior(state.snow_energy))
+        E₀ = column_energy()
+        flux_integral = 0.0
+        subl_correction = 0.0
+        Δt = 60.0
+        for _ in 1:round(Int, 6 * 3600 / Δt)
+            update_state!(integrator)
+            f = only(interior(state.snow_cover_fraction))
+            G = only(interior(state.ground_heat_flux))
+            fS = only(interior(state.snow_surface_heat_flux))
+            G₀ = (1 - f) * G + fS
+            flux_integral += Δt * G₀
+            W = only(interior(state.snow_water_equivalent))
+            subl_correction += Δt * ρ_w * L_sl * only(interior(state.sublimation)) * (W > 0)
+            Terrarium.timestep!(integrator, Δt)
+        end
+        ΔE = column_energy() - E₀
+        expected = -flux_integral + subl_correction
+        @test isapprox(ΔE, expected; rtol = 1.0e-9)
+    end
 end
 
 # `ColumnGrid` is an alias for an Oceananigans `RectilinearGrid`, so the testsets above exercise
