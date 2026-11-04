@@ -23,6 +23,9 @@ $TYPEDFIELDS
 
     "Ratio of total to respiring stem carbon, [coxDescriptionTRIFFIDDynamic2001](@cite). PFT specific."
     @param aws::NF = 10.0 (bounds = Positive,) # Value for Needleleaf tree PFT
+
+    "Tissue respiration rate at 10 °C per unit tissue nitrogen (kgC/kgN/day), as in [willeitPALADYNV10Comprehensive2016](@cite)"
+    @param resp10::NF = 0.066 (units = u"d^-1", bounds = Positive)
 end
 
 PALADYNAutotrophicRespiration(::Type{NF}; kwargs...) where {NF} = PALADYNAutotrophicRespiration{NF}(; kwargs...)
@@ -61,21 +64,7 @@ end
 """
 $SIGNATURES
 
-Computes `resp10` 
-"""
-@inline function compute_resp10(autoresp::PALADYNAutotrophicRespiration{NF}) where {NF}
-    # TODO check physical meaning of this variable + add unit
-    # TODO add resp10 implementation
-    # For now, placeholder as a constant value
-    resp10 = NF(0.066)
-
-    return resp10
-end
-
-"""
-$SIGNATURES
-
-Computes maintenance respiration `Rm` in [kgC/m²/day].
+Computes maintenance respiration `Rm` in [kgC/m²/s].
 """
 @inline function compute_Rm(
         autoresp::PALADYNAutotrophicRespiration{NF},
@@ -91,8 +80,8 @@ Computes maintenance respiration `Rm` in [kgC/m²/day].
     # Compute f_temp for autotrophic respiration
     f_temp_air, f_temp_soil = compute_f_temp(autoresp, T_air, T_soil)
 
-    # Compute resp10
-    resp10 = compute_resp10(autoresp)
+    # Tissue respiration rate at 10 °C, converted from per day to per second
+    resp10 = autoresp.resp10 / seconds_per_day(NF)
 
     # Compute leaf respiration
     R_leaf = Rd / NF(1000.0) # convert from gC/m²/day to kgC/m²/day

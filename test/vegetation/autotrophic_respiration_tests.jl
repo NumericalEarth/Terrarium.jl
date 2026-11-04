@@ -1,5 +1,5 @@
 using Terrarium
-using Terrarium: compute_f_temp, compute_resp10, compute_Rm, compute_Rg, compute_Ra, compute_NPP
+using Terrarium: compute_f_temp, compute_Rm, compute_Rg, compute_Ra, compute_NPP
 using Test
 
 @testset "f_temp test" begin
@@ -25,9 +25,8 @@ end
 
 @testset "resp10 test" begin
     autoresp = PALADYNAutotrophicRespiration()
-    # For now, test that resp10 = 0.066
-    resp10 = compute_resp10(autoresp)
-    @test resp10 == 0.066
+    # PALADYN tissue respiration rate at 10 °C (kgC/kgN/day)
+    @test autoresp.resp10 == 0.066
 end
 
 @testset "Rm test" begin
