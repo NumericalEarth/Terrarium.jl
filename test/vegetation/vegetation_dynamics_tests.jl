@@ -1,12 +1,12 @@
 using Terrarium
-using Terrarium: compute_γv, compute_ν_star, compute_ν_tendency
+using Terrarium: compute_γv, compute_ν_star, compute_ν_tendency, compute_λ_NPP, seconds_per_year
 using Test
 
 @testset "compute_γv test" begin
     veg_dynamics = PALADYNVegetationDynamics()
-    # For now, test that γv = γv_min
+    # For now, γv = γv_min, converted from 1/yr to 1/s
     γv = compute_γv(veg_dynamics)
-    @test γv == veg_dynamics.γv_min / (365.25 * 24 * 3600) # in seconds r^-1
+    @test γv == veg_dynamics.γv_min / seconds_per_year(Float64)
 end
 
 @testset "compute_ν_star test" begin
@@ -31,12 +31,14 @@ end
     veg_dynamics = PALADYNVegetationDynamics()
     vegcarbon_dynamics = PALADYNCarbonDynamics()
     traits = PlantTraits()
-    # Test ν_tendency should be finite (could be positive or negative)
     LAI_b = (traits.minimum_leaf_area_index + traits.maximum_leaf_area_index) / 2.0
-    # Mock values for state variables
-    C_veg = 0.5
+    C_veg = 10.0 # kgC/m²
     ν = 0.3
-    NPP = 1.0e-3
+    NPP = 3.0e-8 # kgC/m²/s, about 1 kgC/m²/yr
     ν_tendency = compute_ν_tendency(veg_dynamics, vegcarbon_dynamics, traits, LAI_b, C_veg, NPP, ν)
-    @test isfinite(ν_tendency)
+    # Willeit & Ganopolski (2016), Eq. 73
+    λ_NPP = compute_λ_NPP(vegcarbon_dynamics, traits, LAI_b)
+    @test ν_tendency ≈ λ_NPP * NPP / C_veg * ν * (1 - ν) - compute_γv(veg_dynamics) * ν
+    # without productivity, the vegetated fraction decays at the disturbance rate
+    @test compute_ν_tendency(veg_dynamics, vegcarbon_dynamics, traits, LAI_b, C_veg, 0.0, ν) ≈ -compute_γv(veg_dynamics) * ν
 end
