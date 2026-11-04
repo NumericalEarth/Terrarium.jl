@@ -1,12 +1,12 @@
 # Unit and physics corrections in the vegetation processes, and a stronger vegetation test regime
 
-> Status: **planned**. Drafted after a unit audit of all vegetation processes, cross-checked against the CLIMBER-X/PALADYN source; awaiting review.
+> Status: **completed**. All four phases are implemented on `bg/revise-vegetation` (PR #233) and pass the test suite and CI.
 
 Date of initial draft: 2026-11-04
 
 Author: Claude Opus 5.5 (`claude-opus-5-5`), Claude Code
 
-Reviewer:
+Reviewer: Brian Groenke (brian.groenke@pik-potsdam.de)
 
 Base revision: `3ba9c3c08500a7988ddf6202eff17a8809db21f8` (`main`)
 
@@ -28,7 +28,14 @@ Base revision: `3ba9c3c08500a7988ddf6202eff17a8809db21f8` (`main`)
 - **Rev 3 (2026-11-04, Claude Opus 5.5, Claude Code):** Requested by Brian Groenke.
   Clarified Phase 2.2: vegetation carbon stays a single prognostic pool, and the leaf, root, and stem pools are diagnosed pointwise from it with the existing allometry, without new state variables.
   Added the partitioning identity to the Phase 3 tests.
-unit
+- **Rev 4 (2026-11-04, Claude Opus 5.5, Claude Code):** Deviations made during implementation; approved by Brian Groenke on 2026-11-05.
+  No commits were made, so the per-phase and per-correction commits of the plan are replaced by the snapshot comparisons listed under Results, which attribute each change in output to its correction.
+  The scaling, identity, and plausibility tests of Phase 3 were added to the existing per-process test files, and the budget and multi-year tests to a new file, `test/vegetation/carbon_cycle_column_tests.jl`; only the Unitful references, the declared-unit guard, and the Float32 test are in `unit_consistency_tests.jl`.
+  Phase 4 tests the parameter gradients (with respect to `α_C3`, `g₁`, and `γL`) at the level of the kernel functions, against central finite differences, and the `VegetationModel` adjoint of `timestep!` with respect to the state only; reading parameter gradients from the shadow of a CPU `ModelIntegrator` is not established elsewhere in the test suite.
+  The tissue carbon helpers are listed under Methods rather than Kernel functions on the carbon dynamics doc page, since they do not take grid indices.
+  `compute_Λ_loc` was rewritten in terms of the tissue carbon helpers (the optional refactor of Phase 2.2), and `compute_resp10` was removed.
+  The respiration doc page cites Lloyd and Taylor (1994) for the temperature factor, which required a new entry in `docs/src/references.bib`.
+
 ## Problem description
 
 A unit audit of `src/processes/vegetation/` found one error that dominates the vegetation carbon budget and several smaller ones.
@@ -256,6 +263,26 @@ Since this edits an Enzyme test, run the Enzyme suite locally (`Pkg.test(; test_
 - `docs/src/processes/utils/physical_constants.md`: update the `atomic_weight_carbon` row (0.012, kgC/mol).
 - `examples/simulations/vegetation_global.jl`: plot GPP in gC/m²/day (multiply by 1000 as well) so that the color range of 0–6 is meaningful, and label the units.
 
+## Results
+
+Snapshot of the coupled `LandModel` column of `test/vegetation/integration_tests.jl` (Float64, 400 W/m², 20 °C, `C_veg = 0.5` kgC/m²) at the initial state, after each phase (fluxes in kgC/m²/s; the base revision's gC fields are shown as stored):
+
+| Quantity | Base | Phase 1 | 2.1 (F1) | 2.2 (F2) | 2.3 (F3) | 2.4 (F4) |
+|---|---|---|---|---|---|---|
+| GPP | 9.00e-9 | 9.00e-9 | 9.00e-9 | 9.00e-9 | 9.00e-9 | 9.00e-9 |
+| Leaf respiration | 3.29e-6 (gC) | 3.29e-9 | 3.29e-9 | 3.29e-9 | 3.29e-9 | 6.16e-10 |
+| Net assimilation | 5.71e-6 (gC) | 5.71e-9 | 5.71e-9 | 5.71e-9 | 5.71e-9 | 8.38e-9 |
+| Autotrophic respiration | 3.58e-4 | 3.58e-4 | 6.39e-9 | 2.78e-9 | 5.25e-9 | 3.25e-9 |
+| NPP | −3.58e-4 | −3.58e-4 | 2.61e-9 | 6.21e-9 | 3.75e-9 | 5.75e-9 |
+| Canopy water conductance (m/s) | 1.51e-4 | 1.51e-4 | 1.51e-4 | 1.51e-4 | 1.51e-4 | 2.09e-4 |
+| `C_veg` after 10 steps of 600 s (kgC/m²) | −2.28 | −2.28 | 0.500 | 0.500 | 0.500 | 0.500 |
+
+Phase 1 reproduced all 156 arrays of the base revision to a relative tolerance of 10⁻¹², after scaling the two gC fields by 10⁻³.
+At the base revision, maintenance respiration drained the vegetation carbon pool below zero within 10 steps of 600 s.
+
+With all corrections, the default needleleaf parameters give a midday GPP of 6–23 μmol CO₂/m²/s and `Rd/Ag` of 0.05–0.08 across cool to warm conditions, and stem and root respiration of 0.05–0.7 kgC/m²/yr for `C_veg` between 1 and 15 kgC/m².
+In a ten-year standalone `VegetationModel` column with a seasonal cold-temperate climatology (−7 to 17 °C, 30–270 W/m²), starting from `C_veg = 5` kgC/m², annual GPP is 0.95–1.0 kgC/m²/yr, `Ra/GPP` is 0.38, `C_veg` approaches a steady state slowly (5.0 to 5.5 kgC/m²), and the phenology factor completes a full cycle each year.
+
 ## Known limitations
 
 - Vegetation litterfall (`Λ_loc`) is not passed to `SinglePoolSoilCarbon`, so the budget check in Phase 3 covers the vegetation pool only, not the coupled vegetation–soil carbon budget.
@@ -274,3 +301,9 @@ Since this edits an Enzyme test, run the Enzyme suite locally (`Pkg.test(; test_
 - Couple vegetation litterfall to soil carbon and extend the budget test to the coupled column.
 - Revisit the PALADYN parameter differences listed above once PFT support is added.
 - Consider automatic normalization of `@param` units to SI at construction, so that per-day and per-year parameters no longer need manual conversion in kernels.
+- Address the loss of precision when slow prognostic pools are stepped in Float32 with short time steps.
+  The per-step increment of `carbon_vegetation` is then only a few units in the last place of the pool, so rounding biases the accumulated change.
+  In the seasonal column run with 600 s steps, the one-year change in `carbon_vegetation` differs by 1.1 % between Float32 and Float64 (and by 1.6 × 10⁻⁵ with daily steps); the fluxes themselves agree to about 10⁻⁴.
+  The issue is independent of the carbon units, and updating in Float64 before storing in Float32 does not help, because the information is lost when the state is rounded for storage.
+  Candidate remedies are compensated (Kahan) summation in the time stepper, which recovered Float64 accuracy with Float32 storage in a scalar test, or storing selected slow pools in Float64; both affect the time steppers and their Reactant and Enzyme compatibility, so they need a separate plan.
+  Advancing the vegetation pools on a longer time step reduces the error but does not remove it.
