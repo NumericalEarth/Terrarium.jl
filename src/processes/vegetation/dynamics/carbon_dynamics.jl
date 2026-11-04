@@ -80,6 +80,53 @@ end
 
 """
     $SIGNATURES
+
+Computes the leaf carbon `C_leaf = LAI_b / SLA` (kgC/m²) implied by the balanced Leaf Area Index `LAI_b`
+and the specific leaf area `SLA`, [willeitPALADYNV10Comprehensive2016; Eqs. (76-79)](@cite). Together with
+[`compute_root_carbon`](@ref) and [`compute_stem_carbon`](@ref), this partitions the single vegetation
+carbon pool, `C_leaf + C_root + C_stem = C_veg`; the tissue pools are diagnostic, not prognostic.
+
+# References
+
+* [willeitPALADYNV10Comprehensive2016](@cite) Willeit & Ganopolski, Geoscientific Model Development (2016)
+"""
+@inline function compute_leaf_carbon(vegcarbon_dynamics::PALADYNCarbonDynamics{NF}, traits::PlantTraits{NF}, LAI_b) where {NF}
+    C_leaf = LAI_b / traits.specific_leaf_area
+    return C_leaf
+end
+
+"""
+    $SIGNATURES
+
+Computes the fine root carbon `C_root` (kgC/m²) implied by the balanced Leaf Area Index `LAI_b`. Root carbon is
+assumed equal to leaf carbon (see [`compute_leaf_carbon`](@ref)), [willeitPALADYNV10Comprehensive2016; Eqs. (76-79)](@cite).
+
+# References
+
+* [willeitPALADYNV10Comprehensive2016](@cite) Willeit & Ganopolski, Geoscientific Model Development (2016)
+"""
+@inline function compute_root_carbon(vegcarbon_dynamics::PALADYNCarbonDynamics{NF}, traits::PlantTraits{NF}, LAI_b) where {NF}
+    C_root = compute_leaf_carbon(vegcarbon_dynamics, traits, LAI_b)
+    return C_root
+end
+
+"""
+    $SIGNATURES
+
+Computes the stem carbon `C_stem = awl · LAI_b` (kgC/m²) implied by the balanced Leaf Area Index `LAI_b` and the
+allometric coefficient `awl` (assuming bwl = 1), [willeitPALADYNV10Comprehensive2016; Eqs. (76-79)](@cite).
+
+# References
+
+* [willeitPALADYNV10Comprehensive2016](@cite) Willeit & Ganopolski, Geoscientific Model Development (2016)
+"""
+@inline function compute_stem_carbon(vegcarbon_dynamics::PALADYNCarbonDynamics{NF}, traits::PlantTraits{NF}, LAI_b) where {NF}
+    C_stem = traits.awl * LAI_b
+    return C_stem
+end
+
+"""
+    $SIGNATURES
 Computes the local litterfall rate `Λ_loc` based on the balanced Leaf Area Index `LAI_b` (assuming evergreen PFTs),
 [willeitPALADYNV10Comprehensive2016; Eq. (75)](@cite).
 
@@ -93,11 +140,11 @@ Computes the local litterfall rate `Λ_loc` based on the balanced Leaf Area Inde
     γL = vegcarbon_dynamics.γL / seconds_per_year_NF
     γR = vegcarbon_dynamics.γR / seconds_per_year_NF
     γS = vegcarbon_dynamics.γS / seconds_per_year_NF
-    Λ_loc = LAI_b * (
-        γL / traits.specific_leaf_area +
-            γR / traits.specific_leaf_area +
-            γS * traits.awl
-    )
+    # turnover of the leaf, root, and stem carbon implied by LAI_b
+    C_leaf = compute_leaf_carbon(vegcarbon_dynamics, traits, LAI_b)
+    C_root = compute_root_carbon(vegcarbon_dynamics, traits, LAI_b)
+    C_stem = compute_stem_carbon(vegcarbon_dynamics, traits, LAI_b)
+    Λ_loc = γL * C_leaf + γR * C_root + γS * C_stem
     return Λ_loc
 end
 

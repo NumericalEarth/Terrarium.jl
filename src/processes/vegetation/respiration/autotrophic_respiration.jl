@@ -86,13 +86,17 @@ Computes maintenance respiration `Rm` in [kgC/m²/s].
     # Compute leaf respiration
     R_leaf = Rd / NF(1000.0) # convert from gC/m²/day to kgC/m²/day
 
-    # Compute stem respiration
-    R_stem = resp10 * f_temp_air * (traits.awl * ((NF(2.0) / traits.specific_leaf_area) + traits.awl)) /
-        (C_veg * autoresp.aws * autoresp.cn_sapwood)
+    # Diagnose the stem and root carbon pools from the single vegetation carbon pool via the
+    # allometry (Willeit & Ganopolski, 2016, Eqs. 76-79)
+    LAI_b = compute_balanced_leaf_area_index(vegcarbon_dynamics, traits, C_veg)
+    C_stem = compute_stem_carbon(vegcarbon_dynamics, traits, LAI_b)
+    C_root = compute_root_carbon(vegcarbon_dynamics, traits, LAI_b)
+
+    # Compute stem respiration of the respiring (sapwood) fraction 1/aws of the stem carbon
+    R_stem = resp10 * f_temp_air * C_stem / (autoresp.aws * autoresp.cn_sapwood)
 
     # Compute root respiration
-    R_root = resp10 * f_temp_soil * phen * (NF(2.0) / traits.specific_leaf_area) /
-        (traits.specific_leaf_area * C_veg * autoresp.cn_root)
+    R_root = resp10 * f_temp_soil * phen * C_root / autoresp.cn_root
 
     # Compute maintenance respiration Rm
     Rm = R_leaf + R_stem + R_root
