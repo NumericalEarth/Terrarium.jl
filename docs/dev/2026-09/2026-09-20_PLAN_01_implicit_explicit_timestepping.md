@@ -487,6 +487,14 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 > The `[compat]` bound of FreezeCurves.jl is raised to 0.9.9, and `specific_moisture_capacity` calls the FreezeCurves.jl derivative directly; the saturation guard and `air_entry_potential`, which only worked around the old derivatives, are removed.
 > A temporary `VanGenuchten` method of `specific_moisture_capacity` that evaluated the derivative in Terrarium was superseded by the release (2026-11-04).
 
+> **Revision 28, 2026-11-04 (Claude Opus 5.5). Approved. Implicit snow drainage with the storage-limited outflow of `main`.**
+> The rebase onto `main` brought a storage limit into the snow meltwater outflow, `M_r = min(K_sat S*³, max(θ_liq − L_c, 0) W / τ_m)` with a new `drainage_timescale` τ_m, which `main` introduced so that an explicit step cannot drain more water than the pack stores.
+> The implicit drainage of revisions 20 and 21 still used the Darcy rate alone, and the rebased commit left conflict markers in `snow_single_layer.jl`.
+> Reviewer decision (option b): explicit and implicit stepping integrate the same outflow law.
+> The explicit `meltwater_flux` uses `compute_meltwater_outflow(hydraulics, θ_liq, W)`, and the Newton residual of the implicit step is `G(θ) = W_i / (1 − θ) + Δt M_r(θ, W_i / (1 − θ)) − W⁺`, with `compute_meltwater_outflow_derivative(hydraulics, θ, W_i)` the derivative of the active branch at fixed ice content (`3 K_sat S*² / (1 − L_c)` or `W_i (1 − L_c) / (τ_m (1 − θ)²)`).
+> Since `G` is convex on each branch but not across the switch, a Newton step may undershoot the root there, so the update bounds the liquid fraction to `[min(L_c, θ⁺), θ⁺]`; a pack without ice takes the exact backward Euler solution `max(W⁺ − Δt K_sat, W⁺ / (1 + Δt (1 − L_c) / τ_m))`, and its coefficients are evaluated at `θ = 0` to avoid a division by zero in the unused branch.
+> The rebased commits were rewritten to resolve the conflict where it arose and to repair the kernel signatures in `soil_energy.jl` that the rebase merged into the invalid `args::Vararg{Any, N}...`.
+
 ## Problem description
 
 Terrarium integrates every prognostic variable with fixed-step explicit schemes (`ForwardEuler`, `Heun`).
