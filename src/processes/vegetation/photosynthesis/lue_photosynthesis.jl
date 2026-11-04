@@ -43,6 +43,9 @@ $TYPEDFIELDS
     "Intrinsic quantum efficiency of CO2 uptake in C3 plants"
     @param α_C3::NF = 0.08 (bounds = UnitInterval,)
 
+    "Leaf (dark) respiration as a fraction of the maximum carboxylation capacity `Vc_max` for C3 plants, [haxeltineBIOME3EquilibriumTerrestrial1996; Eq. (10)](@cite)"
+    @param leaf_respiration_fraction::NF = 0.015 (bounds = UnitInterval,)
+
     "Conversion factor for solar radiation at 550 nm from J/m² to mol/m²"
     @param cq::NF = 4.6e-6 (units = u"mol/J", bounds = Positive, scale = 1.0e-6)
 
@@ -251,7 +254,7 @@ Computes the leaf respiration rate `Rd` [kgC/m²/s],
 * [willeitPALADYNV10Comprehensive2016](@cite) Willeit & Ganopolski, Geoscientific Model Development (2016)
 """
 @inline function compute_Rd(photo::LUEPhotosynthesis, Vc_max::NF, β::NF) where {NF}
-    Rd = photo.α_C3 * Vc_max * β
+    Rd = photo.leaf_respiration_fraction * Vc_max * β
     return Rd
 end
 

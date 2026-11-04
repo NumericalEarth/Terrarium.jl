@@ -216,17 +216,17 @@ end
     Rd = compute_Rd(photo, Vc_max, β)
     @test Rd == 0.0
 
-    # Test β=1 (Rd should be = α_C3*Vc_max)
+    # Test β=1 (Rd should be = leaf_respiration_fraction*Vc_max)
     β = 1.0
     Vc_max = 5.0 # Mock value
     Rd = compute_Rd(photo, Vc_max, β)
-    @test Rd == photo.α_C3 * Vc_max
+    @test Rd == photo.leaf_respiration_fraction * Vc_max
 
-    # Test Rd should be between 0 and α_C3*Vc_max for 0<β<1 and Vc_max positive
+    # Test Rd should be between 0 and leaf_respiration_fraction*Vc_max for 0<β<1 and Vc_max positive
     β = 0.5
     Vc_max = 5.0 # Mock value
     Rd = compute_Rd(photo, Vc_max, β)
-    @test 0.0 < Rd < photo.α_C3 * Vc_max
+    @test 0.0 < Rd < photo.leaf_respiration_fraction * Vc_max
 
     # TODO test for Vc_max<0, Rd can be negative?
 end

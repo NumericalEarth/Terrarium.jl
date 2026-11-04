@@ -133,6 +133,16 @@ c_2 = \frac{p_i - \Gamma^*}{p_i + K_c(1 + p_o/K_o)}\,,
 
 where $K_c$ and $K_o$ are the temperature-dependent Michaelis-Menten constants for CO₂ and O₂, respectively, and $p_O$ is the O₂ partial pressure.
 
+### Leaf respiration
+
+Leaf (dark) respiration is a fixed fraction $b$ (`leaf_respiration_fraction`, 0.015 for C3 plants) of the maximum carboxylation capacity [haxeltineBIOME3EquilibriumTerrestrial1996; Eq. (10)](@cite), limited by soil moisture through the factor $\beta$,
+
+```math
+\begin{equation}
+R_d = b \cdot V_c^{\max} \cdot \beta\,.
+\end{equation}
+```
+
 
 ### Stomatal conductance coupling
 
