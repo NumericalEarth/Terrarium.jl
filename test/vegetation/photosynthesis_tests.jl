@@ -298,7 +298,7 @@ end
     @test isfinite(Rd)
     @test Rd > 0
     GPP = compute_GPP(photo, An, Rd)
-    @test GPP ≈ (An + Rd) * 1.0e-3
+    @test GPP ≈ An + Rd
 
     # TODO An, Rd can be negative?
 end

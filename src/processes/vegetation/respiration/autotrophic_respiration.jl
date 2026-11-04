@@ -15,12 +15,10 @@ $TYPEDFIELDS
 * [coxDescriptionTRIFFIDDynamic2001](@cite) Cox, Hadley Centre Technical Note (2001)
 """
 @parameterized @kwdef struct PALADYNAutotrophicRespiration{NF} <: AbstractAutotrophicRespiration{NF}
-    # TODO check physical meaning of this parameter + add unit
-    "Sapwood parameter"
+    "Carbon-to-nitrogen mass ratio of sapwood (kgC/kgN)"
     @param cn_sapwood::NF = 330.0 (bounds = Positive,)
 
-    # TODO check physical meaning of this parameter + add unit
-    "Root parameter"
+    "Carbon-to-nitrogen mass ratio of fine roots (kgC/kgN)"
     @param cn_root::NF = 29.0 (bounds = Positive,)
 
     "Ratio of total to respiring stem carbon, [coxDescriptionTRIFFIDDynamic2001](@cite). PFT specific."
@@ -34,7 +32,7 @@ variables(::PALADYNAutotrophicRespiration) = (
     auxiliary(:net_primary_production, Canopy(XY()), units = u"kg/m^2/s"), # Net Primary Production [kgC/m²/s]
     input(:gross_primary_production, Canopy(XY()), units = u"kg/m^2/s"), # Gross Primary Production [kgC/m²/s]
     input(:daily_leaf_respiration, Canopy(XY()), units = u"g/m^2/s"), # Daily leaf respiration [gC/m²/s]
-    input(:ground_temperature, Ground(Top(z = Center())), default = 10.0, units = u"°C"), # Ground surface temperature [°C]
+    input(:ground_temperature, Ground(Top(z = Center())), default = 10, units = u"°C"), # Ground surface temperature [°C]
 )
 
 """

@@ -61,7 +61,7 @@ LUEPhotosynthesis
 variables(LUEPhotosynthesis(Float32))
 ```
 
-This implementation uses the light-use efficiency model of [haxeltineBIOME3EquilibriumTerrestrial1996](@citet), adapted from PALADYN [willeitPALADYNV10Comprehensive2016](@cite), where the original equations were derived assuming a daily time step. Unlike PALADYN, however, all photosynthetic rates here are computed as instantaneous rates (e.g. mol/m²/s or gC/m²/s) to ensure compatibility with generic timestepping schemes.
+This implementation uses the light-use efficiency model of [haxeltineBIOME3EquilibriumTerrestrial1996](@citet), adapted from PALADYN [willeitPALADYNV10Comprehensive2016](@cite), where the original equations were derived assuming a daily time step. Unlike PALADYN, however, all photosynthetic rates here are computed as instantaneous rates (e.g. mol/m²/s or kgC/m²/s) to ensure compatibility with generic timestepping schemes.
 
 ### Light and RuBisCO-limited photosynthesis rates
 
@@ -80,7 +80,7 @@ c_1 = \alpha_{C3} \cdot f_{\text{temp}} \cdot C_{\text{mass}} \cdot \frac{p_i - 
 \end{equation}
 ```
 
-where $\alpha_{C3}$ is the intrinsic quantum efficiency of CO₂ uptake in C3 plants, $C_{mass}$ is the carbon atomic mass, $p_i$ is intercellular CO₂ partial pressure and $\Gamma^*$ is the CO₂ compensation point. 
+where $\alpha_{C3}$ is the intrinsic quantum efficiency of CO₂ uptake in C3 plants, $C_{mass}$ is the atomic mass of carbon (kgC/mol), $p_i$ is intercellular CO₂ partial pressure and $\Gamma^*$ is the CO₂ compensation point. 
 
 The temperature stress factor $f_{\text{temp}}$ is defined as
 

@@ -68,5 +68,6 @@ DisplayAs.PNG(fig) #hide
 fig_LAI = plot_field(integrator.state.leaf_area_index, title = "Leaf area index", colorrange = (0, 6))
 DisplayAs.PNG(fig) #hide
 
-fig_GPP = plot_field(integrator.state.gross_primary_production * 24 * 3600, title = "Gross Primary Production", colorrange = (0, 6))
+# convert GPP from kgC/m²/s to gC/m²/day
+fig_GPP = plot_field(integrator.state.gross_primary_production * 1000 * 24 * 3600, title = "Gross Primary Production (gC/m²/day)", colorrange = (0, 6))
 DisplayAs.PNG(fig) #hide

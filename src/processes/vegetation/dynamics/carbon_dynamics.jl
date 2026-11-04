@@ -88,10 +88,11 @@ Computes the local litterfall rate `Λ_loc` based on the balanced Leaf Area Inde
 * [willeitPALADYNV10Comprehensive2016](@cite) Willeit & Ganopolski, Geoscientific Model Development (2016)
 """
 @inline function compute_Λ_loc(vegcarbon_dynamics::PALADYNCarbonDynamics{NF}, traits::PlantTraits{NF}, LAI_b) where {NF}
-    # TODO: Change tendencies to units of per day and add automatic unit normalization
-    γL = vegcarbon_dynamics.γL / (365.25 * 24 * 3600) # convert to seconds
-    γR = vegcarbon_dynamics.γR / (365.25 * 24 * 3600)
-    γS = vegcarbon_dynamics.γS / (365.25 * 24 * 3600)
+    # convert turnover rates from per year to per second
+    seconds_per_year_NF = seconds_per_year(NF)
+    γL = vegcarbon_dynamics.γL / seconds_per_year_NF
+    γR = vegcarbon_dynamics.γR / seconds_per_year_NF
+    γS = vegcarbon_dynamics.γS / seconds_per_year_NF
     Λ_loc = LAI_b * (
         γL / traits.specific_leaf_area +
             γR / traits.specific_leaf_area +
