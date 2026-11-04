@@ -23,7 +23,7 @@ $TYPEDFIELDS
     "Root turnover rate. PFT specific."
     @param γR::NF = 0.3 (units = u"yr^-1", bounds = Positive) # Value for Needleleaf tree PFT
 
-    "Stem src/processes/vegetation/hydraulicsturnover rate modified from [clarkJointUKLand2011](@cite). PFT specific."
+    "Stem turnover rate modified from [clarkJointUKLand2011](@cite). PFT specific."
     @param γS::NF = 0.05 (units = u"yr^-1", bounds = Positive) # Value for Needleleaf tree PFT
 end
 
