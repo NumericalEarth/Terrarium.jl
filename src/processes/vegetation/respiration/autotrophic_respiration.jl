@@ -34,7 +34,7 @@ variables(::PALADYNAutotrophicRespiration) = (
     auxiliary(:autotrophic_respiration, Canopy(XY()), units = u"kg/m^2/s"), # Autotrophic respiration [kgC/m²/s]
     auxiliary(:net_primary_production, Canopy(XY()), units = u"kg/m^2/s"), # Net Primary Production [kgC/m²/s]
     input(:gross_primary_production, Canopy(XY()), units = u"kg/m^2/s"), # Gross Primary Production [kgC/m²/s]
-    input(:daily_leaf_respiration, Canopy(XY()), units = u"g/m^2/s"), # Daily leaf respiration [gC/m²/s]
+    input(:leaf_respiration, Canopy(XY()), units = u"kg/m^2/s"), # Leaf respiration [kgC/m²/s]
     input(:ground_temperature, Ground(Top(z = Center())), default = 10, units = u"°C"), # Ground surface temperature [°C]
 )
 
@@ -83,8 +83,8 @@ Computes maintenance respiration `Rm` in [kgC/m²/s].
     # Tissue respiration rate at 10 °C, converted from per day to per second
     resp10 = autoresp.resp10 / seconds_per_day(NF)
 
-    # Compute leaf respiration
-    R_leaf = Rd / NF(1000.0) # convert from gC/m²/day to kgC/m²/day
+    # Leaf respiration as computed by the photosynthesis scheme
+    R_leaf = Rd
 
     # Diagnose the stem and root carbon pools from the single vegetation carbon pool via the
     # allometry (Willeit & Ganopolski, 2016, Eqs. 76-79)
@@ -175,7 +175,7 @@ Compute autotrophic respiration following the scheme of [willeitPALADYNV10Compre
     )
     T_air = air_temperature(i, j, grid, fields, atmos)
     T_soil = fields.ground_temperature[i, j]
-    Rd = fields.daily_leaf_respiration[i, j]
+    Rd = fields.leaf_respiration[i, j]
     phen = fields.phenology_factor[i, j]
     C_veg = fields.carbon_vegetation[i, j]
     GPP = fields.gross_primary_production[i, j]
