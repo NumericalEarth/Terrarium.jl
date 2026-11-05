@@ -130,7 +130,7 @@ conditions in 3D:
 @inline getbc(condition::AbstractArray, i::Integer, j::Integer, grid::AbstractGrid, args...) = @inbounds condition[i, j, 1]
 ```
 
-which is exactly the fix suggested in `2026-08-04-OCEANANIGANS_getbc_2d_indexing_issue.md`. An
+which is exactly the fix suggested in `docs/dev/upstream/2026-08-04-oceananigans_getbc_2d_indexing_issue.md`. An
 `AbstractOperation` defines the 3-index `getindex`, so the lazy `InfiltrationFlux(-infiltration)`
 condition now evaluates inside the kernel without falling back to `axes(::AbstractField)`.
 
@@ -198,7 +198,7 @@ count. That is the same shape as `NewtonSolver`, which does it in ~15 lines with
 | `Project.toml`, `test/reactant/Project.toml` | Raise the Oceananigans compat bound to `0.110.15` for the upstream `getbc` fix |
 | `test/reactant/setup.jl`, `test/reactant/runtests.jl` | New `:land_soil_snow` configuration |
 | `test/solvers/test_solvers.jl` | `NewtonSolver` tests |
-| `docs/dev/2026-08/2026-08-04-OCEANANIGANS_getbc_2d_indexing_issue.md` (+ MWE) | Write-up of blocker #5 for upstream |
+| `docs/dev/upstream/2026-08-04-oceananigans_getbc_2d_indexing_issue.md` (+ MWE) | Write-up of blocker #5 for upstream |
 
 `src/models/coupled/land_model.jl` is deliberately **unchanged**: the `soil_water_flux` workaround for
 blocker #5 was reverted (see the revision log).
@@ -293,7 +293,7 @@ makes the extension's definition a new method instead.
 - 2026-08-04: the Terrarium-side workaround for blocker #5 (materializing the negated infiltration into
   a `soil_water_flux` coupling field) was **reverted** on request — the underlying `getbc` limitation is
   to be fixed in Oceananigans instead. Written up separately, with a Terrarium-free MWE, in
-  `2026-08-04-OCEANANIGANS_getbc_2d_indexing_issue.md`.
+  `docs/dev/upstream/2026-08-04-oceananigans_getbc_2d_indexing_issue.md`.
 - 2026-08-13: **blocker #5 is fixed upstream.** Oceananigans 0.110.15 indexes array-valued boundary
   conditions in 3D (`condition[i, j, 1]`), so the lazy `UnaryOperation` water BC in `LandModel` works
   without the reverted workaround. Compat bounds raised to `0.110.15` in the root and

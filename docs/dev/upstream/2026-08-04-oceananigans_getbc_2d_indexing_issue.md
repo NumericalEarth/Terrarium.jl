@@ -125,4 +125,4 @@ Alternatives, both worse:
 - The same 2D-indexing convention bites Terrarium's own nonlinear solvers, which wrote a `Field` with
   `field[i, j]`; `Field` defines `setindex!` for exactly three indices and has no catch-all, so that
   fails even for plain `Field`s. Fixed on the Terrarium side with a `pad_indices` helper — see
-  `2026-08-04-PLAN_reactant_coupled_land_model.md`.
+  `2026-08-04-1-reactant_coupled_land_model.md`.
