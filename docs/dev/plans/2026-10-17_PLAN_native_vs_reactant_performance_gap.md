@@ -16,39 +16,6 @@ Base revision: `0577a277cd7a4f32c36c01db2f745bcf4af02716` (tip of local `main`, 
 
 > Draft an implementation plan summarizing the initial investigation and next steps.
 
-## Revision log
-
-- **Rev 1 (2026-10-17, Claude Opus 5.5):** Initial draft from a desk review of `benchmark/README.md`, the benchmark harness, and the stepping path in `src/`.
-  No code was executed.
-- **Rev 2 (2026-10-17, Claude Opus 5.5):** Added the performance target set by the author: no parity goal, but Reactant should be at most about 10× faster than native execution.
-- **Rev 3 (2026-10-17, Claude Opus 5.5):** Recorded the D1 findings and added hypothesis H9 (allocations in kernels and per-step host reductions).
-  Added two Phase 2 items for H9 (closure-kernel allocations and the root-fraction reduction) and reordered Phase 2 by expected payoff.
-  Made the H3 fix concrete: a cell-centered `thermal_conductivity` auxiliary, implemented on `main` rather than on `bg/implicit-timestepping`.
-- **Rev 4 (2026-10-17, Claude Opus 5.5):** Ran D2 to D7 at the author's request and replaced the D1 findings with a full Phase 1 findings section, including a verdict for each hypothesis.
-  Corrected two Rev 3 attributions: the kernel allocations come from despecialized pass-through varargs, not from type instability in the closure code, and the host-side reduction is the plant-available-water `Integral`, not the root-fraction normalization.
-  Reordered Phase 2 around the measured payoffs, demoted the κ auxiliary to a CPU-only, conditional item, and dropped the H4 item.
-  Recorded that Phase 0 was not implemented and added two Phase 0 items (compile order and a fresh native GPU baseline).
-- **Rev 5 (2026-10-18, Claude Opus 5.5):** Recorded the author's answers to the open questions: the Newton solver on all architectures; the profiling scripts committed under `benchmark/profiling/`; one pull request covering all 28 varargs kernels; `sqrt` to be checked against Reactant first (done, see Phase 2 item 3); and the κ auxiliary deferred.
-- **Rev 6 (2026-10-18, Claude Opus 5.5):** Phase 0 approved by the author and implemented (items 1 to 5); implementation notes are under Phase 0.
-  Added a Slurm batch script for long benchmark runs, without cluster-specific settings.
-  Checked whether `sqrt` still breaks Reactant (open question 4 of Rev 5): it does not, so Phase 2 item 3 uses `sqrt` on all architectures.
-- **Rev 7 (2026-10-18, Claude Opus 5.5):** First Phase 0 GPU re-run on an H100.
-  Found that the published native GPU baseline was dominated by a one-off compilation of about 1.8 s in the first timed run of every new grid size, and fixed the harness to absorb it in the warm-up (second attempt, after the first did not hold up on job 2554084).
-- **Rev 8 (2026-10-18, Claude Opus 5.5):** Final Phase 0 GPU re-run with the corrected warm-up; Phase 0 complete.
-- **Rev 9 (2026-10-18, Claude Opus 5.5):** Phase 2 items 2 (the soil moisture limiting factor in a kernel) and 3 (hoisting parameter-only computations, and `sqrt`) deferred by the author.
-- **Rev 10 (2026-10-18, Claude Opus 5.5):** Plan approved by the author. Added the protocol for measuring each Phase 2 change on its own, preceded by a native CPU baseline with the Phase 0 harness.
-- **Rev 11 (2026-10-22, Claude Opus 5.5):** Implemented Phase 2 item 1 (31 kernels, a regression test, and before/after measurements).
-  Moved the native CPU baseline to a worktree pinned at the pre-Phase 2 commit, with the author's approval, because Slurm could not accept jobs.
-- **Rev 12 (2026-10-22, Claude Opus 5.5), approved by the author on 2026-10-24:** Profiled the host side of a native GPU step for item 5 and found that the per-launch cost is about 5.5 µs, not 20 µs, and that two host-side defects outside the item's original scope cost more than all of its planned changes together.
-  Proposed to add both fixes to item 5 and to demote the launch merging and the `reset_tendencies!` rewrite.
-- **Rev 13 (2026-10-24, Claude Opus 5.5):** Implemented item 5 as rescoped in Rev 12 (compile-time `ntdiff`, the snow `out` fix, a regression test, and before/after measurements: 1.4× to 1.7× on the GPU and up to 1.2× on the CPU at small sizes).
-  The re-profile finds that launch merging is not worth doing and identifies field `NamedTuple`s of more than 32 entries as the largest remaining per-launch host cost, recorded under future work.
-- **Rev 14 (2026-10-24, Claude Opus 5.5):** Implemented item 6 (bounds checks elided in the surface energy balance kernel; see the item for the scope that turned out to be unnecessary).
-  The author decided on two pull requests: the investigation (this plan, the profiling scripts, and the Phase 0 harness) from `bg/reactant-speedup-investigation`, and all Phase 2 fixes from `bg/performance-fixes`, with one full benchmark run for the latter.
-  Corrected the item 5 baseline commit, which a reword of the item 1 commits had replaced.
-- **Rev 15 (2026-10-24, Claude Opus 5.5):** At the author's request, turned the profiling scripts into general tools: plan-specific names (`d1_` to `d7_`) replaced by descriptive ones, `key=value` options with defaults and `--help` on every tool, and the three scripts that test one specific change moved to `benchmark/profiling/experiments/`.
-  The diagnostics map to the tools as listed in the Phase 1 findings.
-
 ## Problem description
 
 The committed benchmark results (`benchmark/README.md`, collected 2026-10-07 to 2026-10-12) show Reactant running one to two orders of magnitude faster than native execution on the same hardware.
@@ -558,3 +525,36 @@ All open questions were answered by the author in Rev 5:
 3. Varargs signature change: one pull request covering all 28 kernels (Phase 2 item 1).
 4. `sqrt`: check first whether it is still a problem under Reactant (Phase 2 item 3).
 5. κ auxiliary: deferred (Phase 2 item 4).
+
+## Revision log
+
+- **Rev 1 (2026-10-17, Claude Opus 5.5):** Initial draft from a desk review of `benchmark/README.md`, the benchmark harness, and the stepping path in `src/`.
+  No code was executed.
+- **Rev 2 (2026-10-17, Claude Opus 5.5):** Added the performance target set by the author: no parity goal, but Reactant should be at most about 10× faster than native execution.
+- **Rev 3 (2026-10-17, Claude Opus 5.5):** Recorded the D1 findings and added hypothesis H9 (allocations in kernels and per-step host reductions).
+  Added two Phase 2 items for H9 (closure-kernel allocations and the root-fraction reduction) and reordered Phase 2 by expected payoff.
+  Made the H3 fix concrete: a cell-centered `thermal_conductivity` auxiliary, implemented on `main` rather than on `bg/implicit-timestepping`.
+- **Rev 4 (2026-10-17, Claude Opus 5.5):** Ran D2 to D7 at the author's request and replaced the D1 findings with a full Phase 1 findings section, including a verdict for each hypothesis.
+  Corrected two Rev 3 attributions: the kernel allocations come from despecialized pass-through varargs, not from type instability in the closure code, and the host-side reduction is the plant-available-water `Integral`, not the root-fraction normalization.
+  Reordered Phase 2 around the measured payoffs, demoted the κ auxiliary to a CPU-only, conditional item, and dropped the H4 item.
+  Recorded that Phase 0 was not implemented and added two Phase 0 items (compile order and a fresh native GPU baseline).
+- **Rev 5 (2026-10-18, Claude Opus 5.5):** Recorded the author's answers to the open questions: the Newton solver on all architectures; the profiling scripts committed under `benchmark/profiling/`; one pull request covering all 28 varargs kernels; `sqrt` to be checked against Reactant first (done, see Phase 2 item 3); and the κ auxiliary deferred.
+- **Rev 6 (2026-10-18, Claude Opus 5.5):** Phase 0 approved by the author and implemented (items 1 to 5); implementation notes are under Phase 0.
+  Added a Slurm batch script for long benchmark runs, without cluster-specific settings.
+  Checked whether `sqrt` still breaks Reactant (open question 4 of Rev 5): it does not, so Phase 2 item 3 uses `sqrt` on all architectures.
+- **Rev 7 (2026-10-18, Claude Opus 5.5):** First Phase 0 GPU re-run on an H100.
+  Found that the published native GPU baseline was dominated by a one-off compilation of about 1.8 s in the first timed run of every new grid size, and fixed the harness to absorb it in the warm-up (second attempt, after the first did not hold up on job 2554084).
+- **Rev 8 (2026-10-18, Claude Opus 5.5):** Final Phase 0 GPU re-run with the corrected warm-up; Phase 0 complete.
+- **Rev 9 (2026-10-18, Claude Opus 5.5):** Phase 2 items 2 (the soil moisture limiting factor in a kernel) and 3 (hoisting parameter-only computations, and `sqrt`) deferred by the author.
+- **Rev 10 (2026-10-18, Claude Opus 5.5):** Plan approved by the author. Added the protocol for measuring each Phase 2 change on its own, preceded by a native CPU baseline with the Phase 0 harness.
+- **Rev 11 (2026-10-22, Claude Opus 5.5):** Implemented Phase 2 item 1 (31 kernels, a regression test, and before/after measurements).
+  Moved the native CPU baseline to a worktree pinned at the pre-Phase 2 commit, with the author's approval, because Slurm could not accept jobs.
+- **Rev 12 (2026-10-22, Claude Opus 5.5), approved by the author on 2026-10-24:** Profiled the host side of a native GPU step for item 5 and found that the per-launch cost is about 5.5 µs, not 20 µs, and that two host-side defects outside the item's original scope cost more than all of its planned changes together.
+  Proposed to add both fixes to item 5 and to demote the launch merging and the `reset_tendencies!` rewrite.
+- **Rev 13 (2026-10-24, Claude Opus 5.5):** Implemented item 5 as rescoped in Rev 12 (compile-time `ntdiff`, the snow `out` fix, a regression test, and before/after measurements: 1.4× to 1.7× on the GPU and up to 1.2× on the CPU at small sizes).
+  The re-profile finds that launch merging is not worth doing and identifies field `NamedTuple`s of more than 32 entries as the largest remaining per-launch host cost, recorded under future work.
+- **Rev 14 (2026-10-24, Claude Opus 5.5):** Implemented item 6 (bounds checks elided in the surface energy balance kernel; see the item for the scope that turned out to be unnecessary).
+  The author decided on two pull requests: the investigation (this plan, the profiling scripts, and the Phase 0 harness) from `bg/reactant-speedup-investigation`, and all Phase 2 fixes from `bg/performance-fixes`, with one full benchmark run for the latter.
+  Corrected the item 5 baseline commit, which a reword of the item 1 commits had replaced.
+- **Rev 15 (2026-10-24, Claude Opus 5.5):** At the author's request, turned the profiling scripts into general tools: plan-specific names (`d1_` to `d7_`) replaced by descriptive ones, `key=value` options with defaults and `--help` on every tool, and the three scripts that test one specific change moved to `benchmark/profiling/experiments/`.
+  The diagnostics map to the tools as listed in the Phase 1 findings.

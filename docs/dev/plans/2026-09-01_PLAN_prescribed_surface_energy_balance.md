@@ -27,36 +27,6 @@ Revised after:
 > `PrescribedSurfaceEnergyBalance` as an alias for a `SurfaceEnergyBalance` type with all four fluxes
 > set to their prescribed types.
 
-## Revision log
-
-- **Rev 1 (2026-09-01):** Initial draft. Proposed a new `PrescribedSurfaceEnergyBalance` *type* whose
-  SEB driver methods were all no-ops, plus a special-case reclassification of `ground_heat_flux` from
-  `auxiliary` to `input`. Energy only; vapor deferred.
-- **Rev 2 (2026-09-25):** Replaces the no-op-driver design. The ground heat flux becomes its own
-  sub-process (`AbstractGroundHeatFlux`) with `Diagnosed` and `Prescribed` implementations, mirroring
-  the existing `Prescribed`/`Diagnosed` pairs for the radiative and turbulent fluxes.
-  `PrescribedSurfaceEnergyBalance` becomes a type alias plus a convenience constructor. Re-baselined
-  from `cc6b24090` onto `bg/var-domains` (`5b8bda663`), whose variable-domain API this design depends
-  on. *Approved by the author on 2026-09-25.*
-- **Rev 3 (2026-09-25):** Implementation notes, recorded during development on `bg/ground-heat-flux`
-  (branched from `bg/prescribed-seb` at `26c86d20e`). Three deviations from Rev 2:
-  1. **The demand dispatches on `AbstractGroundHeatFlux`, not only on `DiagnosedGroundHeatFlux`.**
-     Change 2 assigned the residual closure to `DiagnosedGroundHeatFlux` alone, but the implicit skin
-     temperature solve also needs the demand in order to invert its conduction relation. Putting an
-     indexed `compute_ground_heat_flux_demand(i, j, grid, fields, ghf)` on the abstract type, with the
-     prescribed method returning the supplied field, is what actually makes the `Implicit` +
-     `Prescribed` row of the change 5 table well posed; without it that row would silently invert
-     against `R_net + H_s + H_l` while storing an unrelated `G`. `compute_skin_temperature` therefore
-     gained a `ghf` argument after `skinT` (propagated to `compute_skin_temperature_residual!` and to
-     `diagnose_skin_temperature_residual`).
-  2. **`DiagnosedGroundHeatFlux` still dispatches on the skin temperature scheme.** Change 1 described
-     it as reproducing `G = R_net + H_s + H_l`, which is only the `PrescribedSkinTemperature` case;
-     `ImplicitSkinTemperature` stores the explicit conductive flux `2κ_g(T_g − T_s)/Δz_g`. Both
-     methods moved across unchanged, so behavior is preserved (verified bit for bit; see below).
-  3. **The documentation split into two pages.** `skin_temperature.md` is retitled "Skin temperature"
-     (its inbound `@ref`s updated) and the new `ground_heat_flux.md` carries the sub-process, its two
-     implementations, and the supported-combination table.
-
 ## Problem description
 
 Two problems, one of which is a coupling bug and one of which is a modeling limitation. The second is
@@ -390,3 +360,33 @@ internally; trim to what the prescribed SEB and the hydrology actually read.
   sketch is superseded: the delegation mechanism largely already exists in NumericalEarth, the contract
   home is `InterfaceComputations` itself, and the genuine gap is the hardcoded component-state
   assembly. See `NumericalEarth.jl/scratch/terrarium_ne_interface_design_discussion.md`.
+
+## Revision log
+
+- **Rev 1 (2026-09-01):** Initial draft. Proposed a new `PrescribedSurfaceEnergyBalance` *type* whose
+  SEB driver methods were all no-ops, plus a special-case reclassification of `ground_heat_flux` from
+  `auxiliary` to `input`. Energy only; vapor deferred.
+- **Rev 2 (2026-09-25):** Replaces the no-op-driver design. The ground heat flux becomes its own
+  sub-process (`AbstractGroundHeatFlux`) with `Diagnosed` and `Prescribed` implementations, mirroring
+  the existing `Prescribed`/`Diagnosed` pairs for the radiative and turbulent fluxes.
+  `PrescribedSurfaceEnergyBalance` becomes a type alias plus a convenience constructor. Re-baselined
+  from `cc6b24090` onto `bg/var-domains` (`5b8bda663`), whose variable-domain API this design depends
+  on. *Approved by the author on 2026-09-25.*
+- **Rev 3 (2026-09-25):** Implementation notes, recorded during development on `bg/ground-heat-flux`
+  (branched from `bg/prescribed-seb` at `26c86d20e`). Three deviations from Rev 2:
+  1. **The demand dispatches on `AbstractGroundHeatFlux`, not only on `DiagnosedGroundHeatFlux`.**
+     Change 2 assigned the residual closure to `DiagnosedGroundHeatFlux` alone, but the implicit skin
+     temperature solve also needs the demand in order to invert its conduction relation. Putting an
+     indexed `compute_ground_heat_flux_demand(i, j, grid, fields, ghf)` on the abstract type, with the
+     prescribed method returning the supplied field, is what actually makes the `Implicit` +
+     `Prescribed` row of the change 5 table well posed; without it that row would silently invert
+     against `R_net + H_s + H_l` while storing an unrelated `G`. `compute_skin_temperature` therefore
+     gained a `ghf` argument after `skinT` (propagated to `compute_skin_temperature_residual!` and to
+     `diagnose_skin_temperature_residual`).
+  2. **`DiagnosedGroundHeatFlux` still dispatches on the skin temperature scheme.** Change 1 described
+     it as reproducing `G = R_net + H_s + H_l`, which is only the `PrescribedSkinTemperature` case;
+     `ImplicitSkinTemperature` stores the explicit conductive flux `2κ_g(T_g − T_s)/Δz_g`. Both
+     methods moved across unchanged, so behavior is preserved (verified bit for bit; see below).
+  3. **The documentation split into two pages.** `skin_temperature.md` is retitled "Skin temperature"
+     (its inbound `@ref`s updated) and the new `ground_heat_flux.md` carries the sub-process, its two
+     implementations, and the supported-combination table.

@@ -28,185 +28,6 @@ Base revision: b005a836aa2c26b305cc0faa304ba7748e1e4476
 > functions. Feel free to add new mutating variants of kernel functions if necessary. If anything is
 > unclear or you hit a design issue, please stop to ask questions.
 
-## Revision log
-
-> 2026-08-31 (rev 1) — Initial draft, scoped to `SoilEnergyWaterCarbon` only. Clarifications during
-> scoping:
-> - **Do not fuse `initialize!`, `compute_boundary_conditions!`, or `closure!`/`invclosure!`.** Focus
->   only on `compute_auxiliary!` and `compute_tendencies!`.
-> - Keep the existing per-process host methods untouched so standalone use, tests, and Enzyme
->   differentiability tests that target them directly keep working.
->
-> 2026-08-31 (rev 2) — Restructured per review:
-> - **Naming convention.** The fused/coupled `@kernel`s reuse the generic names
->   `compute_auxiliary_kernel!` / `compute_tendencies_kernel!`, dispatching on the coupled process
->   type (as `SingleLayerSnow`, `PALADYNCanopyInterception`, `PALADYNCarbonDynamics`, etc. already do).
->   No bespoke `compute_soil_*_kernel!` names.
-> - **No `except = out` in fused kernels.** Passing `get_fields(...; except = out)` strips fields that
->   a *later* sub-process in the same fused kernel needs to *read* (because they are an *output* of an
->   earlier sub-process). Instead pass the full `fields` and accept the duplication between `out` and
->   `fields` (they alias the same `Field` objects, so intra-cell read-after-write works).
-> - **Four phases**, adding surface hydrology and vegetation, and moving `surface_excess_water` first:
->   - **Phase 1** — move `surface_excess_water` to runoff; soil hydrology conditionally fills the pool
->     only when an `AbstractSurfaceRunoff` is passed as an optional dependency (standalone: discard).
->   - **Phase 2** — fuse soil (`SoilEnergyWaterCarbon`).
->   - **Phase 3** — fuse surface hydrology (`SurfaceHydrology`).
->   - **Phase 4** — fuse vegetation carbon (`VegetationCarbonCycle`).
->
-> 2026-08-31 (rev 3) — Sign-off received on the three open questions:
-> - **(1) Phase 1 numerics confirmed as a bug fix.** The `Nz×` over-counting of the
->   `surface_excess_water` tendency is to be corrected (XY runoff kernel), not preserved.
-> - **(2) Read the pool via the runoff accessor** (`surface_excess_water(i, j, grid, fields,
->   ::AbstractSurfaceRunoff)`) when runoff is present.
-> - **(3) Partial auxiliary fusion is in scope for Phase 4.** `root_distribution` and
->   `plant_available_water` are handled in separate launches from the rest, as already noted. The
->   photosynthesis / stomatal-conductance ordering is **not** an obstacle: `compute_photosynthesis!`
->   only uses `compute_λc(stomcond, vpd)` (a parameter-only call, not stomatal's output field), while
->   `compute_stomatal_conductance` reads `net_assimilation` (photosynthesis's output). So
->   photosynthesis → stomatal conductance is a clean forward dependency that chains inside a single
->   fused kernel.
->
-> 2026-08-31 (rev 4) — Correction to Phase 1's problem statement after tracing every call site that
-> reaches `compute_tendencies!` for `SoilHydrology{RichardsEq}` (review by Claude):
-> - **The `Nz×` over-counting is currently dead code, not a live numerics bug.** `soil_coupled.jl`
->   calls `compute_tendencies!(state, grid, soil.hydrology, soil, constants)` with no `evtr`/`runoff`
->   args, so `runoff` defaults to `nothing`; `SurfaceHydrology.compute_tendencies!` only calls canopy
->   interception's tendency, never runoff's. `runoff` is never non-`nothing` at the point
->   `compute_surface_excess_water_tendency` runs anywhere in `src/`, so `∂S∂t` — and therefore the
->   `Nz×`-scaled tendency — is always exactly `0` in every model configuration that exists today.
-> - **The real, live bug is upstream of the scaling error.** `adjust_saturation_profile!` adds to
->   `surface_excess_water` whenever the soil column oversaturates (called from `closure!`/
->   `invclosure!` every step), but — because of the wiring gap above — nothing in the coupled
->   `LandModel` ever drains it. The pool is a monotonically-growing sink with no removal path, fully
->   independent of the `Nz×` factor. Phase 1's rewiring (`SurfaceHydrology.compute_tendencies!` gains a
->   call to the runoff tendency) fixes this wiring gap as a side effect of relocating the tendency, not
->   just the scaling.
-> - **Consequence for scope, not conclusion.** This does not change the recommended action — moving
->   the tendency to runoff is still correct and still removes the `Nz×` factor — but Phase 1 is
->   properly described as *connecting a dead tendency path* (which happens to also correct a scaling
->   error once connected), not as re-scaling a term that was already live and wrong. The "Numerics
->   change" section and the Phase 1 test plan below are updated accordingly: the new regression test
->   must exercise the coupled `LandModel` `timestep!` path, since that is the path that was silently
->   broken (unbounded pool growth) and is what most needs protection against regressing.
->
-> 2026-08-31 (rev 5) — **Phase 1 implemented** after sign-off. Deviations from the plan text, all
-> confirmed during implementation/review:
-> - **Tendency sign.** The plan wrote the tendency as `min(∂S∂t, S)`, which is ambiguous on sign. Since
->   `explicit_step!` uses `u += tendency·Δt` and `compute_surface_drainage` returns a *positive* rate
->   `D = S/τ_r` (also consumed by the auxiliary `compute_surface_runoff = F + D − I`), the tendency is
->   implemented as the negative removal `-min(D, S)` so the pool is drawn down. `compute_surface_drainage`
->   keeps its positive-drainage convention (the sign lives in the tendency, not the drainage).
-> - **`redistribute_saturation_profile!`.** The per-cell `adjust_saturation_profile!` was factored into a
->   shared `redistribute_saturation_profile!(sat, i, j, grid, hydrology)` that returns the surface excess
->   as a water depth, plus two thin dispatch methods (`::Nothing` discards, `::AbstractSurfaceRunoff`
->   writes the pool) — no short-circuit branch inside the kernel.
-> - **Type annotations.** All threaded `runoff` arguments use `Optional{AbstractSurfaceRunoff}`; the
->   per-cell dispatch methods use concrete `::Nothing` / `::AbstractSurfaceRunoff`.
-> - **Test adjustment (review).** Rather than only deleting the standalone pool assertion in
->   `soil_hydrology_tests.jl`, the test now *keeps* pool coverage at the soil level: a combined
->   `StateVariables(merge(Variables(hydrology), Variables(runoff)), grid)` state checks that passing a
->   runoff routes the excess into the pool (Case 1b), while the standalone call still discards.
->   Plus standalone runoff-tendency tests (`-min(D, S)`, cap binding, empty pool) and the coupled
->   `LandModel` `timestep!` regression test (pool decays as `S₀(1 − Δt/τ)ⁿ`).
->
-> 2026-09-16 (rev 6) — **Soil fusion (Phase 2) abandoned; scope narrowed to auxiliary-only fusion.**
-> Phase 2 was implemented and benchmarked (exclusive H100 / compute node, min-of-5 sustained repeats;
-> a null-vs-null control established that single-repeat timings are dominated by spikes and cold GPU
-> clocks). Results and root-cause analysis:
->
-> - **CPU: fusion wins** (soil `RichardsEq` +27–61% ms/step; null control `NoFlow` +4–8%). Fewer
->   launches dominate on CPU.
-> - **GPU: fusion wins at launch-bound sizes (+3–7%) but regresses ~18% at the largest grid** (73728
->   columns). The null control is flat there, so the regression is real, not noise.
-> - **Root cause = register pressure (measured, not assumed).** `ncu` is blocked on this cluster
->   (`ERR_NVGPUCTRPERM`, driver-level), so registers were read from the exact PTX each launch compiles
->   (`CUDA.@device_code_ptx` → `ptxas -c -v`, sm_86): fused tendency = **80 registers** vs standalone
->   energy = 72, standalone water = 44. 80 regs → 25 warps/SM vs 72 → 28 (64K regs/SM). At large grids
->   the GPU is occupancy-bound, so ~11% fewer resident warps to hide memory latency ≈ the ~18% loss.
->   The fused *auxiliary* kernel is a GPU no-op (36 regs = standalone hydraulics 36): it wraps a single
->   launch, since energy/bgc auxiliaries are no-ops.
-> - **Structural rule (validated against Oceananigans' tendency kernels).** Oceananigans launches one
->   kernel per *output field* and fuses only terms that **sum into a single accumulator**
->   (`u_velocity_tendency`); it never bundles two independent output equations. The rule that predicts
->   every measurement here:
->   > **Fuse a dependency chain or a single accumulator; do not bundle independent outputs.**
->   A chain/single-accumulator has live set ≈ `max(stage)` (each stage's temporaries retire before the
->   next); bundling independent outputs has live set ≈ `union` (neither half's temporaries are released)
->   — exactly the soil water+energy 80 = union(44, 72). `@noinline` on one half recovers occupancy
->   (80→72, confirmed) but is a compiler workaround for a structural mismatch, not the pattern.
-> - **Soil water and energy are two independent 3D output fields** — the worst possible fusion target,
->   and the one Phase 2 fused. The pre-fusion per-field structure is already the Oceananigans-aligned
->   one. The CPU win does not justify a GPU regression rooted in bundling independent outputs.
-> - **Consequence for scope.** Tendency fusion is dropped from Phases 3 and 4 as well: the surface
->   hydrology tendencies (canopy water, surface excess water) and vegetation tendencies (C, ν, GDD) are
->   likewise *independent* outputs, so they carry the same union risk (the earlier "clean win" label on
->   Phase 4 tendencies was wrong). Auxiliary fusion is retained for Phases 3–4 because those passes are
->   genuine dependency chains on launch-bound (2D) grids — the case where fusion is correct on both
->   architectures. The soil Phase 2 design is retained below for reference; it was implemented and
->   documented in a closed PR and is **not** to be merged.
->
-> 2026-09-16 (rev 7) — **Phase 3 (surface hydrology auxiliary fusion) implemented.** The three XY
-> auxiliary launches (canopy → ET → runoff) collapse into one fused `compute_auxiliary_kernel!`
-> dispatching on `SurfaceHydrology`, calling the per-cell mutating variants in dependency order.
-> Deviations / findings during implementation:
-> - **Uniform ET entry point.** A new `compute_evapotranspiration_auxiliary!(out, i, j, grid, fields,
->   evtr, interception, constants, atmos, soil, vegetation, snow)` kernel function is defined for both
->   ET schemes (PALADYN canopy + bare-ground) with a shared signature; the standalone
->   `compute_auxiliary_kernel!` for each scheme now just calls it, so the fused and standalone paths
->   cannot drift. `NoCanopyInterception` gains a no-op `compute_canopy_auxiliary!` so the fused kernel
->   dispatches uniformly (its `rainfall_ground` is a lazy passthrough, never written).
-> - **`out` excludes lazy fields.** The fused host collects `auxiliary_fields(state, interception,
->   evapotranspiration, surface_runoff)` but `filter`s out `FunctionField`s — e.g.
->   `NoCanopyInterception`'s `rainfall_ground` passthrough — which no kernel writes and which the debug
->   hook (`checkfinite!` → `parent`) cannot inspect. Full `fields` (no `except`) is passed so the chain
->   reads prior stages' outputs from the aliased `Field`s.
-> - **Latent bug fixed: canopy ET never saw `snow`.** The per-process canopy-ET `compute_auxiliary!`
->   accepted `snow` but its `launch!` forwarded only up to `vegetation`, so `snow` fell into `args...`
->   and the kernel defaulted to `snow = nothing` — canopy ground/canopy evaporation and transpiration
->   were **never** scaled by the snow-free fraction, unlike bare-ground ET (which did pass `snow`). The
->   fused kernel passes `snow` to both schemes; the standalone PALADYN host method was fixed to match
->   (merge the snow fields, forward `snow`). This is a deliberate numerics change for the
->   vegetated-under-snow config (ET now suppressed over snow-covered ground, as it should be); the
->   fused and per-process paths agree bit-for-bit after the fix. Covered by a new test asserting
->   `evaporation_ground/transpiration/evaporation_canopy == (1 − f_snow) ·` (snow-free flux).
-> - **Tests.** New `test/surface/hydrology/fused_auxiliary_tests.jl`: (i) fused vs per-process fan-out
->   over all 12 surface-hydrology auxiliaries, vegetated + snow, to machine precision; (ii) the
->   snow-free-fraction scaling above. Existing `test/surface/*`, `test/coupled_models/land_model_tests.jl`
->   (vegetated, bare, snow, meltwater, latent-partition, thin-snow, excess-water) all green.
->
-> 2026-09-16 (rev 8) — **Snow considered for fusion; left as-is.** An earlier revision folded the snow
-> auxiliary diagnosis into the fused surface-hydrology launch (a leading `compute_snow_properties!` stage).
-> That was reverted: snow's auxiliaries should not be computed inside surface hydrology. Re-examining the
-> snow side, there is **nothing to fuse**: `SingleLayerSnow.compute_auxiliary!` is already a single XY launch
-> (`compute_snow_properties!` → `snow_depth`, `snow_cover_fraction`). The only other snow XY launch is the
-> energy closure `energy_to_temperature!` (→ `snow_temperature`, `snow_liquid_fraction`), which (a) runs in a
-> **different pass** (`closure!`, at the start of each timestep, vs `compute_auxiliary!` at finalize) and
-> (b) produces **independent outputs** — the two launches share no dependency chain, so fusing them would be
-> the register-union anti-pattern the rev 6 rule forbids. Snow is therefore unchanged.
->
-> 2026-09-16 (rev 9) — **Phase 4 (vegetation carbon auxiliary fusion) implemented.** The five real XY
-> auxiliary stages of `VegetationCarbonCycle` — carbon dynamics → phenology → photosynthesis → stomatal
-> conductance → autotrophic respiration — collapse from five launches to one fused XY launch, following the
-> Phase 3 pattern exactly. Each stage's per-cell mutating variant already existed (they are the bodies of
-> the standalone `compute_auxiliary_kernel!`s), so the fused kernel just calls them in dependency order; the
-> host collects `out = filter(v -> v isa Field, auxiliary_fields(state, <five components>))` and passes full
-> `fields` (no `except`) so a stage's write to `out.foo` is visible to a later stage reading `fields.foo`.
-> - **`plant_available_water` stays separate and first.** It is an XYZ launch that then materializes the
->   derived XY `soil_moisture_limiting_factor` via `compute!`; photosynthesis and stomatal conductance read
->   that factor, so PAW must run before the fused kernel — the same ordering the fan-out already used.
->   `root_distribution` (lazy `FunctionField`, no-op) and `vegetation_dynamics` (no-op) calls are unchanged.
-> - **No `soil` in the fused kernel.** None of the five stages reads a soil field; the only soil-derived
->   input is the PAW-produced limiting factor, read as a plain XY input. The kernel signature is
->   `(out, grid, fields, veg, constants, atmos, args...)`.
-> - **No `PrescribedPhenology` no-op variant.** `PrescribedPhenology` is only ever paired with
->   `PrescribedVegetation` (which has its own `compute_auxiliary!` and no autotrophic respiration), never
->   with `VegetationCarbonCycle`, so the fused kernel never dispatches on it — adding a no-op would guard an
->   unreachable state.
-> - **Tests.** New `test/vegetation/integration_tests.jl` (included from `vegetation_model_tests.jl`) checks
->   the fused path against the per-process fan-out to machine precision across all nine written auxiliaries.
->   Vegetation suite 148/148, land_model 45/45 green. Net: vegetation auxiliary pass 6 XY → 1 XY (PAW's XYZ
->   launch and derived `compute!` unchanged).
-
 ## Problem description
 
 The coupled process types fan out to one host call per sub-process, and each host call issues its own
@@ -562,3 +383,182 @@ launches → 1 XY launch (PAW's XYZ launch and derived `compute!` unchanged).
    `compute_tendencies!` (independent outputs → register-union occupancy regression on GPU). Soil is
    dropped entirely (auxiliary is a single launch; tendency is the union anti-pattern). Rule:
    *fuse a chain or a single accumulator, never independent outputs.*
+
+## Revision log
+
+> 2026-08-31 (rev 1) — Initial draft, scoped to `SoilEnergyWaterCarbon` only. Clarifications during
+> scoping:
+> - **Do not fuse `initialize!`, `compute_boundary_conditions!`, or `closure!`/`invclosure!`.** Focus
+>   only on `compute_auxiliary!` and `compute_tendencies!`.
+> - Keep the existing per-process host methods untouched so standalone use, tests, and Enzyme
+>   differentiability tests that target them directly keep working.
+>
+> 2026-08-31 (rev 2) — Restructured per review:
+> - **Naming convention.** The fused/coupled `@kernel`s reuse the generic names
+>   `compute_auxiliary_kernel!` / `compute_tendencies_kernel!`, dispatching on the coupled process
+>   type (as `SingleLayerSnow`, `PALADYNCanopyInterception`, `PALADYNCarbonDynamics`, etc. already do).
+>   No bespoke `compute_soil_*_kernel!` names.
+> - **No `except = out` in fused kernels.** Passing `get_fields(...; except = out)` strips fields that
+>   a *later* sub-process in the same fused kernel needs to *read* (because they are an *output* of an
+>   earlier sub-process). Instead pass the full `fields` and accept the duplication between `out` and
+>   `fields` (they alias the same `Field` objects, so intra-cell read-after-write works).
+> - **Four phases**, adding surface hydrology and vegetation, and moving `surface_excess_water` first:
+>   - **Phase 1** — move `surface_excess_water` to runoff; soil hydrology conditionally fills the pool
+>     only when an `AbstractSurfaceRunoff` is passed as an optional dependency (standalone: discard).
+>   - **Phase 2** — fuse soil (`SoilEnergyWaterCarbon`).
+>   - **Phase 3** — fuse surface hydrology (`SurfaceHydrology`).
+>   - **Phase 4** — fuse vegetation carbon (`VegetationCarbonCycle`).
+>
+> 2026-08-31 (rev 3) — Sign-off received on the three open questions:
+> - **(1) Phase 1 numerics confirmed as a bug fix.** The `Nz×` over-counting of the
+>   `surface_excess_water` tendency is to be corrected (XY runoff kernel), not preserved.
+> - **(2) Read the pool via the runoff accessor** (`surface_excess_water(i, j, grid, fields,
+>   ::AbstractSurfaceRunoff)`) when runoff is present.
+> - **(3) Partial auxiliary fusion is in scope for Phase 4.** `root_distribution` and
+>   `plant_available_water` are handled in separate launches from the rest, as already noted. The
+>   photosynthesis / stomatal-conductance ordering is **not** an obstacle: `compute_photosynthesis!`
+>   only uses `compute_λc(stomcond, vpd)` (a parameter-only call, not stomatal's output field), while
+>   `compute_stomatal_conductance` reads `net_assimilation` (photosynthesis's output). So
+>   photosynthesis → stomatal conductance is a clean forward dependency that chains inside a single
+>   fused kernel.
+>
+> 2026-08-31 (rev 4) — Correction to Phase 1's problem statement after tracing every call site that
+> reaches `compute_tendencies!` for `SoilHydrology{RichardsEq}` (review by Claude):
+> - **The `Nz×` over-counting is currently dead code, not a live numerics bug.** `soil_coupled.jl`
+>   calls `compute_tendencies!(state, grid, soil.hydrology, soil, constants)` with no `evtr`/`runoff`
+>   args, so `runoff` defaults to `nothing`; `SurfaceHydrology.compute_tendencies!` only calls canopy
+>   interception's tendency, never runoff's. `runoff` is never non-`nothing` at the point
+>   `compute_surface_excess_water_tendency` runs anywhere in `src/`, so `∂S∂t` — and therefore the
+>   `Nz×`-scaled tendency — is always exactly `0` in every model configuration that exists today.
+> - **The real, live bug is upstream of the scaling error.** `adjust_saturation_profile!` adds to
+>   `surface_excess_water` whenever the soil column oversaturates (called from `closure!`/
+>   `invclosure!` every step), but — because of the wiring gap above — nothing in the coupled
+>   `LandModel` ever drains it. The pool is a monotonically-growing sink with no removal path, fully
+>   independent of the `Nz×` factor. Phase 1's rewiring (`SurfaceHydrology.compute_tendencies!` gains a
+>   call to the runoff tendency) fixes this wiring gap as a side effect of relocating the tendency, not
+>   just the scaling.
+> - **Consequence for scope, not conclusion.** This does not change the recommended action — moving
+>   the tendency to runoff is still correct and still removes the `Nz×` factor — but Phase 1 is
+>   properly described as *connecting a dead tendency path* (which happens to also correct a scaling
+>   error once connected), not as re-scaling a term that was already live and wrong. The "Numerics
+>   change" section and the Phase 1 test plan below are updated accordingly: the new regression test
+>   must exercise the coupled `LandModel` `timestep!` path, since that is the path that was silently
+>   broken (unbounded pool growth) and is what most needs protection against regressing.
+>
+> 2026-08-31 (rev 5) — **Phase 1 implemented** after sign-off. Deviations from the plan text, all
+> confirmed during implementation/review:
+> - **Tendency sign.** The plan wrote the tendency as `min(∂S∂t, S)`, which is ambiguous on sign. Since
+>   `explicit_step!` uses `u += tendency·Δt` and `compute_surface_drainage` returns a *positive* rate
+>   `D = S/τ_r` (also consumed by the auxiliary `compute_surface_runoff = F + D − I`), the tendency is
+>   implemented as the negative removal `-min(D, S)` so the pool is drawn down. `compute_surface_drainage`
+>   keeps its positive-drainage convention (the sign lives in the tendency, not the drainage).
+> - **`redistribute_saturation_profile!`.** The per-cell `adjust_saturation_profile!` was factored into a
+>   shared `redistribute_saturation_profile!(sat, i, j, grid, hydrology)` that returns the surface excess
+>   as a water depth, plus two thin dispatch methods (`::Nothing` discards, `::AbstractSurfaceRunoff`
+>   writes the pool) — no short-circuit branch inside the kernel.
+> - **Type annotations.** All threaded `runoff` arguments use `Optional{AbstractSurfaceRunoff}`; the
+>   per-cell dispatch methods use concrete `::Nothing` / `::AbstractSurfaceRunoff`.
+> - **Test adjustment (review).** Rather than only deleting the standalone pool assertion in
+>   `soil_hydrology_tests.jl`, the test now *keeps* pool coverage at the soil level: a combined
+>   `StateVariables(merge(Variables(hydrology), Variables(runoff)), grid)` state checks that passing a
+>   runoff routes the excess into the pool (Case 1b), while the standalone call still discards.
+>   Plus standalone runoff-tendency tests (`-min(D, S)`, cap binding, empty pool) and the coupled
+>   `LandModel` `timestep!` regression test (pool decays as `S₀(1 − Δt/τ)ⁿ`).
+>
+> 2026-09-16 (rev 6) — **Soil fusion (Phase 2) abandoned; scope narrowed to auxiliary-only fusion.**
+> Phase 2 was implemented and benchmarked (exclusive H100 / compute node, min-of-5 sustained repeats;
+> a null-vs-null control established that single-repeat timings are dominated by spikes and cold GPU
+> clocks). Results and root-cause analysis:
+>
+> - **CPU: fusion wins** (soil `RichardsEq` +27–61% ms/step; null control `NoFlow` +4–8%). Fewer
+>   launches dominate on CPU.
+> - **GPU: fusion wins at launch-bound sizes (+3–7%) but regresses ~18% at the largest grid** (73728
+>   columns). The null control is flat there, so the regression is real, not noise.
+> - **Root cause = register pressure (measured, not assumed).** `ncu` is blocked on this cluster
+>   (`ERR_NVGPUCTRPERM`, driver-level), so registers were read from the exact PTX each launch compiles
+>   (`CUDA.@device_code_ptx` → `ptxas -c -v`, sm_86): fused tendency = **80 registers** vs standalone
+>   energy = 72, standalone water = 44. 80 regs → 25 warps/SM vs 72 → 28 (64K regs/SM). At large grids
+>   the GPU is occupancy-bound, so ~11% fewer resident warps to hide memory latency ≈ the ~18% loss.
+>   The fused *auxiliary* kernel is a GPU no-op (36 regs = standalone hydraulics 36): it wraps a single
+>   launch, since energy/bgc auxiliaries are no-ops.
+> - **Structural rule (validated against Oceananigans' tendency kernels).** Oceananigans launches one
+>   kernel per *output field* and fuses only terms that **sum into a single accumulator**
+>   (`u_velocity_tendency`); it never bundles two independent output equations. The rule that predicts
+>   every measurement here:
+>   > **Fuse a dependency chain or a single accumulator; do not bundle independent outputs.**
+>   A chain/single-accumulator has live set ≈ `max(stage)` (each stage's temporaries retire before the
+>   next); bundling independent outputs has live set ≈ `union` (neither half's temporaries are released)
+>   — exactly the soil water+energy 80 = union(44, 72). `@noinline` on one half recovers occupancy
+>   (80→72, confirmed) but is a compiler workaround for a structural mismatch, not the pattern.
+> - **Soil water and energy are two independent 3D output fields** — the worst possible fusion target,
+>   and the one Phase 2 fused. The pre-fusion per-field structure is already the Oceananigans-aligned
+>   one. The CPU win does not justify a GPU regression rooted in bundling independent outputs.
+> - **Consequence for scope.** Tendency fusion is dropped from Phases 3 and 4 as well: the surface
+>   hydrology tendencies (canopy water, surface excess water) and vegetation tendencies (C, ν, GDD) are
+>   likewise *independent* outputs, so they carry the same union risk (the earlier "clean win" label on
+>   Phase 4 tendencies was wrong). Auxiliary fusion is retained for Phases 3–4 because those passes are
+>   genuine dependency chains on launch-bound (2D) grids — the case where fusion is correct on both
+>   architectures. The soil Phase 2 design is retained below for reference; it was implemented and
+>   documented in a closed PR and is **not** to be merged.
+>
+> 2026-09-16 (rev 7) — **Phase 3 (surface hydrology auxiliary fusion) implemented.** The three XY
+> auxiliary launches (canopy → ET → runoff) collapse into one fused `compute_auxiliary_kernel!`
+> dispatching on `SurfaceHydrology`, calling the per-cell mutating variants in dependency order.
+> Deviations / findings during implementation:
+> - **Uniform ET entry point.** A new `compute_evapotranspiration_auxiliary!(out, i, j, grid, fields,
+>   evtr, interception, constants, atmos, soil, vegetation, snow)` kernel function is defined for both
+>   ET schemes (PALADYN canopy + bare-ground) with a shared signature; the standalone
+>   `compute_auxiliary_kernel!` for each scheme now just calls it, so the fused and standalone paths
+>   cannot drift. `NoCanopyInterception` gains a no-op `compute_canopy_auxiliary!` so the fused kernel
+>   dispatches uniformly (its `rainfall_ground` is a lazy passthrough, never written).
+> - **`out` excludes lazy fields.** The fused host collects `auxiliary_fields(state, interception,
+>   evapotranspiration, surface_runoff)` but `filter`s out `FunctionField`s — e.g.
+>   `NoCanopyInterception`'s `rainfall_ground` passthrough — which no kernel writes and which the debug
+>   hook (`checkfinite!` → `parent`) cannot inspect. Full `fields` (no `except`) is passed so the chain
+>   reads prior stages' outputs from the aliased `Field`s.
+> - **Latent bug fixed: canopy ET never saw `snow`.** The per-process canopy-ET `compute_auxiliary!`
+>   accepted `snow` but its `launch!` forwarded only up to `vegetation`, so `snow` fell into `args...`
+>   and the kernel defaulted to `snow = nothing` — canopy ground/canopy evaporation and transpiration
+>   were **never** scaled by the snow-free fraction, unlike bare-ground ET (which did pass `snow`). The
+>   fused kernel passes `snow` to both schemes; the standalone PALADYN host method was fixed to match
+>   (merge the snow fields, forward `snow`). This is a deliberate numerics change for the
+>   vegetated-under-snow config (ET now suppressed over snow-covered ground, as it should be); the
+>   fused and per-process paths agree bit-for-bit after the fix. Covered by a new test asserting
+>   `evaporation_ground/transpiration/evaporation_canopy == (1 − f_snow) ·` (snow-free flux).
+> - **Tests.** New `test/surface/hydrology/fused_auxiliary_tests.jl`: (i) fused vs per-process fan-out
+>   over all 12 surface-hydrology auxiliaries, vegetated + snow, to machine precision; (ii) the
+>   snow-free-fraction scaling above. Existing `test/surface/*`, `test/coupled_models/land_model_tests.jl`
+>   (vegetated, bare, snow, meltwater, latent-partition, thin-snow, excess-water) all green.
+>
+> 2026-09-16 (rev 8) — **Snow considered for fusion; left as-is.** An earlier revision folded the snow
+> auxiliary diagnosis into the fused surface-hydrology launch (a leading `compute_snow_properties!` stage).
+> That was reverted: snow's auxiliaries should not be computed inside surface hydrology. Re-examining the
+> snow side, there is **nothing to fuse**: `SingleLayerSnow.compute_auxiliary!` is already a single XY launch
+> (`compute_snow_properties!` → `snow_depth`, `snow_cover_fraction`). The only other snow XY launch is the
+> energy closure `energy_to_temperature!` (→ `snow_temperature`, `snow_liquid_fraction`), which (a) runs in a
+> **different pass** (`closure!`, at the start of each timestep, vs `compute_auxiliary!` at finalize) and
+> (b) produces **independent outputs** — the two launches share no dependency chain, so fusing them would be
+> the register-union anti-pattern the rev 6 rule forbids. Snow is therefore unchanged.
+>
+> 2026-09-16 (rev 9) — **Phase 4 (vegetation carbon auxiliary fusion) implemented.** The five real XY
+> auxiliary stages of `VegetationCarbonCycle` — carbon dynamics → phenology → photosynthesis → stomatal
+> conductance → autotrophic respiration — collapse from five launches to one fused XY launch, following the
+> Phase 3 pattern exactly. Each stage's per-cell mutating variant already existed (they are the bodies of
+> the standalone `compute_auxiliary_kernel!`s), so the fused kernel just calls them in dependency order; the
+> host collects `out = filter(v -> v isa Field, auxiliary_fields(state, <five components>))` and passes full
+> `fields` (no `except`) so a stage's write to `out.foo` is visible to a later stage reading `fields.foo`.
+> - **`plant_available_water` stays separate and first.** It is an XYZ launch that then materializes the
+>   derived XY `soil_moisture_limiting_factor` via `compute!`; photosynthesis and stomatal conductance read
+>   that factor, so PAW must run before the fused kernel — the same ordering the fan-out already used.
+>   `root_distribution` (lazy `FunctionField`, no-op) and `vegetation_dynamics` (no-op) calls are unchanged.
+> - **No `soil` in the fused kernel.** None of the five stages reads a soil field; the only soil-derived
+>   input is the PAW-produced limiting factor, read as a plain XY input. The kernel signature is
+>   `(out, grid, fields, veg, constants, atmos, args...)`.
+> - **No `PrescribedPhenology` no-op variant.** `PrescribedPhenology` is only ever paired with
+>   `PrescribedVegetation` (which has its own `compute_auxiliary!` and no autotrophic respiration), never
+>   with `VegetationCarbonCycle`, so the fused kernel never dispatches on it — adding a no-op would guard an
+>   unreachable state.
+> - **Tests.** New `test/vegetation/integration_tests.jl` (included from `vegetation_model_tests.jl`) checks
+>   the fused path against the per-process fan-out to machine precision across all nine written auxiliaries.
+>   Vegetation suite 148/148, land_model 45/45 green. Net: vegetation auxiliary pass 6 XY → 1 XY (PAW's XYZ
+>   launch and derived `compute!` unchanged).
