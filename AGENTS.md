@@ -256,7 +256,9 @@ Follow [ColPrac](https://github.com/SciML/ColPrac). Feature branches, descriptiv
 
 ## Implementation plans
 
-All major feature additions, bug fixes, or refactoring that requires substantial changes to the existing code must be prefaced with an **implementation plan** that is **reviewed and signed off by a human**. These plan documents should be organized by date and stored in `docs/dev/YYYY-MM`. You are **ABSOLUTELY REQUIRED** to get the explicit approval of a human developer before executing the implementation.
+All major feature additions, bug fixes, or refactoring that requires substantial changes to the existing code must be prefaced with an **implementation plan** that is **reviewed and signed off by a human**. These plan documents should be organized by date and stored in `docs/dev/plans` with the filename prefixed wit the pattern `YYYY-MM-dd-PLAN-#-` where # is an integer starting at 1 and incremented for each plan drafted on that date.
+
+You are **ABSOLUTELY REQUIRED** to get the explicit approval of a human developer before executing the implementation.
 
 Each document should be prefaced by the following template:
 
@@ -277,10 +279,6 @@ Base revision: <SHA1 of HEAD when plan was drafted>
 
 > User prompts here
 
-## Revision log
-
-> User prompts here
-
 ## Problem description
 
 ## Background
@@ -293,11 +291,10 @@ the plan document itself):
 - Leave the `Reviewer` field blank until a human has approved the plan, then fill in both name and
   email after approval. Where the reviewer is the repository owner, `git config user.name` and
   `git config user.email` are an acceptable source for those values.
-- The revision log should, to the greatest extent possible, briefly summarize changes to the plan
-  that are made on-the-fly during development. Give each revision a number and a date, and record
-  the model name and version (if known) for that revision, since a plan may be revised by a
-  different model than the one that drafted it. **A human must approve each revision before
-  implementation**.
+- The revision log (see below) should briefly summarize changes to the plan
+  that are made on-the-fly during development.
+- Give each revision in the log a number and a date, and record the model name and version (if known)
+ for that revision, since a plan may be revised by a different model than the one that drafted it. **A human must approve each revision before changing any code**.
 
 Write plan prose with a line break at the end of every sentence (one sentence per line) rather than wrapping at an arbitrary column width.
 This keeps diffs readable when individual sentences are revised.
@@ -314,6 +311,10 @@ The remainder of the plan document may be adapted on a case-by-case basis but sh
 ## Known limitations
 
 ## Future work
+
+## Revision log
+
+> User prompts here
 ```
 
 ## Further Reading
