@@ -161,7 +161,7 @@ end
 """
     $SIGNATURES
 
-Divergence `∂q/∂z` (1/s) of the [`darcy_flux`](@ref) `q` at cell `i, j, k`: over all faces under
+Divergence `∂j_w/∂z` (1/s) of the [`darcy_flux`](@ref) `j_w` at cell `i, j, k`: over all faces under
 [`Explicit`](@ref) time stepping, and over the boundary faces of the column only (see
 [`compute_boundary_darcy_flux_divergence`](@ref)) under [`Implicit`](@ref).
 """
@@ -179,9 +179,9 @@ end
 Part of the Darcy flux divergence at `i, j, k` due to the two boundary faces of the column (bottom face
 of cell `k = 1`, top face of cell `k = Nz`), omitting all interior faces:
 
-    (δ_{k,Nz} q_{k+½} - δ_{k,1} q_{k-½}) / Δz_k,
+    (δ_{k,Nz} j_{w,k+½} - δ_{k,1} j_{w,k-½}) / Δz_k,
 
-with `q` the [`darcy_flux`](@ref). This is the explicit part when the interior fluxes are integrated
+with `j_w` the [`darcy_flux`](@ref). This is the explicit part when the interior fluxes are integrated
 implicitly (see [`Picard`](@ref)). The boundary fluxes are computed from the `pressure_head` halo: they
 vanish for the default (no-flux) conditions and carry the prescribed flux for a gradient condition on
 `pressure_head`. Flux boundary conditions on `saturation_water_ice` (e.g. [`InfiltrationFlux`](@ref))

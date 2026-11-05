@@ -2,9 +2,10 @@
     $TYPEDEF
 
 Soil thermal dynamics with freezing and thawing of pore water. The internal energy `U` evolves by
-vertical heat conduction and advection of sensible heat by the water flux `q`:
+vertical heat conduction and advection of sensible heat by the vertical water flux `j_w` (m/s, positive
+upward):
 
-    ∂U/∂t = ∂z(κ ∂z T) - ∂z(C_w T q),
+    ∂U/∂t = ∂z(κ ∂z T) - ∂z(C_w T j_w),
 
 with temperature `T` (°C), thermal conductivity `κ` (W/m/K), and volumetric heat capacity of liquid
 water `C_w` (J/m³/K). The `closure` relates temperature and internal energy, \$U(T,\\phi)\$, with
@@ -138,10 +139,10 @@ end
 """
     $TYPEDSIGNATURES
 
-Upwind advective heat flux `C_w T_up q` (W/m², positive upward) at face `i, j, k`, with `q` (m/s) the
-`water_flux` of the step ([`compute_advective_water_flux`](@ref)) and `C_w` the `water` heat capacity of
+Upwind advective heat flux `C_w T_up j_w` (W/m², positive upward) at face `i, j, k`, the first-order upwind
+discretization of `C_w T j_w`, with `j_w` (m/s) the `water_flux` of the step ([`compute_advective_water_flux`](@ref)) and `C_w` the `water` heat capacity of
 the [`SoilThermalProperties`](@ref), consistent with the energy closure. `T_up` is the temperature of cell
-`k` for `q < 0` and of cell `k - 1` otherwise, clamped to the column at the boundary faces. Only the
+`k` for `j_w < 0` and of cell `k - 1` otherwise, clamped to the column at the boundary faces. Only the
 sensible heat of liquid water is advected; ice is immobile.
 
 Under [`Implicit`](@ref) time stepping, only the boundary inflow is explicit
@@ -169,7 +170,7 @@ end
 """
     $TYPEDSIGNATURES
 
-Water flux `q` (m/s, positive upward) at face `i, j, k` that advects heat: the `water_flux` of the
+Vertical water flux `j_w` (m/s, positive upward) at face `i, j, k` that advects heat: the `water_flux` of the
 step, i.e. the Darcy flux at `tⁿ` (boundary faces, and interior faces under explicit hydrology) or of the
 implicit update (see [`compute_water_flux`](@ref) and [`compute_implicit_water_flux`](@ref)).
 """

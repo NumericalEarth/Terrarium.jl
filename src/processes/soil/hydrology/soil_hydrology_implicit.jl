@@ -1,27 +1,27 @@
 # Implicit Richards flow: implicit operator and process hooks of `SoilHydrology{NF, RichardsEq}`, after the
 # mass-conservative modified Picard iteration of Celia et al. (1990).
 #
-# With porosity φ, saturation s, volumetric water content θ = φ s, and total pressure head
+# With porosity φ, saturation ξ, volumetric water content θ = φ ξ, and total pressure head
 # Ψ = ψₘ(θ) + ψ_z + ψ_h (matric, elevation, and hydrostatic head), the backward Euler step reads
 #
-#     φ (sⁿ⁺¹ - sⁿ) / Δt = ∂z(K ∂z Ψⁿ⁺¹) + φ G_exp,
+#     φ (ξⁿ⁺¹ - ξⁿ) / Δt = ∂z(K ∂z Ψⁿ⁺¹) + φ G_exp,
 #
 # where G_exp holds the flux boundary conditions on saturation, the Darcy fluxes through the boundary faces,
 # and the sources (evapotranspiration, forcing). With ψ_z and ψ_h lagged, ∂θ/∂Ψ = C, the specific moisture
-# capacity. Linearizing θ about iterate m with lagged conductivity Kᵐ gives, with s⁺ = sⁿ + Δt G_exp, the
+# capacity. Linearizing θ about iterate m with lagged conductivity Kᵐ gives, with ξ⁺ = ξⁿ + Δt G_exp, the
 # tridiagonal system for the total pressure head
 #
-#     Cᵐ Ψᵐ⁺¹ - Δt ∂z(Kᵐ ∂z Ψᵐ⁺¹) = Cᵐ Ψᵐ - φ (sᵐ - s⁺).
+#     Cᵐ Ψᵐ⁺¹ - Δt ∂z(Kᵐ ∂z Ψᵐ⁺¹) = Cᵐ Ψᵐ - φ (ξᵐ - ξ⁺).
 #
-# Each `Picard` iteration m = 0, …, M-1, starting from s⁰ = sⁿ, calls the hooks:
+# Each `Picard` iteration m = 0, …, M-1, starting from ξ⁰ = ξⁿ, calls the hooks:
 #
 #   1. `linearize!`: hydraulic conductivity, lagged Kᵐ (faces) and Cᵐ (centers, bounded below by
 #      `minimum_moisture_capacity` so that frozen saturated cells stay regular), and the right-hand side;
 #   2. `solve!`: the system above for Ψᵐ⁺¹;
-#   3. `implicit_update!`: sᵐ⁺¹ = s⁺ + Δt ∂z(Kᵐ ∂z Ψᵐ⁺¹) / φ through the interior faces, which conserves water
+#   3. `implicit_update!`: ξᵐ⁺¹ = ξ⁺ + Δt ∂z(Kᵐ ∂z Ψᵐ⁺¹) / φ through the interior faces, which conserves water
 #      exactly, and `water_flux` ← -Kᵐ ∂z Ψᵐ⁺¹, the flux with which the heat step advects heat;
 #   4. `implicit_closure!`: redistribution of over- and undersaturation, water table, Ψᵐ⁺¹, and hydraulic
-#      conductivity. Since every iteration restarts from s⁺, only the final one routes surface excess water
+#      conductivity. Since every iteration restarts from ξ⁺, only the final one routes surface excess water
 #      to the runoff pool and moves the heat of redistributed water.
 #
 # The solver calls the hooks through the `SoilModel`/`LandModel` forwarding methods and the
@@ -71,8 +71,8 @@ end
 
 Update the hydraulic conductivity ([`compute_hydraulics!`](@ref)), fill the lagged capacity and face
 conductivity of `operator` ([`compute_implicit_water_flow_coefficients!`](@ref)), and assemble the
-right-hand side `C Ψᵐ - φ (sᵐ - s⁺)` in `rhs` ([`compute_implicit_water_flow_rhs`](@ref)), with
-`s⁺ = explicit_saturation`. [CeliaEtAl1990](@cite) recommend at least two iterations.
+right-hand side `C Ψᵐ - φ (ξᵐ - ξ⁺)` in `rhs` ([`compute_implicit_water_flow_rhs`](@ref)), with
+`ξ⁺ = explicit_saturation`. [CeliaEtAl1990](@cite) recommend at least two iterations.
 
 # References
 
@@ -204,8 +204,8 @@ end
 """
     $TYPEDSIGNATURES
 
-Right-hand side `C Ψᵐ - φ (sᵐ - s⁺)` at `i, j, k`, with `C = diagonal_coefficient` and
-`s⁺ = explicit_saturation`.
+Right-hand side `C Ψᵐ - φ (ξᵐ - ξ⁺)` at `i, j, k`, with `C = diagonal_coefficient` and
+`ξ⁺ = explicit_saturation`.
 """
 @propagate_inbounds function compute_implicit_water_flow_rhs(
         i, j, k, grid, fields, diagonal_coefficient, explicit_saturation,
@@ -223,8 +223,8 @@ end
 """
     $TYPEDSIGNATURES
 
-Saturation `s = s⁺ + Δt Q_diff / φ` at `i, j, k`, with `Q_diff = ∂z(K ∂z Ψ)` (1/s) through the interior
-faces ([`compute_implicit_diffusion_tendency`](@ref)), `s⁺ = explicit_saturation`, and
+Saturation `ξ = ξ⁺ + Δt Q_diff / φ` at `i, j, k`, with `Q_diff = ∂z(K ∂z Ψ)` (1/s) through the interior
+faces ([`compute_implicit_diffusion_tendency`](@ref)), `ξ⁺ = explicit_saturation`, and
 `K = face_conductivity`.
 """
 @propagate_inbounds function compute_implicit_saturation_update(

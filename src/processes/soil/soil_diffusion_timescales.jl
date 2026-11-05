@@ -190,8 +190,8 @@ cell_advection_timescale(state, grid, energy::AbstractSoilThermodynamics, hydrol
 """
     $TYPEDSIGNATURES
 
-Return the minimum over all cells of the advective timescale ``τ = C Δz / (C_w |q|)``
-([`compute_heat_advection_timescale`](@ref)) for a Richards-equation hydrology, with `q` the Darcy flux
+Return the minimum over all cells of the advective timescale ``τ = C Δz / (C_w |j_w|)``
+([`compute_heat_advection_timescale`](@ref)) for a Richards-equation hydrology, with `j_w` the Darcy flux
 through the faces of the cell.
 """
 function cell_advection_timescale(
@@ -214,10 +214,10 @@ end
 """
     $TYPEDSIGNATURES
 
-Kernel function returning the advective timescale ``τ = C Δz / (C_w |q|)`` at cell `i, j, k`, with `C`
-the bulk volumetric heat capacity of the cell, `C_w` that of liquid water, and `|q|` the larger magnitude
+Kernel function returning the advective timescale ``τ = C Δz / (C_w |j_w|)`` at cell `i, j, k`, with `C`
+the bulk volumetric heat capacity of the cell, `C_w` that of liquid water, and `|j_w|` the larger magnitude
 of the [`darcy_flux`](@ref) through the two faces of the cell. This is the stability limit of the
-explicit upwind advection, which changes the cell temperature at the rate `C_w q / C` (m/s). Cells
+explicit upwind advection, which changes the cell temperature at the rate `C_w j_w / C` (m/s). Cells
 without flow return `Inf`.
 """
 @inline @propagate_inbounds function compute_heat_advection_timescale(

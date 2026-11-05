@@ -1,14 +1,15 @@
 # Linearly implicit soil heat conduction: implicit operator and process hooks of `SoilThermodynamics`.
 #
-# Backward Euler step of ∂U/∂t = ∂z(κ ∂z T) - ∂z(C_w q T_up) + G_exp, with conduction and upwind advection by
-# the water flux q solved in temperature and the energy updated conservatively. With the `Picard` solver, for
+# Backward Euler step of ∂U/∂t = ∂z(κ ∂z T) - ∂z(C_w T j_w) + G_exp, with conduction and first-order upwind
+# advection by the vertical water flux j_w solved in temperature (T_up the temperature of the upwind cell of a
+# face) and the energy updated conservatively. With the `Picard` solver, for
 # iterations m = 0, …, M-1, starting from U⁰ = Uⁿ (plus any heat moved by the closure of the water step) and
 # T⁰ ← closure(U⁰):
 #
 #   1. `linearize!`: Tᵐ ← closure(Uᵐ), lagged κᵐ (faces), regularized apparent heat capacity C_appᵐ (centers),
-#      advective face velocity C_w q (faces), and rhs = C_appᵐ Tᵐ - Uᵐ + U⁺,    U⁺ = U⁰ + Δt G_exp;
-#   2. `solve!`: C_appᵐ Tᵐ⁺¹ - Δt ∂z(κᵐ ∂z Tᵐ⁺¹) + Δt ∂z(C_w q T_upᵐ⁺¹) = rhs;
-#   3. `implicit_update!`: Uᵐ⁺¹ = U⁺ + Δt [∂z(κᵐ ∂z Tᵐ⁺¹) - ∂z(C_w q T_upᵐ⁺¹)]    (interior faces only);
+#      advective face velocity C_w j_w (faces), and rhs = C_appᵐ Tᵐ - Uᵐ + U⁺,    U⁺ = U⁰ + Δt G_exp;
+#   2. `solve!`: C_appᵐ Tᵐ⁺¹ - Δt ∂z(κᵐ ∂z Tᵐ⁺¹) + Δt ∂z(C_w j_w T_upᵐ⁺¹) = rhs;
+#   3. `implicit_update!`: Uᵐ⁺¹ = U⁺ + Δt [∂z(κᵐ ∂z Tᵐ⁺¹) - ∂z(C_w j_w T_upᵐ⁺¹)]    (interior faces only);
 #   4. `implicit_closure!`: Tᵐ⁺¹, liquid water fraction ← closure(Uᵐ⁺¹).
 #
 # The solver calls the hooks through the `SoilModel`/`LandModel` forwarding methods and the
@@ -62,11 +63,11 @@ fluxes through the interior faces. This hook
    the internal energy and the current saturation (changed by the water step since `tⁿ`),
 2. evaluates the face conductivity `κ` ([`compute_implicit_conductivity!`](@ref)), the regularized
    apparent heat capacity `C_app` ([`compute_implicit_capacity!`](@ref)), and, with water flow, the
-   advective face velocity `C_w q` from the `water_flux` of the step
+   advective face velocity `C_w j_w` from the `water_flux` of the step
    ([`compute_implicit_advective_velocity!`](@ref)), storing them in the `face_conductivity`,
    `diagonal_coefficient`, and `face_velocity` of `operator`,
 3. and assembles the right-hand side `C_app Tᵐ - Uᵐ + U⁺` of
-   `C_app Tᵐ⁺¹ - Δt ∂z(κ ∂z Tᵐ⁺¹) + Δt ∂z(C_w q T_upᵐ⁺¹) = C_app Tᵐ - Uᵐ + U⁺`
+   `C_app Tᵐ⁺¹ - Δt ∂z(κ ∂z Tᵐ⁺¹) + Δt ∂z(C_w j_w T_upᵐ⁺¹) = C_app Tᵐ - Uᵐ + U⁺`
    ([`compute_implicit_energy_rhs`](@ref)).
 
 [`implicit_update!`](@ref) then updates the internal energy conservatively: for any number of
@@ -108,9 +109,9 @@ end
     $TYPEDSIGNATURES
 
 Conservative update of the soil internal energy,
-`Uᵐ⁺¹ = U⁺ + Δt [∂z(κ ∂z Tᵐ⁺¹) - ∂z(C_w q T_upᵐ⁺¹)]`, from the implicit diffusive and
+`Uᵐ⁺¹ = U⁺ + Δt [∂z(κ ∂z Tᵐ⁺¹) - ∂z(C_w j_w T_upᵐ⁺¹)]`, from the implicit diffusive and
 advective fluxes through the interior faces ([`compute_implicit_energy_update`](@ref)), with
-`U⁺ = explicit_energy` and the lagged face conductivity `κ` and face velocity `C_w q` of `operator`.
+`U⁺ = explicit_energy` and the lagged face conductivity `κ` and face velocity `C_w j_w` of `operator`.
 """
 function implicit_update!(
         state, grid,
@@ -201,8 +202,8 @@ end
 """
     compute_implicit_advective_velocity!(face_velocity, i, j, k, grid, fields, energy, hydrology)
 
-Store the advective face velocity `C_w q` (W/m²/K) of the implicit heat operator at face `i, j, k` in
-`face_velocity`, and at the top boundary face for `k = Nz`, with `q` the water flux (m/s) of the step
+Store the advective face velocity `C_w j_w` (W/m²/K) of the implicit heat operator at face `i, j, k` in
+`face_velocity`, and at the top boundary face for `k = Nz`, with `j_w` the water flux (m/s) of the step
 through the face ([`compute_advective_water_flux`](@ref)) and `C_w` the volumetric heat capacity of
 liquid water, as in the explicit [`advective_heat_flux`](@ref). Through the boundary faces, the
 operator uses only the outflow (see [`TridiagonalOperator`](@ref)). A no-op without advection
@@ -267,9 +268,9 @@ end
 
 Conservative energy update `U = U⁺ + Δt (Q_diff + Q_adv)` at `i, j, k` from the implicit heating rates
 (W/m³) of conduction, `Q_diff = ∂z(κ ∂z T)` through the interior faces
-([`compute_implicit_diffusion_tendency`](@ref)), and of advection, `Q_adv = -∂z(C_w q T_up)` through
+([`compute_implicit_diffusion_tendency`](@ref)), and of advection, `Q_adv = -∂z(C_w j_w T_up)` through
 the interior faces and the boundary outflow ([`compute_implicit_advection_tendency`](@ref)), with
-`U⁺ = explicit_energy`, `κ = face_conductivity`, and `C_w q = face_velocity` (`nothing` without water
+`U⁺ = explicit_energy`, `κ = face_conductivity`, and `C_w j_w = face_velocity` (`nothing` without water
 flow).
 """
 @propagate_inbounds function compute_implicit_energy_update(i, j, k, grid, face_conductivity, face_velocity, temperature, explicit_energy, Δt)

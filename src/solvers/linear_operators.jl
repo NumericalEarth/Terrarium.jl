@@ -132,8 +132,8 @@ with the lagged capacity `C` in `diagonal_coefficient` (e.g. the apparent heat c
 for Richards flow), the lagged face conductivity `κ` in `face_conductivity` (thermal or hydraulic
 conductivity), the optional advective face velocity `u` in `face_velocity`, and the optional linear
 coefficient `L` ([`compute_implicit_linear_coefficient`](@ref)). `u` is in units of capacity times
-velocity, so that `u ϕ_up` is the advective flux; e.g. `u = C_w q` (W/m²/K) for the heat carried by
-the water flux `q` (m/s), with `C_w` the volumetric heat capacity of water. `ϕ_up` is the value in the
+velocity, so that `u ϕ_up` is the advective flux; e.g. `u = C_w j_w` (W/m²/K) for the heat carried by
+the vertical water flux `j_w` (m/s), with `C_w` the volumetric heat capacity of water. `ϕ_up` is the value in the
 upwind cell of the face, which keeps the system an M-matrix for any `u`. `face_velocity` is `nothing`
 for operators without advection, and the advective terms then vanish by dispatch
 ([`compute_implicit_face_velocity`](@ref)). Diffusive fluxes and advective inflow through the two
