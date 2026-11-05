@@ -22,8 +22,8 @@ import RingGrids
 import DisplayAs #hide
 
 # NumericalEarth.jl provides the `SoilGrids2` dataset together with download and
-# preprocessing machinery.
-using NumericalEarth.DataWrangling: MetadataSet
+# preprocessing machinery, and, through its Terrarium extension, the method that turns it into
+# Terrarium input sources.
 using NumericalEarth.SoilGrids: SoilGrids2
 
 input_dir = "inputs" #hide
@@ -53,29 +53,8 @@ grid_latd = rad2deg.(grid_lat) # latitude in degrees
 # for the full reference. NumericalEarth.jl downloads the data on first use (~several hundred
 # MB, cached afterwards), converts the fractions to the unit interval, and returns Oceananigans
 # `Field`s with the vertical axis ordered from the deepest layer (k=1, 100-200 cm) to the
-# surface layer (k=6, 0-5 cm).
-function Terrarium.InputSources(dataset::SoilGrids2, grid::ColumnRingGrid, horizons = (Symbol(:horizon, i) for i in 1:6); name = nameof(typeof(dataset)), verbose = true)
-    soilgrids_vars = (:sand_fraction, :silt_fraction, :clay_fraction, :bulk_density)
-    metadataset = MetadataSet(soilgrids_vars...; dataset)
-    arch = RingGrids.architecture(grid.rings)
-    soilgrids_inputs = []
-    for (idx, horizon) in enumerate(horizons)
-        layer_inputs = Dict()
-        for var in soilgrids_vars
-            verbose && @info "Loading input data for $var on $horizon"
-            var_field = Field(getproperty(metadataset, var))
-            ring_field = RingGrids.on_architecture(arch, RingGrids.FullClenshawField(interior(var_field)[:, (end - 1):-1:2, end - idx + 1], input_as = Matrix))
-            target_field = RingGrids.Field(grid.rings)
-            RingGrids.interpolate!(target_field, ring_field)
-            layer_inputs[var] = InputSource(grid, Field(target_field, grid); name = horizon => var, domain = Terrarium.Ground())
-        end
-        # Ensure that mineral texture components with each horizon sum to unity
-        Terrarium.normalize_texture!(layer_inputs[:sand_fraction].field, layer_inputs[:silt_fraction].field, layer_inputs[:clay_fraction].field)
-        append!(soilgrids_inputs, values(layer_inputs))
-    end
-    return InputSources(name, soilgrids_inputs...)
-end
-
+# surface layer (k=6, 0-5 cm). `InputSources(SoilGrids2(), grid)` regrids each horizon onto our
+# ring grid and normalizes the texture fractions of each horizon to sum to one.
 soilgrids_inputs = InputSources(SoilGrids2(), grid)
 
 fig = heatmap(RingGrids.Field(on_architecture(CPU(), soilgrids_inputs.sources[2].field), grid)[:, 1])
