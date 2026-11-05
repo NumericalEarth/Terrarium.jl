@@ -20,3 +20,7 @@ end
 @testset "Soil hydrology" begin
     include("soil_hydrology_tests.jl")
 end
+
+@testset "Soil hydrology: implicit Richards equation" begin
+    include("soil_hydrology_implicit_tests.jl")
+end
