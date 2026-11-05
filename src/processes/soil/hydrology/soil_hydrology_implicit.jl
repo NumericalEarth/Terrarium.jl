@@ -8,8 +8,12 @@
 #
 # where G_exp holds the flux boundary conditions on saturation, the Darcy fluxes through the boundary faces,
 # and the sources (evapotranspiration, forcing). With ψ_z and ψ_h lagged, ∂θ/∂Ψ = C, the specific moisture
-# capacity. Linearizing θ about iterate m with lagged conductivity Kᵐ gives, with ξ⁺ = ξⁿ + Δt G_exp, the
-# tridiagonal system for the total pressure head
+# capacity. The modified Picard iteration linearizes the water content about the iterate m,
+#
+#     θᵐ⁺¹ ≈ θᵐ + Cᵐ (Ψᵐ⁺¹ - Ψᵐ),    Cᵐ = C(Ψᵐ),
+#
+# and lags the hydraulic conductivity at the same iterate, Kᵐ = K(Ψᵐ). Substituting θᵐ⁺¹ = φ ξᵐ⁺¹ into the
+# backward Euler step gives, with ξ⁺ = ξⁿ + Δt G_exp, the tridiagonal system for the total pressure head
 #
 #     Cᵐ Ψᵐ⁺¹ - Δt ∂z(Kᵐ ∂z Ψᵐ⁺¹) = Cᵐ Ψᵐ - φ (ξᵐ - ξ⁺).
 #

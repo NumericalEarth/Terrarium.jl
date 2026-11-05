@@ -140,7 +140,7 @@ U^{n+1} = U^+ + \Delta t\, \frac{\partial}{\partial z}\left[\kappa \frac{\partia
 ```
 rather than from the linearization. The temperature and liquid water fraction are then diagnosed from the closure, after every iteration including the last, so that they are consistent with ``U^{n+1}`` when the implicit step returns. Since the interior fluxes cancel pairwise between adjacent cells, the change in the column-integrated energy over a step equals ``\Delta t`` times the net boundary flux contained in ``G_\text{exp}``, independent of the number of iterations and the regularization.
 
-With `iterations = 1`, this is the linearly implicit scheme used by many land surface models. The default is `iterations = 2`. With `iterations = M > 1`, the lagged coefficients are re-evaluated at the new iterate (after re-applying the closure) and the solve is repeated, which is a Picard iteration on the nonlinear system [CeliaEtAl1990](@cite). A single step is still only first order accurate in ``\Delta t``, but additional iterations reduce the error from the lagged capacity near freezing fronts.
+With `iterations = 1`, this is the linearly implicit scheme used by many land surface models [bonanClimateChangeTEMSoilMoisture2019](@cite). The default is `iterations = 2`. With `iterations = M > 1`, the lagged coefficients are re-evaluated at the new iterate (after re-applying the closure) and the solve is repeated, which is a Picard iteration on the nonlinear system [CeliaEtAl1990](@cite). A single step is still only first order accurate in ``\Delta t``, but additional iterations reduce the error from the lagged capacity near freezing fronts.
 
 ### [Implicit Richards equation](@id imex-richards)
 

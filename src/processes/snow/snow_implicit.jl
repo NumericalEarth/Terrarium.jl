@@ -8,11 +8,15 @@
 #
 #     G(θ) = W_i / (1 − θ) + Δt M_r(θ, W_i / (1 − θ)) − W⁺ = 0.
 #
+# Each `Picard` iteration takes one Newton step: linearizing G about the current iterate θᵐ,
+# G(θ) ≈ G(θᵐ) + G′(θᵐ) (θ − θᵐ), and setting this to zero gives the diagonal linear system
+#
+#     G′(θᵐ) θᵐ⁺¹ = G′(θᵐ) θᵐ − G(θᵐ).
+#
 # The outflow is the minimum of the Darcy rate and the storage limit (see `compute_meltwater_outflow`), so G is
 # increasing in θ and convex on each branch. Within a branch, a Newton step from any θ ≥ θ* (the root) lands in
 # [θ*, θ], so the iterates approach the root from above; a step across the switch between the branches may
-# undershoot, so the update bounds θ below by min(L_c, θ⁺), at or below the root. Each `Picard` iteration takes
-# one such step:
+# undershoot, so the update bounds θ below by min(L_c, θ⁺), at or below the root. Each iteration calls the hooks:
 #
 #   1. `linearize!`: the diagonal G′(θᵐ) and right-hand side G′(θᵐ) θᵐ − G(θᵐ) of the `DiagonalOperator`, at
 #      the liquid fraction θᵐ of the current iterate Wᵐ, bounded to [0, θ⁺];

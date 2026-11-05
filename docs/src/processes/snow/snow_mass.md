@@ -54,8 +54,18 @@ drainage is a scalar equation per column, written in the liquid fraction ``\thet
 ```math
 G(\theta) = \frac{W_i}{1 - \theta} + \Delta t\, M_r\!\left(\theta, \frac{W_i}{1 - \theta}\right) - W^+ = 0.
 ```
-``G`` is increasing, and convex on each branch of the outflow (the Darcy rate and the storage limit), so each
-[`Picard`](@ref) iteration takes a Newton step in ``\theta``, which approaches the root from above within a branch.
+Each [`Picard`](@ref) iteration takes a Newton step in ``\theta``: linearizing ``G`` about the current iterate
+``\theta^m``,
+```math
+G(\theta) \approx G(\theta^m) + G'(\theta^m)\,(\theta - \theta^m)\,,
+```
+and setting the linearization to zero gives the next iterate as the solution of the (diagonal) linear system
+```math
+G'(\theta^m)\, \theta^{m+1} = G'(\theta^m)\, \theta^m - G(\theta^m)\,,
+```
+whose diagonal ``G'(\theta^m)`` and right-hand side are assembled by [`linearize!`](@ref).
+``G`` is increasing, and convex on each branch of the outflow (the Darcy rate and the storage limit), so the Newton
+steps approach the root from above within a branch.
 A step across the switch between the branches may undershoot the root, so the liquid fraction is bounded below by
 ``\min(L_c, \theta^+)``: no iterate drains ice or capillary water, or more than the explicit stage holds.
 The system of each iteration is solved by a [`DiagonalOperator`](@ref) for `snow_liquid_fraction`. A fully liquid pack

@@ -13,7 +13,10 @@ conservatively ([`implicit_update!`](@ref)), and re-evaluates the closure
 ([`implicit_closure!`](@ref)). The solver is generic over the operator; the process-specific parts are
 the hooks, which the model forwards to the process that owns the variable.
 
-A single iteration (`iterations = 1`) is the linearly implicit scheme used by most land surface models.
+The iteration is a fixed-point iteration `uⁿ⁺¹ᵐ⁺¹ = g(uⁿ⁺¹ᵐ)` on the nonlinear system of the implicit step, where
+`g(v)` is the solution of the linear system with the coefficients evaluated (lagged) at `v`, starting from
+`uⁿ⁺¹⁰ = uⁿ`; a fixed point `u = g(u)` solves the nonlinear system. A single iteration (`iterations = 1`) is
+the linearly implicit scheme used by most land surface models [bonanClimateChangeTEMSoilMoisture2019](@cite).
 The default of two iterations substantially reduces the lagged-coefficient error near freezing fronts and
 is the minimum recommended for the modified Picard iteration of the Richards equation
 [CeliaEtAl1990](@cite).
@@ -24,6 +27,7 @@ $(TYPEDFIELDS)
 # References
 
 * [CeliaEtAl1990](@cite) Celia et al., Water Resources Research 26, 1483–1496 (1990)
+* [bonanClimateChangeTEMSoilMoisture2019](@cite) Bonan, Climate Change and Terrestrial Ecosystem Modeling, Cambridge University Press (2019)
 """
 struct Picard <: AbstractImplicitSolver
     "Number of Picard iterations (linearizations and linear solves) per implicit step"
