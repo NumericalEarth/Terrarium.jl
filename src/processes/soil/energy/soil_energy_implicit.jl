@@ -126,23 +126,6 @@ function implicit_update!(
     return nothing
 end
 
-"""
-    $TYPEDSIGNATURES
-
-Re-diagnose the temperature and liquid water fraction from the internal energy with the energy closure
-[`closure!`](@ref) after every iteration. `runoff` and `iteration` are not used.
-"""
-function implicit_closure!(
-        state, grid,
-        energy::SoilThermodynamics,
-        soil::AbstractSoil,
-        constants::PhysicalConstants,
-        runoff, iteration::Iteration
-    )
-    closure!(state, grid, energy.closure, energy, soil, constants)
-    return nothing
-end
-
 # Kernel functions
 
 """
@@ -250,7 +233,7 @@ end
 """
     $TYPEDSIGNATURES
 
-Right-hand side `C_app Tᵐ - Uᵐ + U⁺` of the linearized system at Picard iterate `m`, with
+Right-hand side `C_app Tᵐ - Uᵐ + U⁺` of the linearized system at iterate `m` of the implicit solver, with
 `C_app = diagonal_coefficient` and `U⁺ = explicit_energy`.
 """
 @propagate_inbounds function compute_implicit_energy_rhs(i, j, k, grid, fields, diagonal_coefficient, explicit_energy)

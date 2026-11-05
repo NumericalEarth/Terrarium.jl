@@ -84,7 +84,7 @@ end
 
 Compute the part of the internal energy tendency `∂U∂t` at `i, j, k` due to the advective heat flux
 through the boundary faces of the column that remains explicit when the interior fluxes are
-integrated implicitly (see [`Picard`](@ref)). The default is zero, i.e. no heat is transported by a
+integrated implicitly (see [`BackwardEuler`](@ref)). The default is zero, i.e. no heat is transported by a
 moving medium; see the method for soil water flow following the Richards equation.
 """
 @inline compute_boundary_advective_energy_tendency(i, j, k, grid, fields, energy::AbstractThermodynamics, args...) = zero(grid)

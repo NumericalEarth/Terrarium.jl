@@ -45,10 +45,32 @@ function closure!(
         runoff::Optional{AbstractSurfaceRunoff} = nothing,
         args...
     ) where {NF}
+    # apply saturation correction, moving the heat of the redistributed water
+    compute_saturation_closure!(state, grid, closure, hydrology, soil, runoff, get_energy_balance(soil))
+    return nothing
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Saturation–pressure closure of a Richards-equation `hydrology`: redistribute over- and undersaturation
+([`adjust_saturation_profile!`](@ref)), routing surface excess water to `runoff` and moving the heat of the
+redistributed water in the `internal_energy` of `energy` (either may be `nothing` to skip the routing or
+the heat transfer), then update the water table and compute the `pressure_head`. Shared by
+[`closure!`](@ref) and the implicit Richards step, whose intermediate iterations skip the routing and the
+heat transfer.
+"""
+function compute_saturation_closure!(
+        state, grid,
+        closure::SoilSaturationPressureClosure,
+        hydrology::SoilHydrology{NF, RichardsEq},
+        soil::AbstractSoil,
+        runoff::AbstractSurfaceRunoff,
+        energy::AbstractSoilThermodynamics
+    ) where {NF}
     strat = get_stratigraphy(soil)
     bgc = get_biogeochemistry(soil)
-    # apply saturation correction, moving the heat of the redistributed water
-    adjust_saturation_profile!(state, grid, hydrology, runoff, strat, bgc, get_energy_balance(soil))
+    adjust_saturation_profile!(state, grid, hydrology, runoff, strat, bgc, energy)
     # update water table
     compute_water_table!(state, grid, hydrology)
     # determine pressure head from saturation

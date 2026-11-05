@@ -84,8 +84,6 @@ linearize!(operator::DiagonalOperator, rhs, state, grid, snow::SingleLayerSnow, 
 
 implicit_update!(state, grid, snow::SingleLayerSnow, constants::PhysicalConstants, operator::DiagonalOperator, explicit_water, Δt, ::Iteration{:snow_water_equivalent})
 
-implicit_closure!(state, grid, snow::SingleLayerSnow, constants::PhysicalConstants, ::Iteration{:snow_water_equivalent})
-
 compute_snow_ice_content
 
 compute_implicit_meltwater_coefficients!

@@ -117,8 +117,9 @@ The implicit operator of `internal_energy` is a [`TridiagonalOperator`](@ref) in
 implicit_operator(energy::SoilThermodynamics, hydrology::AbstractSoilHydrology, state, grid)
 linearize!(operator::TridiagonalOperator, rhs, state, grid, energy::SoilThermodynamics, soil::AbstractSoil, constants::PhysicalConstants, explicit_energy, Δt)
 implicit_update!(state, grid, energy::SoilThermodynamics, soil::AbstractSoil, operator::TridiagonalOperator, explicit_energy, Δt)
-implicit_closure!(state, grid, energy::SoilThermodynamics, soil::AbstractSoil, constants::PhysicalConstants, runoff, iteration::Iteration)
 ```
+
+After each iteration, the temperature and liquid water fraction are re-diagnosed with the regular energy closure, which has no once-per-step effects.
 
 ## [Coupling of water and energy](@id imex-water-energy-coupling)
 

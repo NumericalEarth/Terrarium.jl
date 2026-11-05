@@ -98,7 +98,7 @@ of `evtr` (if given) and the user-defined `vwc_forcing` as source terms. `timest
 [`Timestepping`](@ref) class of `saturation_water_ice` (see
 [`timestepping(state, ::Val)`](@ref timestepping)). Under [`Explicit`](@ref) the full divergence of the
 Darcy flux is added. Under [`Implicit`](@ref) the fluxes through the interior faces are omitted
-(integrated by the implicit sub-stepper, see [`Picard`](@ref)), leaving the fluxes through the two
+(integrated by the implicit sub-stepper, see [`BackwardEuler`](@ref)), leaving the fluxes through the two
 boundary faces (see [`compute_boundary_darcy_flux_divergence`](@ref)). The flux boundary conditions on
 `saturation_water_ice` (e.g. [`InfiltrationFlux`](@ref)) from `compute_boundary_conditions!` and the
 source terms are part of the tendency in both cases.
@@ -136,10 +136,11 @@ end
 
 Compute the volumetric water content (VWC) tendency at grid cell `i, j k` according to the
 Richardson-Richards equation. Note that the VWC tendency is not scaled by the porosity and
-is thus not the same as the saturation tendency. Under [`Explicit`](@ref) time stepping (the default)
-the full divergence of the Darcy flux is included; under [`Implicit`](@ref) only the boundary-face
-fluxes are ([`compute_boundary_darcy_flux_divergence`](@ref)), the interior ones being integrated by the
-implicit sub-stepper.
+is thus not the same as the saturation tendency. Like the energy tendency, it is the explicitly
+integrated part of the tendency, and `timestepping` is the class of `saturation_water_ice`: under
+[`Explicit`](@ref) (the default) the full divergence of the Darcy flux is included; under
+[`Implicit`](@ref) only the boundary-face fluxes are ([`compute_boundary_darcy_flux_divergence`](@ref)),
+the interior ones being integrated by the implicit sub-stepper.
 """
 @propagate_inbounds function compute_volumetric_water_content_tendency(
         i, j, k, grid, clock, fields,
@@ -182,7 +183,7 @@ of cell `k = 1`, top face of cell `k = Nz`), omitting all interior faces:
     (δ_{k,Nz} j_{w,k+½} - δ_{k,1} j_{w,k-½}) / Δz_k,
 
 with `j_w` the [`darcy_flux`](@ref). This is the explicit part when the interior fluxes are integrated
-implicitly (see [`Picard`](@ref)). The boundary fluxes are computed from the `pressure_head` halo: they
+implicitly (see [`BackwardEuler`](@ref)). The boundary fluxes are computed from the `pressure_head` halo: they
 vanish for the default (no-flux) conditions and carry the prescribed flux for a gradient condition on
 `pressure_head`. Flux boundary conditions on `saturation_water_ice` (e.g. [`InfiltrationFlux`](@ref))
 are added separately by `compute_boundary_conditions!`.

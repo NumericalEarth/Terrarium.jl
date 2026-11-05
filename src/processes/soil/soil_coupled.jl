@@ -218,8 +218,7 @@ function implicit_update!(state, grid, soil::SoilEnergyWaterCarbon, operator::Ab
     return nothing
 end
 
-# The optional `surface_hydrology` is that of a coupled `LandModel`; its runoff (if any) receives excess
-# surface water, as in the explicit `closure!`.
+# The optional `surface_hydrology` is that of a coupled `LandModel`; it is not used by the energy closure.
 function implicit_closure!(
         state, grid,
         soil::SoilEnergyWaterCarbon,
@@ -227,8 +226,8 @@ function implicit_closure!(
         surface_hydrology::Optional{AbstractSurfaceHydrology},
         iteration::Iteration{:internal_energy}
     )
-    runoff = isnothing(surface_hydrology) ? nothing : get_surface_runoff(surface_hydrology)
-    implicit_closure!(state, grid, soil.energy, soil, constants, runoff, iteration)
+    # the energy closure has no once-per-step effects, so every iteration applies the regular closure
+    closure!(state, grid, soil.energy.closure, soil.energy, soil, constants)
     return nothing
 end
 

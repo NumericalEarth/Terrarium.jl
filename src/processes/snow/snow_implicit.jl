@@ -87,15 +87,6 @@ function implicit_update!(
     return nothing
 end
 
-"""
-    $TYPEDSIGNATURES
-
-Re-evaluate the snow closure (temperature and liquid fraction) at the new iterate of `snow_water_equivalent`.
-"""
-function implicit_closure!(state, grid, snow::SingleLayerSnow, constants::PhysicalConstants, ::Iteration{:snow_water_equivalent})
-    closure!(state, grid, snow, constants)
-    return nothing
-end
 
 # Kernel functions
 

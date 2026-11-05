@@ -117,9 +117,9 @@ end
 """
     $TYPEDSIGNATURES
 
-Redistribute over- and undersaturation ([`adjust_saturation_profile!`](@ref)), then update the water
-table, pressure head, and hydraulic conductivity. Only in the final `iteration` is the surface excess
-routed to `runoff` and the heat of the redistributed water moved.
+Apply the regular saturation–pressure [`closure!`](@ref) after the final iteration of the implicit step,
+which routes the surface excess to `runoff` and moves the heat of the redistributed water, then update
+the hydraulic conductivity.
 """
 function implicit_closure!(
         state, grid,
@@ -127,16 +127,29 @@ function implicit_closure!(
         soil::AbstractSoil,
         constants::PhysicalConstants,
         runoff::Optional{AbstractSurfaceRunoff},
-        iteration::Iteration
-    ) where {NF}
-    strat = get_stratigraphy(soil)
-    bgc = get_biogeochemistry(soil)
-    # route the surface excess and move heat only once per step, in the final iteration
-    runoff = isfinal(iteration) ? runoff : nothing
-    energy = isfinal(iteration) ? get_energy_balance(soil) : nothing
-    adjust_saturation_profile!(state, grid, hydrology, runoff, strat, bgc, energy)
-    compute_water_table!(state, grid, hydrology)
-    compute_pressure_head!(state, grid, get_closure(hydrology), hydrology, soil)
+        ::Iteration{name, target, true}
+    ) where {NF, name, target}
+    closure!(state, grid, get_closure(hydrology), hydrology, soil, runoff)
+    compute_hydraulics!(state, grid, hydrology, soil)
+    return nothing
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Apply the saturation–pressure closure without its once-per-step effects after an intermediate iteration
+of the implicit step ([`compute_saturation_closure!`](@ref) without runoff routing or heat transfer), since
+every iteration restarts from the explicit stage, then update the hydraulic conductivity.
+"""
+function implicit_closure!(
+        state, grid,
+        hydrology::SoilHydrology{NF, RichardsEq},
+        soil::AbstractSoil,
+        constants::PhysicalConstants,
+        runoff::Optional{AbstractSurfaceRunoff},
+        ::Iteration{name, target, false}
+    ) where {NF, name, target}
+    compute_saturation_closure!(state, grid, get_closure(hydrology), hydrology, soil, nothing, nothing)
     compute_hydraulics!(state, grid, hydrology, soil)
     return nothing
 end

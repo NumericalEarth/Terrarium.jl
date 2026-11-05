@@ -123,8 +123,10 @@ function implicit_update! end
     implicit_closure!(state, model::AbstractModel, ::Iteration{name, target, final})
 
 Process hook of the implicit solver. Re-evaluate the closure of variable `name` (and the auxiliary
-variables the next linearization needs) after [`implicit_update!`](@ref). Once-per-step side effects
-(e.g. routing excess water to runoff) must be restricted to `final = true`.
+variables the next linearization needs) after [`implicit_update!`](@ref), for the process that owns
+the variable only. A model typically forwards it to the regular process [`closure!`](@ref) of that
+process; only a closure with once-per-step side effects (e.g. routing excess water to runoff) needs its
+own method, which must restrict them to `final = true` (see the soil hydrology for an example).
 """
 function implicit_closure! end
 

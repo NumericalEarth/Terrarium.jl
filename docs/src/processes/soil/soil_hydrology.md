@@ -154,7 +154,9 @@ The implicit operator of `saturation_water_ice` is a [`TridiagonalOperator`](@re
 implicit_operator(hydrology::SoilHydrology{NF, RichardsEq}, state, grid) where {NF}
 linearize!(operator::TridiagonalOperator, rhs, state, grid, hydrology::SoilHydrology{NF, RichardsEq}, soil::AbstractSoil, constants::PhysicalConstants, explicit_saturation, Δt) where {NF}
 implicit_update!(state, grid, hydrology::SoilHydrology{NF, RichardsEq}, soil::AbstractSoil, operator::TridiagonalOperator, explicit_saturation, Δt) where {NF}
-implicit_closure!(state, grid, hydrology::SoilHydrology{NF, RichardsEq}, soil::AbstractSoil, constants::PhysicalConstants, runoff::Optional{AbstractSurfaceRunoff}, iteration::Iteration) where {NF}
+implicit_closure!(state, grid, hydrology::SoilHydrology{NF, RichardsEq}, soil::AbstractSoil, constants::PhysicalConstants, runoff::Optional{AbstractSurfaceRunoff}, ::Iteration{name, target, true}) where {NF, name, target}
+implicit_closure!(state, grid, hydrology::SoilHydrology{NF, RichardsEq}, soil::AbstractSoil, constants::PhysicalConstants, runoff::Optional{AbstractSurfaceRunoff}, ::Iteration{name, target, false}) where {NF, name, target}
+compute_saturation_closure!
 ```
 
 ## Hydraulic properties

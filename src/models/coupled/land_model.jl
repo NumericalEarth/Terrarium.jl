@@ -215,7 +215,7 @@ function implicit_update!(state, model::LandModel, operator::AbstractLinearOpera
 end
 
 function implicit_closure!(state, model::LandModel, iteration::Iteration{:snow_water_equivalent})
-    implicit_closure!(state, get_grid(model), model.snow, model.constants, iteration)
+    closure!(state, get_grid(model), model.snow, model.constants)
     return nothing
 end
 

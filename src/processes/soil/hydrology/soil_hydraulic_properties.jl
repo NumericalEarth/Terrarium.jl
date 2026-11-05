@@ -62,7 +62,7 @@ function residual_saturation end
     minimum_moisture_capacity(hydraulics::AbstractSoilHydraulics)
 
 Numerical lower bound (1/m) of the specific moisture capacity `∂θ/∂ψ` used on the diagonal of the
-implicit Richards solve (see [`Picard`](@ref) and [`compute_implicit_capacity!`](@ref)).
+implicit Richards solve (see [`compute_implicit_capacity!`](@ref)).
 It plays the role of a small specific storage: in saturated cells `∂θ/∂ψ = 0`, and a saturated cell
 whose faces have zero hydraulic conductivity (e.g. a frozen saturated cell) would otherwise give a
 singular row of the tridiagonal system.

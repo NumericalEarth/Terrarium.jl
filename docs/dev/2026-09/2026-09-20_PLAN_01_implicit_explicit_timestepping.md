@@ -1,6 +1,6 @@
 # Add support for implicit-explicit (IMEX) time stepping
 
-> Status: **completed**. Phases 1–3 and revisions 19–33 are implemented, the test suite and doc build pass in CI, and Phase 4, Path 1, and the Richards Picard safeguard (revision 24) are deferred to future work.
+> Status: **completed**. Phases 1–3 and revisions 19–34 are implemented, the test suite and doc build pass in CI, and Phase 4, Path 1, and the Richards Picard safeguard (revision 24) are deferred to future work.
 
 Date of initial draft: 2026-09-20
 
@@ -548,6 +548,12 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 > Tests, examples, benchmark configurations, and documentation examples that relied on the old default set `SoilHydrology(NF, NoFlow())` explicitly only where their setup requires immobile water: comparisons against references that assume it (analytical heat conduction, explicit energy-only timescales, energy conservation with fixed water), setups that need an explicit timestepper (e.g. `PrescribedSurfaceTemperature`), configurations that are heat-only by name or purpose (the Reactant `soil_heat_*` configurations, the `:soil_heat` benchmark baseline, the `soil_heat_*` examples), and differentiability tests that isolate the clock, snow, or SEB. All other sites, including the generic grid, initializer, and parameter tests and the coupled examples (e.g. `speedy_wet_land.jl` and `land_global_era5.jl`), use the new Richards default; tests that check the defaults themselves are updated to the new defaults.
 > The implicit Richards tests move from `soil_hydrology_tests.jl` to their own file, `soil_hydrology_implicit_tests.jl`, with their helpers defined directly in the wrapping test module.
 > The docs that describe the default (`soil_model.md`, the "Configuring a model" walkthrough, which now switches from `RichardsEq` to `NoFlow`) are updated.
+
+> **Revision 34, 2026-11-05 (Claude Opus 5.5). Approved. Response to the second review of PR #196 (Maximilian Gelbrecht).**
+> 1. *`implicit_closure!` reuses the regular closure* (`implicit_solvers.jl`): the energy and snow steps re-evaluate their variable with the regular process `closure!`, and their process-level `implicit_closure!` methods are removed; the model-level hook, which selects the process that owns the variable, remains. Only the soil hydrology keeps a process-level method, dispatched on the `final` flag of the `Iteration`: the final iteration applies the regular saturation–pressure closure (which routes the surface excess and moves the heat of redistributed water), and earlier iterations apply it without these once-per-step effects, through a shared `compute_saturation_closure!`. Both update the hydraulic conductivity as before, so results are unchanged.
+> 2. *Explicit tendency under `Implicit()`* (`soil_energy.jl`): the docstrings of the energy and water tendency methods state that they compute the explicitly integrated part of the tendency, and that the trait says how the variable is integrated, not which part is computed.
+> 3. *Solver-neutral wording* (`soil_energy_implicit.jl`): "Picard iterate" in the process docstrings becomes "iterate of the implicit solver".
+> 4. *References to the implicit sub-stepper* (`soil_energy.jl`): "see `Picard`" in the tendency docstrings becomes a reference to `BackwardEuler`.
 
 ## Problem description
 

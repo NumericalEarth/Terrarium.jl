@@ -79,11 +79,14 @@ end
 """
     $TYPEDSIGNATURES
 
-Compute the internal energy tendency of `energy` for the [`Timestepping`](@ref) class `timestepping`
-of `internal_energy` (see [`timestepping(state, ::Val)`](@ref timestepping)). [`Explicit`](@ref): the
-full divergence of the diffusive and advective heat fluxes. [`Implicit`](@ref): only the diffusive
-fluxes and the advective inflow through the boundary faces; the rest is integrated by the implicit
-sub-stepper (see [`Picard`](@ref)). Flux boundary conditions are included in both cases.
+Compute the explicitly integrated part of the internal energy tendency of `energy`. The
+[`Timestepping`](@ref) argument is the class of `internal_energy` (see
+[`timestepping(state, ::Val)`](@ref timestepping)), i.e. how the variable is integrated, not which part
+of the tendency is computed. [`Explicit`](@ref): the whole tendency is integrated explicitly, i.e. the
+full divergence of the diffusive and advective heat fluxes. [`Implicit`](@ref): the fluxes through the
+interior faces are integrated by the implicit sub-stepper ([`BackwardEuler`](@ref)), so only the
+diffusive fluxes and the advective inflow through the boundary faces remain. Flux boundary conditions
+are included in both cases.
 """
 function compute_tendencies!(
         state, grid,
@@ -104,8 +107,8 @@ end
 """
     $TYPEDSIGNATURES
 
-Add the full internal energy tendency ([`compute_energy_tendency`](@ref)) at `i, j, k` under
-[`Explicit`](@ref) time stepping.
+Add the explicitly integrated part of the internal energy tendency at `i, j, k` when `internal_energy`
+is integrated explicitly, i.e. the full tendency ([`compute_energy_tendency`](@ref)).
 """
 @propagate_inbounds function compute_energy_tendencies!(
         tendencies, i, j, k, grid, fields,
@@ -120,9 +123,10 @@ end
 """
     $TYPEDSIGNATURES
 
-Add the explicit part of the internal energy tendency at `i, j, k` under [`Implicit`](@ref) time
-stepping: the diffusive fluxes through the boundary faces ([`compute_boundary_energy_tendency`](@ref))
-and the heat of water entering through them ([`compute_boundary_advective_energy_tendency`](@ref)).
+Add the explicitly integrated part of the internal energy tendency at `i, j, k` when `internal_energy`
+is integrated implicitly: the interior fluxes belong to the implicit operator, so only the diffusive
+fluxes through the boundary faces ([`compute_boundary_energy_tendency`](@ref)) and the heat of water
+entering through them ([`compute_boundary_advective_energy_tendency`](@ref)) remain.
 """
 @propagate_inbounds function compute_energy_tendencies!(
         tendencies, i, j, k, grid, fields,

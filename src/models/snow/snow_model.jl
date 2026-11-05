@@ -92,8 +92,9 @@ function implicit_update!(state, model::SnowModel, operator::AbstractLinearOpera
     return nothing
 end
 
+# the snow closure has no once-per-step effects, so every iteration applies the regular closure
 function implicit_closure!(state, model::SnowModel, iteration::Iteration)
-    implicit_closure!(state, model.grid, model.snow, model.constants, iteration)
+    closure!(state, model.grid, model.snow, model.constants)
     return nothing
 end
 
