@@ -22,78 +22,6 @@ Base revision: 99c748b79711e295e99a5a6370d386853652cf06
 > with a temporally evolving prescribed LAI climatology (this will be blocked by the interpolation not
 > Reactant compatible)
 
-## Revision log
-
-- 2026-08-14: initial draft, written during exploration and before the blocker list was confirmed by
-  running the model.
-- 2026-08-14: blockers confirmed by running. The suspected data-dependent-branch problem in the
-  photosynthesis kernel could **not** be reached — initialization fails first, so the traced step has
-  never executed. Two initialization-path blockers are confirmed instead, both rooted in lazy
-  `AbstractOperation`s, and reproduced in
-  `2026-08-14-reactant_abstract_operation_mwe.jl`. The `:vegetation_column` test configuration has been
-  added to `test/reactant/setup.jl` (not yet registered in `runtests.jl`, since it does not pass).
-- 2026-08-14: blocker #2 narrowed to a pure Oceananigans reproducer and handed off for an upstream fix.
-  The initial characterisation here ("`compute!` on an operation-backed `Field` fails under Reactant")
-  was too broad: it only fails when the grid's **vertical coordinate is array-valued**, which Terrarium's
-  `ExponentialSpacing` column grids always are. See
-  `2026-08-14-OCEANANIGANS_computed_field_stretched_grid_issue.md` and
-  `2026-08-14-oceananigans_computed_field_mwe.jl`.
-- 2026-08-25: **resolved.** Both blockers were fixed upstream in Oceananigans
-  (`maximilian-gelbrecht:mg/fix-compute-field-stretch`, on top of `main` — the earlier
-  `glw/copyable-fields-predicate` pin is now merged and no longer needed). Against that branch all seven
-  MWE cases A–G pass and `:vegetation_column` matches CPU to float-reorder tolerance, with **no change
-  to Terrarium's `src/`**. The "Proposed approach" below (kernelizing the two lazy operations) is
-  therefore no longer required for Reactant compatibility; see the decision note there. Two things
-  turned out differently from the draft: the data-dependent `if`/`else` in the photosynthesis kernel is
-  *not* a blocker (see the retitled section below), and the one Terrarium-side defect found was in the
-  *test harness*, not the model.
-- 2026-08-25: the out-of-scope time-varying LAI path was tested anyway, to confirm the assumption it
-  rests on. It does fail, and the failure is now reduced to a Terrarium-free reproducer in
-  `2026-08-25-OCEANANIGANS_fts_time_interpolation_issue.md` /
-  `2026-08-25-oceananigans_fts_time_interpolation_mwe.jl`. Three blockers, none of them the temporal
-  interpolation arithmetic itself (which traces correctly): a data-dependent branch and an `::Int`-only
-  snapshot index upstream, and a hard `convert` of the traced clock in our own `convert_dt`.
-- 2026-09-22, **revision 6** (prompt: *"Continue with the Reactant vegetation plan. The field time series
-  interpolation problem should be fixed in the `maximilian-gelbrecht:mg/fts-reactant` branch of Oceananigans
-  that will be merged into `main` soon. Use the feature branch for now and try to run the vegetation model
-  (including input data) with Reactant"*). Scope extended to the time-varying LAI input, which was the
-  explicit exclusion of the original draft. The two upstream blockers from the 2026-08-25 note are fixed on
-  `mg/fts-reactant` (Oceananigans 0.113.1): `getindex(::TotallyInMemoryFTS, ::Time{<:TracedRNumber})` is
-  now branchless and slices the snapshots dynamically. Running it against Terrarium's grids exposed **one
-  more upstream defect** — the fix builds `TracedRNumber{eltype(fts.grid)}`, and on a grid with array-valued
-  vertical coordinates (every `ExponentialSpacing` grid) the grid's element type is *already* a
-  `TracedRNumber` inside the trace, so this nests traced types and throws a `TypeError`. The upstream unit
-  test does not see it because it uses a uniform grid whose coordinates stay plain ranges. The one-line fix
-  (unwrap the element type) is in `docs/dev/2026-09/2026-09-22-oceananigans_fts_unwrapped_eltype.patch`,
-  was verified locally, and is on the branch since commit `92919412` (same day). Terrarium-side: the `convert_dt` blocker is
-  fixed in the Reactant extension; two `FieldTimeSeries` constructor gaps found on the way (no
-  `time_indexing` forwarding, and a wrong `reshape` that made the 2D RingGrids-field constructor fail) are
-  fixed in `src/`. New suite configuration `:vegetation_column_lai_cycle`; the harness now accepts
-  `inputs`. Both Oceananigans pins moved to `mg/fts-reactant`, which required widening the compat bound to
-  `0.113` — a `[compat]` edit, called out here because AGENTS.md reserves those for explicit requests; it
-  is implied by the instruction to use the branch.
-- 2026-09-22, **revision 7** (prompt: *"Once all of this is done, add one further test for a full default
-  `LandModel` (with vegetation, soil, snow)"*). New suite configuration `:land_default`: `LandModel(grid)`
-  with every component at its default — `VegetationCarbonCycle` (PALADYN phenology, carbon and vegetation
-  dynamics, autotrophic respiration), `SoilEnergyWaterCarbon` with Richards-equation hydrology and SURFEX
-  hydraulics, `SingleLayerSnow`, default surface energy balance and surface hydrology — except the
-  skin-temperature solver, which is the fixed-iteration `NewtonSolver` because the default `RootSolver`'s
-  convergence-tested loop still cannot be raised (blocker #6 of the 2026-08-04 coupled-model plan; the
-  default is unchanged there too). Initial state as in `:land_soil_snow` (cold, no melt) plus a nonzero
-  vegetation carbon pool and area fraction so the vegetation tendencies are active. Passes CPU-vs-Reactant;
-  see Testing. Two side findings: the "default pure-sand texture makes β non-finite" defect listed under
-  Future work no longer reproduces (β = 0.39, finite, on current `main`), and the fast carbon turnover
-  (`yr⁻¹` rates integrated per second) and the 31 °C skin temperature over snow (constant albedo) are
-  both visible in the run and both still open; neither affects the CPU-vs-Reactant comparison. Also in
-  this revision, at the user's request: the traced `convert_dt` method moved from a separate file into
-  `TerrariumReactantExt.jl`, and the Reactant examples dropped their uniform-grid restriction
-  (*"adjust the Reactant `examples`, as we don't need to use uniformly spaced grids anymore now"*):
-  `examples/autodiff/differentiating_terrarium_reactant.jl` and `global_sensitivity.jl` now use
-  `ExponentialSpacing` like their CPU counterparts, the stale "cannot update `FieldTimeSeries` inputs"
-  remark in the latter is corrected, and `docs/src/running/reactant.md` describes the current test
-  coverage (stretched grids, snow, vegetation, time-varying inputs, coupled `LandModel`) instead of
-  "heat conduction with uniform vertical spacing".
-
 ## Problem description
 
 `test/reactant/` covers standalone `SoilModel` and `SnowModel` configurations and the coupled
@@ -622,3 +550,75 @@ the forwarded keyword arguments. `examples/simulations/vegetation_global.jl` is 
   Reactant. A warm variant of `:land_default` (active photosynthesis, canopy interception) would complete
   the coverage.
 - Drop the Oceananigans `[sources]` pin once `mg/fts-reactant` (with the eltype patch) is merged and released.
+
+## Revision log
+
+- 2026-08-14: initial draft, written during exploration and before the blocker list was confirmed by
+  running the model.
+- 2026-08-14: blockers confirmed by running. The suspected data-dependent-branch problem in the
+  photosynthesis kernel could **not** be reached — initialization fails first, so the traced step has
+  never executed. Two initialization-path blockers are confirmed instead, both rooted in lazy
+  `AbstractOperation`s, and reproduced in
+  `2026-08-14-reactant_abstract_operation_mwe.jl`. The `:vegetation_column` test configuration has been
+  added to `test/reactant/setup.jl` (not yet registered in `runtests.jl`, since it does not pass).
+- 2026-08-14: blocker #2 narrowed to a pure Oceananigans reproducer and handed off for an upstream fix.
+  The initial characterisation here ("`compute!` on an operation-backed `Field` fails under Reactant")
+  was too broad: it only fails when the grid's **vertical coordinate is array-valued**, which Terrarium's
+  `ExponentialSpacing` column grids always are. See
+  `2026-08-14-OCEANANIGANS_computed_field_stretched_grid_issue.md` and
+  `2026-08-14-oceananigans_computed_field_mwe.jl`.
+- 2026-08-25: **resolved.** Both blockers were fixed upstream in Oceananigans
+  (`maximilian-gelbrecht:mg/fix-compute-field-stretch`, on top of `main` — the earlier
+  `glw/copyable-fields-predicate` pin is now merged and no longer needed). Against that branch all seven
+  MWE cases A–G pass and `:vegetation_column` matches CPU to float-reorder tolerance, with **no change
+  to Terrarium's `src/`**. The "Proposed approach" below (kernelizing the two lazy operations) is
+  therefore no longer required for Reactant compatibility; see the decision note there. Two things
+  turned out differently from the draft: the data-dependent `if`/`else` in the photosynthesis kernel is
+  *not* a blocker (see the retitled section below), and the one Terrarium-side defect found was in the
+  *test harness*, not the model.
+- 2026-08-25: the out-of-scope time-varying LAI path was tested anyway, to confirm the assumption it
+  rests on. It does fail, and the failure is now reduced to a Terrarium-free reproducer in
+  `2026-08-25-OCEANANIGANS_fts_time_interpolation_issue.md` /
+  `2026-08-25-oceananigans_fts_time_interpolation_mwe.jl`. Three blockers, none of them the temporal
+  interpolation arithmetic itself (which traces correctly): a data-dependent branch and an `::Int`-only
+  snapshot index upstream, and a hard `convert` of the traced clock in our own `convert_dt`.
+- 2026-09-22, **revision 6** (prompt: *"Continue with the Reactant vegetation plan. The field time series
+  interpolation problem should be fixed in the `maximilian-gelbrecht:mg/fts-reactant` branch of Oceananigans
+  that will be merged into `main` soon. Use the feature branch for now and try to run the vegetation model
+  (including input data) with Reactant"*). Scope extended to the time-varying LAI input, which was the
+  explicit exclusion of the original draft. The two upstream blockers from the 2026-08-25 note are fixed on
+  `mg/fts-reactant` (Oceananigans 0.113.1): `getindex(::TotallyInMemoryFTS, ::Time{<:TracedRNumber})` is
+  now branchless and slices the snapshots dynamically. Running it against Terrarium's grids exposed **one
+  more upstream defect** — the fix builds `TracedRNumber{eltype(fts.grid)}`, and on a grid with array-valued
+  vertical coordinates (every `ExponentialSpacing` grid) the grid's element type is *already* a
+  `TracedRNumber` inside the trace, so this nests traced types and throws a `TypeError`. The upstream unit
+  test does not see it because it uses a uniform grid whose coordinates stay plain ranges. The one-line fix
+  (unwrap the element type) is in `docs/dev/2026-09/2026-09-22-oceananigans_fts_unwrapped_eltype.patch`,
+  was verified locally, and is on the branch since commit `92919412` (same day). Terrarium-side: the `convert_dt` blocker is
+  fixed in the Reactant extension; two `FieldTimeSeries` constructor gaps found on the way (no
+  `time_indexing` forwarding, and a wrong `reshape` that made the 2D RingGrids-field constructor fail) are
+  fixed in `src/`. New suite configuration `:vegetation_column_lai_cycle`; the harness now accepts
+  `inputs`. Both Oceananigans pins moved to `mg/fts-reactant`, which required widening the compat bound to
+  `0.113` — a `[compat]` edit, called out here because AGENTS.md reserves those for explicit requests; it
+  is implied by the instruction to use the branch.
+- 2026-09-22, **revision 7** (prompt: *"Once all of this is done, add one further test for a full default
+  `LandModel` (with vegetation, soil, snow)"*). New suite configuration `:land_default`: `LandModel(grid)`
+  with every component at its default — `VegetationCarbonCycle` (PALADYN phenology, carbon and vegetation
+  dynamics, autotrophic respiration), `SoilEnergyWaterCarbon` with Richards-equation hydrology and SURFEX
+  hydraulics, `SingleLayerSnow`, default surface energy balance and surface hydrology — except the
+  skin-temperature solver, which is the fixed-iteration `NewtonSolver` because the default `RootSolver`'s
+  convergence-tested loop still cannot be raised (blocker #6 of the 2026-08-04 coupled-model plan; the
+  default is unchanged there too). Initial state as in `:land_soil_snow` (cold, no melt) plus a nonzero
+  vegetation carbon pool and area fraction so the vegetation tendencies are active. Passes CPU-vs-Reactant;
+  see Testing. Two side findings: the "default pure-sand texture makes β non-finite" defect listed under
+  Future work no longer reproduces (β = 0.39, finite, on current `main`), and the fast carbon turnover
+  (`yr⁻¹` rates integrated per second) and the 31 °C skin temperature over snow (constant albedo) are
+  both visible in the run and both still open; neither affects the CPU-vs-Reactant comparison. Also in
+  this revision, at the user's request: the traced `convert_dt` method moved from a separate file into
+  `TerrariumReactantExt.jl`, and the Reactant examples dropped their uniform-grid restriction
+  (*"adjust the Reactant `examples`, as we don't need to use uniformly spaced grids anymore now"*):
+  `examples/autodiff/differentiating_terrarium_reactant.jl` and `global_sensitivity.jl` now use
+  `ExponentialSpacing` like their CPU counterparts, the stale "cannot update `FieldTimeSeries` inputs"
+  remark in the latter is corrected, and `docs/src/running/reactant.md` describes the current test
+  coverage (stretched grids, snow, vegetation, time-varying inputs, coupled `LandModel`) instead of
+  "heat conduction with uniform vertical spacing".

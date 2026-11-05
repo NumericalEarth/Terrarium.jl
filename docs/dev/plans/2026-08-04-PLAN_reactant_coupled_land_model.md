@@ -15,56 +15,6 @@ Base revision: e015a29db9d97090edfd112a5eea165640134404
 > Add a LandModel with Soil (including Richards eq) and Snow but without Vegetation to the Reactant
 > model setup and test (and work on) it running correctly with Reactant. Report issues to me.
 
-## Revision log
-
-- 2026-08-04: initial draft, written after the blockers were found and fixed.
-- 2026-08-04: the Terrarium-side workaround for blocker #5 (materializing the negated infiltration into
-  a `soil_water_flux` coupling field) was **reverted** on request — the underlying `getbc` limitation is
-  to be fixed in Oceananigans instead. Written up separately, with a Terrarium-free MWE, in
-  `2026-08-04-OCEANANIGANS_getbc_2d_indexing_issue.md`.
-- 2026-08-13: **blocker #5 is fixed upstream.** Oceananigans 0.110.15 indexes array-valued boundary
-  conditions in 3D (`condition[i, j, 1]`), so the lazy `UnaryOperation` water BC in `LandModel` works
-  without the reverted workaround. Compat bounds raised to `0.110.15` in the root and
-  `test/reactant` projects; the test environment resolves to Oceananigans 0.110.15 with Reactant
-  0.2.278. Note that this required letting Reactant move off its pinned 0.2.272 — that pin, not any
-  declared bound, was what previously held Oceananigans at ≤ 0.110.13.
-- 2026-08-13: repaired a half-finished `pad_indices` → `field_indices` rename that broke the solvers.
-  `NewtonSolver` still called the removed `pad_indices` and shadowed the new function with a local of
-  the same name (AGENTS.md pitfall #7), and `FixedPointSolver` splatted the *function* rather than
-  calling it. Both `RootSolver` and `FixedPointSolver` also read their target field with the raw 2D
-  index tuple; all reads and writes now go through `field_indices` (pitfall #10). The full CPU suite
-  passes again.
-- 2026-08-13: added an `@assert_kernel` macro (`src/utils/kernel_utils.jl`) — a `Base.@assert`
-  replacement that is disabled once Reactant is loaded, so kernels can keep correctness guards on the
-  CPU/GPU backends without emitting an un-raisable `llvm.intr.trap`. See the note below on why the
-  guard is load-time rather than trace-time.
-- 2026-08-13: `:land_soil_snow` **passes against released Oceananigans 0.110.15 with no workaround** —
-  all 62 fields match. The full Reactant suite is green (115/115 comparison, 6/6 autodiff), as is the
-  CPU suite. The soil+snow half of this plan is complete.
-- 2026-08-14: blocker #3's local workaround was reverted (`dcae39485`, "revert to set!"), on the
-  assumption that Oceananigans' upstream `set!` improvements (unrelated to blocker #5) had also fixed
-  this case. They had not (yet — see below): `set!(state.skin_temperature, state.ground_temperature)`
-  still failed with the same `pointer` error on `ConcretePJRTArray`. Root-caused to an upstream bug in
-  `OceananigansReactantExt.Fields.broadcastable_dimension`, which is asymmetric and misclassifies this
-  location-`Nothing`-vs-windowed-`Center` pair as non-broadcastable, sending `set!` into a
-  CPU-interpolation branch that itself hits a missing Reactant.jl `copyto!` overload
-  (`SubArray{Array} ← SubArray{ConcretePJRTArray}`, device → host). Reproduced in a Terrarium-free MWE;
-  see `2026-08-14-oceananigans_broadcastable_dimension_issue.md` and the accompanying MWE script.
-- 2026-08-14: **fixed upstream, on Oceananigans branch `glw/copyable-fields-predicate`** (commit
-  `b9ff6dcd`, unifying the base `set!` predicate and the Reactant extension's predicate). Not yet merged
-  to `main` or released. `test/reactant/Project.toml` now pins Oceananigans to this branch via
-  `[sources]` (previously that section didn't exist in this file at all — only the *root*
-  `Project.toml` had a source override, so the test environment silently ignored it and every prior
-  local test in `test/reactant` had been running against the plain registry release regardless of any
-  branch pin declared elsewhere). The same fix added a `Terrarium = {path = "../.."}` source, since that
-  was *also* missing and caused `test/reactant` to resolve `Terrarium` from a stale package-cache
-  snapshot rather than the live working tree (silently invalidating local `src/` edits tested through
-  that environment, including `NewtonSolver`, which was `UndefVarError` there until fixed). With both
-  sources correctly pinned and a from-scratch re-instantiate, blocker #3's local workaround is
-  unnecessary: `skin_temperature.jl`'s `initialize!` is back to plain `set!`, and `:land_soil_snow`
-  passes 57/57 fields (~7 min). Full details in
-  `2026-08-14-oceananigans_broadcastable_dimension_issue.md`.
-
 ## Problem description
 
 `test/reactant/` only covered *standalone* models: `SoilModel` with the default `NoFlow` hydrology
@@ -336,3 +286,53 @@ makes the extension's definition a new method instead.
   the `isfinite(ψm)` check dropped in blocker #1.
 - Add a `LandModel` configuration to `test/reactant/autodiff.jl` once the forward path is verified.
 - Select a snow-aware albedo in `default_surface_energy_balance` when a snow component is present.
+
+## Revision log
+
+- 2026-08-04: initial draft, written after the blockers were found and fixed.
+- 2026-08-04: the Terrarium-side workaround for blocker #5 (materializing the negated infiltration into
+  a `soil_water_flux` coupling field) was **reverted** on request — the underlying `getbc` limitation is
+  to be fixed in Oceananigans instead. Written up separately, with a Terrarium-free MWE, in
+  `2026-08-04-OCEANANIGANS_getbc_2d_indexing_issue.md`.
+- 2026-08-13: **blocker #5 is fixed upstream.** Oceananigans 0.110.15 indexes array-valued boundary
+  conditions in 3D (`condition[i, j, 1]`), so the lazy `UnaryOperation` water BC in `LandModel` works
+  without the reverted workaround. Compat bounds raised to `0.110.15` in the root and
+  `test/reactant` projects; the test environment resolves to Oceananigans 0.110.15 with Reactant
+  0.2.278. Note that this required letting Reactant move off its pinned 0.2.272 — that pin, not any
+  declared bound, was what previously held Oceananigans at ≤ 0.110.13.
+- 2026-08-13: repaired a half-finished `pad_indices` → `field_indices` rename that broke the solvers.
+  `NewtonSolver` still called the removed `pad_indices` and shadowed the new function with a local of
+  the same name (AGENTS.md pitfall #7), and `FixedPointSolver` splatted the *function* rather than
+  calling it. Both `RootSolver` and `FixedPointSolver` also read their target field with the raw 2D
+  index tuple; all reads and writes now go through `field_indices` (pitfall #10). The full CPU suite
+  passes again.
+- 2026-08-13: added an `@assert_kernel` macro (`src/utils/kernel_utils.jl`) — a `Base.@assert`
+  replacement that is disabled once Reactant is loaded, so kernels can keep correctness guards on the
+  CPU/GPU backends without emitting an un-raisable `llvm.intr.trap`. See the note below on why the
+  guard is load-time rather than trace-time.
+- 2026-08-13: `:land_soil_snow` **passes against released Oceananigans 0.110.15 with no workaround** —
+  all 62 fields match. The full Reactant suite is green (115/115 comparison, 6/6 autodiff), as is the
+  CPU suite. The soil+snow half of this plan is complete.
+- 2026-08-14: blocker #3's local workaround was reverted (`dcae39485`, "revert to set!"), on the
+  assumption that Oceananigans' upstream `set!` improvements (unrelated to blocker #5) had also fixed
+  this case. They had not (yet — see below): `set!(state.skin_temperature, state.ground_temperature)`
+  still failed with the same `pointer` error on `ConcretePJRTArray`. Root-caused to an upstream bug in
+  `OceananigansReactantExt.Fields.broadcastable_dimension`, which is asymmetric and misclassifies this
+  location-`Nothing`-vs-windowed-`Center` pair as non-broadcastable, sending `set!` into a
+  CPU-interpolation branch that itself hits a missing Reactant.jl `copyto!` overload
+  (`SubArray{Array} ← SubArray{ConcretePJRTArray}`, device → host). Reproduced in a Terrarium-free MWE;
+  see `2026-08-14-oceananigans_broadcastable_dimension_issue.md` and the accompanying MWE script.
+- 2026-08-14: **fixed upstream, on Oceananigans branch `glw/copyable-fields-predicate`** (commit
+  `b9ff6dcd`, unifying the base `set!` predicate and the Reactant extension's predicate). Not yet merged
+  to `main` or released. `test/reactant/Project.toml` now pins Oceananigans to this branch via
+  `[sources]` (previously that section didn't exist in this file at all — only the *root*
+  `Project.toml` had a source override, so the test environment silently ignored it and every prior
+  local test in `test/reactant` had been running against the plain registry release regardless of any
+  branch pin declared elsewhere). The same fix added a `Terrarium = {path = "../.."}` source, since that
+  was *also* missing and caused `test/reactant` to resolve `Terrarium` from a stale package-cache
+  snapshot rather than the live working tree (silently invalidating local `src/` edits tested through
+  that environment, including `NewtonSolver`, which was `UndefVarError` there until fixed). With both
+  sources correctly pinned and a from-scratch re-instantiate, blocker #3's local workaround is
+  unnecessary: `skin_temperature.jl`'s `initialize!` is back to plain `set!`, and `:land_soil_snow`
+  passes 57/57 fields (~7 min). Full details in
+  `2026-08-14-oceananigans_broadcastable_dimension_issue.md`.

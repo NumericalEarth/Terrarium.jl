@@ -22,14 +22,6 @@ The drafting of this standalone document was requested in:
 > Draft separate design documents for PR-A and PR-B (see design doc for single-layer snow scheme in
 > `scratch/design/`). [...]
 
-## Revision log
-
-- The initial plan split the dual-role field into `surface_heat_flux` (SEB closure flux) and
-  `ground_heat_flux` (soil-top BC). On the author's direction the naming was swapped: `ground_heat_flux`
-  is retained for the SEB closure flux (standard terminology) and the *soil-top BC* is renamed
-  `soil_heat_flux` (alias `SoilHeatFlux` → `SoilHeatFlux`). Net effect: the SEB source is unchanged;
-  only the soil BC alias, its export, and the `LandModel` wiring changed.
-
 ## The ambiguity
 
 `ground_heat_flux` is a single `XY` auxiliary `Field` that currently serves **two distinct roles**:
@@ -143,3 +135,11 @@ deliberate deviation from the snow doc's grouping; it keeps PR-B a verifiable no
 - Suggested order **PR-A then PR-B**, though the two are largely independent and can be reordered. The
   snow PR depends on both: it adds the `f_snow`-blended `soil_heat_flux` field (wired to the soil BC in
   the snow branch of strategy A) computed from the SEB `ground_heat_flux` and the snow-base conduction.
+
+## Revision log
+
+- The initial plan split the dual-role field into `surface_heat_flux` (SEB closure flux) and
+  `ground_heat_flux` (soil-top BC). On the author's direction the naming was swapped: `ground_heat_flux`
+  is retained for the SEB closure flux (standard terminology) and the *soil-top BC* is renamed
+  `soil_heat_flux` (alias `SoilHeatFlux` → `SoilHeatFlux`). Net effect: the SEB source is unchanged;
+  only the soil BC alias, its export, and the `LandModel` wiring changed.

@@ -24,210 +24,6 @@ Base revision: 462c6422b22829b88e491457894264419704d691
 > plan into the `scratch/design` folder. Include this prompt text at the top. Feel free to ask any
 > clarifying questions that arise.
 
-## Revision log
-
-Follow-up prompt (revision 2), verbatim:
-
-> Make sure to append my prompts to the design document to keep track of this process. Regarding the
-> open question, I agree that this is a problem and would update the plan to make the depth-integrated
-> energy content the prognostic variable while exposing the volumetric energy content to the closure.
-> This should be done via a method and without allocating an auxiliary variable.
->
-> A couple of additional problems need to be addressed, however, before starting the implementation:
-> 1. Currently, `ground_heat_flux` is directly wired to the soil temperature state variable and is
->    also used in the SEB. This becomes problematic here because our snow surface heat flux would be
->    distinct from the conductive heat flux at the ground-snow interface. Investigate this ambiguity
->    and suggest a workaround or design change to the current BC handling.
-> 2. The existing soil energy and hydrology code is set up and named to be for soil. However, much of
->    the physics is transferrable as noted in the design plan. We should consider an initial
->    refactoring where the existing "soil" module is renamed to "ground" with soil-specific
->    parameterizations where appropriate. This should be done as a separate, preliminary work item
->    (and associated pull request) to avoid too many changes in one go.
-> Please provide your feedback regarding these points and update the plan accordingly.
-
-Resolutions adopted in this revision: (i) the prognostic snow energy is the **depth-integrated**
-(column) energy content (J/m²); the volumetric energy seen by the closure is computed by a **method**
-with no auxiliary field (see "Physical formulation"). (ii) The `ground_heat_flux` dual-role ambiguity
-is addressed by a heat-flux split (see "Boundary-condition disambiguation"). (iii) The soil/ground
-refactor is adopted as a scoped, abstraction-first preliminary work item (see "Preliminary refactoring
-work items").
-
-Revision 3 (2026-07-11) — **plan reconciliation** after the preliminary PRs landed. PR-A and PR-B are
-now **complete**; this plan is reconciled to their outcomes (physics unchanged):
-
-- The generic energy machinery lives in a top-level `thermodynamics/` module: `AbstractThermodynamics`,
-  the `ExplicitTwoPhaseHeatConduction` operator, and the medium-agnostic `FreeWater` enthalpy maps
-  (`liquid_water_fraction` / `energy_to_temperature`, in `thermodynamics/enthalpy.jl`). The snow closure
-  reuses these directly.
-- The soil energy process is `SoilThermodynamics` (was `SoilEnergyBalance`) under `soil/energy/`; the
-  `soil/` tree was **kept** (not renamed to `ground/`).
-- The heat-flux split (PR-B) keeps `ground_heat_flux` as the SEB closure flux `G` and introduces
-  `soil_heat_flux` (alias `SoilHeatFlux`) as the soil-top BC. **The snow blend therefore writes
-  `soil_heat_flux`, not `ground_heat_flux`.**
-- Surface processes now live under a single `surface/` tree (was `surface_energy/` + `surface_hydrology/`).
-
-Revision 4 (2026-07-12) — **implementation record** (phases 1–5 complete and tested). Delivered:
-
-- Phases 1–4 as planned: `SingleLayerSnow`/`NoSnow` process, `ConstantSnowDensity` scheme, the
-  depth-integrated enthalpy closure (`SnowEnergyTemperatureClosure`, temperature clipped at 0°C with the
-  excess derived on demand from `U_v > 0`), the mass/energy tendencies (`compute_snow_tendencies!` with
-  Darcy meltwater outflow), the standalone `SnowModel`, and the snow-aware SEB path (`DiagnosticAlbedo`
-  blending albedo/emissivity by `f_snow`, and the snow-weighted `ground_thermal_interface`).
-- Phase 5 `LandModel` integration in two steps. **5a** added `@component snow = NoSnow` and threaded the
-  snow through `initialize!`/`compute_auxiliary!`/`compute_tendencies!`/`closure!`/`invclosure!`; the
-  no-snow model is byte-for-byte unchanged. **5b** added the snow↔surface/soil **energy** coupling in
-  `src/models/coupled/snow_coupling.jl`:
-  - `Q_base` uses the **snow-resistance-only** closure `Q_base = 2·κ_snow·(T_soil − T_snow)/d_snow`
-    (author's decision; the snowpack dominates the series resistance, so the soil-side conductivity need
-    not be threaded into the snow coupling). Written to `basal_heat_flux` before the SEB.
-  - After the SEB: `surface_heat_flux ← ground_heat_flux` (the snow's top loss `G`) and the soil-top BC
-    flux `soil_heat_flux = f_snow·Q_base + (1 − f_snow)·G`. `soil_heat_flux` is a declared coupling
-    auxiliary (via `snow_coupling_variables`) so it is accessible in the state and backs the soil BC.
-  - Static **strategy A** BC wiring: `NoSnow` wires the soil-top BC to `ground_heat_flux` directly;
-    `SingleLayerSnow` wires it to the blended `soil_heat_flux` (`snow_soil_bc_flux`).
-  - The SEB field-gather now merges the snow thermal auxiliaries (`seb_conduction_fields`) so the
-    snow-aware `ground_thermal_interface` can be evaluated.
-- Verification: coupled land tests 30/30 (incl. a new snow-coupled testset), standalone snow tests 51/51,
-  skin-temperature tests 30/30. No regressions.
-
-**Deferred to a follow-up** (not part of this energy-coupling milestone): (i) the **water** coupling —
-routing snow meltwater outflow into soil infiltration and partitioning rain-on-snow vs. bare-ground
-throughfall; (ii) **sublimation** driven by the SEB latent-heat flux (currently the `sublimation` input
-defaults to zero in the coupled model); (iii) an **Enzyme** differentiability test for the snow
-tendencies/closure.
-
-Revision 5 (2026-07-13) — **parameterization decomposition.** The `SingleLayerSnow` process was refactored
-from a flat set of scalar parameters into composable sub-parameterization components, mirroring the soil
-hydraulics/thermal-properties pattern and consistent with Terrarium's modularity principle (each component
-is independently swappable):
-
-- `SingleLayerSnow{NF, Cover, Density, Conductivity, Hydraulics, Closure}` now holds five `@component`
-  fields: `cover`, `density`, `thermal_conductivity`, `hydraulic_properties`, and `closure`. The former
-  scalar parameters moved into the corresponding schemes.
-- **Cover** ([snow_cover.jl](../../src/processes/snow/snow_cover.jl)): `AbstractSnowCover{NF}` with
-  `FractionalSnowCover` (`f_snow = W/(W + W_ref)`, parameter `half_coverage`, negative-SWE clamped to zero).
-  `compute_snow_cover_fraction` now dispatches on the cover scheme.
-- **Density** ([snow_density.jl](../../src/processes/snow/snow_density.jl)): `AbstractSnowDensity{NF}` with
-  `ConstantSnowDensity` (parameter `density`).
-- **Thermal conductivity** ([snow_thermal_conductivity.jl](../../src/processes/snow/snow_thermal_conductivity.jl)):
-  `AbstractSnowThermalConductivity{NF}` with `PowerLawSnowThermalConductivity` (default),
-  `LogarithmicSnowThermalConductivity`, and `QuadraticSnowThermalConductivity`. All expose the shared
-  (exported) generic `compute_thermal_conductivity(cond, constants::MaterialConstants, ρ_snow)` — the snow
-  conductivity is recovered lazily at the call sites (SEB conduction target, basal flux) rather than stored
-  as an auxiliary field.
-- **Hydraulic properties** ([snow_hydraulic_properties.jl](../../src/processes/snow/snow_hydraulic_properties.jl)):
-  `AbstractSnowHydraulics{NF}` with `ConstantSnowHydraulics` (parameters `saturated_conductivity`,
-  `capillary_retention`). `compute_meltwater_outflow` now dispatches on the hydraulics scheme.
-- **Closure**: `SnowEnergyTemperatureClosure` (unchanged), retrieved via `get_closure(snow) = snow.closure`.
-
-The snow `@kernel`s that wrap the shared `energy_to_temperature!`/`temperature_to_energy!` kernel functions
-were given snow-specific names (`snow_energy_to_temperature_kernel!`, `snow_temperature_to_energy_kernel!`)
-because KernelAbstractions `@kernel` does not support multiple dispatch on one kernel name — the soil energy
-closures define 3D (XYZ) kernels under the base names.
-
-Revision 6 (2026-07-21) — **water/sublimation coupling and test coverage** (previously deferred in
-Revision 4). Delivered:
-
-- **Water coupling** (author's choice: route through the existing infiltration/runoff partition). The
-  surface runoff scheme's water input is now snow-aware: `influx = (1 − f_snow)·rainfall_ground + M_r`,
-  where the snow-covered fraction intercepts rain into the snowpack and `M_r` is the meltwater outflow draining
-  from the snowpack base (`soil_surface_water_flux` in `snow_mass.jl`). `snow` is threaded (optional arg) through
-  `SurfaceHydrology`→`DirectSurfaceRunoff`, mirroring the SEB. Meltwater is therefore subject to the
-  infiltration capacity limit, with the remainder becoming surface runoff.
-- **Sublimation** driven by the SEB latent-heat flux: the post-SEB coupling (renamed
-  `compute_snow_interface_fluxes!`) now sets `sublimation = f_snow·H_l/(ρ_w·L_s)` alongside the blended
-  `soil_heat_flux`. Known limitation: the latent flux is not yet partitioned between snow sublimation and
-  soil/canopy evapotranspiration, so the two over-count when both are active.
-- The snow-field gather helper `seb_conduction_fields` was removed
-- **Tests**: standalone melt energy↔mass conservation (`snow_model_tests.jl`); coupled water-conservation
-  (`infiltration + surface_runoff ≈ M_r`, `land_model_tests.jl`); function-level Enzyme adjoints of the
-  snow-specific physics — meltwater outflow, cover fraction, depth, thermal conductivity, basal flux
-  (`differentiability/snow_model_diff.jl`, registered under the Enzyme suite); a CPU-vs-Reactant
-  `:snow_column` correctness case (`test/reactant/setup.jl` + `runtests.jl`).
-
-Known AD limitation: reverse-mode autodiff of the *full* `SnowModel` timestep currently fails to compile
-under Enzyme with an internal `LLVM error: Canonicalization failed` (in `EnzymeCreateAugmentedPrimal`).
-The snow closure reuses the `FreeWater` maps (adjoints covered in `soil_energy_diff.jl`) and the
-snow-specific physics is differentiable in isolation, so the failure is isolated to the full-model
-reverse pass; it is documented in `snow_model_diff.jl` for separate investigation.
-
-Still deferred: partitioning the surface latent flux between snow sublimation and soil/canopy ET; a snow
-process documentation page; resolving the full-timestep Enzyme limitation; a real Reactant CI run of the
-`:snow_column` case (the `test/reactant` environment was not instantiated in the dev session).
-
-Revision 7 (2026-07-21) — **enthalpy-reference correction of the advective flux terms.** The `FreeWater`
-closure references internal energy to liquid water at 0 °C (`U = 0`; the phase-change band is
-`U ∈ [-Lθ, 0]` with ice at 0 °C = `-Lθ`), consistent with the soil energy. The snow mass/energy
-tendencies, however, had computed the advective (mass-carrying) heat terms against an *ice* reference,
-an inconsistency of `ρ_w·L_f` per unit mass. Corrected in `snow_mass.jl` (`compute_snow_precip_heat_flux`,
-renamed from `compute_rain_heat_flux`):
-
-- **Meltwater** drains as liquid water at 0 °C (`U = 0`), so it carries no enthalpy — the previous
-  `Q_melt = ρ_w·L_f·M_r` term is dropped. The energy tendency is now `dE/dt = Q_base − Q_top + Q_precip`
-  (no meltwater term). The old term spuriously refroze draining meltwater (`dW_ice/dt = +M_r`).
-- **Rain-on-snow** carries only sensible heat `c_w·max(T_air,0)` above the liquid reference; the previous
-  `+L_f` double-counted the freezing latent heat (which the enthalpy closure already captures implicitly).
-- **Fresh snowfall** is ice, `L_f` below the liquid reference, so it carries `c_i·min(T_air,0) − L_f`; the
-  previous term omitted `−L_f`, which caused fresh cold snow to be diagnosed near 0 °C instead of `T_air`.
-
-`compute_snow_tendencies!` was also split into `compute_snow_water_tendency` and
-`compute_snow_energy_tendency` helpers (equations no longer buried in the kernel function). New/updated
-tests: draining meltwater conserves energy (`dE ≈ 0`); fresh snowfall accretes at the snowpack's specific
-enthalpy (`dE/dW = E/W`, catching the missing `−L_f`); the standalone snowfall/melt assertions were
-updated to the liquid reference.
-
-Open follow-up (not yet resolved): the **sublimation** energy term is subject to the same reference
-subtlety. Sublimated ice mass carries `−L_f` enthalpy in the liquid reference, so under this reference the
-energy budget implies an additional `+ρ_w·L_f·E_subl` term beyond the SEB latent flux already in `Q_top`;
-this is entangled with the SEB's latent-heat convention (`L_v` vs `L_s`) and the still-deferred
-latent-flux partitioning, and is left for that work item.
-
-Revision 8 (2026-07-21) — **latent-flux partitioning between sublimation and evapotranspiration.** The
-surface latent flux is now split by snow-covered area fraction `f_snow`, threading `snow` through the
-surface energy balance as an optional argument (author's directive):
-
-- **SEB latent heat flux** (`compute_latent_heat_flux`, turbulent_fluxes.jl): `H_l = (1 − f_snow)·L_v·ρₐ·Q_h_ground
-  + ρ_w·L_s·E_subl`, i.e. ground/canopy evaporation (latent heat of vaporization) over the snow-free
-  fraction plus snow sublimation (latent heat of sublimation) over the snow-covered fraction. Reduces to
-  the original flux without snow (`f_snow = 0`).
-- **Snow sublimation** (`compute_snow_sublimation_flux`, shared helper): the snow-fraction, saturated
-  bulk-aerodynamic vapor flux `f_snow·ρₐ·Δq(T_skin)/rₐ/ρ_w`, with `Δq` taken **over ice** for the
-  sub-freezing surface (the existing `saturation_specific_humidity_vapor` already dispatches over ice for
-  `T ≤ 0`). This one flux drives both the `H_l` snow term and the snow's `sublimation` mass sink, so the
-  energy and mass are consistent. It replaces the previous `f_snow·H_l/(ρ_w·L_s)` estimate.
-- **Ground evaporation** (`bare_ground_evaporation.jl`): `evaporation_ground` is scaled by `(1 − f_snow)`
-  at its source, so both the SEB latent flux ground term and the soil-water ET sink (`forcing`) see the
-  reduced flux — no water/energy double-count over the snow-covered fraction. Canopy transpiration is left
-  unchanged over snow (a documented simplification; only bare-ground evaporation is scaled).
-- `snow` is threaded through `SurfaceHydrology`/`DirectSurfaceRunoff`/`BareGroundEvaporation` and the SEB
-  solve chain (`solve_skin_temperature!`/residual → `compute_surface_energy_fluxes!`). The snow coupling
-  (`compute_snow_interface_fluxes!`) now takes `atmos` to evaluate the sublimation flux at the
-  converged skin temperature.
-
-Test: `LandModel: latent flux partitioned` — under near-full snow cover, ground evaporation is suppressed
-to `< 10%` of the snow-free value while sublimation carries the flux. This resolves the double-counting
-noted in Revision 4/6. The sublimation energy-reference subtlety flagged in Revision 7 remains open.
-
-Revision 9 (2026-07-23) — **sublimation energy-reference correction** (closes the open item from
-Revision 7) and **thermodynamic consistency of the latent-heat constants**.
-
-- **Constants** (constants.jl): the tabulated latent heats were internally inconsistent (`L_v + L_f`
-  exceeded the tabulated `L_s` by ~400 J/kg). `latent_heat_fusion` is now the base value `3.3355e5` and
-  `latent_heat_sublimation` is derived as `L_f + L_v`, enforcing `L_s = L_f + L_v` exactly. The `show`
-  doctests and the constants documentation table were updated (fusion-first field order; `L_s = 2.83435e6`).
-- **Snow energy tendency** (`compute_snow_energy_tendency`, snow_mass.jl): added the advective sublimation
-  correction `Q_subl = ρ_w·L_f·E_subl`. `Q_top` (the SEB residual) removes the full sublimation enthalpy
-  `ρ_w·L_s·E_subl` via the surface latent flux, but the mass leaving the snowpack departs as ice (enthalpy
-  `−L_f` relative to the liquid-water-at-0 °C reference). Adding back `ρ_w·L_f·E_subl` leaves a net pack
-  loss of exactly `ρ_w·L_v·E_subl` (the vaporization enthalpy of the departing vapor), the ice→vapor
-  analogue of the meltwater term. With the now-consistent constants, `L_f` and `(L_s − L_v)` are identical,
-  so `L_f` is used directly. The SEB latent flux and skin-temperature solve are unchanged (they correctly
-  see `L_s`).
-
-Test: `conservation: sublimation nets the vaporization enthalpy` (snow_model_tests.jl) — with `Q_top`
-set to the SEB's `ρ_w·L_s·E_subl` contribution, the snow energy tendency equals `−ρ_w·L_v·E_subl`. Docs
-updated (snow.md, snow_energy.md energy-balance equations).
-
 ## Resolved design decisions
 
 The following forks were resolved with the model author before drafting:
@@ -666,3 +462,207 @@ Two design points to confirm before/while implementing (neither blocks starting 
   outflow, eqn 9.45.)
 - Dickinson, R. E., Henderson-Sellers, A., & Kennedy, P. J. (1993). BATS v1e. NCAR/TN-387+STR. (Snow
   albedo; deferred.)
+
+## Revision log
+
+Follow-up prompt (revision 2), verbatim:
+
+> Make sure to append my prompts to the design document to keep track of this process. Regarding the
+> open question, I agree that this is a problem and would update the plan to make the depth-integrated
+> energy content the prognostic variable while exposing the volumetric energy content to the closure.
+> This should be done via a method and without allocating an auxiliary variable.
+>
+> A couple of additional problems need to be addressed, however, before starting the implementation:
+> 1. Currently, `ground_heat_flux` is directly wired to the soil temperature state variable and is
+>    also used in the SEB. This becomes problematic here because our snow surface heat flux would be
+>    distinct from the conductive heat flux at the ground-snow interface. Investigate this ambiguity
+>    and suggest a workaround or design change to the current BC handling.
+> 2. The existing soil energy and hydrology code is set up and named to be for soil. However, much of
+>    the physics is transferrable as noted in the design plan. We should consider an initial
+>    refactoring where the existing "soil" module is renamed to "ground" with soil-specific
+>    parameterizations where appropriate. This should be done as a separate, preliminary work item
+>    (and associated pull request) to avoid too many changes in one go.
+> Please provide your feedback regarding these points and update the plan accordingly.
+
+Resolutions adopted in this revision: (i) the prognostic snow energy is the **depth-integrated**
+(column) energy content (J/m²); the volumetric energy seen by the closure is computed by a **method**
+with no auxiliary field (see "Physical formulation"). (ii) The `ground_heat_flux` dual-role ambiguity
+is addressed by a heat-flux split (see "Boundary-condition disambiguation"). (iii) The soil/ground
+refactor is adopted as a scoped, abstraction-first preliminary work item (see "Preliminary refactoring
+work items").
+
+Revision 3 (2026-07-11) — **plan reconciliation** after the preliminary PRs landed. PR-A and PR-B are
+now **complete**; this plan is reconciled to their outcomes (physics unchanged):
+
+- The generic energy machinery lives in a top-level `thermodynamics/` module: `AbstractThermodynamics`,
+  the `ExplicitTwoPhaseHeatConduction` operator, and the medium-agnostic `FreeWater` enthalpy maps
+  (`liquid_water_fraction` / `energy_to_temperature`, in `thermodynamics/enthalpy.jl`). The snow closure
+  reuses these directly.
+- The soil energy process is `SoilThermodynamics` (was `SoilEnergyBalance`) under `soil/energy/`; the
+  `soil/` tree was **kept** (not renamed to `ground/`).
+- The heat-flux split (PR-B) keeps `ground_heat_flux` as the SEB closure flux `G` and introduces
+  `soil_heat_flux` (alias `SoilHeatFlux`) as the soil-top BC. **The snow blend therefore writes
+  `soil_heat_flux`, not `ground_heat_flux`.**
+- Surface processes now live under a single `surface/` tree (was `surface_energy/` + `surface_hydrology/`).
+
+Revision 4 (2026-07-12) — **implementation record** (phases 1–5 complete and tested). Delivered:
+
+- Phases 1–4 as planned: `SingleLayerSnow`/`NoSnow` process, `ConstantSnowDensity` scheme, the
+  depth-integrated enthalpy closure (`SnowEnergyTemperatureClosure`, temperature clipped at 0°C with the
+  excess derived on demand from `U_v > 0`), the mass/energy tendencies (`compute_snow_tendencies!` with
+  Darcy meltwater outflow), the standalone `SnowModel`, and the snow-aware SEB path (`DiagnosticAlbedo`
+  blending albedo/emissivity by `f_snow`, and the snow-weighted `ground_thermal_interface`).
+- Phase 5 `LandModel` integration in two steps. **5a** added `@component snow = NoSnow` and threaded the
+  snow through `initialize!`/`compute_auxiliary!`/`compute_tendencies!`/`closure!`/`invclosure!`; the
+  no-snow model is byte-for-byte unchanged. **5b** added the snow↔surface/soil **energy** coupling in
+  `src/models/coupled/snow_coupling.jl`:
+  - `Q_base` uses the **snow-resistance-only** closure `Q_base = 2·κ_snow·(T_soil − T_snow)/d_snow`
+    (author's decision; the snowpack dominates the series resistance, so the soil-side conductivity need
+    not be threaded into the snow coupling). Written to `basal_heat_flux` before the SEB.
+  - After the SEB: `surface_heat_flux ← ground_heat_flux` (the snow's top loss `G`) and the soil-top BC
+    flux `soil_heat_flux = f_snow·Q_base + (1 − f_snow)·G`. `soil_heat_flux` is a declared coupling
+    auxiliary (via `snow_coupling_variables`) so it is accessible in the state and backs the soil BC.
+  - Static **strategy A** BC wiring: `NoSnow` wires the soil-top BC to `ground_heat_flux` directly;
+    `SingleLayerSnow` wires it to the blended `soil_heat_flux` (`snow_soil_bc_flux`).
+  - The SEB field-gather now merges the snow thermal auxiliaries (`seb_conduction_fields`) so the
+    snow-aware `ground_thermal_interface` can be evaluated.
+- Verification: coupled land tests 30/30 (incl. a new snow-coupled testset), standalone snow tests 51/51,
+  skin-temperature tests 30/30. No regressions.
+
+**Deferred to a follow-up** (not part of this energy-coupling milestone): (i) the **water** coupling —
+routing snow meltwater outflow into soil infiltration and partitioning rain-on-snow vs. bare-ground
+throughfall; (ii) **sublimation** driven by the SEB latent-heat flux (currently the `sublimation` input
+defaults to zero in the coupled model); (iii) an **Enzyme** differentiability test for the snow
+tendencies/closure.
+
+Revision 5 (2026-07-13) — **parameterization decomposition.** The `SingleLayerSnow` process was refactored
+from a flat set of scalar parameters into composable sub-parameterization components, mirroring the soil
+hydraulics/thermal-properties pattern and consistent with Terrarium's modularity principle (each component
+is independently swappable):
+
+- `SingleLayerSnow{NF, Cover, Density, Conductivity, Hydraulics, Closure}` now holds five `@component`
+  fields: `cover`, `density`, `thermal_conductivity`, `hydraulic_properties`, and `closure`. The former
+  scalar parameters moved into the corresponding schemes.
+- **Cover** ([snow_cover.jl](../../src/processes/snow/snow_cover.jl)): `AbstractSnowCover{NF}` with
+  `FractionalSnowCover` (`f_snow = W/(W + W_ref)`, parameter `half_coverage`, negative-SWE clamped to zero).
+  `compute_snow_cover_fraction` now dispatches on the cover scheme.
+- **Density** ([snow_density.jl](../../src/processes/snow/snow_density.jl)): `AbstractSnowDensity{NF}` with
+  `ConstantSnowDensity` (parameter `density`).
+- **Thermal conductivity** ([snow_thermal_conductivity.jl](../../src/processes/snow/snow_thermal_conductivity.jl)):
+  `AbstractSnowThermalConductivity{NF}` with `PowerLawSnowThermalConductivity` (default),
+  `LogarithmicSnowThermalConductivity`, and `QuadraticSnowThermalConductivity`. All expose the shared
+  (exported) generic `compute_thermal_conductivity(cond, constants::MaterialConstants, ρ_snow)` — the snow
+  conductivity is recovered lazily at the call sites (SEB conduction target, basal flux) rather than stored
+  as an auxiliary field.
+- **Hydraulic properties** ([snow_hydraulic_properties.jl](../../src/processes/snow/snow_hydraulic_properties.jl)):
+  `AbstractSnowHydraulics{NF}` with `ConstantSnowHydraulics` (parameters `saturated_conductivity`,
+  `capillary_retention`). `compute_meltwater_outflow` now dispatches on the hydraulics scheme.
+- **Closure**: `SnowEnergyTemperatureClosure` (unchanged), retrieved via `get_closure(snow) = snow.closure`.
+
+The snow `@kernel`s that wrap the shared `energy_to_temperature!`/`temperature_to_energy!` kernel functions
+were given snow-specific names (`snow_energy_to_temperature_kernel!`, `snow_temperature_to_energy_kernel!`)
+because KernelAbstractions `@kernel` does not support multiple dispatch on one kernel name — the soil energy
+closures define 3D (XYZ) kernels under the base names.
+
+Revision 6 (2026-07-21) — **water/sublimation coupling and test coverage** (previously deferred in
+Revision 4). Delivered:
+
+- **Water coupling** (author's choice: route through the existing infiltration/runoff partition). The
+  surface runoff scheme's water input is now snow-aware: `influx = (1 − f_snow)·rainfall_ground + M_r`,
+  where the snow-covered fraction intercepts rain into the snowpack and `M_r` is the meltwater outflow draining
+  from the snowpack base (`soil_surface_water_flux` in `snow_mass.jl`). `snow` is threaded (optional arg) through
+  `SurfaceHydrology`→`DirectSurfaceRunoff`, mirroring the SEB. Meltwater is therefore subject to the
+  infiltration capacity limit, with the remainder becoming surface runoff.
+- **Sublimation** driven by the SEB latent-heat flux: the post-SEB coupling (renamed
+  `compute_snow_interface_fluxes!`) now sets `sublimation = f_snow·H_l/(ρ_w·L_s)` alongside the blended
+  `soil_heat_flux`. Known limitation: the latent flux is not yet partitioned between snow sublimation and
+  soil/canopy evapotranspiration, so the two over-count when both are active.
+- The snow-field gather helper `seb_conduction_fields` was removed
+- **Tests**: standalone melt energy↔mass conservation (`snow_model_tests.jl`); coupled water-conservation
+  (`infiltration + surface_runoff ≈ M_r`, `land_model_tests.jl`); function-level Enzyme adjoints of the
+  snow-specific physics — meltwater outflow, cover fraction, depth, thermal conductivity, basal flux
+  (`differentiability/snow_model_diff.jl`, registered under the Enzyme suite); a CPU-vs-Reactant
+  `:snow_column` correctness case (`test/reactant/setup.jl` + `runtests.jl`).
+
+Known AD limitation: reverse-mode autodiff of the *full* `SnowModel` timestep currently fails to compile
+under Enzyme with an internal `LLVM error: Canonicalization failed` (in `EnzymeCreateAugmentedPrimal`).
+The snow closure reuses the `FreeWater` maps (adjoints covered in `soil_energy_diff.jl`) and the
+snow-specific physics is differentiable in isolation, so the failure is isolated to the full-model
+reverse pass; it is documented in `snow_model_diff.jl` for separate investigation.
+
+Still deferred: partitioning the surface latent flux between snow sublimation and soil/canopy ET; a snow
+process documentation page; resolving the full-timestep Enzyme limitation; a real Reactant CI run of the
+`:snow_column` case (the `test/reactant` environment was not instantiated in the dev session).
+
+Revision 7 (2026-07-21) — **enthalpy-reference correction of the advective flux terms.** The `FreeWater`
+closure references internal energy to liquid water at 0 °C (`U = 0`; the phase-change band is
+`U ∈ [-Lθ, 0]` with ice at 0 °C = `-Lθ`), consistent with the soil energy. The snow mass/energy
+tendencies, however, had computed the advective (mass-carrying) heat terms against an *ice* reference,
+an inconsistency of `ρ_w·L_f` per unit mass. Corrected in `snow_mass.jl` (`compute_snow_precip_heat_flux`,
+renamed from `compute_rain_heat_flux`):
+
+- **Meltwater** drains as liquid water at 0 °C (`U = 0`), so it carries no enthalpy — the previous
+  `Q_melt = ρ_w·L_f·M_r` term is dropped. The energy tendency is now `dE/dt = Q_base − Q_top + Q_precip`
+  (no meltwater term). The old term spuriously refroze draining meltwater (`dW_ice/dt = +M_r`).
+- **Rain-on-snow** carries only sensible heat `c_w·max(T_air,0)` above the liquid reference; the previous
+  `+L_f` double-counted the freezing latent heat (which the enthalpy closure already captures implicitly).
+- **Fresh snowfall** is ice, `L_f` below the liquid reference, so it carries `c_i·min(T_air,0) − L_f`; the
+  previous term omitted `−L_f`, which caused fresh cold snow to be diagnosed near 0 °C instead of `T_air`.
+
+`compute_snow_tendencies!` was also split into `compute_snow_water_tendency` and
+`compute_snow_energy_tendency` helpers (equations no longer buried in the kernel function). New/updated
+tests: draining meltwater conserves energy (`dE ≈ 0`); fresh snowfall accretes at the snowpack's specific
+enthalpy (`dE/dW = E/W`, catching the missing `−L_f`); the standalone snowfall/melt assertions were
+updated to the liquid reference.
+
+Open follow-up (not yet resolved): the **sublimation** energy term is subject to the same reference
+subtlety. Sublimated ice mass carries `−L_f` enthalpy in the liquid reference, so under this reference the
+energy budget implies an additional `+ρ_w·L_f·E_subl` term beyond the SEB latent flux already in `Q_top`;
+this is entangled with the SEB's latent-heat convention (`L_v` vs `L_s`) and the still-deferred
+latent-flux partitioning, and is left for that work item.
+
+Revision 8 (2026-07-21) — **latent-flux partitioning between sublimation and evapotranspiration.** The
+surface latent flux is now split by snow-covered area fraction `f_snow`, threading `snow` through the
+surface energy balance as an optional argument (author's directive):
+
+- **SEB latent heat flux** (`compute_latent_heat_flux`, turbulent_fluxes.jl): `H_l = (1 − f_snow)·L_v·ρₐ·Q_h_ground
+  + ρ_w·L_s·E_subl`, i.e. ground/canopy evaporation (latent heat of vaporization) over the snow-free
+  fraction plus snow sublimation (latent heat of sublimation) over the snow-covered fraction. Reduces to
+  the original flux without snow (`f_snow = 0`).
+- **Snow sublimation** (`compute_snow_sublimation_flux`, shared helper): the snow-fraction, saturated
+  bulk-aerodynamic vapor flux `f_snow·ρₐ·Δq(T_skin)/rₐ/ρ_w`, with `Δq` taken **over ice** for the
+  sub-freezing surface (the existing `saturation_specific_humidity_vapor` already dispatches over ice for
+  `T ≤ 0`). This one flux drives both the `H_l` snow term and the snow's `sublimation` mass sink, so the
+  energy and mass are consistent. It replaces the previous `f_snow·H_l/(ρ_w·L_s)` estimate.
+- **Ground evaporation** (`bare_ground_evaporation.jl`): `evaporation_ground` is scaled by `(1 − f_snow)`
+  at its source, so both the SEB latent flux ground term and the soil-water ET sink (`forcing`) see the
+  reduced flux — no water/energy double-count over the snow-covered fraction. Canopy transpiration is left
+  unchanged over snow (a documented simplification; only bare-ground evaporation is scaled).
+- `snow` is threaded through `SurfaceHydrology`/`DirectSurfaceRunoff`/`BareGroundEvaporation` and the SEB
+  solve chain (`solve_skin_temperature!`/residual → `compute_surface_energy_fluxes!`). The snow coupling
+  (`compute_snow_interface_fluxes!`) now takes `atmos` to evaluate the sublimation flux at the
+  converged skin temperature.
+
+Test: `LandModel: latent flux partitioned` — under near-full snow cover, ground evaporation is suppressed
+to `< 10%` of the snow-free value while sublimation carries the flux. This resolves the double-counting
+noted in Revision 4/6. The sublimation energy-reference subtlety flagged in Revision 7 remains open.
+
+Revision 9 (2026-07-23) — **sublimation energy-reference correction** (closes the open item from
+Revision 7) and **thermodynamic consistency of the latent-heat constants**.
+
+- **Constants** (constants.jl): the tabulated latent heats were internally inconsistent (`L_v + L_f`
+  exceeded the tabulated `L_s` by ~400 J/kg). `latent_heat_fusion` is now the base value `3.3355e5` and
+  `latent_heat_sublimation` is derived as `L_f + L_v`, enforcing `L_s = L_f + L_v` exactly. The `show`
+  doctests and the constants documentation table were updated (fusion-first field order; `L_s = 2.83435e6`).
+- **Snow energy tendency** (`compute_snow_energy_tendency`, snow_mass.jl): added the advective sublimation
+  correction `Q_subl = ρ_w·L_f·E_subl`. `Q_top` (the SEB residual) removes the full sublimation enthalpy
+  `ρ_w·L_s·E_subl` via the surface latent flux, but the mass leaving the snowpack departs as ice (enthalpy
+  `−L_f` relative to the liquid-water-at-0 °C reference). Adding back `ρ_w·L_f·E_subl` leaves a net pack
+  loss of exactly `ρ_w·L_v·E_subl` (the vaporization enthalpy of the departing vapor), the ice→vapor
+  analogue of the meltwater term. With the now-consistent constants, `L_f` and `(L_s − L_v)` are identical,
+  so `L_f` is used directly. The SEB latent flux and skin-temperature solve are unchanged (they correctly
+  see `L_s`).
+
+Test: `conservation: sublimation nets the vaporization enthalpy` (snow_model_tests.jl) — with `Q_top`
+set to the SEB's `ρ_w·L_s·E_subl` contribution, the snow energy tendency equals `−ρ_w·L_v·E_subl`. Docs
+updated (snow.md, snow_energy.md energy-balance equations).

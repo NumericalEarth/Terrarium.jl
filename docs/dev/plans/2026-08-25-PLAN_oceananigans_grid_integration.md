@@ -1,8 +1,10 @@
 # Oceananigans AbstractGrid Integration for Terrarium
 
-> Status: **in progress**. Phases 1-4 are implemented (Phase 3 without the `VarDomain` work, see Revision 6): `ColumnGrid` is now a type alias for a `RectilinearGrid` and `ColumnRingGrid` an ordinary `AbstractGrid`, a single `LandGrid <: AbstractLandGrid` wraps the per-domain (ground, snow, canopy) grids, and model constructors build it from a user-supplied `AbstractGrid` via `create_land_grid`. The remaining work is the `VarDomain` tagging that a vertically resolved snow or canopy domain will need.
+> Status: **completed**. All four phases are implemented: the column grids are ordinary `AbstractGrid`s, a single `LandGrid <: AbstractLandGrid` wraps the per-domain (ground, snow, and canopy) grids, model constructors build it via `create_land_grid`, and variables' `VarDomain` tags select the domain grid on which their `Field`s are allocated; building snow and canopy grids from a per-domain vertical spacing is deferred until a vertically resolved scheme needs it (see Revision 10).
 
 Date of initial draft: 2026-08-25
+
+Reviewer: Brian Groenke (brian.groenke@pik-potsdam.de)
 
 Base revision: 4f3841955af84ac6cb4a6f88b04538fc0dd7d658
 
@@ -16,34 +18,6 @@ Base revision: 4f3841955af84ac6cb4a6f88b04538fc0dd7d658
 > - Backward compatibility: **None** — breaking changes are acceptable
 > - Priority: **Ground domain first**, then Snow and Canopy incrementally
 > - GPU testing: Available for validation
-
-## Revision log
-
-> Revision 0 (2026-08-25): Initial draft created with clarifications from user feedback. Key decisions: fixed domain boundaries, no backward compatibility, Ground-first priority, LandGrid as generic Oceananigans grid wrapper.
->
-> Revision 1 (2026-08-26): Simplified plan. Phase 1 is now just making existing grids implement the `AbstractGrid` interface by forwarding to the underlying `RectilinearGrid` — no new types. `DomainGrid` removed; per-domain grids in `LandGrid` are simply separate `RectilinearGrid` instances.
->
-> Revision 3 (2026-08-26): Further simplified to 3 phases. Phase 2 combines type renaming with multi-domain support and `VarDomain` additions. Phase 3 introduces generic `LandGrid`. Phase 4 removed — no Oceananigans upstream changes.
->
-> Revision 4 (2026-09-17): Restructured around a clean separation between *spatial discretizations* and *land grids*. (i) `ColumnGrid` and `ColumnRingGrid` keep their current names and behaviour but are no longer `AbstractLandGrid`s — they subtype `Oceananigans.Grids.AbstractGrid` only, alongside `RectilinearGrid`, `LatitudeLongitudeGrid`, etc. No renaming to `ColumnLandGrid`. (ii) There is exactly one `AbstractLandGrid` implementation, `LandGrid`, which wraps separate ground, snow, and canopy grids all derived from the *same* underlying `AbstractGrid`. (iii) Model constructors take an `AbstractGrid` positionally and build the `LandGrid` internally through a standard interface method `create_land_grid(grid, soil, snow, vegetation)`, so the per-domain vertical discretizations follow from the process components the user selected rather than being specified twice.
->
-> Revision 8 (2026-09-18): Removed `get_field_grid` entirely. With `ColumnGrid` now an ordinary `RectilinearGrid` and `grid` always an `AbstractGrid`, the "unwrap to the grid `Field`s live on" accessor no longer earns its place. Call sites which resolve the vertical dimension — soil energy and hydrology (`Nz`, `Δz`, `∂z`, `znodes`), snow interfaces, root distribution, diffusion timescales, kernel operations — now use [`ground_domain`](@ref), which names the domain they mean and is the identity on grids that are not land grids. `ColumnRingGrid`'s own interface forwarding reads its wrapped grid via `getfield(grid, :grid)`, and `ground_domain` replaces `get_field_grid` as the one method an `AbstractLandGrid` implementation must define.
->
-> Revision 8 (2026-09-18): Removed `get_field_grid` and replaced Terrarium's vertical discretization types with Oceananigans built-ins. (i) `get_field_grid` is gone: every grid is now an `AbstractGrid`, so code either uses the grid it was given or, where the vertical dimension is genuinely ambiguous (the soil energy/hydrology kernels, root distribution, plant-available water), asks for the ground domain explicitly. (ii) The per-domain accessors are renamed to the codebase's `get_*` convention: `ground_domain`, `snow_domain`, `canopy_domain`, and `create_grid` becomes `create_land_grid`. (iii) `AbstractVerticalSpacing`, `UniformSpacing`, `PrescribedSpacing` and `get_spacing` are deleted. Uniformly spaced and prescribed columns are given directly as a range or vector of cell interfaces, which is what the grid constructors always built internally. (iv) `ExponentialSpacing` survives as a *function* returning an Oceananigans `ExponentialDiscretization`: both describe the same geometric family, so the (`Δz_min`, `Δz_max`, `N`) parameterization land models want is converted in closed form to Oceananigans' (`N`, `left`, `right`, `scale`) one via `ρ = (Δz_max/Δz_min)^(1/(N-1))`, `D = Δz_min (ρᴺ-1)/(ρ-1)`, `scale = D/(N log ρ)`. The layer thicknesses agree to floating point; the only visible change is the loss of the old `sig` significant-digit rounding of layer thicknesses, worth ~0.4% on a default profile. (v) The grid constructors take the vertical coordinate directly, inferring `NF` from its `eltype` for an array of interfaces and defaulting to `Float64` for a discretization (the format Oceananigans computes interfaces in).
->
-> Revision 7 (2026-09-18): Simplified the grid type hierarchy following review. (i) `Oceananigans.Grids.AbstractGrid` is imported into `Terrarium` so it needs no qualification. (ii) `ColumnGrid` is no longer a wrapper struct at all: it is a *type alias* for `RectilinearGrid{NF, Periodic, Flat, Bounded, …}` plus constructors which build one from an `AbstractVerticalSpacing`, so a column grid simply *is* an Oceananigans grid. (iii) `AbstractColumnGrid` and the `WrappedGrid` union are therefore gone; `ColumnRingGrid` remains a wrapper struct (it carries the ring grid and mask) and subtypes `AbstractGrid` directly, defining its own copy of the interface forwarding separately from `AbstractLandGrid`. (iv) All Terrarium methods which dispatch on a grid now take `AbstractLandGrid`, with two deliberate exceptions recorded in Revision 6(v) below, replaced by: the `AbstractModel` constructor (which accepts any `AbstractGrid` and calls `create_land_grid` — the whole point of Phase 4) and the `Field`/`FieldTimeSeries` constructors taking `VarDims` (a purely geometric mapping from `VarDims` to an Oceananigans location, carrying no land model semantics, and needed by `ColumnRingGrid`'s own field conversions). Tests which pass a grid to a process function now build a `LandGrid` explicitly. (v) `root_fraction` dispatches on `AbstractLandGrid{<:Any, <:Any, Flat}`, which expresses the "column-like discretization" requirement of its two-argument `FunctionField` more precisely than the old `AbstractColumnGrid` bound did.
->
-> Revision 9 (2026-09-18): `ColumnRingGrid` is to be a *fully valid* Oceananigans grid, usable anywhere a `RectilinearGrid` is, rather than a wrapper that Terrarium unwraps before handing it to Oceananigans. The alternative considered was to reintroduce the removed `get_field_grid` under a new name so that `Field`s are allocated on the wrapped `RectilinearGrid`; that was rejected because it treats a deficiency in Oceananigans as a Terrarium problem and leaves `ColumnRingGrid` a second-class grid. Consequently every Oceananigans method a grid must provide is forwarded, and, because Oceananigans nowhere defines what that set is, the new section ["The `AbstractGrid` interface in practice"](#the-abstractgrid-interface-in-practice) records each method and field as it is discovered, together with whether it appears in `src/Grids/abstract_grid.jl` and whether it is exported. Three snags so far: the unexported, undocumented `ξname`/`ηname`/`rname`; `ξnode`/`ηnode`/`rnode`; and `serializeproperty!`, where a `ColumnRingGrid` cannot round-trip through JLD2 because its `mask` comes back as a `BitVector`. That section is to be maintained as further snags appear.
->
-> Revision 6 (2026-09-17, *implementation notes — pending approval*): Deviations made while implementing Phases 2-4.
-> (i) The shared wrapper forwarding is anchored on a union alias `WrappedGrid = Union{AbstractLandGrid, AbstractColumnGrid}`, with `AbstractColumnGrid` moved from `column_grid.jl` into `grids.jl` alongside `AbstractLandGrid`; both column grids keep `AbstractColumnGrid` as their common supertype and it is that type which carries the forwarded dispatches.
-> (ii) `LandGrid`'s keyword constructor takes ready-made per-domain grids (`LandGrid(ground; snow, canopy)`) rather than per-domain `AbstractVerticalSpacing`s. Building a domain grid from a spacing requires a grid-type-specific "same horizontal discretization, new vertical discretization" operation; that is deferred until a vertically resolved snow or canopy scheme actually needs it.
-> (iii) Phase 3 step 4 (the `VarDomain` tag and domain-aware `Field`/`launch!` routing) is deferred for the same reason: with every non-ground domain unresolved, there is no variable for it to route. It remains the next piece of work.
-> (iv) `create_land_grid` is implemented with the component-aware signature defaulting to a ground-only land grid, which is correct for every currently implemented (0D) snow and vegetation scheme. The per-component `ground_discretization`/`snow_discretization`/`canopy_discretization` methods are deferred with (ii) rather than added as no-ops.
-> (v) Dispatches that only construct `Field`s or launch kernels were rebased from `AbstractLandGrid` to `WrappedGrid` (timesteppers, boundary conditions, input initialization), and the *converting* entry points — the `AbstractModel` constructor, `StateVariables`, and `InputSource` — accept any `AbstractGrid` and normalize it via `create_land_grid`. This keeps unit tests (and users) able to work directly on a spatial discretization without a model.
-> (vi) Small forwarding methods were added so a `LandGrid` delegates to its ground discretization where a concrete spatial grid type is required: `root_fraction`, the `RingGrids`↔`Oceananigans` field conversions, and the `Rasters` extension's `InputSource`.
->
-> Revision 5 (2026-09-17): Clarified Phase 4. Model struct definitions do not change at all: `grid` stays the first field and keeps its `AbstractLandGrid` annotation, so the inner `@kwdef` constructor still takes a land grid. Accepting a bare `AbstractGrid` is handled entirely by external (outer) constructors, including a generic fallback for `AbstractModel` types that wraps the grid in a ground-only `LandGrid` (no snow, no canopy).
 
 ## Problem description
 
@@ -129,7 +103,7 @@ abstract type AbstractLandGrid{NF, TX, TY, TZ, Arch} <: Oceananigans.AbstractGri
 
 Forwarded methods (delegate to `ground_domain(grid)`): `size`, `halo_size`, `nodes`, `architecture`, `isrectilinear`.
 
-### Phase 2: Detach the column grids from `AbstractLandGrid`
+### Phase 2 (complete): Detach the column grids from `AbstractLandGrid`
 
 `ColumnGrid` and `ColumnRingGrid` are spatial discretizations, not land grids. They keep their
 current names, fields, constructors, and behaviour, but their common supertype moves:
@@ -150,7 +124,7 @@ Revision 7 `ColumnGrid` is not a wrapper and needs none of it.
 Nothing else about `ColumnRingGrid` changes: `@adapt_structure`, `show`, and its `RingGrids` mask
 handling are untouched.
 
-### Phase 3: Introduce `LandGrid`, the single `AbstractLandGrid` implementation
+### Phase 3 (complete): Introduce `LandGrid`, the single `AbstractLandGrid` implementation
 
 `LandGrid` wraps one grid per domain, all derived from the same underlying `AbstractGrid`:
 
@@ -180,7 +154,7 @@ end
   kernel being launched; the `VarDomain` tag on variables (deferred from the old Phase 2 wording)
   selects which domain grid a variable lives on.
 
-### Phase 4: `create_land_grid` interface and model constructors
+### Phase 4 (complete): `create_land_grid` interface and model constructors
 
 Model constructors accept an `AbstractGrid` positionally and build the `LandGrid` internally:
 
@@ -434,7 +408,7 @@ cannot be implemented by defining methods alone.
 4. Unit tests verifying `AbstractLandGrid <: AbstractGrid` and all forwarded methods
 5. GPU tests on existing models with no functional change
 
-### Phase 2: Detach the column grids from `AbstractLandGrid`
+### Phase 2 (complete): Detach the column grids from `AbstractLandGrid`
 1. Factor the shared wrapper forwarding (`size`, `halo_size`, `nodes`, `architecture`,
    `isrectilinear`, `getproperty`/`propertynames`) out of `AbstractLandGrid` so it can be reused by
    any thin `AbstractGrid` wrapper
@@ -444,7 +418,7 @@ cannot be implemented by defining methods alone.
    grid" to dispatch on `AbstractGrid`
 4. Tests: column grids satisfy the `AbstractGrid` interface and are no longer `AbstractLandGrid`s
 
-### Phase 3: Implement `LandGrid`
+### Phase 3 (complete): Implement `LandGrid`
 1. Define `LandGrid{NF, TX, TY, TZ, Arch, G, S, C} <: AbstractLandGrid{NF, TX, TY, TZ, Arch}` with
    `ground`, `snow`, and `canopy` fields; absent domains are `Nothing`
 2. Keyword constructor `LandGrid(grid; snow = nothing, canopy = nothing)` builds each domain grid
@@ -457,7 +431,7 @@ cannot be implemented by defining methods alone.
 5. Tests for construction over each underlying grid type, type-stable accessors, and
    domain-aware field creation; GPU adapt round-trip
 
-### Phase 4: `create_land_grid` interface and model constructors
+### Phase 4 (complete): `create_land_grid` interface and model constructors
 1. Define `create_land_grid(grid, soil, snow, vegetation)` plus the per-component
    `ground_discretization`/`snow_discretization`/`canopy_discretization` methods
 2. Add the idempotent `create_land_grid(grid::AbstractLandGrid, args...) = grid` method
@@ -508,6 +482,34 @@ cannot be implemented by defining methods alone.
 | Complexity overwhelm | High | Medium | Phased approach (Ground→Snow→Canopy), rigorous code review, keep core types simple |
 | Oceananigans API changes | Low | Medium | Pin Oceananigans version, track upstream changes |
 
----
+## Revision log
 
-*This plan document should be reviewed and signed off before implementation begins. Revise based on feedback from maintainers and potential users.*
+> Revision 0 (2026-08-25): Initial draft created with clarifications from user feedback. Key decisions: fixed domain boundaries, no backward compatibility, Ground-first priority, LandGrid as generic Oceananigans grid wrapper.
+>
+> Revision 1 (2026-08-26): Simplified plan. Phase 1 is now just making existing grids implement the `AbstractGrid` interface by forwarding to the underlying `RectilinearGrid` — no new types. `DomainGrid` removed; per-domain grids in `LandGrid` are simply separate `RectilinearGrid` instances.
+>
+> Revision 3 (2026-08-26): Further simplified to 3 phases. Phase 2 combines type renaming with multi-domain support and `VarDomain` additions. Phase 3 introduces generic `LandGrid`. Phase 4 removed — no Oceananigans upstream changes.
+>
+> Revision 4 (2026-09-17): Restructured around a clean separation between *spatial discretizations* and *land grids*. (i) `ColumnGrid` and `ColumnRingGrid` keep their current names and behaviour but are no longer `AbstractLandGrid`s — they subtype `Oceananigans.Grids.AbstractGrid` only, alongside `RectilinearGrid`, `LatitudeLongitudeGrid`, etc. No renaming to `ColumnLandGrid`. (ii) There is exactly one `AbstractLandGrid` implementation, `LandGrid`, which wraps separate ground, snow, and canopy grids all derived from the *same* underlying `AbstractGrid`. (iii) Model constructors take an `AbstractGrid` positionally and build the `LandGrid` internally through a standard interface method `create_land_grid(grid, soil, snow, vegetation)`, so the per-domain vertical discretizations follow from the process components the user selected rather than being specified twice.
+>
+> Revision 5 (2026-09-17): Clarified Phase 4. Model struct definitions do not change at all: `grid` stays the first field and keeps its `AbstractLandGrid` annotation, so the inner `@kwdef` constructor still takes a land grid. Accepting a bare `AbstractGrid` is handled entirely by external (outer) constructors, including a generic fallback for `AbstractModel` types that wraps the grid in a ground-only `LandGrid` (no snow, no canopy).
+>
+> Revision 6 (2026-09-17, *implementation notes — pending approval*): Deviations made while implementing Phases 2-4.
+> (i) The shared wrapper forwarding is anchored on a union alias `WrappedGrid = Union{AbstractLandGrid, AbstractColumnGrid}`, with `AbstractColumnGrid` moved from `column_grid.jl` into `grids.jl` alongside `AbstractLandGrid`; both column grids keep `AbstractColumnGrid` as their common supertype and it is that type which carries the forwarded dispatches.
+> (ii) `LandGrid`'s keyword constructor takes ready-made per-domain grids (`LandGrid(ground; snow, canopy)`) rather than per-domain `AbstractVerticalSpacing`s. Building a domain grid from a spacing requires a grid-type-specific "same horizontal discretization, new vertical discretization" operation; that is deferred until a vertically resolved snow or canopy scheme actually needs it.
+> (iii) Phase 3 step 4 (the `VarDomain` tag and domain-aware `Field`/`launch!` routing) is deferred for the same reason: with every non-ground domain unresolved, there is no variable for it to route. It remains the next piece of work.
+> (iv) `create_land_grid` is implemented with the component-aware signature defaulting to a ground-only land grid, which is correct for every currently implemented (0D) snow and vegetation scheme. The per-component `ground_discretization`/`snow_discretization`/`canopy_discretization` methods are deferred with (ii) rather than added as no-ops.
+> (v) Dispatches that only construct `Field`s or launch kernels were rebased from `AbstractLandGrid` to `WrappedGrid` (timesteppers, boundary conditions, input initialization), and the *converting* entry points — the `AbstractModel` constructor, `StateVariables`, and `InputSource` — accept any `AbstractGrid` and normalize it via `create_land_grid`. This keeps unit tests (and users) able to work directly on a spatial discretization without a model.
+> (vi) Small forwarding methods were added so a `LandGrid` delegates to its ground discretization where a concrete spatial grid type is required: `root_fraction`, the `RingGrids`↔`Oceananigans` field conversions, and the `Rasters` extension's `InputSource`.
+>
+> Revision 7 (2026-09-18): Simplified the grid type hierarchy following review. (i) `Oceananigans.Grids.AbstractGrid` is imported into `Terrarium` so it needs no qualification. (ii) `ColumnGrid` is no longer a wrapper struct at all: it is a *type alias* for `RectilinearGrid{NF, Periodic, Flat, Bounded, …}` plus constructors which build one from an `AbstractVerticalSpacing`, so a column grid simply *is* an Oceananigans grid. (iii) `AbstractColumnGrid` and the `WrappedGrid` union are therefore gone; `ColumnRingGrid` remains a wrapper struct (it carries the ring grid and mask) and subtypes `AbstractGrid` directly, defining its own copy of the interface forwarding separately from `AbstractLandGrid`. (iv) All Terrarium methods which dispatch on a grid now take `AbstractLandGrid`, with two deliberate exceptions recorded in Revision 6(v) below, replaced by: the `AbstractModel` constructor (which accepts any `AbstractGrid` and calls `create_land_grid` — the whole point of Phase 4) and the `Field`/`FieldTimeSeries` constructors taking `VarDims` (a purely geometric mapping from `VarDims` to an Oceananigans location, carrying no land model semantics, and needed by `ColumnRingGrid`'s own field conversions). Tests which pass a grid to a process function now build a `LandGrid` explicitly. (v) `root_fraction` dispatches on `AbstractLandGrid{<:Any, <:Any, Flat}`, which expresses the "column-like discretization" requirement of its two-argument `FunctionField` more precisely than the old `AbstractColumnGrid` bound did.
+>
+> Revision 8 (2026-09-18): Removed `get_field_grid` and replaced Terrarium's vertical discretization types with Oceananigans built-ins. (i) `get_field_grid` is gone: every grid is now an `AbstractGrid`, so the "unwrap to the grid `Field`s live on" accessor no longer earns its place. Code either uses the grid it was given or, where the vertical dimension is genuinely ambiguous, asks for the ground domain explicitly via [`ground_domain`](@ref), which names the domain it means and is the identity on grids that are not land grids. This covers soil energy and hydrology (`Nz`, `Δz`, `∂z`, `znodes`), snow interfaces, root distribution, plant-available water, diffusion timescales, and kernel operations. `ColumnRingGrid`'s own interface forwarding reads its wrapped grid via `getfield(grid, :grid)`, and `ground_domain` replaces `get_field_grid` as the one method an `AbstractLandGrid` implementation must define. (ii) The per-domain accessors are renamed to the codebase's `get_*` convention: `ground_domain`, `snow_domain`, `canopy_domain`, and `create_grid` becomes `create_land_grid`. (iii) `AbstractVerticalSpacing`, `UniformSpacing`, `PrescribedSpacing` and `get_spacing` are deleted. Uniformly spaced and prescribed columns are given directly as a range or vector of cell interfaces, which is what the grid constructors always built internally. (iv) `ExponentialSpacing` survives as a *function* returning an Oceananigans `ExponentialDiscretization`: both describe the same geometric family, so the (`Δz_min`, `Δz_max`, `N`) parameterization land models want is converted in closed form to Oceananigans' (`N`, `left`, `right`, `scale`) one via `ρ = (Δz_max/Δz_min)^(1/(N-1))`, `D = Δz_min (ρᴺ-1)/(ρ-1)`, `scale = D/(N log ρ)`. The layer thicknesses agree to floating point; the only visible change is the loss of the old `sig` significant-digit rounding of layer thicknesses, worth ~0.4% on a default profile. (v) The grid constructors take the vertical coordinate directly, inferring `NF` from its `eltype` for an array of interfaces and defaulting to `Float64` for a discretization (the format Oceananigans computes interfaces in).
+>
+> Revision 9 (2026-09-18): `ColumnRingGrid` is to be a *fully valid* Oceananigans grid, usable anywhere a `RectilinearGrid` is, rather than a wrapper that Terrarium unwraps before handing it to Oceananigans. The alternative considered was to reintroduce the removed `get_field_grid` under a new name so that `Field`s are allocated on the wrapped `RectilinearGrid`; that was rejected because it treats a deficiency in Oceananigans as a Terrarium problem and leaves `ColumnRingGrid` a second-class grid. Consequently every Oceananigans method a grid must provide is forwarded, and, because Oceananigans nowhere defines what that set is, the new section ["The `AbstractGrid` interface in practice"](#the-abstractgrid-interface-in-practice) records each method and field as it is discovered, together with whether it appears in `src/Grids/abstract_grid.jl` and whether it is exported. Three snags so far: the unexported, undocumented `ξname`/`ηname`/`rname`; `ξnode`/`ηnode`/`rnode`; and `serializeproperty!`, where a `ColumnRingGrid` cannot round-trip through JLD2 because its `mask` comes back as a `BitVector`. That section is to be maintained as further snags appear.
+>
+> Revision 10 (2026-11-06, Claude Opus 5.5, Claude Code): Marked the plan as completed.
+> Phase 3 step 4, deferred in Revision 6(iii), has since been implemented: variables carry a `VarDomain` tag (`Ground`, `Snow`, `Canopy`, `Surface`, or `Atmosphere`, defined in `src/domains.jl`), and `variable_grid`/`get_domain` resolve that tag to the matching domain grid of an `AbstractLandGrid` when `Field`s are allocated.
+> On an ordinary `AbstractGrid` the domain is ignored.
+> Revision 6(ii) and (iv) remain deferred: `LandGrid` takes ready-made per-domain grids, and there are no per-component `ground_discretization`/`snow_discretization`/`canopy_discretization` methods.
+> These will be added together with the first vertically resolved snow or canopy scheme.
