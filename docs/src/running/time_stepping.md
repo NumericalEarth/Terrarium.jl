@@ -60,13 +60,13 @@ time by specifying it when calling `run!` or `timestep!`.
 
 ## Implicit-explicit time stepping
 
-Explicit schemes are cheap and simple, but for diffusive processes the stable time step shrinks quadratically with the grid spacing (see [Adaptive time stepping](@ref)). A thin surface layer or a fine vertical resolution can therefore force steps of seconds to minutes, even when the quantity of interest evolves over hours. Terrarium addresses this with an implicit-explicit (IMEX) time stepper, [`IMEX`](@ref), which integrates selected prognostic variables with an implicit scheme and all remaining variables with an explicit one. Two variables can currently be integrated implicitly: the soil internal energy, via its vertical heat conduction operator, and the soil saturation, via the Darcy flux of the Richardson–Richards equation.
+Explicit schemes are cheap and simple, but for diffusive processes the stable time step shrinks quadratically with the grid spacing (see [Adaptive time stepping](@ref)). A thin surface layer or a fine vertical resolution can therefore force steps of seconds to minutes, even when the quantity of interest evolves over hours. Terrarium addresses this with an implicit-explicit (IMEX) time stepper, [`IMEX`](@ref), which integrates selected prognostic variables with an implicit scheme and all remaining variables with an explicit one.
 
 For an implicitly integrated variable ``u``, the tendency is split into the terms treated explicitly, the *explicit tendency* ``G_\text{exp}``, and the terms treated implicitly, the *implicit tendency* ``G_\text{imp}`` (e.g. the vertical diffusion operator):
 ```math
 \frac{\partial u}{\partial t} = G_\text{exp}(u) + G_\text{imp}(u)\,.
 ```
-The explicit tendency holds everything else, such as sources, sinks, and fluxes through the boundaries of the column. For explicitly integrated variables, the whole tendency is explicit.
+The explicit tendency holds everything else, such as sources, sinks, and fluxes through the boundaries of the column. For explicitly integrated variables, ``G_\text{imp}(u) = 0`` and thus the whole tendency is explicit.
 
 ```@docs; canonical = false
 IMEX
@@ -86,7 +86,7 @@ A single IMEX step of size ``\Delta t`` consists of the following stages:
    in place.
 5. The model hook `timestep!(state, model, timestepper, Δt)` and `closure!` are applied once, and the clock ticks once.
 
-`IMEX(ForwardEuler(NF; Δt), BackwardEuler(NF))` is the default timestepper of [`LandModel`](@ref) (`Δt = 900`) and of [`SoilModel`](@ref) with Richards-equation water flow (`Δt = 3600`). Under it, the snow meltwater drainage of a `LandModel` is implicit as well (see [Implicit meltwater drainage](@ref)), while the snow heat conduction, vegetation, surface hydrology, and surface energy balance remain explicit and are integrated with forward Euler at the same step; the shorter step of `LandModel` is set by the stability of the explicit snow heat conduction. Value boundary conditions on `temperature` or `pressure_head` (e.g. [`PrescribedSurfaceTemperature`](@ref)) require an explicit timestepper instead (see [Limitations](@ref imex-limitations)).
+`IMEX(ForwardEuler(NF; Δt), BackwardEuler(NF))` is the default timestepper of [`LandModel`](@ref) (`Δt = 900`) and of [`SoilModel`](@ref) with Richards-equation water flow (`Δt = 3600`). Under `IMEX`, the snow meltwater drainage of a `LandModel` is implicit as well (see [Implicit meltwater drainage](@ref)), while the snow heat conduction, vegetation, surface hydrology, and surface energy balance remain explicit and are integrated with an explicit integrator (by default `ForwardEuler`) at the same step; the shorter default time step of `LandModel` is due to the explicit snow heat conduction (which will alter also be treated implicitly). Value boundary conditions on `temperature` or `pressure_head` (e.g. [`PrescribedSurfaceTemperature`](@ref)) currently require an explicit timestepper instead (see [Limitations](@ref imex-limitations)).
 
 Because there is only one `update_state!` per step, an IMEX step costs one evaluation of the explicit right-hand side plus the implicit solve. The sub-steppers are given in the order `IMEX(explicit, implicit)`, which is checked when the integrator is initialized. The explicit sub-stepper must be a single-stage scheme; currently this means [`ForwardEuler`](@ref), whose `Δt` is also the default time step of the `IMEX`. The implicit sub-stepper is an [`AbstractTimeStepper`](@ref) whose behavior is further specialized by an [`AbstractImplicitSolver`](@ref):
 
@@ -111,69 +111,36 @@ Processes see the resolved class as a trailing `Timestepping` argument of `compu
 
 ### Implicit Euler with a Picard solver
 
-The only implicit scheme currently provided is first-order backward Euler, [`BackwardEuler`](@ref), with the [`Picard`](@ref) solver. When the integrator is initialized, `BackwardEuler` queries the model for the linearized operator of all variables routed to it with [`implicit_operator`](@ref)`(model, state, names)` and stores this single operator in its cache. For [`SoilModel`](@ref) and [`LandModel`](@ref), it is a [`SplitOperator`](@ref) that holds a batched vertical [`TridiagonalOperator`](@ref) for each routed soil variable and solves `saturation_water_ice` before `internal_energy` (operator splitting; see [Implicit solvers](@ref) and [Coupling of water and energy](@ref imex-water-energy-coupling)). `BackwardEuler` also resolves, for each variable, the field its linear system is solved for: the variable of its closure relation (as given by [`varname`](@ref) of the closure), i.e. the `temperature` for `internal_energy` and the `pressure_head` for `saturation_water_ice`, and for a variable without closure its [`implicit_variable`](@ref), e.g. the `snow_liquid_fraction` for `snow_water_equivalent`. In each step, `BackwardEuler` stores the explicit increment ``u^+ - u^n = \Delta t\, G_\text{exp}`` of every implicit variable in the [`ImplicitSolverWorkspace`](@ref) of the variable and resets all of their prognostic fields to ``u^n``, and then calls the solver-level `implicit_step!(solver, operator, workspaces, state, model, Δt)` of its solver once; when a variable is solved, the solver forms its explicit stage from its current field and the increment. The solver iterates over linearizations of the operator, which it obtains from the process that owns each variable (see [Enabling implicit timestepping](@ref)):
+The only implicit scheme currently provided is first-order backward Euler, [`BackwardEuler`](@ref), with a [`Picard`](@ref) nonlinear solver. When the integrator is initialized, `BackwardEuler` queries the model for the linearized operator of all variables routed to it with [`implicit_operator`](@ref)`(model, state, names)` and stores this single operator in its cache. For [`SoilModel`](@ref) and [`LandModel`](@ref), it is a [`SplitOperator`](@ref) that holds a batched vertical [`TridiagonalOperator`](@ref) for each routed soil variable and solves `saturation_water_ice` before `internal_energy` (operator splitting; see [Implicit solvers](@ref) and [Coupling of water and energy](@ref imex-water-energy-coupling)).
+
+`BackwardEuler` also resolves, for each variable, the field its linear system is solved for: the variable of its closure relation (as given by [`varname`](@ref) of the closure), i.e. the `temperature` for `internal_energy` and the `pressure_head` for `saturation_water_ice`, and for a variable without closure its [`implicit_variable`](@ref), e.g. the `snow_liquid_fraction` for `snow_water_equivalent`. In each step, `BackwardEuler` stores the explicit increment ``u^+ - u^n = \Delta t\, G_\text{exp}`` of every implicit variable in the [`ImplicitSolverWorkspace`](@ref) of the variable and resets all of their prognostic fields to ``u^n``, and then calls the solver-level `implicit_step!(solver, operator, workspaces, state, model, Δt)` of its solver once; when a variable is solved, the solver forms its explicit stage from its current field and the increment. The solver iterates over linearizations of the operator, which it obtains from the process that owns each variable through the [process hooks](@ref imex-process-hooks):
 
 ```@docs; canonical = false
 BackwardEuler
 Picard
 ```
 
-For the soil energy equation (see [Soil energy balance](@ref)),
-```math
-\frac{\partial U}{\partial t} = \frac{\partial}{\partial z}\left[\kappa \frac{\partial T}{\partial z}\right] - \frac{\partial}{\partial z}\left(C_\text{w}\, T\, j_\text{w}\right) + G_\text{exp}\,,
-```
-where the second term is the advection of sensible heat by the vertical soil water flux ``j_\text{w}`` (zero without water flow), and ``G_\text{exp}`` contains the flux boundary conditions, the heat fluxes through the boundary faces, and any other explicit sources, the implicit step is a backward Euler step in temperature. Writing ``C_\text{app} = \partial U / \partial T`` for the apparent heat capacity, the energy increment is linearized as ``U^{n+1} - U^n \approx C_\text{app}\,(T^{n+1} - T^n)``, giving
-```math
-C_\text{app}\, T^{n+1} - \Delta t\, \frac{\partial}{\partial z}\left[\kappa \frac{\partial T^{n+1}}{\partial z}\right] + \Delta t\, \frac{\partial}{\partial z}\left(C_\text{w}\, T^{n+1} j_\text{w}\right) = C_\text{app}\, T^n - U^n + U^+\,, \qquad U^+ = U^n + \Delta t\, G_\text{exp}\,.
-```
-Discretized in space, with the temperature of the advective flux at each face taken from the upwind cell (first-order upwind; see [Tridiagonal operator](@ref)), this system is tridiagonal in each column and is solved with a batched tridiagonal solver. The coefficients ``\kappa`` (at cell faces) and ``C_\text{app}`` (at cell centers) are *lagged*, i.e. evaluated at the latest iterate rather than at ``T^{n+1}``. The water flux ``j_\text{w}`` is the flux with which the water was moved in the same step (see [Coupling of water and energy](@ref imex-water-energy-coupling)); for a fixed ``j_\text{w}``, the upwind terms keep the system an M-matrix (see [Tridiagonal operator](@ref)), so the solution has no spurious oscillations and the advection needs no CFL limit. The first iterate is the internal energy at the beginning of the step, ``U^n``, stored by [`update_cache!`](@ref), with the temperature re-diagnosed from it at the current saturation.
-
-The `FreeWater` freeze curve has an apparent heat capacity that is a Dirac delta at the melting point, which cannot be used directly in a linear system. Terrarium therefore regularizes it: for cells undergoing phase change (liquid water fraction strictly between zero and one), the latent heat term is replaced by a large constant capacity,
-```math
-C_\text{app} = C + C_\text{pc}\,, \qquad C_\text{pc} = 1.5 \times 10^8~\text{J/m}^3\text{/K}\,,
-```
-with bulk heat capacity ``C``. Outside of phase change, ``C_\text{app} = C``. For typical water contents, ``C_\text{pc}`` corresponds to spreading the latent heat over an interval of roughly 1 K. Since the energy is updated conservatively (see below), ``C_\text{pc}`` only affects how quickly the temperature of a freezing or thawing cell may change between iterates, not the energy balance.
-
-Once the temperature has been solved for, the internal energy is updated *conservatively* from the implicit diffusive and advective fluxes through the interior faces,
-```math
-U^{n+1} = U^+ + \Delta t\, \frac{\partial}{\partial z}\left[\kappa \frac{\partial T^{n+1}}{\partial z}\right] - \Delta t\, \frac{\partial}{\partial z}\left(C_\text{w}\, T^{n+1} j_\text{w}\right)\,,
-```
-rather than from the linearization. The temperature and liquid water fraction are then diagnosed from the closure, after every iteration including the last, so that they are consistent with ``U^{n+1}`` when the implicit step returns. Since the interior fluxes cancel pairwise between adjacent cells, the change in the column-integrated energy over a step equals ``\Delta t`` times the net boundary flux contained in ``G_\text{exp}``, independent of the number of iterations and the regularization.
+The implicit steps of the soil variables are described with their processes: vertical heat conduction in [Implicit vertical heat conduction](@ref), the Richards equation in [Implicit Richards equation](@ref soil-hydrology-implicit-richards), and their coupling in [Coupling of water and energy](@ref imex-water-energy-coupling). Both follow the same pattern. The backward Euler step is linearized in the variable of the closure relation (the temperature or the total hydraulic head) with coefficients lagged at the latest iterate, which gives a tridiagonal system per column (see [Tridiagonal operator](@ref)). The conserved variable is then updated from the implicit fluxes through the interior faces rather than from the linearization, so the column-integrated energy and water change only by the boundary fluxes and sources in ``G_\text{exp}``, independent of the number of iterations.
 
 With `iterations = 1`, this is the linearly implicit scheme used by many land surface models [bonanClimateChangeTEMSoilMoisture2019](@cite). The default is `iterations = 2`. With `iterations = M > 1`, the lagged coefficients are re-evaluated at the new iterate (after re-applying the closure) and the solve is repeated, which is a Picard iteration on the nonlinear system [CeliaEtAl1990](@cite). A single step is still only first order accurate in ``\Delta t``, but additional iterations reduce the error from the lagged capacity near freezing fronts.
 
-### [Implicit Richards equation](@id imex-richards)
+### [Process hooks](@id imex-process-hooks)
 
-For a Richards-equation hydrology, the implicit step solves the mixed form of the Richards equation (see [Soil hydrology](@ref)) with the mass-conservative modified Picard iteration of [CeliaEtAl1990](@cite). With porosity ``\phi``, saturation ``\xi`` (so that the volumetric water content is ``\theta = \phi \xi``), and total hydraulic head ``\Psi = \psi_m(\theta) + \psi_z + \psi_h`` (matric, elevation, and hydrostatic head), the backward Euler step reads
-```math
-\phi\, \frac{\xi^{n+1} - \xi^n}{\Delta t} = \frac{\partial}{\partial z}\left[K \frac{\partial \Psi^{n+1}}{\partial z}\right] + \phi\, G_\text{exp}\,,
+Each iteration of the [`Picard`](@ref) solver calls four hooks for each implicit variable, which the model forwards to the process that owns the variable, so that processes depend on neither the solver nor the timestepper. The hooks receive the explicit stage ``u^+`` and dispatch on an [`Iteration`](@ref)`{name, target, final}`, which names the variable, the field `target` that its linear system is solved for (see [Implicit Euler with a Picard solver](@ref)), and whether the iteration is the last one:
+
+- [`linearize!`](@ref)`(operator, rhs, state, model, explicit_stage, Δt, ::Iteration{name})` evaluates the lagged coefficients of `operator` and the right-hand side `rhs` at the current iterate, where `explicit_stage` holds ``u^+``;
+- [`solve!`](@ref)`(target, operator, rhs, Δt)` solves the linear system for the field `target`; it dispatches on the operator type and needs no process-specific method;
+- [`implicit_update!`](@ref)`(state, model, operator, explicit_stage, Δt, ::Iteration{name})` updates the prognostic variable conservatively, from the fluxes implied by the solution;
+- [`implicit_closure!`](@ref)`(state, model, ::Iteration{name, target, final})` re-evaluates the closure, where `final` is `true` only in the last iteration.
+
+After the last iteration, the prognostic field must hold ``u^{n+1}``, with the closure variables derived from it consistent. A hook may read another implicitly integrated variable from its prognostic field: since all implicit variables are reset to ``u^n`` before the first solve, it holds ``u^n`` if that variable is solved later and ``u^{n+1}`` if it was solved earlier, never the explicit stage.
+
+```@docs; canonical = false
+Iteration
+linearize!
+implicit_update!
+implicit_closure!
 ```
-where ``G_\text{exp}`` (1/s) is the explicit tendency of the saturation ``\xi``; it is multiplied by ``\phi`` because the equation is written for the volumetric water content ``\theta = \phi \xi``, the quantity whose flux divergence is the right-hand side. ``G_\text{exp}`` contains the flux boundary conditions on the saturation (e.g. [`InfiltrationFlux`](@ref)), the Darcy fluxes through boundary faces implied by gradient conditions on the pressure head, evapotranspiration, and the user-defined forcing. The elevation head and the hydrostatic head below the water table are held fixed within the step, so that ``\partial\theta/\partial\Psi = C``, the specific moisture capacity. Linearizing the water content about the latest iterate ``m``, ``\phi \xi^{m+1} \approx \phi \xi^m + C^m (\Psi^{m+1} - \Psi^m)``, with the hydraulic conductivity ``K^m`` of the Darcy flux lagged at the same iterate, gives the tridiagonal system
-```math
-C^m\, \Psi^{m+1} - \Delta t\, \frac{\partial}{\partial z}\left[K^m \frac{\partial \Psi^{m+1}}{\partial z}\right] = C^m\, \Psi^m - \phi\,(\xi^m - \xi^+)\,, \qquad \xi^+ = \xi^n + \Delta t\, G_\text{exp}\,,
-```
-for the total head, starting from ``\xi^0 = \xi^n``. As for heat conduction, the saturation is then updated conservatively from the implicit fluxes through the interior faces,
-```math
-\xi^{m+1} = \xi^+ + \frac{\Delta t}{\phi}\, \frac{\partial}{\partial z}\left[K^m \frac{\partial \Psi^{m+1}}{\partial z}\right],
-```
-and the hydrology closure is applied after every iteration: it redistributes over- and undersaturation (see [`adjust_saturation_profile!`](@ref)), updates the water table, and recomputes ``\Psi^{m+1}`` from ``\xi^{m+1}``. Excess water that reaches a saturated surface is routed into the `surface_excess_water` pool of a [`LandModel`](@ref)'s surface runoff only by the closure of the last iteration (and is discarded by a standalone [`SoilModel`](@ref)), since every iteration restarts from ``\xi^+``. For the same reason, only the closure of the last iteration moves the heat of the redistributed water (see [Coupling of water and energy](@ref imex-water-energy-coupling)), so the internal energy is adjusted exactly once per step. The column water content therefore changes by exactly ``\Delta t`` times the boundary fluxes and sources in ``G_\text{exp}``, minus the excess routed to the surface pool, for any number of iterations. The Darcy fluxes ``-K^m \partial_z \Psi^{m+1}`` of the conservative update are stored in the `water_flux` auxiliary variable of the hydrology; after the last iteration, it holds the flux that moved the water in the step.
-
-In saturated cells ``C = 0``, and the diagonal of the system is carried by the conductivity terms ``\Delta t K / \Delta z^2``. Where the conductivity vanishes as well (frozen saturated cells), the system would be singular, so ``C`` is bounded from below by the small `minimum_moisture_capacity` (1/m, default ``10^{-5}``) of the hydraulic properties (see [`ConstantSoilHydraulics`](@ref)), which acts like a small specific storage within the iteration but does not affect mass conservation. [CeliaEtAl1990](@cite) recommend at least two iterations, which is the default of [`Picard`](@ref).
-
-### [Coupling of water and energy](@id imex-water-energy-coupling)
-
-With a Richards-equation hydrology, the water flux advects sensible heat: the soil energy equation carries the advective term ``-\partial_z (C_\text{w} T\, j_\text{w})``, discretized with first-order upwinding (see [Soil energy balance](@ref)). For the scheme to keep a uniform temperature uniform, heat must move with exactly the water that moves. Terrarium ensures this as follows.
-
-- **Water before energy.** The [`SplitOperator`](@ref) of [`SoilModel`](@ref) and [`LandModel`](@ref) solves `saturation_water_ice` before `internal_energy`. The heat step therefore sees the saturation at the end of the step and the water flux of the step, while the Richards step sees the temperature and liquid water fraction at the beginning of the step: the effect of frozen ground on the hydraulic conductivity is lagged by one step, as in most sequentially split land models. The Stefan problem test (`test/soil/soil_freeze_thaw_tests.jl`) quantifies this against a fully explicit reference.
-- **The water flux of the step.** The `water_flux` auxiliary variable holds the Darcy flux through the cell faces that moved the water: the flux at ``t^n``, computed with the tendencies, through the boundary faces and, under explicit time stepping of the saturation, through the interior faces; under implicit time stepping, the flux of the conservative update of the last Picard iteration through the interior faces. The advective heat fluxes use this flux, explicitly when `internal_energy` is explicit, and implicitly (upwind, in the heat operator) when it is implicit. In the implicit case, water that enters the column through a boundary face carries the temperature of the boundary cell at ``t^n`` (explicitly), while water that leaves it, e.g. by gravity drainage, carries the temperature of the boundary cell at ``t^{n+1}`` (implicitly), so that a large explicit drainage flux cannot remove more heat from the bottom cell than it holds. The heat carried by flux boundary conditions on the saturation (e.g. infiltration, see [`compute_boundary_advected_heat!`](@ref)) is explicit in both cases, since the water flux is.
-- **Heat moved by the hydrology closure.** [`adjust_saturation_profile!`](@ref) moves the sensible heat ``C_\text{w} T`` of the water it shifts between cells, at the temperature of the cell that the water leaves, and removes the heat of the excess water that it discards or routes to the surface excess pool. The hydrology closure runs before the energy closure, so the temperature is recomputed from the adjusted energy. When both variables are implicit, the internal energy then holds ``U^n`` plus this adjustment, and since the [`Picard`](@ref) solver forms the explicit stage of the heat step from the current internal energy and the explicit increment, the adjustment is kept, as in a sequential split.
-
-The water heat capacity ``C_\text{w}`` is the one with which water enters the bulk heat capacity. Since the bulk heat capacity also includes air, water that replaces air in the pores changes the temperature slightly (by a fraction of the order of ``C_\text{air} / C_\text{w} \approx 3 \times 10^{-4}`` of the change of the water content), as the heat of the displaced air is not tracked.
-
-!!! warning "Implicit water with explicit energy"
-    Integrating `saturation_water_ice` implicitly while `internal_energy` is explicit (by specializing [`timestepping`](@ref)) is allowed, but not recommended with water flow: the explicit advection of heat is then computed at ``t^n``, before the water is moved by the implicit flux of the step, so heat and water move with different fluxes. During wetting fronts, this can warm or cool the soil substantially and become unstable for large time steps. The default routing of [`SoilModel`](@ref) and [`LandModel`](@ref) integrates both implicitly.
-
-Under explicit time stepping of `internal_energy`, the stability limit of the explicit advection is reported by `cell_advection_timescale` (see [Adaptive time stepping](@ref)); under implicit time stepping, it is `Inf`.
 
 ### Example
 
@@ -373,7 +340,7 @@ sim.Δt   # reaches `max_Δt`, far beyond the explicit diffusive limit of a few 
 
 With a Richards-equation hydrology, the Darcy fluxes through the boundary faces of the column (e.g. gravity drainage
 through a [`FreeDrainage`](@ref) or unit-gradient condition on `pressure_head`), the flux boundary conditions, and the
-sinks stay explicit at ``t^n`` (see [Implicit Richards equation](@ref imex-richards)). A step longer than the outflow
+sinks stay explicit at ``t^n`` (see [Implicit Richards equation](@ref soil-hydrology-implicit-richards)). A step longer than the outflow
 limit would remove more water from a cell than it holds, and the hydrology closure would then move water from other
 cells to fill the deficit, so the column alternates between drained and saturated cells. The outflow limit keeps the
 wizard below this bound. In a draining sandy column, it can be as restrictive as the explicit diffusive limit of the
@@ -388,7 +355,7 @@ and the diffusive limit of explicit heat conduction both apply.
 !!! warning "Richards equation is stiff near saturation"
     As the soil saturates, ``\partial\theta/\partial\psi \to 0`` and the hydraulic timescale tends to
     zero. Explicit integration of the Richardson–Richards equation is therefore extremely stiff in
-    the saturated limit, which is the regime that motivates implicit time stepping. Implicit integration of the Richards equation removes this restriction (see [Implicit Richards equation](@ref imex-richards)). The
+    the saturated limit, which is the regime that motivates implicit time stepping. Implicit integration of the Richards equation removes this restriction (see [Implicit Richards equation](@ref soil-hydrology-implicit-richards)). The
     `TimeStepWizard`'s `min_change` bound prevents `Δt` from collapsing to zero in a single
     adjustment, but a saturated explicit run may still require very small steps.
 

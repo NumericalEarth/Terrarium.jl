@@ -512,6 +512,12 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 >    Deferred (2026-11-05): recorded under Future work with the Painter–Karra curve, the reviewer's choice for the smooth freeze curve, rather than Dall'Amico's as the review suggested.
 > The four threads requesting review (threads 0–3) need no changes.
 
+> **Revision 30, 2026-11-05 (Claude Opus 5.5). Approved. Implicit soil schemes documented with their processes.**
+> Reviewer request: the detailed descriptions of the implicit steps of heat conduction and the Richards equation move from the time stepping page to the process pages.
+> The backward Euler step in temperature, the regularized apparent heat capacity of `FreeWater`, and the conservative energy update move to "Implicit vertical heat conduction" in `soil_energy.md`; the modified Picard step of the Richards equation moves to "Implicit Richards equation" in `soil_hydrology.md`, and "Coupling of water and energy" becomes a section of `soil_energy.md` (with its anchor `imex-water-energy-coupling` unchanged).
+> `time_stepping.md` keeps the generic description of `BackwardEuler` and `Picard` and summarizes the pattern that both soil steps share (lagged coefficients, a tridiagonal system per column, and a conservative update), with links to the process pages; links to the former `imex-richards` anchor point to the soil hydrology section.
+> Reviewer request (same day): the description of the process hooks in "Enabling implicit timestepping" of `implementing_processes.md` is condensed to what an implementer must provide, and the hook signatures and their contract (the state on exit, and reading other implicit variables) move, condensed, to a new "Process hooks" section of `time_stepping.md` (anchor `imex-process-hooks`), together with the docstrings of `Iteration`, `linearize!`, `implicit_update!`, and `implicit_closure!`.
+
 ## Problem description
 
 Terrarium integrates every prognostic variable with fixed-step explicit schemes (`ForwardEuler`, `Heun`).

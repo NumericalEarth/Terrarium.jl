@@ -6,14 +6,13 @@ CurrentModule = Terrarium
 
 ## Overview
 
-Some land processes such as the implicit [skin temperature](@ref "Skin temperature"), require solving pointwise nonlinear algebraic equations. To keep the numerics of such routines modular, device-agnostic, and differentiable, Terrarium provides a barebones interface for solving scalar optimization problems consisting of an *objective function* and a set of interchangeable *solvers*.
+Some land processes, such as the implicit formulation of the [surface energy balance](@ref "Surface energy balance"), require solving pointwise nonlinear algebraic equations. To keep the numerics of such routines modular, device-agnostic, and differentiable, Terrarium provides a barebones interface for solving scalar optimization problems consisting of an *objective function* and a set of interchangeable *solvers*.
 
 The general problem is to find values of a target field that drives a residual `F(x)` to zero,
 ```math
 F(x) = 0
 ```
-where `F` is evaluated by mutating the relevant output fields and reading back the residual. The unknown `x` is stored in the target field, so the same machinery works for any prognostic or
-auxiliary quantity solved implicitly.
+where `F` is evaluated by mutating the relevant output fields and reading back the residual. The unknown `x` is stored in the target field, so the same machinery works for any prognostic or auxiliary quantity solved implicitly.
 
 ## Objective functions
 
@@ -47,15 +46,17 @@ RelaxationFactor
 relaxed_update
 ```
 
-## Implicit solvers
+## Solvers for implicit time stepping
 
-The nonlinear solvers above act pointwise. An implicit time step instead requires solving a coupled system along each column (see [Implicit-explicit time stepping](@ref)). The backward Euler step of the implicitly integrated variables,
+The nonlinear solvers above act pointwise across the underlying `grid`. An implicit time step requires additionally solving a coupled system along each column (see [Implicit-explicit time stepping](@ref)). As an example, a backward Euler step of the system state $u$,
 ```math
 u^{n+1} = u^+ + \Delta t\, G_\text{imp}\left(u^{n+1}\right)\,, \qquad u^+ = u^n + \Delta t\, G_\text{exp}\left(u^n\right)\,,
 ```
-is a nonlinear system for ``u^{n+1}``, since the coefficients of the implicit tendency ``G_\text{imp}`` (e.g. the heat capacity and conductivity of vertical heat conduction) depend on the solution, and its discretization couples each cell to its vertical neighbors. Its solution is split into two parts: implicit solvers, which subtype [`AbstractImplicitSolver`](@ref) and are held by an implicit timestepper such as [`BackwardEuler`](@ref), define how the nonlinear system is iterated, and linear operators, which subtype [`AbstractLinearOperator`](@ref), define the linearized system of each iteration and how it is solved. A solver is generic over the operator, and an operator is independent of the solver.
+forms a nonlinear system in ``u^{n+1}``, since the coefficients of the implicit tendency ``G_\text{imp}`` (e.g. the heat capacity and conductivity of vertical heat conduction) depend on the solution, and its discretization couples each cell to its vertical neighbors. Its solution is split into two parts: implicit solvers, which subtype [`AbstractImplicitSolver`](@ref) and are components of an implicit timestepper such as [`BackwardEuler`](@ref), define how the nonlinear system is iterated, while linear operators subtyping [`AbstractLinearOperator`](@ref) define the numerical scheme for *linearizing* and solving the system of equations at each iteration. A solver is generic over the operator, and an operator is independent of the solver.
 
-In the code, the unit of the implicit solve is the set of all variables of a model that are routed to the implicit timestepper: the model provides a single operator for them, which is either a composite of per-variable operators, such as the [`SplitOperator`](@ref) below, or an operator that couples the variables. A solver implements the solver-level methods `implicit_step!(solver, operator, workspaces::NamedTuple, state, model, Δt)` for all routed variables and `implicit_step!(solver, operator, workspace::ImplicitSolverWorkspace, state, model, Δt)` for a single one (see [`implicit_step!`](@ref)), which contain only its iteration; the bookkeeping of the time step, such as storing the explicit increment and resetting the prognostic fields to the initial iterate, belongs to the implicit timestepper. The per-variable working data are bundled in an [`ImplicitSolverWorkspace`](@ref): the right-hand side `rhs`, the `explicit_stage` (which holds the explicit increment `Δt G_exp` on entry and the explicit stage `u⁺` once the solver has formed it from the variable's current field), and the [`Iteration`](@ref) label `iteration`, which names the variable and the field that its linear system is solved for, as resolved by the implicit timestepper from the variable's closure (see [`BackwardEuler`](@ref)). The workspaces are passed as a `NamedTuple` keyed by variable name, so solvers depend on no timestepper type.
+In the code, the unit of the implicit solve is the set of all variables of a model that are routed to the implicit timestepper: the model provides a single operator for them, which is either a composite of per-variable operators, such as the [`SplitOperator`](@ref) below, or an operator that couples the variables. A solver implements the solver-level methods `implicit_step!(solver, operator, workspaces::NamedTuple, state, model, Δt)` for all routed variables and `implicit_step!(solver, operator, workspace::ImplicitSolverWorkspace, state, model, Δt)` for a single one (see [`implicit_step!`](@ref)), which contain only its iteration; the bookkeeping of the time step, such as storing the explicit increment and resetting the prognostic fields to the initial iterate, belongs to the implicit timestepper.
+
+The working data buffers for each (implicit) prognostic variable are bundled in an [`ImplicitSolverWorkspace`](@ref): the right-hand side `rhs`, the `explicit_stage` (which holds the explicit increment `Δt G_exp` on entry and the explicit stage `u⁺` once the solver has formed it from the variable's current field), and the [`Iteration`](@ref) label `iteration`, which names the variable and the field that its linear system is solved for, as resolved by the implicit timestepper from the variable's closure (see [`BackwardEuler`](@ref)). The workspaces are passed as a `NamedTuple` keyed by variable name, so solvers depend on no timestepper type.
 
 ```@docs; canonical = false
 ImplicitSolverWorkspace
@@ -68,11 +69,13 @@ AbstractLinearOperator
 
 ### Picard solver
 
-The backward Euler step of a nonlinear equation is a nonlinear system for ``u^{n+1}``, written as ``F(u^{n+1}) = 0``, since the coefficients of the operator (e.g. the heat capacity or the hydraulic conductivity) depend on the solution. [`Picard`](@ref) solves it as a fixed-point problem. With the coefficients evaluated (*lagged*) at the current iterate ``u^{n+1,m}``, the system is linear, and its solution is the next iterate,
+The backward Euler step of a nonlinear equation is a nonlinear system in ``u^{n+1}``, written as ``F(u^{n+1}) = 0``, since the coefficients of the operator (e.g. the heat capacity or the hydraulic conductivity) depend on the solution. A [`Picard`](@ref) scheme solves this root-finding problem via fixed-point iteration. With the coefficients evaluated (*lagged*) at the current iterate ``u^{n+1,m}``, the system is linear, and its solution is the next iterate,
 ```math
 u^{n+1,m+1} = g\left(u^{n+1,m}\right)\,,
 ```
-where ``g(v)`` denotes the solution of the linear system with coefficients evaluated at ``v``. A fixed point ``u = g(u)`` is a solution of ``F(u) = 0``, and the iteration ``u^{n+1,m+1} = g(u^{n+1,m})`` starting from ``u^{n+1,0} = u^n`` is the Picard (fixed-point) iteration [CeliaEtAl1990](@cite). With a single iteration, it is the linearly implicit scheme common in land surface models [bonanClimateChangeTEMSoilMoisture2019](@cite). `Picard` takes a fixed number of iterations, two by default (`Picard(NF; iterations = 2)`). For the operator of a single variable, its solver-level `implicit_step!` runs a fixed number of iterations, each of which calls the process hooks [`linearize!`](@ref), [`solve!`](@ref), [`implicit_update!`](@ref), and [`implicit_closure!`](@ref) of the variable (see [Enabling implicit timestepping](@ref)). For a [`SplitOperator`](@ref), it runs these iterations for each component in turn. Since each variable forms its explicit stage as its current field plus the explicit increment when it is solved, each component after the first is stepped from the state left by the components solved before it, as in a sequential split: changes that their closures make to its prognostic field (e.g. the heat moved with the water redistributed by the soil hydrology closure) are kept.
+where ``g(v)`` denotes the solution of the linear system with coefficients evaluated at ``v``. A fixed point ``u = g(u)`` is a solution of ``F(u) = 0``, and the iteration ``u^{n+1,m+1} = g(u^{n+1,m})`` starting from ``u^{n+1,0} = u^n`` is the Picard (fixed-point) iteration [CeliaEtAl1990](@cite). With a single iteration, it is the linearly implicit scheme common in land surface models [bonanClimateChangeTEMSoilMoisture2019](@cite).
+
+[`Picard`](@ref) performs a fixed number of iterations configurable by the user (default: `Picard(NF; iterations = 2)`). For the operator of a single variable, its solver-level `implicit_step!` runs a fixed number of iterations, each of which calls the process hooks [`linearize!`](@ref), [`solve!`](@ref), [`implicit_update!`](@ref), and [`implicit_closure!`](@ref) of the variable (see [Process hooks](@ref imex-process-hooks)). For a [`SplitOperator`](@ref), it runs these iterations for each component in turn. Since each variable forms its explicit stage as its current field plus the explicit increment when it is solved, each component after the first is stepped from the state left by the components solved before it, as in a sequential split: changes that their closures make to its prognostic field (e.g. the heat moved with the water redistributed by the soil hydrology closure) are kept.
 
 ```@docs; canonical = false
 Picard
@@ -80,7 +83,7 @@ Picard
 
 ### Operator splitting
 
-A [`SplitOperator`](@ref) holds the operators of several variables in a `NamedTuple`, in the order in which they are solved. [`SoilModel`](@ref) and [`LandModel`](@ref) return a `SplitOperator` from the block query [`implicit_operator`](@ref)`(model, state, names)` that always solves `saturation_water_ice` before `internal_energy`, so that the heat step sees the saturation at the end of the step and advects heat with the water flux of the step, while the Richards step sees the temperature and liquid water fraction at its beginning (see [Coupling of water and energy](@ref imex-water-energy-coupling)). Operator splitting is therefore a choice of the model rather than a property of the timestepper; a model that solves its implicit variables together would return a coupled operator from the same query. `SplitOperator` is not exported.
+A [`SplitOperator`](@ref) holds the operators of several variables in a `NamedTuple`, in the order in which they are solved. An example of this is the soil component of [`SoilModel`](@ref) and [`LandModel`](@ref) which returns a `SplitOperator` from [`implicit_operator`](@ref)`(model, state, names)` that always solves `saturation_water_ice` before `internal_energy`, so that the heat step sees the saturation at the end of the step and advects heat with the water flux of the step, while the Richards step sees the temperature and liquid water fraction at its beginning (see [Coupling of water and energy](@ref imex-water-energy-coupling)). Operator splitting is therefore a choice of the model rather than a property of the timestepper; a model that solves its implicit variables together would return a coupled operator from the same query.
 
 ```@docs; canonical = false
 SplitOperator
@@ -108,7 +111,7 @@ b_k = C_k - a_k - c_k\,,
 with ``d_k = C_k T_k^n`` for this equation.
 Each row couples a cell only to its two neighbors, so the system of a column is tridiagonal.
 There is no flux through the column boundaries in the operator, i.e. ``a_1 = 0`` at the bottom and ``c_{N_z} = 0`` at the top; boundary fluxes are treated explicitly and enter through ``d_k``.
-In the implicit steps of Terrarium, ``C`` and ``\kappa`` are lagged coefficients and ``d_k`` is the right-hand side assembled by [`linearize!`](@ref), e.g. ``C_\text{app} T^m - U^m + U^+`` for the heat step (see [Implicit Euler with a Picard solver](@ref)).
+In the implicit steps of Terrarium, ``C`` and ``\kappa`` are lagged coefficients and ``d_k`` is the right-hand side assembled by [`linearize!`](@ref), e.g. ``C_\text{app} T^m - U^m + U^+`` for the heat step (see [Implicit vertical heat conduction](@ref)).
 Since ``C_k > 0`` and ``\kappa \geq 0``, the off-diagonal coefficients ``a_k`` and ``c_k`` are nonpositive, and the main diagonal ``b_k`` is positive and dominates each row (the row sum is ``C_k``).
 A matrix with these two properties is an [M-matrix](https://en.wikipedia.org/wiki/M-matrix): it is invertible and its inverse has no negative entries.
 As a consequence, the solution obeys a discrete maximum principle: it creates no new extrema and no spurious oscillations, for any time step.
