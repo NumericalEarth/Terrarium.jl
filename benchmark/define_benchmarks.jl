@@ -15,7 +15,7 @@ const RESOLUTION_SWEEP = [4, 8, 16, 24, 32, 48, 72, 96, 144]
 
 ## Compile-order check, first suite of the run: each configuration on a small grid that no other suite
 ## uses. Natively, the first model stepped in a Julia process can be several times slower than later
-## models with the same types (see docs/dev/2026-10/2026-10-17_PLAN_native_vs_reactant_performance_gap.md,
+## models with the same types (see docs/dev/plans/2026-10-17-1-native_vs_reactant_performance_gap.md,
 ## D7). Running these first absorbs that slowdown, so that it does not distort the suites below, and
 ## `:bench999` repeats them at the end of the run to report its size. Not run under Reactant, where it
 ## would only add XLA compilations.

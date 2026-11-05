@@ -25,7 +25,7 @@ Base revision: 99c748b79711e295e99a5a6370d386853652cf06
 ## Problem description
 
 `test/reactant/` covers standalone `SoilModel` and `SnowModel` configurations and the coupled
-`LandModel` (soil + snow, no vegetation; see `2026-08-04-PLAN_reactant_coupled_land_model.md`). The
+`LandModel` (soil + snow, no vegetation; see `2026-08-04-1-reactant_coupled_land_model.md`). The
 vegetation side has never been traced — that plan lists "Vegetation is still unsupported" as a known
 limitation, pointing at a root-fraction `exp(::TracedRArray)` blocker.
 

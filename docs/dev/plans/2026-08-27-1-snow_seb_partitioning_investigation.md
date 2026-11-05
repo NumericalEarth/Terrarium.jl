@@ -69,7 +69,7 @@ Confirmed by reading the current implementation (not yet run/instrumented):
    `α_eff = (1-f_snow)(1-f_veg)·α₀ + (1-f_snow)·f_veg·α_veg + f_snow·α_snow` used for the one skin-temperature
    solve. For small `f_snow` this washes out snow's high albedo, inflating absorbed shortwave (and hence
    `G`, `Ts`) relative to what the snow-covered patch would actually see — compounding point 2.
-5. A prior design doc ([`2026-07-10_PLAN_01B_surface_ground_heat_flux_split.md`](../2026-07/2026-07-10_PLAN_01B_surface_ground_heat_flux_split.md))
+5. A prior design doc ([`2026-07-10-3-surface_ground_heat_flux_split.md`](../2026-07/2026-07-10-3-surface_ground_heat_flux_split.md))
    already flagged the semantic ambiguity between the SEB closure flux and the soil BC and split them by
    name (`ground_heat_flux` vs `soil_heat_flux`), fixing the soil side. It explicitly deferred the
    *snow-top* forcing question — this is that deferred problem.

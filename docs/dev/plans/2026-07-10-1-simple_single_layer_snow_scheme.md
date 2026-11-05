@@ -262,7 +262,7 @@ The SEB must "optionally accept an `AbstractSnow`". Plan:
 
 ## Boundary-condition disambiguation (ground vs soil heat flux)
 
-> **Resolved by PR-B** ([`2026-07-10_PLAN_01B_surface_ground_heat_flux_split.md`](2026-07-10_PLAN_01B_surface_ground_heat_flux_split.md)).
+> **Resolved by PR-B** ([`2026-07-10-3-surface_ground_heat_flux_split.md`](2026-07-10-3-surface_ground_heat_flux_split.md)).
 > The original single `ground_heat_flux` field served two roles — the SEB skin-temperature closure flux
 > `G` (conduction from the skin into the medium below) *and* the soil-top `internal_energy` BC. Without
 > snow these coincide; **with snow they are distinct** (the SEB closes against the *snow surface*, while
@@ -298,7 +298,7 @@ reviewable (cf. `AGENTS.md` "scope creep in PRs"). Both are now **complete**.
 
 ### PR-A: energy/thermodynamics abstraction — **done**
 
-> [`2026-07-10_PLAN_01A_ground_abstraction.md`](2026-07-10_PLAN_01A_ground_abstraction.md)
+> [`2026-07-10-2-ground_abstraction.md`](2026-07-10-2-ground_abstraction.md)
 
 The medium-agnostic energy machinery was lifted into a top-level `thermodynamics/` module so the snow
 scheme can reuse it without depending on soil:
@@ -318,7 +318,7 @@ depth-integrated energy gives a flux-sum tendency, not a conduction divergence).
 
 ### PR-B: ground/soil heat-flux split — **done**
 
-> [`2026-07-10_PLAN_01B_surface_ground_heat_flux_split.md`](2026-07-10_PLAN_01B_surface_ground_heat_flux_split.md)
+> [`2026-07-10-3-surface_ground_heat_flux_split.md`](2026-07-10-3-surface_ground_heat_flux_split.md)
 
 The dual-role flux was split: `ground_heat_flux` remains the SEB closure flux `G`; the soil-top BC is
 `soil_heat_flux` (alias `SoilHeatFlux`). No-snow wiring feeds the soil BC directly from `ground_heat_flux`

@@ -44,7 +44,7 @@
 #       adapt the clock into a NamedTuple Enzyme has no shadow for.
 #
 #     Compile-time bisection and the history of these findings are in
-#     `docs/dev/2026-09/2026-09-24_NOTE_enzyme_landmodel_compile_time.md`. `SingleLayerSnow`
+#     `docs/dev/notes/2026-09-24_NOTE_enzyme_landmodel_compile_time.md`. `SingleLayerSnow`
 #     remains the dominant Terrarium-side compile cost, so the script runs with `snow = nothing`.
 #
 # ## Setup

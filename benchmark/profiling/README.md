@@ -4,7 +4,7 @@ Command-line tools for finding out where the time of a Terrarium time step goes,
 They complement the benchmark suite in `..`, which measures step times; these tools explain them.
 They build the same model configurations as the benchmarks (`../model_configurations.jl`) and are run by hand.
 
-They were written for the investigation in [`docs/dev/2026-10/2026-10-17_PLAN_native_vs_reactant_performance_gap.md`](../../docs/dev/2026-10/2026-10-17_PLAN_native_vs_reactant_performance_gap.md), which records what they found.
+They were written for the investigation in [`docs/dev/plans/2026-10-17-1-native_vs_reactant_performance_gap.md`](../../docs/dev/plans/2026-10-17-1-native_vs_reactant_performance_gap.md), which records what they found.
 
 ## Setup
 

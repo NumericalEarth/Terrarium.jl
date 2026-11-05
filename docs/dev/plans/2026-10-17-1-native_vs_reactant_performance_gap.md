@@ -55,7 +55,7 @@ XLA can additionally constant-fold anything that depends only on model parameter
 
 ### Prior work
 
-The fused-kernels plan (`docs/dev/2026-08/2026-08-31-PLAN_fused_kernels.md`, merged) already reduced the number of auxiliary launches for `SurfaceHydrology` and `VegetationCarbonCycle`.
+The fused-kernels plan (`docs/dev/plans/2026-08-31-1-fused_kernels.md`, merged) already reduced the number of auxiliary launches for `SurfaceHydrology` and `VegetationCarbonCycle`.
 Its revision 6 found that fusing *tendency* kernels raises register pressure and regresses GPU occupancy, so that route is closed.
 The benchmarks reviewed here postdate that work, so the remaining gap is not explained by the auxiliary launch count alone.
 

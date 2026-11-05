@@ -172,7 +172,7 @@ end
 # phenology/carbon/dynamics, `SoilEnergyWaterCarbon` with Richards-equation hydrology and SURFEX
 # hydraulics, `SingleLayerSnow`, default surface energy balance and hydrology), except the
 # skin-temperature solver: the default `RootSolver` iterates to a tolerance, and that convergence-tested
-# loop cannot be raised to StableHLO (see docs/dev/2026-08/2026-08-04-PLAN_reactant_coupled_land_model.md),
+# loop cannot be raised to StableHLO (see docs/dev/plans/2026-08-04-1-reactant_coupled_land_model.md),
 # so the fixed-iteration `NewtonSolver` is used as in :land_soil_snow.
 #
 # Cold conditions as in :land_soil_snow (no melt, so the comparison does not hinge on the exact step at

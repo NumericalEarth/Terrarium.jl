@@ -256,7 +256,7 @@ Follow [ColPrac](https://github.com/SciML/ColPrac). Feature branches, descriptiv
 
 ## Implementation plans
 
-All major feature additions, bug fixes, or refactoring that requires substantial changes to the existing code must be prefaced with an **implementation plan** that is **reviewed and signed off by a human**. These plan documents should be organized by date and stored in `docs/dev/plans` with the filename prefixed wit the pattern `YYYY-MM-dd-PLAN-#-` where # is an integer starting at 1 and incremented for each plan drafted on that date.
+All major feature additions, bug fixes, or refactoring that requires substantial changes to the existing code must be prefaced with an **implementation plan** that is **reviewed and signed off by a human**. These plan documents should be organized by date and stored in `docs/dev/plans` with the filename prefixed wit the pattern `YYYY-MM-dd-#-` where # is an integer starting at 1 and incremented for each plan drafted on that date. Development notes not corresponding to a specific source change can be written to `docs/dev/notes` and changes to upstream packages to `docs/dev/upstream`.
 
 You are **ABSOLUTELY REQUIRED** to get the explicit approval of a human developer before executing the implementation.
 
