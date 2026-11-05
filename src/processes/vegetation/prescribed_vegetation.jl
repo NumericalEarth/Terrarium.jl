@@ -2,20 +2,17 @@
     $TYPEDEF
 
 Coupled vegetation process representing natural vegetation with a *prescribed* leaf area index. Unlike
-[`VegetationCarbonCycle`](@ref), the vegetation carbon pool and leaf area are not prognostic: leaf area
-index is imposed externally (via the [`PrescribedPhenology`](@ref) scheme) and drives photosynthesis,
-stomatal conductance, and the associated water/energy exchange. There is consequently no prognostic
-carbon-pool or vegetation-dynamics component and no autotrophic respiration; `compute_tendencies!` is a
-no-op. Plant functional-type parameters (including the maximum leaf area index used to derive the
-phenology factor) are supplied through the `traits` component.
+[`VegetationCarbonCycle`](@ref), the vegetation carbon pool and leaf area are not prognostic: the leaf area
+index is the input variable `leaf_area_index` (m²/m², e.g. an observed or reanalysis climatology) and drives
+photosynthesis, stomatal conductance, and the associated water/energy exchange. There is consequently no
+phenology, prognostic carbon-pool, or vegetation-dynamics component and no autotrophic respiration;
+`compute_tendencies!` is a no-op. Plant functional-type parameters (including the maximum leaf area index
+used to derive the vegetated area fraction) are supplied through the `traits` component.
 
 Properties:
 $TYPEDFIELDS
 """
-@parameterized @kwdef struct PrescribedVegetation{NF, Phenology, Photosynthesis, StomatalConductance, RootDistribution, PAW} <: AbstractVegetation{NF}
-    "Phenology scheme"
-    @component phenology::Phenology
-
+@parameterized @kwdef struct PrescribedVegetation{NF, Photosynthesis, StomatalConductance, RootDistribution, PAW} <: AbstractVegetation{NF}
     "Photosynthesis scheme"
     @component photosynthesis::Photosynthesis
 
@@ -34,18 +31,17 @@ end
 
 function PrescribedVegetation(
         ::Type{NF};
-        phenology = PrescribedPhenology(NF),
         photosynthesis = LUEPhotosynthesis(NF),
         stomatal_conductance = MedlynStomatalConductance(NF),
         root_distribution = StaticExponentialRootDistribution(NF),
         plant_available_water = FieldCapacityLimitedPAW(NF),
         traits = PlantTraits(NF)
     ) where {NF}
-    return PrescribedVegetation(; phenology, photosynthesis, stomatal_conductance, root_distribution, plant_available_water, traits)
+    return PrescribedVegetation(; photosynthesis, stomatal_conductance, root_distribution, plant_available_water, traits)
 end
 
 variables(vegetation::PrescribedVegetation) = tuplejoin(
-    variables(vegetation.phenology, vegetation.traits), # include traits in variables
+    (input(:leaf_area_index, Canopy(XY()), units = u"m^2/m^2", desc = "Prescribed leaf area index"),),
     variables(vegetation.photosynthesis),
     variables(vegetation.stomatal_conductance),
     variables(vegetation.root_distribution),
@@ -79,10 +75,7 @@ function compute_auxiliary!(
     # PAW: needs soil saturation profile and computes soil_moisture_limiting_factor
     compute_auxiliary!(state, grid, veg.plant_available_water, soil)
 
-    # Phenology (prescribed): needs LAI(t) and air temperature(t) as inputs and computes phen(t)
-    compute_auxiliary!(state, grid, veg.phenology, atmos)
-
-    # Photosynthesis: needs atm. inputs(t), LAI(t), and computes Rd(t) and GPP(t)
+    # Photosynthesis: needs atm. inputs(t), prescribed LAI(t), and computes Rd(t) and GPP(t)
     compute_auxiliary!(state, grid, veg.photosynthesis, veg.stomatal_conductance, veg.traits, constants, atmos)
 
     # Stomatal conductance: needs atm. inputs(t) and computes λc(t)

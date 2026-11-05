@@ -1,6 +1,6 @@
 using Terrarium
 using Terrarium: compute_phenology_factor, compute_leaf_area_index, compute_gdd_tendency,
-    compute_auxiliary!, initialize, VegetationCarbonCycle, PALADYNPhenology, PrescribedPhenology,
+    compute_auxiliary!, initialize, VegetationCarbonCycle, PALADYNPhenology,
     seconds_per_day
 using Oceananigans: set!, interior
 using Test
@@ -61,21 +61,4 @@ end
     compute_auxiliary!(state, model.grid, model.vegetation.phenology, model.vegetation.carbon_dynamics, model.atmosphere)
     @test Array(interior(state.phenology_factor))[1] ≈ 0.5
     @test Array(interior(state.leaf_area_index))[1] ≈ 2.5
-end
-
-@testset "PrescribedPhenology" begin
-    grid = ColumnGrid(CPU(), Float64, ExponentialSpacing(N = 5))
-    traits = PlantTraits(eltype(grid); maximum_leaf_area_index = 4.0)
-    phenol = PrescribedPhenology(eltype(grid))
-    model = VegetationModel(grid; vegetation = PrescribedVegetation(eltype(grid); phenology = phenol, traits = traits))
-    integrator = initialize(model)
-    state = integrator.state
-    # ϕ = clamp(LAI / max_leaf_area_index, 0, 1)
-    set!(state.leaf_area_index, 2.0)
-    compute_auxiliary!(state, model)
-    @test Array(interior(state.phenology_factor))[1] ≈ 0.5
-    # clamped at 1 when prescribed LAI exceeds the seasonal maximum
-    set!(state.leaf_area_index, 6.0)
-    compute_auxiliary!(state, model)
-    @test Array(interior(state.phenology_factor))[1] == 1.0
 end

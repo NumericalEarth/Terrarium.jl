@@ -115,9 +115,8 @@ include("vegetation/dynamics/carbon_dynamics.jl")
 export PALADYNVegetationDynamics
 include("vegetation/dynamics/vegetation_dynamics.jl")
 
-export PALADYNPhenology, PrescribedPhenology
+export PALADYNPhenology
 include("vegetation/phenology/paladyn_phenology.jl")
-include("vegetation/phenology/prescribed_phenology.jl")
 
 export StaticExponentialRootDistribution
 include("vegetation/hydraulics/root_distribution.jl")

@@ -60,7 +60,7 @@ compute_tendencies!(state, grid, veg::VegetationCarbonCycle, constants::Physical
 
 ## Prescribed vegetation
 
-Terrarium also provides [`PrescribedVegetation`](@ref), a lighter-weight [`AbstractVegetation`](@ref) coupling for simulations in which the leaf area index is imposed externally (via [`PrescribedPhenology`](@ref)) rather than evolved from a prognostic carbon pool. It composes phenology, photosynthesis, stomatal conductance, root distribution, and plant-available water, together with a set of plant functional-type `traits`, but carries no prognostic vegetation carbon, vegetation-fraction dynamics, or autotrophic respiration. As such, the model defines no tendencies and is driven entirely by the prescribed LAI (`leaf_area_index` input variable) and atmospheric forcing.
+Terrarium also provides [`PrescribedVegetation`](@ref), a lighter-weight [`AbstractVegetation`](@ref) coupling for simulations in which the leaf area index is imposed externally (for example, from an observed or reanalysis climatology) rather than evolved from a prognostic carbon pool. It composes photosynthesis, stomatal conductance, root distribution, and plant-available water, together with a set of plant functional-type `traits`, but carries no phenology, prognostic vegetation carbon, vegetation-fraction dynamics, or autotrophic respiration. As such, the model defines no tendencies and is driven entirely by the prescribed LAI (`leaf_area_index` input variable) and atmospheric forcing.
 
 ```@docs; canonical = false
 PrescribedVegetation
