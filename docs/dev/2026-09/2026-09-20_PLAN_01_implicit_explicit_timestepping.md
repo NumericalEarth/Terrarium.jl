@@ -495,6 +495,23 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 > Since `G` is convex on each branch but not across the switch, a Newton step may undershoot the root there, so the update bounds the liquid fraction to `[min(L_c, θ⁺), θ⁺]`; a pack without ice takes the exact backward Euler solution `max(W⁺ − Δt K_sat, W⁺ / (1 + Δt (1 − L_c) / τ_m))`, and its coefficients are evaluated at `θ = 0` to avoid a division by zero in the unused branch.
 > The rebased commits were rewritten to resolve the conflict where it arose and to repair the kernel signatures in `soil_energy.jl` that the rebase merged into the invalid `args::Vararg{Any, N}...`.
 
+> **Revision 29, 2026-11-05 (Claude Opus 5.5). Approved. Response to the documentation review of PR #196.**
+> The 18 unresolved review comments of Olivier Bonte (2026-10-26/27) on the implicit time stepping docs and docstrings are grouped into six points; all concern documentation, none the numerics.
+> 1. *Notation* (threads 6, 7, 8, 11, 17): use `j_w` for the vertical water flux and `ξ` for the saturation, as in the soil hydrology docs, instead of `q` and `s`; write the advective heat flux in continuous form, `C_w T j_w`, derived from the advective flux of the soil energy docs (only sensible heat is advected, since `U` is measured relative to liquid water at 0 °C and ice is immobile), and mention first-order upwinding (`T_up`) only where the equations are discretized.
+>    Implemented (2026-11-05) in the doc pages and in the docstrings and comments that describe the same equations; code is unchanged.
+> 2. *Definitions at first use* (threads 4, 9, 12): introduce the split `∂u/∂t = G_exp(u) + G_imp(u)` into the explicit and implicit tendencies at the start of the IMEX section, and define `G_exp` where `implementing_processes.md` uses it; define the M-matrix once in the "Tridiagonal operator" section of `solvers.md` (nonpositive off-diagonals and a dominant diagonal, hence a nonnegative inverse and a discrete maximum principle, i.e. no spurious oscillations at any step) and link to it from the other mentions; explain the factor `φ` of the Richards step (`G_exp` is the tendency of `ξ`, and the equation is written for `θ = φ ξ`).
+>    Implemented (2026-11-05).
+> 3. *Derivation of the discretization* (threads 16, 20): derive the tridiagonal rows in `solvers.md` from `C ∂T/∂t = ∂z(κ ∂z T)` (finite volumes in space, backward Euler in time) in the form `a_k T_{k−1} + b_k T_k + c_k T_{k+1} = d_k`, then add the upwind advection terms, and point to it from the `TridiagonalOperator` docstring.
+>    Proposed.
+> 4. *Nonlinear iterations* (threads 14, 18, 19, 21): describe `Picard` as the fixed-point iteration `T^{n+1,m+1} = g(T^{n+1,m})`, where `g` solves the linear system with coefficients at `T^{n+1,m}`; cite Bonan (2019) instead of Knoll and Keyes (2004) for the linearly implicit scheme of land surface models; write out the Newton linearization of the snow drainage (`G′(θᵐ) θᵐ⁺¹ = G′(θᵐ) θᵐ − G(θᵐ)`) and the Celia linearization of the Richards step (`θᵐ⁺¹ ≈ θᵐ + Cᵐ (Ψᵐ⁺¹ − Ψᵐ)` with lagged `Kᵐ`).
+>    Proposed.
+> 5. *Readability* (threads 5, 13, 15): shorten step 5 of "Enabling implicit timestepping" to the iteration and the four hooks and move the bookkeeping to the `BackwardEuler` docstring or `solvers.md`; open the implicit solvers section of `solvers.md` with the nonlinear system of the backward Euler step before the API; accept the suggested `@extref` to Oceananigans' `BatchedTridiagonalSolver`, to be verified by a doc build with network access.
+>    Proposed.
+> 6. *Smooth freeze curves* (thread 10): the regularized apparent heat capacity of `FreeWater` affects only the convergence of the iterates, since the energy is updated conservatively; a smooth freeze curve (e.g. Dall'Amico) would give an analytic apparent heat capacity but first needs a soil energy closure for such curves, which Terrarium does not have.
+>    To be answered in the review and recorded under Future work.
+>    Proposed.
+> The four threads requesting review (threads 0–3) need no changes.
+
 ## Problem description
 
 Terrarium integrates every prognostic variable with fixed-step explicit schemes (`ForwardEuler`, `Heun`).
@@ -932,6 +949,7 @@ Each phase ends with the full test suite, the Enzyme test set, and a draft doc b
 - Implicit treatment of the lateral/2D couplings if they are ever added.
 - Robustness of the implicit Richards step (revision 24): a bounds-preserving safeguard for the Picard iterates, so that a prescribed infiltration flux into freezing soil at steps of several hours neither destroys water nor diverges; candidates are a limiter on the net balance of each cell (the prototyped column-wide and per-face Zalesak limiters prevent the failure but break the dry-column and mass conservation tests) or a saturation-based linearization in the cells where the pressure-head form leaves the bounds (primary variable switching); the failing configuration of revision 24 is the regression case.
 - A convergence-based step controller for the implicit solvers to replace the diffusive CFL wizard.
+- Smooth freeze curves (e.g. Dall'Amico) for the soil energy closure, and with them an analytic apparent heat capacity for the implicit heat step instead of the regularized capacity of `FreeWater` (revision 29, review thread 10).
 
 ### Oceananigans advection operators for soil energy advection
 

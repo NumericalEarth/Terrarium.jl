@@ -83,6 +83,9 @@ SplitOperator
 C_k\, T_k - \frac{\Delta t}{\Delta z_k}\left[ \frac{\kappa_{k+1/2}}{\Delta z_{k+1/2}} (T_{k+1} - T_k) - \frac{\kappa_{k-1/2}}{\Delta z_{k-1/2}} (T_k - T_{k-1}) \right]\,,
 ```
 with no flux through the column boundaries (boundary fluxes are treated explicitly).
+Since ``C_k > 0`` and ``\kappa \geq 0``, the off-diagonal coefficients of this system are nonpositive, and the main diagonal is positive and dominates each row (the row sum is ``C_k``).
+A matrix with these two properties is an [M-matrix](https://en.wikipedia.org/wiki/M-matrix): it is invertible and its inverse has no negative entries.
+As a consequence, the solution obeys a discrete maximum principle: it creates no new extrema and no spurious oscillations, for any time step.
 
 If the operator has a `face_velocity` ``u`` (allocated with `TridiagonalOperator(grid; advection = true)`), the row also contains the divergence ``\Delta t\, (F_{k+1/2} - F_{k-1/2}) / \Delta z_k`` of the upwind advective flux ``F = u\, T_\text{up}``, where ``T_\text{up}`` is the value of the cell below the face for ``u > 0`` and of the cell above it otherwise. The velocity is given in units of the capacity times a velocity, e.g. ``u = C_\text{w} j_\text{w}`` for the heat carried by the vertical soil water flux ``j_\text{w}``. The advective terms add the outflow of each cell to the main diagonal and its inflow to the off-diagonals with a negative sign, so the system remains an M-matrix for any ``u`` and the solution obeys a discrete maximum principle. Through the boundary faces, the outflow, whose upwind value is that of the boundary cell itself, is part of the operator, while the inflow must enter through the right-hand side. Without advection, `face_velocity` is `nothing` and the advective terms vanish by dispatch.
 

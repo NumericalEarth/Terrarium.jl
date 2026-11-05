@@ -4,7 +4,7 @@
 """
     $TYPEDEF
 
-Picard (lagged-coefficient) solver for the implicit system of a timestepper such as
+Picard (fixed-point) solver for the implicit system of a timestepper such as
 [`BackwardEuler`](@ref). Each iteration linearizes the implicit operator of a prognostic variable at the
 latest iterate ([`linearize!`](@ref)), solves the linear system for the closure variable (e.g.
 temperature) with [`solve!`](@ref), which dispatches on the [`AbstractLinearOperator`](@ref) (e.g. a
