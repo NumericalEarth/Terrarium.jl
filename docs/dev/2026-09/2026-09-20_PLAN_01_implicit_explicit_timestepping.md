@@ -507,9 +507,9 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 >    Implemented (2026-11-05) in `solvers.md`, `time_stepping.md`, `snow_mass.md`, and the `Picard` docstring and implicit snow and Richards header comments; Knoll and Keyes (2004) is no longer cited.
 > 5. *Readability* (threads 5, 13, 15): shorten step 5 of "Enabling implicit timestepping" to the iteration and the four hooks and move the bookkeeping to the `BackwardEuler` docstring or `solvers.md`; open the implicit solvers section of `solvers.md` with the nonlinear system of the backward Euler step before the API; accept the suggested `@extref` to Oceananigans' `BatchedTridiagonalSolver`, to be verified by a doc build with network access.
 >    Implemented (2026-11-05); the bookkeeping of the step is referred to the "Implicit Euler with a Picard solver" section of `time_stepping.md`, which already describes it, rather than moved to a docstring.
-> 6. *Smooth freeze curves* (thread 10): the regularized apparent heat capacity of `FreeWater` affects only the convergence of the iterates, since the energy is updated conservatively; a smooth freeze curve (e.g. Dall'Amico) would give an analytic apparent heat capacity but first needs a soil energy closure for such curves, which Terrarium does not have.
+> 6. *Smooth freeze curves* (thread 10): the regularized apparent heat capacity of `FreeWater` affects only the convergence of the iterates, since the energy is updated conservatively; a smooth freeze curve would give an analytic apparent heat capacity but first needs a soil energy closure for such curves, which Terrarium does not have.
 >    To be answered in the review and recorded under Future work.
->    Proposed.
+>    Deferred (2026-11-05): recorded under Future work with the Painter–Karra curve, the reviewer's choice for the smooth freeze curve, rather than Dall'Amico's as the review suggested.
 > The four threads requesting review (threads 0–3) need no changes.
 
 ## Problem description
@@ -949,7 +949,7 @@ Each phase ends with the full test suite, the Enzyme test set, and a draft doc b
 - Implicit treatment of the lateral/2D couplings if they are ever added.
 - Robustness of the implicit Richards step (revision 24): a bounds-preserving safeguard for the Picard iterates, so that a prescribed infiltration flux into freezing soil at steps of several hours neither destroys water nor diverges; candidates are a limiter on the net balance of each cell (the prototyped column-wide and per-face Zalesak limiters prevent the failure but break the dry-column and mass conservation tests) or a saturation-based linearization in the cells where the pressure-head form leaves the bounds (primary variable switching); the failing configuration of revision 24 is the regression case.
 - A convergence-based step controller for the implicit solvers to replace the diffusive CFL wizard.
-- Smooth freeze curves (e.g. Dall'Amico) for the soil energy closure, and with them an analytic apparent heat capacity for the implicit heat step instead of the regularized capacity of `FreeWater` (revision 29, review thread 10).
+- The Painter–Karra soil freezing characteristic curve (`PainterKarra` of FreezeCurves.jl) for the soil energy closure, and with it an analytic apparent heat capacity for the implicit heat step instead of the regularized capacity of `FreeWater` (revision 29, review thread 10).
 
 ### Oceananigans advection operators for soil energy advection
 
