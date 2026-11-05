@@ -5,45 +5,11 @@ grid = ColumnGrid(ExponentialSpacing(N = 10), num_columns)</code></pre><pre clas
 ├── Flat y                       
 └── Bounded  z ∈ [-175.325, 0.0] variably spaced with min(Δz)=0.05, max(Δz)=100.0</code></pre><div class="admonition is-success" id="Modular-grids-92b105016f087b28"><header class="admonition-header">Modular grids<a class="admonition-anchor" href="#Modular-grids-92b105016f087b28" title="Permalink"></a></header><div class="admonition-body"><p>Terrarium models are processes and designed to be largely invariant to the specific choice of grid. You can, for example, easily increase <code>num_columns</code> to add more (independent) columns or replace the above <code>grid</code> with a GPU-based grid with more soil layers <code>ColumnGrid(GPU(), ExponentialSpacing(N = 30))</code>. Alternatively, we could use a global <a href="../../api_index/#Terrarium.ColumnRingGrid"><code>ColumnRingGrid</code></a> as shown in <a href="../../examples/soil_heat_global/#soil_heat_global">this example</a>.</p></div></div><p>We will start here by constructing a simple <a href="../../api_index/#Terrarium.SoilModel"><code>SoilModel</code></a> using its defaults:</p><pre><code class="language-julia hljs">model = SoilModel(grid)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SoilModel{Float64} on CPU()
 ├── grid:  1×1×10 RectilinearGrid{Float64, Periodic, Flat, Bounded} on CPU with 1×0×3 halo
-├── soil:  SoilEnergyWaterCarbon{Float64, SoilStratigraphy{Float64, 1, Tuple{ConstantSoilHorizon{Float64, :soil, ConstantSoilPorosity{Float64}}}}, SoilThermodynamics{Float64, SoilEnergyTemperatureClosure, SoilThermalProperties{Float64, FreeWater, InverseQuadratic, SoilThermalConductivities{Float64}}}, SoilHydrology{Float64, NoFlow, SoilSaturationPressureClosure, SoilHydraulicsSURFEX{Float64, BrooksCorey{FreezeCurves.SoilWaterVolume{Float64, Float64, Float64}, Float64, Float64}, UnsatKLinear{Float64}}, Nothing}, ConstantSoilCarbonDensity{Float64}}
+├── soil:  SoilEnergyWaterCarbon{Float64, SoilStratigraphy{Float64, 1, Tuple{ConstantSoilHorizon{Float64, :soil, ConstantSoilPorosity{Float64}}}}, SoilThermodynamics{Float64, SoilEnergyTemperatureClosure, SoilThermalProperties{Float64, FreeWater, InverseQuadratic, SoilThermalConductivities{Float64}}}, SoilHydrology{Float64, RichardsEq, SoilSaturationPressureClosure, SoilHydraulicsSURFEX{Float64, BrooksCorey{FreezeCurves.SoilWaterVolume{Float64, Float64, Float64}, Float64, Float64}, UnsatKLinear{Float64}}, Nothing}, ConstantSoilCarbonDensity{Float64}}
 ├── constants:  PhysicalConstants{Float64}
 ├── initializer:  DefaultInitializer{Float64}
-├── timestepper:  ForwardEuler{Float64}
+├── timestepper:  IMEX{Float64, ForwardEuler{Float64}, BackwardEuler{Float64, Picard}}
 </code></pre><p>Calling <code>variables(model)</code> will give us a more detailed look at the state variables defined by this model:</p><pre><code class="language-julia hljs">variables(model)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Variables
-├─ Prognostic: 
-├── internal_energy [J m^-3] on XYZ{Center, Center, Center} of the ground domain
-├─ Auxiliary: 
-├── temperature [°C] on XYZ{Center, Center, Center} of the ground domain
-├── liquid_water_fraction [-] on XYZ{Center, Center, Center} of the ground domain
-├── ground_temperature [°C] on XY{Center, Center, Terrarium.Coordinate{typeof(lastindex), Center}} of the ground domain
-├── saturation_water_ice [-] on XYZ{Center, Center, Center} of the ground domain
-├── water_table [m] on XY{Center, Center, Nothing} of the ground domain
-├── hydraulic_conductivity [m s^-1] on XYZ{Center, Center, Face} of the ground domain
-├─ Inputs: 
-├─ Namespaces:
-├── Terrarium.Namespace{:soil, Terrarium.Variables}
-</code></pre><p>By default <code>SoilModel</code> uses a <a href="../../api_index/#Terrarium.NoFlow"><code>NoFlow</code></a> soil hydrology scheme that treats soil water/ice as constant in time. Let&#39;s try changing that. The (hopefully) easiest way to learn how to do this would be to go look at the documentation page for <a href="../../processes/soil/soil_hydrology/#Soil-hydrology">soil hydrology</a>. But let&#39;s be lazy and try to figure it ourselves.</p><p>We can see above that <code>model</code> has a property <code>soil</code> (see also the page for <a href="../../models/soil_model/#Soil-models"><code>SoilModel</code></a>). Let&#39;s inspect that:</p><pre><code class="language-julia hljs">model.soil</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SoilEnergyWaterCarbon{Float64}
-├── Processes:
-├──── strat:  SoilStratigraphy{Float64, 1, Tuple{ConstantSoilHorizon{Float64, :soil, ConstantSoilPorosity{Float64}}}}
-├──── energy:  SoilThermodynamics{Float64, SoilEnergyTemperatureClosure, SoilThermalProperties{Float64, FreeWater, InverseQuadratic, SoilThermalConductivities{Float64}}}
-├──── hydrology:  SoilHydrology{Float64, NoFlow, SoilSaturationPressureClosure, SoilHydraulicsSURFEX{Float64, BrooksCorey{FreezeCurves.SoilWaterVolume{Float64, Float64, Float64}, Float64, Float64}, UnsatKLinear{Float64}}, Nothing}
-├──── biogeochem:  ConstantSoilCarbonDensity{Float64}
-</code></pre><p>We can see that <code>soil</code> is a coupled process type <a href="../../api_index/#Terrarium.SoilEnergyWaterCarbon"><code>SoilEnergyWaterCarbon</code></a> with processes <code>energy</code>, <code>hydrology</code>, and <code>biogeochem</code>. Looking at <code>model.soil.hydrology</code>:</p><pre><code class="language-julia hljs">model.soil.hydrology</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SoilHydrology{Float64}
-├── vertical_flow:  NoFlow
-├── closure:  SoilSaturationPressureClosure
-├── hydraulic_properties:  SoilHydraulicsSURFEX{Float64, BrooksCorey{FreezeCurves.SoilWaterVolume{Float64, Float64, Float64}, Float64, Float64}, UnsatKLinear{Float64}}
-├── vwc_forcing:  Nothing
-</code></pre><p>we can see that it has a property <code>vertical_flow</code>. As a general rule, most process and parameterization types in Terrarium declare abstract base types which can help us figure out what our choices are. We can use some built-in Julia tools for this.</p><pre><code class="language-julia hljs"># First get the type of vertical_flow
-vftype = typeof(model.soil.hydrology.vertical_flow)
-# Then get the &quot;super&quot; type (i.e. the abstract type it inherits from)
-suptype = supertype(vftype)
-# Then list all of the subtypes of the abstract type
-subtypes(suptype)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">2-element Vector{Any}:
- NoFlow
- RichardsEq</code></pre><p>Aha! We see here a second implementation <a href="../../api_index/#Terrarium.RichardsEq"><code>RichardsEq</code></a>. This happens to correspond to the configuration option for <a href="../../api_index/#Terrarium.SoilHydrology"><code>SoilHydrology</code></a> that enables vertical water flow governed by the Richardson-Richards equation. We can enable this by changing <code>vertical_flow</code> when constructing the process and then building back up the <code>SoilModel</code> from there.</p><pre><code class="language-julia hljs">hydrology = SoilHydrology(eltype(grid), vertical_flow = RichardsEq())
-soil = SoilEnergyWaterCarbon(eltype(grid); hydrology)
-model = SoilModel(grid; soil)
-variables(model)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Variables
 ├─ Prognostic: 
 ├── internal_energy [J m^-3] on XYZ{Center, Center, Center} of the ground domain
 ├── saturation_water_ice [-] on XYZ{Center, Center, Center} of the ground domain
@@ -58,21 +24,56 @@ variables(model)</code></pre><pre class="documenter-example-output"><code class=
 ├─ Inputs: 
 ├─ Namespaces:
 ├── Terrarium.Namespace{:soil, Terrarium.Variables}
+</code></pre><p>By default <code>SoilModel</code> uses a soil hydrology scheme in which water flows vertically following the Richards equation. Suppose we want to turn that off and treat the soil water/ice as constant in time instead. The (hopefully) easiest way to learn how to do this would be to go look at the documentation page for <a href="../../processes/soil/soil_hydrology/#Soil-hydrology">soil hydrology</a>. But let&#39;s be lazy and try to figure it ourselves.</p><p>We can see above that <code>model</code> has a property <code>soil</code> (see also the page for <a href="../../models/soil_model/#Soil-models"><code>SoilModel</code></a>). Let&#39;s inspect that:</p><pre><code class="language-julia hljs">model.soil</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SoilEnergyWaterCarbon{Float64}
+├── Processes:
+├──── strat:  SoilStratigraphy{Float64, 1, Tuple{ConstantSoilHorizon{Float64, :soil, ConstantSoilPorosity{Float64}}}}
+├──── energy:  SoilThermodynamics{Float64, SoilEnergyTemperatureClosure, SoilThermalProperties{Float64, FreeWater, InverseQuadratic, SoilThermalConductivities{Float64}}}
+├──── hydrology:  SoilHydrology{Float64, RichardsEq, SoilSaturationPressureClosure, SoilHydraulicsSURFEX{Float64, BrooksCorey{FreezeCurves.SoilWaterVolume{Float64, Float64, Float64}, Float64, Float64}, UnsatKLinear{Float64}}, Nothing}
+├──── biogeochem:  ConstantSoilCarbonDensity{Float64}
+</code></pre><p>We can see that <code>soil</code> is a coupled process type <a href="../../api_index/#Terrarium.SoilEnergyWaterCarbon"><code>SoilEnergyWaterCarbon</code></a> with processes <code>energy</code>, <code>hydrology</code>, and <code>biogeochem</code>. Looking at <code>model.soil.hydrology</code>:</p><pre><code class="language-julia hljs">model.soil.hydrology</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SoilHydrology{Float64}
+├── vertical_flow:  RichardsEq
+├── closure:  SoilSaturationPressureClosure
+├── hydraulic_properties:  SoilHydraulicsSURFEX{Float64, BrooksCorey{FreezeCurves.SoilWaterVolume{Float64, Float64, Float64}, Float64, Float64}, UnsatKLinear{Float64}}
+├── vwc_forcing:  Nothing
+</code></pre><p>we can see that it has a property <code>vertical_flow</code>. As a general rule, most process and parameterization types in Terrarium declare abstract base types which can help us figure out what our choices are. We can use some built-in Julia tools for this.</p><pre><code class="language-julia hljs"># First get the type of vertical_flow
+vftype = typeof(model.soil.hydrology.vertical_flow)
+# Then get the &quot;super&quot; type (i.e. the abstract type it inherits from)
+suptype = supertype(vftype)
+# Then list all of the subtypes of the abstract type
+subtypes(suptype)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">2-element Vector{Any}:
+ NoFlow
+ RichardsEq</code></pre><p>Aha! We see here a second implementation <a href="../../api_index/#Terrarium.NoFlow"><code>NoFlow</code></a>. This happens to correspond to the configuration option for <a href="../../api_index/#Terrarium.SoilHydrology"><code>SoilHydrology</code></a> that keeps the soil water immobile. We can select it by changing <code>vertical_flow</code> when constructing the process and then building back up the <code>SoilModel</code> from there.</p><pre><code class="language-julia hljs">hydrology = SoilHydrology(eltype(grid), vertical_flow = NoFlow())
+soil = SoilEnergyWaterCarbon(eltype(grid); hydrology)
+model = SoilModel(grid; soil)
+variables(model)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Variables
+├─ Prognostic: 
+├── internal_energy [J m^-3] on XYZ{Center, Center, Center} of the ground domain
+├─ Auxiliary: 
+├── temperature [°C] on XYZ{Center, Center, Center} of the ground domain
+├── liquid_water_fraction [-] on XYZ{Center, Center, Center} of the ground domain
+├── ground_temperature [°C] on XY{Center, Center, Terrarium.Coordinate{typeof(lastindex), Center}} of the ground domain
+├── saturation_water_ice [-] on XYZ{Center, Center, Center} of the ground domain
+├── water_table [m] on XY{Center, Center, Nothing} of the ground domain
+├── hydraulic_conductivity [m s^-1] on XYZ{Center, Center, Face} of the ground domain
+├─ Inputs: 
+├─ Namespaces:
+├── Terrarium.Namespace{:soil, Terrarium.Variables}
 </code></pre><p>We could also do something similar for the soil thermal properties:</p><pre><code class="language-julia hljs">thermal_properties = SoilThermalProperties(eltype(grid))
 energy = SoilThermodynamics(eltype(grid); thermal_properties)
-hydrology = SoilHydrology(eltype(grid), RichardsEq()) # also a valid constructor, same as above
+hydrology = SoilHydrology(eltype(grid), NoFlow()) # also a valid constructor, same as above
 biogeochem = ConstantSoilCarbonDensity(eltype(grid))
 soil = SoilEnergyWaterCarbon(eltype(grid); energy, hydrology, biogeochem)
 model = SoilModel(grid; soil)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SoilModel{Float64} on CPU()
 ├── grid:  1×1×10 RectilinearGrid{Float64, Periodic, Flat, Bounded} on CPU with 1×0×3 halo
-├── soil:  SoilEnergyWaterCarbon{Float64, SoilStratigraphy{Float64, 1, Tuple{ConstantSoilHorizon{Float64, :soil, ConstantSoilPorosity{Float64}}}}, SoilThermodynamics{Float64, SoilEnergyTemperatureClosure, SoilThermalProperties{Float64, FreeWater, InverseQuadratic, SoilThermalConductivities{Float64}}}, SoilHydrology{Float64, RichardsEq, SoilSaturationPressureClosure, SoilHydraulicsSURFEX{Float64, BrooksCorey{FreezeCurves.SoilWaterVolume{Float64, Float64, Float64}, Float64, Float64}, UnsatKLinear{Float64}}, Nothing}, ConstantSoilCarbonDensity{Float64}}
+├── soil:  SoilEnergyWaterCarbon{Float64, SoilStratigraphy{Float64, 1, Tuple{ConstantSoilHorizon{Float64, :soil, ConstantSoilPorosity{Float64}}}}, SoilThermodynamics{Float64, SoilEnergyTemperatureClosure, SoilThermalProperties{Float64, FreeWater, InverseQuadratic, SoilThermalConductivities{Float64}}}, SoilHydrology{Float64, NoFlow, SoilSaturationPressureClosure, SoilHydraulicsSURFEX{Float64, BrooksCorey{FreezeCurves.SoilWaterVolume{Float64, Float64, Float64}, Float64, Float64}, UnsatKLinear{Float64}}, Nothing}, ConstantSoilCarbonDensity{Float64}}
 ├── constants:  PhysicalConstants{Float64}
 ├── initializer:  DefaultInitializer{Float64}
-├── timestepper:  IMEX{Float64, ForwardEuler{Float64}, BackwardEuler{Float64, Picard}}
+├── timestepper:  ForwardEuler{Float64}
 </code></pre><div class="admonition is-info" id="Number-formats-13846d000e9916fc"><header class="admonition-header">Number formats<a class="admonition-anchor" href="#Number-formats-13846d000e9916fc" title="Permalink"></a></header><div class="admonition-body"><p>Note the use of <code>eltype(grid)</code> when constructing process and parameterization types. This is important and mandatory! The number formats for all components must match, otherwise you will get errors during construction.</p></div></div><h2 id="Setting-up-a-[LandModel](@ref)"><a class="docs-heading-anchor" href="#Setting-up-a-[LandModel](@ref)">Setting up a <a href="../../api_index/#Terrarium.LandModel"><code>LandModel</code></a></a><a id="Setting-up-a-[LandModel](@ref)-1"></a><a class="docs-heading-anchor-permalink" href="#Setting-up-a-[LandModel](@ref)" title="Permalink"></a></h2><p><a href="../../api_index/#Terrarium.LandModel"><code>LandModel</code></a> couples soil, surface energy and water fluxes, and optionally vegetation. A key option here is whether or not the land surface has vegetation.</p><h3 id="No-vegetation-(bare-soil)"><a class="docs-heading-anchor" href="#No-vegetation-(bare-soil)">No vegetation (bare soil)</a><a id="No-vegetation-(bare-soil)-1"></a><a class="docs-heading-anchor-permalink" href="#No-vegetation-(bare-soil)" title="Permalink"></a></h3><p>For bare soil simulations, we can simply pass <code>vegetation=nothing</code>:</p><pre><code class="language-julia hljs">model = LandModel(grid; vegetation = nothing)
 variables(model)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Variables
 ├─ Prognostic: 
 ├── internal_energy [J m^-3] on XYZ{Center, Center, Center} of the ground domain
+├── saturation_water_ice [-] on XYZ{Center, Center, Center} of the ground domain
 ├── snow_energy [J m^-2] on XY{Center, Center, Nothing} of the snow domain
 ├── snow_water_equivalent [m] on XY{Center, Center, Nothing} of the snow domain
 ├── skin_temperature [°C] on XY{Center, Center, Nothing} of the surface domain
@@ -80,12 +81,13 @@ variables(model)</code></pre><pre class="documenter-example-output"><code class=
 ├─ Auxiliary: 
 ├── temperature [°C] on XYZ{Center, Center, Center} of the ground domain
 ├── liquid_water_fraction [-] on XYZ{Center, Center, Center} of the ground domain
+├── pressure_head [m] on XYZ{Center, Center, Center} of the ground domain
 ├── snow_temperature [°C] on XY{Center, Center, Nothing} of the snow domain
 ├── snow_liquid_fraction [-] on XY{Center, Center, Nothing} of the snow domain
 ├── ground_temperature [°C] on XY{Center, Center, Terrarium.Coordinate{typeof(lastindex), Center}} of the ground domain
-├── saturation_water_ice [-] on XYZ{Center, Center, Center} of the ground domain
-├── water_table [m] on XY{Center, Center, Nothing} of the ground domain
 ├── hydraulic_conductivity [m s^-1] on XYZ{Center, Center, Face} of the ground domain
+├── water_table [m] on XY{Center, Center, Nothing} of the ground domain
+├── water_flux [m s^-1] on XYZ{Center, Center, Face} of the ground domain
 ├── snow_depth [m] on XY{Center, Center, Nothing} of the snow domain
 ├── snow_cover_fraction [-] on XY{Center, Center, Nothing} of the snow domain
 ├── meltwater_flux [m s^-1] on XY{Center, Center, Nothing} of the snow domain
@@ -174,8 +176,8 @@ energy = SoilThermodynamics(eltype(grid); thermal_properties)
 soil = SoilEnergyWaterCarbon(eltype(grid); energy)
 model = SoilModel(grid; soil)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SoilModel{Float64} on CPU()
 ├── grid:  1×1×10 RectilinearGrid{Float64, Periodic, Flat, Bounded} on CPU with 1×0×3 halo
-├── soil:  SoilEnergyWaterCarbon{Float64, SoilStratigraphy{Float64, 1, Tuple{ConstantSoilHorizon{Float64, :soil, ConstantSoilPorosity{Float64}}}}, SoilThermodynamics{Float64, SoilEnergyTemperatureClosure, SoilThermalProperties{Float64, FreeWater, InverseQuadratic, SoilThermalConductivities{Float64}}}, SoilHydrology{Float64, NoFlow, SoilSaturationPressureClosure, SoilHydraulicsSURFEX{Float64, BrooksCorey{FreezeCurves.SoilWaterVolume{Float64, Float64, Float64}, Float64, Float64}, UnsatKLinear{Float64}}, Nothing}, ConstantSoilCarbonDensity{Float64}}
+├── soil:  SoilEnergyWaterCarbon{Float64, SoilStratigraphy{Float64, 1, Tuple{ConstantSoilHorizon{Float64, :soil, ConstantSoilPorosity{Float64}}}}, SoilThermodynamics{Float64, SoilEnergyTemperatureClosure, SoilThermalProperties{Float64, FreeWater, InverseQuadratic, SoilThermalConductivities{Float64}}}, SoilHydrology{Float64, RichardsEq, SoilSaturationPressureClosure, SoilHydraulicsSURFEX{Float64, BrooksCorey{FreezeCurves.SoilWaterVolume{Float64, Float64, Float64}, Float64, Float64}, UnsatKLinear{Float64}}, Nothing}, ConstantSoilCarbonDensity{Float64}}
 ├── constants:  PhysicalConstants{Float64}
 ├── initializer:  DefaultInitializer{Float64}
-├── timestepper:  ForwardEuler{Float64}
-</code></pre><div class="admonition is-todo" id="Improved-parameter-handling-6baf1f72f86825c0"><header class="admonition-header">Improved parameter handling<a class="admonition-anchor" href="#Improved-parameter-handling-6baf1f72f86825c0" title="Permalink"></a></header><div class="admonition-body"><p>We will soon make it easier to collect, select, and modify parameters <em>after</em> model construction using a parameter handling system based on <a href="https://github.com/rafaqz/ModelParameters.jl"><code>ModelParameters</code></a>. Stay tuned!</p></div></div></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../introduction/mathematical_formulation/">« Mathematical formulation</a><a class="docs-footer-nextpage" href="../initialization/">Initialization »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Thursday 5 November 2026 14:01">Thursday 5 November 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+├── timestepper:  IMEX{Float64, ForwardEuler{Float64}, BackwardEuler{Float64, Picard}}
+</code></pre><div class="admonition is-todo" id="Improved-parameter-handling-6baf1f72f86825c0"><header class="admonition-header">Improved parameter handling<a class="admonition-anchor" href="#Improved-parameter-handling-6baf1f72f86825c0" title="Permalink"></a></header><div class="admonition-body"><p>We will soon make it easier to collect, select, and modify parameters <em>after</em> model construction using a parameter handling system based on <a href="https://github.com/rafaqz/ModelParameters.jl"><code>ModelParameters</code></a>. Stay tuned!</p></div></div></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../introduction/mathematical_formulation/">« Mathematical formulation</a><a class="docs-footer-nextpage" href="../initialization/">Initialization »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Thursday 5 November 2026 18:14">Thursday 5 November 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
