@@ -26,7 +26,7 @@ integrator = initialize(model)
 SoilModel
 ```
 
-The default timestepper of `SoilModel` depends on the soil hydrology. Without water flow (the default `NoFlow`), it is `ForwardEuler(NF)`. With Richards-equation water flow, it is `IMEX(ForwardEuler(NF; Δt = 3600), BackwardEuler(NF))`, which treats soil heat conduction and water flow implicitly with a 1-hour time step. Value boundary conditions such as [`PrescribedSurfaceTemperature`](@ref) require an explicit timestepper, e.g. `SoilModel(grid; soil, timestepper = ForwardEuler(NF))`. See [Time stepping](@ref) for details.
+The default timestepper of `SoilModel` depends on the soil hydrology. With Richards-equation water flow (the default), it is `IMEX(ForwardEuler(NF; Δt = 3600), BackwardEuler(NF))`, which treats soil heat conduction and water flow implicitly with a 1-hour time step. Without water flow ([`NoFlow`](@ref)), it is `ForwardEuler(NF)`. Value boundary conditions such as [`PrescribedSurfaceTemperature`](@ref) require an explicit timestepper, e.g. `SoilModel(grid; soil, timestepper = ForwardEuler(NF))`. See [Time stepping](@ref) for details.
 
 ```@example soilmodel
 variables(model)
@@ -53,7 +53,7 @@ The `energy` component represents heat conduction in the soil column, including 
 
 ### Hydrology
 
-The `hydrology` component governs the vertical movement of water in the soil column. The default implementation is [`SoilHydrology`](@ref), which evolves total saturation (liquid + ice) as the prognostic variable. Vertical flow is disabled by default ([`NoFlow`](@ref)); enabling the Richards equation requires selecting [`RichardsEq`](@ref) as the `vertical_flow` operator. See [Soil hydrology](@ref) for details.
+The `hydrology` component governs the vertical movement of water in the soil column. The default implementation is [`SoilHydrology`](@ref), which evolves total saturation (liquid + ice) as the prognostic variable. By default, the vertical flow follows the Richards equation ([`RichardsEq`](@ref)); selecting [`NoFlow`](@ref) as the `vertical_flow` operator keeps the soil water immobile. See [Soil hydrology](@ref) for details.
 
 ### Biogeochemistry
 

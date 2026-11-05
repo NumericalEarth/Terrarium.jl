@@ -40,7 +40,7 @@ end
 
 function SoilHydrology(
         ::Type{NF};
-        vertical_flow::AbstractVerticalFlow = NoFlow(),
+        vertical_flow::AbstractVerticalFlow = RichardsEq(),
         closure::AbstractSoilWaterClosure = SoilSaturationPressureClosure(),
         hydraulic_properties::AbstractSoilHydraulics = SoilHydraulicsSURFEX(NF),
         vwc_forcing::Union{Nothing, AbstractForcing} = nothing,

@@ -221,8 +221,7 @@ end
 
 
 # Default soil types
-default_soil(grid::AbstractLandGrid, ::Nothing) = SoilEnergyWaterCarbon(eltype(grid))
-default_soil(grid::AbstractLandGrid, ::AbstractVegetation) = SoilEnergyWaterCarbon(eltype(grid), hydrology = SoilHydrology(eltype(grid), RichardsEq()))
+default_soil(grid::AbstractLandGrid, vegetation) = SoilEnergyWaterCarbon(eltype(grid))
 
 # Default SEB
 default_surface_energy_balance(grid::AbstractLandGrid, vegetation, soil) = SurfaceEnergyBalance(eltype(grid))

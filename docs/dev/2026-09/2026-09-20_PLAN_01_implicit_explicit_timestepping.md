@@ -1,6 +1,6 @@
 # Add support for implicit-explicit (IMEX) time stepping
 
-> Status: **completed**. Phases 1–3 and revisions 19–32 are implemented, the test suite and doc build pass in CI, and Phase 4, Path 1, and the Richards Picard safeguard (revision 24) are deferred to future work.
+> Status: **completed**. Phases 1–3 and revisions 19–33 are implemented, the test suite and doc build pass in CI, and Phase 4, Path 1, and the Richards Picard safeguard (revision 24) are deferred to future work.
 
 Date of initial draft: 2026-09-20
 
@@ -541,6 +541,12 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 > The snow examples and the Heun test that extended the hook now extend `closure!`.
 > Tests: `IMEX(Heun, ·)` with constant and with state-dependent tendencies (the explicit variable matches a standalone `Heun` step), two tendency evaluations per step, and energy and water conservation of `IMEX(Heun, BackwardEuler)` in the soil heat and Richards tests.
 > Docs: the structure of an IMEX step in `time_stepping.md`, the IMEX limitation on `Heun` (removed), and the docstrings of `explicit_step!`, `implicit_step!`, `update_cache!`, `IMEX`, `BackwardEuler`, and `closure!`.
+
+> **Revision 33, 2026-11-05 (Claude Opus 5.5). Approved. `RichardsEq` is the default vertical flow of `SoilHydrology`.**
+> Reviewer request: with the implicit Richards step in place, the default `vertical_flow` of `SoilHydrology` changes from `NoFlow()` to `RichardsEq()`.
+> Consequently, `SoilEnergyWaterCarbon(NF)` and `SoilModel(grid)` default to Richards-equation water flow, the default timestepper of `SoilModel` becomes `IMEX(ForwardEuler(NF; Δt = 3600), BackwardEuler(NF))` (through `default_timestepping` of the hydrology, unchanged), and a `LandModel` without vegetation also gets Richards-equation hydrology; `default_soil` of `LandModel` no longer needs a separate method for vegetation.
+> Every test, example, benchmark configuration, and documentation example that relied on the old default, i.e. that assumes immobile soil water, now sets `SoilHydrology(NF, NoFlow())` explicitly, so that its behavior is unchanged; tests that check the defaults themselves are updated to the new defaults.
+> The docs that describe the default (`soil_model.md`, the "Configuring a model" walkthrough, which now switches from `RichardsEq` to `NoFlow`) are updated.
 
 ## Problem description
 
