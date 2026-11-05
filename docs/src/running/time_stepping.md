@@ -86,7 +86,7 @@ A single IMEX step of size ``\Delta t`` consists of the following stages:
    in place.
 5. The model hook `timestep!(state, model, timestepper, Δt)` and `closure!` are applied once, and the clock ticks once.
 
-`IMEX(ForwardEuler(NF; Δt), BackwardEuler(NF))` is the default timestepper of [`LandModel`](@ref) (`Δt = 900`) and of [`SoilModel`](@ref) with Richards-equation water flow (`Δt = 3600`). Under `IMEX`, the snow meltwater drainage of a `LandModel` is implicit as well (see [Implicit meltwater drainage](@ref)), while the snow heat conduction, vegetation, surface hydrology, and surface energy balance remain explicit and are integrated with an explicit integrator (by default `ForwardEuler`) at the same step; the shorter default time step of `LandModel` is due to the explicit snow heat conduction (which will alter also be treated implicitly). Value boundary conditions on `temperature` or `pressure_head` (e.g. [`PrescribedSurfaceTemperature`](@ref)) currently require an explicit timestepper instead (see [Limitations](@ref imex-limitations)).
+`IMEX(ForwardEuler(NF; Δt), BackwardEuler(NF))` is the default timestepper of [`LandModel`](@ref) (`Δt = 900`) and of [`SoilModel`](@ref) with Richards-equation water flow (`Δt = 3600`). Under `IMEX`, the snow meltwater drainage of a `LandModel` is implicit as well (see [Implicit meltwater drainage](@ref)), while the snow heat conduction, vegetation, surface hydrology, and surface energy balance remain explicit and are integrated with an explicit integrator (by default `ForwardEuler`) at the same step; the shorter default time step of `LandModel` is due to the explicit snow heat conduction (which will later also be treated implicitly). Value boundary conditions on `temperature` or `pressure_head` (e.g. [`PrescribedSurfaceTemperature`](@ref)) currently require an explicit timestepper instead (see [Limitations](@ref imex-limitations)).
 
 Because there is only one `update_state!` per step, an IMEX step costs one evaluation of the explicit right-hand side plus the implicit solve. The sub-steppers are given in the order `IMEX(explicit, implicit)`, which is checked when the integrator is initialized. The explicit sub-stepper must be a single-stage scheme; currently this means [`ForwardEuler`](@ref), whose `Δt` is also the default time step of the `IMEX`. The implicit sub-stepper is an [`AbstractTimeStepper`](@ref) whose behavior is further specialized by an [`AbstractImplicitSolver`](@ref):
 
@@ -111,7 +111,7 @@ Processes see the resolved class as a trailing `Timestepping` argument of `compu
 
 ### Implicit Euler with a Picard solver
 
-The only implicit scheme currently provided is first-order backward Euler, [`BackwardEuler`](@ref), with a [`Picard`](@ref) nonlinear solver. When the integrator is initialized, `BackwardEuler` queries the model for the linearized operator of all variables routed to it with [`implicit_operator`](@ref)`(model, state, names)` and stores this single operator in its cache. For [`SoilModel`](@ref) and [`LandModel`](@ref), it is a [`SplitOperator`](@ref) that holds a batched vertical [`TridiagonalOperator`](@ref) for each routed soil variable and solves `saturation_water_ice` before `internal_energy` (operator splitting; see [Implicit solvers](@ref) and [Coupling of water and energy](@ref imex-water-energy-coupling)).
+The only implicit scheme currently provided is first-order backward Euler, [`BackwardEuler`](@ref), with a [`Picard`](@ref) nonlinear solver. When the integrator is initialized, `BackwardEuler` queries the model for the linearized operator of all variables routed to it with [`implicit_operator`](@ref)`(model, state, names)` and stores this single operator in its cache. For [`SoilModel`](@ref) and [`LandModel`](@ref), it is a [`SplitOperator`](@ref) that holds a batched vertical [`TridiagonalOperator`](@ref) for each routed soil variable and solves `saturation_water_ice` before `internal_energy` (operator splitting; see [Solvers for implicit time stepping](@ref) and [Coupling of water and energy](@ref imex-water-energy-coupling)).
 
 `BackwardEuler` also resolves, for each variable, the field its linear system is solved for: the variable of its closure relation (as given by [`varname`](@ref) of the closure), i.e. the `temperature` for `internal_energy` and the `pressure_head` for `saturation_water_ice`, and for a variable without closure its [`implicit_variable`](@ref), e.g. the `snow_liquid_fraction` for `snow_water_equivalent`. In each step, `BackwardEuler` stores the explicit increment ``u^+ - u^n = \Delta t\, G_\text{exp}`` of every implicit variable in the [`ImplicitSolverWorkspace`](@ref) of the variable and resets all of their prognostic fields to ``u^n``, and then calls the solver-level `implicit_step!(solver, operator, workspaces, state, model, Δt)` of its solver once; when a variable is solved, the solver forms its explicit stage from its current field and the increment. The solver iterates over linearizations of the operator, which it obtains from the process that owns each variable through the [process hooks](@ref imex-process-hooks):
 
@@ -144,7 +144,7 @@ implicit_closure!
 
 ### Example
 
-We configure a [`SoilModel`](@ref) with an `IMEX(ForwardEuler(Float32), BackwardEuler(Float32))` timestepper, a thawed initial column, and a constant cooling flux at the surface via [`SoilHeatFlux`](@ref) (positive upward, i.e. out of the soil). The default time step of the `IMEX` is that of its explicit partner. The time step of one hour is more than ten times the explicit stability limit of this column (roughly six minutes).:
+We configure a [`SoilModel`](@ref) with an `IMEX(ForwardEuler(Float32), BackwardEuler(Float32))` timestepper, a thawed initial column, and a constant cooling flux at the surface via [`SoilHeatFlux`](@ref) (positive upward, i.e. out of the soil). The default time step of the `IMEX` is that of its explicit partner. The time step of one hour is more than ten times the explicit stability limit of this column (roughly six minutes):
 
 ```@example simulation
 solver = Picard(Float32; iterations = 2)
@@ -294,7 +294,7 @@ run!(sim)
 sim.Δt   # adapted time step (s)
 ```
 
-or more succinctly via [`conjure_time_step_wizard!`](@extraref Oceananigans.Simulations.conjure_time_step_wizard!):
+or more succinctly via [`conjure_time_step_wizard!`](@extref Oceananigans.Simulations.conjure_time_step_wizard!):
 
 ```@example simulation
 integrator = initialize(SoilModel(grid; timestepper = ForwardEuler(Float32)))

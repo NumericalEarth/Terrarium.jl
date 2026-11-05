@@ -1,34 +1,3 @@
-# Implicit snow meltwater drainage: implicit operator and process hooks of `SingleLayerSnow` for
-# `snow_water_equivalent`.
-#
-# Drainage removes liquid water at the zero-enthalpy reference (liquid water at 0 °C), so it changes neither the
-# snow energy Ū nor the ice content W_i = (1 − θ_liq) W = −Ū / (ρ_w L_f), clamped to [0, W]. With Ū⁺ and
-# W⁺ = Wⁿ + Δt G_exp from the explicit stage (snowfall, rain, and sublimation), the backward Euler step of the
-# drainage M_r(θ_liq, W) is a scalar equation per column, written in the liquid fraction θ via W = W_i / (1 − θ):
-#
-#     G(θ) = W_i / (1 − θ) + Δt M_r(θ, W_i / (1 − θ)) − W⁺ = 0.
-#
-# Each `Picard` iteration takes one Newton step: linearizing G about the current iterate θᵐ,
-# G(θ) ≈ G(θᵐ) + G′(θᵐ) (θ − θᵐ), and setting this to zero gives the diagonal linear system
-#
-#     G′(θᵐ) θᵐ⁺¹ = G′(θᵐ) θᵐ − G(θᵐ).
-#
-# The outflow is the minimum of the Darcy rate and the storage limit (see `compute_meltwater_outflow`), so G is
-# increasing in θ and convex on each branch. Within a branch, a Newton step from any θ ≥ θ* (the root) lands in
-# [θ*, θ], so the iterates approach the root from above; a step across the switch between the branches may
-# undershoot, so the update bounds θ below by min(L_c, θ⁺), at or below the root. Each iteration calls the hooks:
-#
-#   1. `linearize!`: the diagonal G′(θᵐ) and right-hand side G′(θᵐ) θᵐ − G(θᵐ) of the `DiagonalOperator`, at
-#      the liquid fraction θᵐ of the current iterate Wᵐ, bounded to [0, θ⁺];
-#   2. `solve!`: θᵐ⁺¹ in `snow_liquid_fraction`, the target of the implicit operator (see `implicit_variable`);
-#   3. `implicit_update!`: Wᵐ⁺¹ = W_i / (1 − θᵐ⁺¹) with min(L_c, θ⁺) ≤ θᵐ⁺¹ ≤ θ⁺, since the iteration starts from Wⁿ, which
-#      may lie below the root, and `meltwater_flux` ← (W⁺ − Wᵐ⁺¹) / Δt, the drainage passed on to the surface
-#      hydrology in the next step;
-#   4. `implicit_closure!`: the snow closure at the new iterate.
-#
-# A fully liquid pack (W_i = 0, θ = 1) drains at min(K_sat, (1 − L_c) W / τ_m), so its backward Euler step has
-# the exact solution max(W⁺ − Δt K_sat, W⁺ / (1 + Δt (1 − L_c) / τ_m)), independent of the iterate.
-
 """
     implicit_operator(snow::AbstractSnow, state, grid, ::Val{name})
 
@@ -44,6 +13,36 @@ function implicit_operator(snow::AbstractSnow, state, grid, ::Val{name}) where {
     )
 end
 
+"""
+    $TYPEDSIGNATURES
+
+Allocate the [`DiagonalOperator`](@ref) of the implicit meltwater drainage of `snow_water_equivalent`, solved
+in the liquid fraction `snow_liquid_fraction` (see [`implicit_variable`](@ref)).
+
+Drainage removes liquid water at the zero-enthalpy reference (liquid water at 0 °C), so it changes neither the
+snow energy `Ū` nor the ice content `W_i = (1 − θ) W = −Ū / (ρ_w L_f)`, clamped to `[0, W]`. With `Ū⁺` and
+`W⁺ = Wⁿ + Δt G_exp` from the explicit stage (snowfall, rain, and sublimation), the backward Euler step of
+the drainage `M_r(θ, W)` ([`compute_meltwater_outflow`](@ref)) is a scalar equation per column in the liquid
+fraction `θ`, via `W = W_i / (1 − θ)`:
+
+    G(θ) = W_i / (1 − θ) + Δt M_r(θ, W_i / (1 − θ)) − W⁺ = 0.
+
+Each [`Picard`](@ref) iteration takes one Newton step: linearizing `G` about the iterate `θᵐ`,
+`G(θ) ≈ G(θᵐ) + G′(θᵐ) (θ − θᵐ)`, and setting this to zero gives the diagonal system
+`G′(θᵐ) θᵐ⁺¹ = G′(θᵐ) θᵐ − G(θᵐ)` (see the snow mass balance docs for the convergence argument). Each
+iteration calls the hooks:
+
+1. [`linearize!`](@ref): the diagonal `G′(θᵐ)` and right-hand side `G′(θᵐ) θᵐ − G(θᵐ)`, at the liquid
+   fraction `θᵐ` of the current iterate `Wᵐ`, bounded to `[0, θ⁺]`;
+2. [`solve!`](@ref): `θᵐ⁺¹` in `snow_liquid_fraction`;
+3. [`implicit_update!`](@ref): `Wᵐ⁺¹ = W_i / (1 − θᵐ⁺¹)` with `min(L_c, θ⁺) ≤ θᵐ⁺¹ ≤ θ⁺`, since the
+   iteration starts from `Wⁿ`, which may lie below the root, and `meltwater_flux ← (W⁺ − Wᵐ⁺¹) / Δt`, the
+   drainage passed on to the surface hydrology in the next step;
+4. [`implicit_closure!`](@ref): the snow closure at the new iterate.
+
+A fully liquid pack (`W_i = 0`, `θ = 1`) drains at `min(K_sat, (1 − L_c) W / τ_m)`, so its step has the exact
+solution `max(W⁺ − Δt K_sat, W⁺ / (1 + Δt (1 − L_c) / τ_m))`, independent of the iterate.
+"""
 implicit_operator(snow::SingleLayerSnow, state, grid, ::Val{:snow_water_equivalent}) = DiagonalOperator(similar(state.snow_water_equivalent))
 
 # The meltwater drainage is linearized in the liquid fraction.

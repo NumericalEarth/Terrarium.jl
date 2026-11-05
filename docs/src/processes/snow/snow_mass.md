@@ -78,6 +78,8 @@ conserved, with the meltwater input lagged by one step. Under explicit integrati
 the beginning of the step.
 
 ```@docs; canonical = false
+implicit_operator(snow::SingleLayerSnow, state, grid, ::Val{:snow_water_equivalent})
+
 linearize!(operator::DiagonalOperator, rhs, state, grid, snow::SingleLayerSnow, constants::PhysicalConstants, explicit_water, Δt, ::Iteration{:snow_water_equivalent})
 
 implicit_update!(state, grid, snow::SingleLayerSnow, constants::PhysicalConstants, operator::DiagonalOperator, explicit_water, Δt, ::Iteration{:snow_water_equivalent})

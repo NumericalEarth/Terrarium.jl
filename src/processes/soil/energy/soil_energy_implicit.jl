@@ -1,20 +1,3 @@
-# Linearly implicit soil heat conduction: implicit operator and process hooks of `SoilThermodynamics`.
-#
-# Backward Euler step of ∂U/∂t = ∂z(κ ∂z T) - ∂z(C_w T j_w) + G_exp, with conduction and first-order upwind
-# advection by the vertical water flux j_w solved in temperature (T_up the temperature of the upwind cell of a
-# face) and the energy updated conservatively. With the `Picard` solver, for
-# iterations m = 0, …, M-1, starting from U⁰ = Uⁿ (plus any heat moved by the closure of the water step) and
-# T⁰ ← closure(U⁰):
-#
-#   1. `linearize!`: Tᵐ ← closure(Uᵐ), lagged κᵐ (faces), regularized apparent heat capacity C_appᵐ (centers),
-#      advective face velocity C_w j_w (faces), and rhs = C_appᵐ Tᵐ - Uᵐ + U⁺,    U⁺ = U⁰ + Δt G_exp;
-#   2. `solve!`: C_appᵐ Tᵐ⁺¹ - Δt ∂z(κᵐ ∂z Tᵐ⁺¹) + Δt ∂z(C_w j_w T_upᵐ⁺¹) = rhs;
-#   3. `implicit_update!`: Uᵐ⁺¹ = U⁺ + Δt [∂z(κᵐ ∂z Tᵐ⁺¹) - ∂z(C_w j_w T_upᵐ⁺¹)]    (interior faces only);
-#   4. `implicit_closure!`: Tᵐ⁺¹, liquid water fraction ← closure(Uᵐ⁺¹).
-#
-# The solver calls the hooks through the `SoilModel`/`LandModel` forwarding methods and the
-# `SoilEnergyWaterCarbon` methods in `soil_coupled.jl`.
-
 """
     $TYPEDSIGNATURES
 
@@ -26,6 +9,23 @@ apparent heat capacity) and that `temperature` has no value boundary conditions 
 Flux boundary conditions on `internal_energy` and gradient boundary conditions on `temperature` are
 supported; the latter prescribe the diffusive flux `-κ ∂T/∂z` through the boundary face, which enters the
 explicit tendency via [`compute_boundary_energy_tendency`](@ref).
+
+The operator is the backward Euler step of `∂U/∂t = ∂z(κ ∂z T) - ∂z(C_w T j_w) + G_exp` in temperature,
+with first-order upwind advection by the vertical water flux `j_w` (`T_up` the temperature of the upwind cell
+of a face) and a conservative update of the energy (see the soil energy docs for the derivation). With the
+[`Picard`](@ref) solver, for iterations `m = 0, …, M-1`, starting from `U⁰ = Uⁿ` (plus any heat moved by the
+closure of the water step) and `T⁰ ← closure(U⁰)`:
+
+1. [`linearize!`](@ref): `Tᵐ ← closure(Uᵐ)`, lagged `κᵐ` (faces), regularized apparent heat capacity `C_appᵐ`
+   (centers), advective face velocity `C_w j_w` (faces), and `rhs = C_appᵐ Tᵐ - Uᵐ + U⁺` with
+   `U⁺ = U⁰ + Δt G_exp`;
+2. [`solve!`](@ref): `C_appᵐ Tᵐ⁺¹ - Δt ∂z(κᵐ ∂z Tᵐ⁺¹) + Δt ∂z(C_w j_w T_upᵐ⁺¹) = rhs`;
+3. [`implicit_update!`](@ref): `Uᵐ⁺¹ = U⁺ + Δt [∂z(κᵐ ∂z Tᵐ⁺¹) - ∂z(C_w j_w T_upᵐ⁺¹)]` through the interior
+   faces only;
+4. [`implicit_closure!`](@ref): `Tᵐ⁺¹` and the liquid water fraction `← closure(Uᵐ⁺¹)`.
+
+The solver calls the hooks through the `SoilModel`/`LandModel` forwarding methods and the
+`SoilEnergyWaterCarbon` methods in `soil_coupled.jl`.
 """
 function implicit_operator(energy::SoilThermodynamics, hydrology::AbstractSoilHydrology, state, grid)
     energy.thermal_properties.freezecurve isa FreeWater || throw(
@@ -91,8 +91,7 @@ function linearize!(
     fc = freezecurve(energy.thermal_properties, hydrology)
     # temperature and liquid water fraction at the current iterate
     closure!(state, grid, energy.closure, energy, soil, constants)
-    (; diagonal_coefficient, face_conductivity, face_velocity) = operator
-    coefficients = (; diagonal_coefficient, face_conductivity, face_velocity)
+    coefficients = (; operator.diagonal_coefficient, operator.face_conductivity, operator.face_velocity)
     # internal energy, temperature, liquid water fraction, water flux, soil composition
     fields = get_fields(state, energy, hydrology, strat, bgc)
     # lagged coefficients at the latest iterate

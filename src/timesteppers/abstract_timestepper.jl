@@ -47,7 +47,7 @@ abstract type Timestepping end
     $TYPEDEF
 
 [`Timestepping`](@ref) trait marking *explicit* integration. It is the trait of explicit timesteppers
-(e.g. [`ForwardEuler`](@ref), [`Heun`](@ref)) and the default class of every prognostic variable — i.e. the
+(e.g. [`ForwardEuler`](@ref), [`Heun`](@ref)) and the default class of every prognostic variable, i.e. the
 sub-stepper an [`AbstractIMEX`](@ref) routes the variable to.
 """
 struct Explicit <: Timestepping end
@@ -63,7 +63,7 @@ struct Implicit <: Timestepping end
 """
     timestepping(timestepper::AbstractTimeStepper)::Timestepping
 
-Return the [`Timestepping`](@ref) trait — [`Explicit`](@ref) or [`Implicit`](@ref) — of the given
+Return the [`Timestepping`](@ref) trait ([`Explicit`](@ref) or [`Implicit`](@ref)) of the given
 `timestepper`. Every concrete timestepper must define this trait (e.g. `timestepping(::ForwardEuler) =
 Explicit()`); there is no default so that a new scheme declares its class explicitly. It is used, among other
 things, to route each sub-stepper of an [`AbstractIMEX`](@ref) to its slice of the [`IMEXCache`](@ref).

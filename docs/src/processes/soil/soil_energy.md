@@ -47,9 +47,6 @@ The advective heat flux $\mathbf{j}_{\text{h}}^{\text{w}}$ can be represented as
 ```
 where $L_{\text{sl}}$ (J/kg) and $c_{\text{w}}$ (J/(kg K)) represent the specific latent heat of fusion (solid → liquid) and heat capacity of liquid water respectively. Note that $\mathbf{j}_{\mathrm{w}}$ is the water flux vector as defined in [Soil hydrology](@ref). This flux term accounts for the energy transferred by the movement of water within the soil matrix. In model configurations that neglect subsurface water flow, this flux term is implicitly assumed to be zero.
 
-!!! todo "Advective heat flux"
-    The current implementation does not yet consider the advective heat flux, but this will be added soon!
-
 ```@docs; canonical = false
 SoilThermodynamics
 ```
@@ -94,9 +91,9 @@ For the energy equation with advection (see [Advection of heat by soil water flo
 ```math
 \frac{\partial U}{\partial t} = \frac{\partial}{\partial z}\left[\kappa \frac{\partial T}{\partial z}\right] - \frac{\partial}{\partial z}\left(C_\text{w}\, T\, j_\text{w}\right) + G_\text{exp}\,,
 ```
-where the second term is the advection of sensible heat by the vertical soil water flux ``j_\text{w}`` (zero without water flow), and ``G_\text{exp}`` contains the flux boundary conditions, the heat fluxes through the boundary faces, and any other explicit sources, the implicit step is a backward Euler step in temperature, solved with the [`Picard`](@ref) solver (see [Implicit Euler with a Picard solver](@ref)). Writing ``C_\text{app} = \partial U / \partial T`` for the apparent heat capacity, the energy increment is linearized as ``U^{n+1} - U^n \approx C_\text{app}\,(T^{n+1} - T^n)``, giving
+where the second term is the advection of sensible heat by the vertical soil water flux ``j_\text{w}`` (zero without water flow), and ``G_\text{exp}`` contains the flux boundary conditions, the heat fluxes through the boundary faces, and any other explicit sources, the implicit step is a backward Euler step in temperature, solved with the [`Picard`](@ref) solver (see [Implicit Euler with a Picard solver](@ref)). Writing ``C_\text{app} = \partial U / \partial T`` for the apparent heat capacity and ``T^m``, ``U^m`` for the latest iterate of ``T^{n+1}``, ``U^{n+1}``, the energy increment is linearized as ``U^{n+1} - U^m \approx C_\text{app}\,(T^{n+1} - T^m)``, giving
 ```math
-C_\text{app}\, T^{n+1} - \Delta t\, \frac{\partial}{\partial z}\left[\kappa \frac{\partial T^{n+1}}{\partial z}\right] + \Delta t\, \frac{\partial}{\partial z}\left(C_\text{w}\, T^{n+1} j_\text{w}\right) = C_\text{app}\, T^n - U^n + U^+\,, \qquad U^+ = U^n + \Delta t\, G_\text{exp}\,.
+C_\text{app}\, T^{n+1} - \Delta t\, \frac{\partial}{\partial z}\left[\kappa \frac{\partial T^{n+1}}{\partial z}\right] + \Delta t\, \frac{\partial}{\partial z}\left(C_\text{w}\, T^{n+1} j_\text{w}\right) = C_\text{app}\, T^m - U^m + U^+\,, \qquad U^+ = U^n + \Delta t\, G_\text{exp}\,.
 ```
 Discretized in space, with the temperature of the advective flux at each face taken from the upwind cell (first-order upwind; see [Tridiagonal operator](@ref)), this system is tridiagonal in each column and is solved with a batched tridiagonal solver. The coefficients ``\kappa`` (at cell faces) and ``C_\text{app}`` (at cell centers) are *lagged*, i.e. evaluated at the latest iterate rather than at ``T^{n+1}``. The water flux ``j_\text{w}`` is the flux with which the water was moved in the same step (see [Coupling of water and energy](@ref imex-water-energy-coupling)); for a fixed ``j_\text{w}``, the upwind terms keep the system an M-matrix (see [Tridiagonal operator](@ref)), so the solution has no spurious oscillations and the advection needs no CFL limit. The first iterate is the internal energy at the beginning of the step, ``U^n``, stored by [`update_cache!`](@ref), with the temperature re-diagnosed from it at the current saturation.
 

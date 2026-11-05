@@ -1,38 +1,3 @@
-# Implicit Richards flow: implicit operator and process hooks of `SoilHydrology{NF, RichardsEq}`, after the
-# mass-conservative modified Picard iteration of Celia et al. (1990).
-#
-# With porosity φ, saturation ξ, volumetric water content θ = φ ξ, and total pressure head
-# Ψ = ψₘ(θ) + ψ_z + ψ_h (matric, elevation, and hydrostatic head), the backward Euler step reads
-#
-#     φ (ξⁿ⁺¹ - ξⁿ) / Δt = ∂z(K ∂z Ψⁿ⁺¹) + φ G_exp,
-#
-# where G_exp holds the flux boundary conditions on saturation, the Darcy fluxes through the boundary faces,
-# and the sources (evapotranspiration, forcing). With ψ_z and ψ_h lagged, ∂θ/∂Ψ = C, the specific moisture
-# capacity. The modified Picard iteration linearizes the water content about the iterate m,
-#
-#     θᵐ⁺¹ ≈ θᵐ + Cᵐ (Ψᵐ⁺¹ - Ψᵐ),    Cᵐ = C(Ψᵐ),
-#
-# and lags the hydraulic conductivity at the same iterate, Kᵐ = K(Ψᵐ). Substituting θᵐ⁺¹ = φ ξᵐ⁺¹ into the
-# backward Euler step gives, with ξ⁺ = ξⁿ + Δt G_exp, the tridiagonal system for the total pressure head
-#
-#     Cᵐ Ψᵐ⁺¹ - Δt ∂z(Kᵐ ∂z Ψᵐ⁺¹) = Cᵐ Ψᵐ - φ (ξᵐ - ξ⁺).
-#
-# Each `Picard` iteration m = 0, …, M-1, starting from ξ⁰ = ξⁿ, calls the hooks:
-#
-#   1. `linearize!`: hydraulic conductivity, lagged Kᵐ (faces) and Cᵐ (centers, bounded below by
-#      `minimum_moisture_capacity` so that frozen saturated cells stay regular), and the right-hand side;
-#   2. `solve!`: the system above for Ψᵐ⁺¹;
-#   3. `implicit_update!`: ξᵐ⁺¹ = ξ⁺ + Δt ∂z(Kᵐ ∂z Ψᵐ⁺¹) / φ through the interior faces, which conserves water
-#      exactly, and `water_flux` ← -Kᵐ ∂z Ψᵐ⁺¹, the flux with which the heat step advects heat;
-#   4. `implicit_closure!`: redistribution of over- and undersaturation, water table, Ψᵐ⁺¹, and hydraulic
-#      conductivity. Since every iteration restarts from ξ⁺, only the final one routes surface excess water
-#      to the runoff pool and moves the heat of redistributed water.
-#
-# The solver calls the hooks through the `SoilModel`/`LandModel` forwarding methods and the
-# `SoilEnergyWaterCarbon` methods in `soil_coupled.jl`.
-
-# Process level: `SoilHydrology{NF, RichardsEq}`
-
 """
     $TYPEDSIGNATURES
 
@@ -52,6 +17,30 @@ end
 Allocate the [`TridiagonalOperator`](@ref) of `saturation_water_ice` on `ground_domain(grid)`. Throws
 an `ArgumentError` unless the closure is the [`SoilSaturationPressureClosure`](@ref) and `pressure_head`
 has no value boundary conditions.
+
+The operator is the backward Euler step of the Richards equation in the total pressure head `Ψ`, after the
+mass-conservative modified Picard iteration of [CeliaEtAl1990](@cite): with porosity `φ`, saturation `ξ`,
+and `ξ⁺ = ξⁿ + Δt G_exp` from the explicit stage, the water content is linearized about the iterate `m`,
+`φ ξᵐ⁺¹ ≈ φ ξᵐ + Cᵐ (Ψᵐ⁺¹ - Ψᵐ)` with the specific moisture capacity `Cᵐ` and the hydraulic conductivity `Kᵐ`
+lagged, giving the tridiagonal system `Cᵐ Ψᵐ⁺¹ - Δt ∂z(Kᵐ ∂z Ψᵐ⁺¹) = Cᵐ Ψᵐ - φ (ξᵐ - ξ⁺)` (see the soil
+hydrology docs for the derivation). Each [`Picard`](@ref) iteration `m = 0, …, M-1`, starting from `ξ⁰ = ξⁿ`,
+calls the hooks:
+
+1. [`linearize!`](@ref): hydraulic conductivity, lagged `Kᵐ` (faces) and `Cᵐ` (centers, bounded below by
+   [`minimum_moisture_capacity`](@ref) so that frozen saturated cells stay regular), and the right-hand side;
+2. [`solve!`](@ref): the system above for `Ψᵐ⁺¹`;
+3. [`implicit_update!`](@ref): `ξᵐ⁺¹ = ξ⁺ + Δt ∂z(Kᵐ ∂z Ψᵐ⁺¹) / φ` through the interior faces, which
+   conserves water exactly, and `water_flux ← -Kᵐ ∂z Ψᵐ⁺¹`, the flux with which the heat step advects heat;
+4. [`implicit_closure!`](@ref): redistribution of over- and undersaturation, water table, `Ψᵐ⁺¹`, and
+   hydraulic conductivity. Since every iteration restarts from `ξ⁺`, only the final one routes surface
+   excess water to the runoff pool and moves the heat of redistributed water.
+
+The solver calls the hooks through the `SoilModel`/`LandModel` forwarding methods and the
+`SoilEnergyWaterCarbon` methods in `soil_coupled.jl`.
+
+# References
+
+* [CeliaEtAl1990](@cite) Celia, Bouloutas, and Zarba, Water Resources Research 26, 1483–1496 (1990)
 """
 function implicit_operator(hydrology::SoilHydrology{NF, RichardsEq}, state, grid) where {NF}
     get_closure(hydrology) isa SoilSaturationPressureClosure || throw(
@@ -218,10 +207,10 @@ Right-hand side `C Ψᵐ - φ (ξᵐ - ξ⁺)` at `i, j, k`, with `C = diagonal_
     )
     ∂θ∂Ψ = diagonal_coefficient[i, j, k]
     Ψ = fields.pressure_head[i, j, k]
-    s = fields.saturation_water_ice[i, j, k]
-    s⁺ = explicit_saturation[i, j, k]
+    ξ = fields.saturation_water_ice[i, j, k]
+    ξ⁺ = explicit_saturation[i, j, k]
     φ = porosity(i, j, k, grid, fields, strat, bgc)
-    return ∂θ∂Ψ * Ψ - φ * (s - s⁺)
+    return ∂θ∂Ψ * Ψ - φ * (ξ - ξ⁺)
 end
 
 """
@@ -240,9 +229,9 @@ faces ([`compute_implicit_diffusion_tendency`](@ref)), `ξ⁺ = explicit_saturat
     ground_grid = ground_domain(grid)
     Q_diff = compute_implicit_diffusion_tendency(i, j, k, ground_grid, face_conductivity, fields.pressure_head)
     φ = porosity(i, j, k, grid, fields, strat, bgc)
-    s⁺ = explicit_saturation[i, j, k]
-    s = s⁺ + Δt * Q_diff / φ
-    return s
+    ξ⁺ = explicit_saturation[i, j, k]
+    ξ = ξ⁺ + Δt * Q_diff / φ
+    return ξ
 end
 
 """

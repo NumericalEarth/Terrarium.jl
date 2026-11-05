@@ -184,11 +184,11 @@ function implicit_operator(soil::AbstractSoil, state, grid, names::Tuple{Vararg{
 end
 
 """
-    implicit_operator(soil::SoilEnergyWaterCarbon, state, grid, ::Val{name})
+    implicit_operator(soil::AbstractSoil, state, grid, ::Val{name})
 
-Return the implicit operator of the soil prognostic variable `name` on `grid`: that of the energy
-process for `internal_energy` and of the hydrology process for `saturation_water_ice`. The fallback
-throws an `ArgumentError`.
+Return the implicit operator of the soil prognostic variable `name` on `grid`. `SoilEnergyWaterCarbon`
+returns that of the energy process for `internal_energy` and of the hydrology process for
+`saturation_water_ice`; this fallback throws an `ArgumentError`.
 """
 function implicit_operator(soil::AbstractSoil, state, grid, ::Val{name}) where {name}
     throw(

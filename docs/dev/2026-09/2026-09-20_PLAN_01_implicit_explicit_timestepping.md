@@ -1,6 +1,6 @@
 # Add support for implicit-explicit (IMEX) time stepping
 
-> Status: **in progress**. Phases 1–3 and revisions 19–23 are implemented; Phase 4, Path 1, and the Richards Picard safeguard (revision 24) are deferred to future work; the final test suite and doc build are pending.
+> Status: **completed**. Phases 1–3 and revisions 19–30 are implemented, the test suite and doc build pass in CI, and Phase 4, Path 1, and the Richards Picard safeguard (revision 24) are deferred to future work.
 
 Date of initial draft: 2026-09-20
 
@@ -517,6 +517,7 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 > The backward Euler step in temperature, the regularized apparent heat capacity of `FreeWater`, and the conservative energy update move to "Implicit vertical heat conduction" in `soil_energy.md`; the modified Picard step of the Richards equation moves to "Implicit Richards equation" in `soil_hydrology.md`, and "Coupling of water and energy" becomes a section of `soil_energy.md` (with its anchor `imex-water-energy-coupling` unchanged).
 > `time_stepping.md` keeps the generic description of `BackwardEuler` and `Picard` and summarizes the pattern that both soil steps share (lagged coefficients, a tridiagonal system per column, and a conservative update), with links to the process pages; links to the former `imex-richards` anchor point to the soil hydrology section.
 > Reviewer request (same day): the description of the process hooks in "Enabling implicit timestepping" of `implementing_processes.md` is condensed to what an implementer must provide, and the hook signatures and their contract (the state on exit, and reading other implicit variables) move, condensed, to a new "Process hooks" section of `time_stepping.md` (anchor `imex-process-hooks`), together with the docstrings of `Iteration`, `linearize!`, `implicit_update!`, and `implicit_closure!`.
+> Final sweep (2026-11-05): the stale "advective heat flux" todo admonition of `soil_energy.md` is removed, its linearization is written about the Picard iterate as in `solvers.md`, dead and mistyped cross-references and typos are fixed, the `ξ` notation is applied to the remaining `s` variables of the implicit Richards code, and the uncited Knoll and Keyes entry is dropped from the bibliography.
 
 ## Problem description
 
@@ -930,7 +931,7 @@ Each phase ends with the full test suite, the Enzyme test set, and a draft doc b
 - `docs/src/solvers/solvers.md`: `AbstractImplicitSolver`, `Picard`, and the linear operators.
 - Process pages for soil energy, soil hydrology, and snow mass: implementation sections for the implicit operators.
 - The new example page "Choosing a time stepper" (revision 23).
-- `docs/src/references.bib`: Celia, Bouloutas, and Zarba (1990) and Knoll and Keyes (2004).
+- `docs/src/references.bib`: Celia, Bouloutas, and Zarba (1990); the Knoll and Keyes (2004) entry is removed with revision 29.
 
 ## Known limitations
 
