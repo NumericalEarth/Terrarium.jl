@@ -128,7 +128,8 @@ closure variable `ϕ` reads
 
     C_k ϕ_k - Δt [∂z(κ ∂z ϕ)]_k + Δt [∂z(u ϕ_up)]_k - Δt L_k ϕ_k = rhs_k,
 
-with the lagged capacity `C` in `diagonal_coefficient` (e.g. the apparent heat capacity, or `∂θ/∂ψ`
+the finite-volume discretization of a backward Euler step of `C ∂ϕ/∂t = ∂z(κ ∂z ϕ) - ∂z(u ϕ)` (see the
+derivation of the coefficients in [Tridiagonal operator](@ref)), with the lagged capacity `C` in `diagonal_coefficient` (e.g. the apparent heat capacity, or `∂θ/∂ψ`
 for Richards flow), the lagged face conductivity `κ` in `face_conductivity` (thermal or hydraulic
 conductivity), the optional advective face velocity `u` in `face_velocity`, and the optional linear
 coefficient `L` ([`compute_implicit_linear_coefficient`](@ref)). `u` is in units of capacity times
