@@ -161,7 +161,7 @@ Advance the model by one IMEX Euler step of size `Δt` using an [`AbstractIMEX`]
    explicit terms (see [`timestepping(state, ::Val)`](@ref timestepping));
 2. [`update_cache!`](@ref) of the implicit sub-stepper for the [`Implicit`](@ref) variables, while
    their fields still hold `uⁿ`;
-3. the explicit sub-stepper's [`explicit_stage!`](@ref) for *all* prognostic variables, giving
+3. the explicit sub-stepper's [`explicit_step!`](@ref) for *all* prognostic variables, giving
    `u⁺ = uⁿ + Δt G_exp` (the right-hand side of the implicit system for implicitly routed variables);
 4. [`implicit_step!`](@ref) of the implicit sub-stepper for the implicit variables;
 5. the model hook `timestep!(state, model, timestepper, Δt)` followed by `closure!`;
@@ -179,7 +179,7 @@ function timestep!(integrator::ModelIntegrator, timestepper::AbstractIMEX, Δt)
     implicit_cache = get_cache(state.timestepper_cache, implicit_timestepper(timestepper))
     isempty(implicit_names) || update_cache!(implicit_cache, integrator, Δt, implicit_names)
     # explicit stage for all prognostic variables: u⁺ = uⁿ + Δt G_exp
-    explicit_stage!(integrator, explicit_timestepper(timestepper), Δt, prognostic_names(state))
+    explicit_step!(integrator, explicit_timestepper(timestepper), Δt, prognostic_names(state))
     # implicit solve, starting from u⁺
     isempty(implicit_names) || implicit_step!(integrator, implicit_timestepper(timestepper), Δt, implicit_names)
     # model post-step corrections and closures

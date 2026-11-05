@@ -78,7 +78,7 @@ A single IMEX step of size ``\Delta t`` consists of the following stages:
 
 1. A single `update_state!` evaluates all inputs, auxiliary variables, and tendencies at ``t^n``. For implicitly routed variables, the tendency holds only the *explicitly treated* terms ``G_\text{exp}``; the implicit operator is omitted (see [Routing variables](@ref) below).
 2. [`update_cache!`](@ref) on the implicit sub-stepper's cache stores what it needs from ``u^n`` (for [`BackwardEuler`](@ref), a copy of ``u^n`` of each implicitly routed variable) before the explicit stage overwrites it.
-3. The explicit sub-stepper's stage ([`explicit_stage!`](@ref)) is applied to *all* prognostic variables, giving ``u^+ = u^n + \Delta t\, G_\text{exp}(u^n)``. For explicitly routed variables, this is the final result. For implicitly routed variables, it is the right-hand side of the implicit system.
+3. The explicit sub-stepper's update ([`explicit_step!`](@ref)) is applied to *all* prognostic variables, giving ``u^+ = u^n + \Delta t\, G_\text{exp}(u^n)``. For explicitly routed variables, this is the final result. For implicitly routed variables, it is the right-hand side of the implicit system.
 4. For the implicitly routed variables, [`implicit_step!`](@ref) of the implicit sub-stepper solves
    ```math
    u^{n+1} = u^+ + \Delta t\, G_\text{imp}(u^{n+1})
@@ -93,7 +93,7 @@ Because there is only one `update_state!` per step, an IMEX step costs one evalu
 ```@docs; canonical = false
 AbstractImplicitSolver
 update_cache!
-explicit_stage!
+explicit_step!
 implicit_step!
 ```
 

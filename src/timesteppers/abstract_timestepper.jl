@@ -179,15 +179,16 @@ standalone process evaluation) gives `Explicit()`. Type stable.
 @inline timestepping(::Nothing, ::StateVariables, ::Val) = Explicit()
 
 """
-    explicit_stage!(integrator::ModelIntegrator, timestepper::AbstractTimeStepper, Δt, names::Tuple)
+    explicit_step!(integrator::ModelIntegrator, timestepper::AbstractTimeStepper, Δt, names::Tuple)
 
-Apply a single explicit stage of `timestepper` to the prognostic variables in `names`, using the
-tendencies already in `integrator.state`. Unlike `timestep!(integrator, timestepper, Δt, names)`, this
-calls neither `update_state!`, the model hook, nor `closure!`; it is the building block of an
-[`AbstractIMEX`](@ref) timestepper, which orchestrates the step itself. Only single-stage schemes
-(currently [`ForwardEuler`](@ref)) implement it.
+Apply the explicit update of `timestepper` to the prognostic variables in `names`, using the tendencies
+already in `integrator.state`. It is the counterpart of [`implicit_step!`](@ref): an
+[`AbstractIMEX`](@ref) timestepper, which orchestrates the step itself, calls it on its explicit partner.
+Unlike `timestep!(integrator, timestepper, Δt, names)`, it calls neither `update_state!`, the model hook,
+nor `closure!`. Only single-stage schemes (currently [`ForwardEuler`](@ref)) implement it, by a single
+[`explicit_stage!`](@ref).
 """
-function explicit_stage! end
+function explicit_step! end
 
 """
     validate_timestepper(timestepper::AbstractTimeStepper)
@@ -233,26 +234,26 @@ implicit_step!(integrator, ::Nothing, Δt, names) = nothing
 """
     $SIGNATURES
 
-Evaluate an explicit update `u += ∂u∂t*Δt` for the prognostic fields of `state` listed in `names` and
-their corresponding tendencies. By default, this is implemented as a simple Euler update `u += dudt*Δt`
-which can serve as a building block for more complex, multi-stage timesteppers. Where necessary,
-additional dispatches of `explicit_step_kernel!(field, tendency, ::AbstractGrid, ::TimeStepper, Δt)`
-can be defined to implement more specialized time-stepping schemes.
+Apply one explicit stage `u += ∂u∂t*Δt` to the prognostic fields of `state` listed in `names`, using
+their corresponding tendencies. It is the building block of the explicit timesteppers: [`ForwardEuler`](@ref)
+applies one stage per step, and multi-stage schemes such as [`Heun`](@ref) apply several. Where necessary,
+the per-field method `explicit_stage!(field, tendency, grid, timestepper, Δt)` can be specialized for
+schemes that need a different update.
 """
-function explicit_step!(state, grid::AbstractGrid, timestepper::AbstractTimeStepper, Δt, names::Tuple{Vararg{Symbol}})
+function explicit_stage!(state, grid::AbstractGrid, timestepper::AbstractTimeStepper, Δt, names::Tuple{Vararg{Symbol}})
     # step only this namespace's prognostic variables that are also selected in `names`
     fastiterate(prognostic_names(state)) do name
         if name ∈ names
             # update prognostic state variable
-            explicit_step!(state.prognostic[name], state.tendencies[name], grid, timestepper, Δt)
+            explicit_stage!(state.prognostic[name], state.tendencies[name], grid, timestepper, Δt)
             # debug site post-step
-            debugsite!(explicit_step!, state.prognostic[name], name)
+            debugsite!(explicit_stage!, state.prognostic[name], name)
         end
     end
     # recurse into child namespaces
     # steps exactly prognostic_names(ns) ∩ names
     fastiterate(state.namespaces) do ns
-        explicit_step!(ns, grid, timestepper, Δt, names)
+        explicit_stage!(ns, grid, timestepper, Δt, names)
     end
     return nothing
 end
@@ -261,7 +262,7 @@ end
 Accumulate `tendency*Δt` in the given prognostic `field`. This method can be overridden by specialized
 timestepping schemes as needed.
 """
-function explicit_step!(
+function explicit_stage!(
         field::AbstractField{LX, LY, LZ},
         tendency::AbstractField{LX, LY, LZ},
         grid::AbstractGrid{NF},
@@ -271,7 +272,7 @@ function explicit_step!(
     ) where {LX, LY, LZ, NF}
     Δt = convert_dt(NF, Δt)
     launch!(
-        grid, XYZ, explicit_step_xyz_kernel!,
+        grid, XYZ, explicit_stage_xyz_kernel!,
         field, tendency, timestepper, Δt, args...
     )
     return nothing
@@ -287,7 +288,7 @@ const VerticallySlicedField{LX, LY, LZ} = Field{LX, LY, LZ, <:Any, <:Any, Tuple{
 
 # A vertically sliced field occupies exactly one `k`, so it is stepped by a 2D kernel which resolves
 # that index with `end`. Launching the 3D kernel over the full column would index outside the slice.
-function explicit_step!(
+function explicit_stage!(
         field::VerticallySlicedField{LX, LY, LZ},
         tendency::VerticallySlicedField{LX, LY, LZ},
         grid::AbstractGrid{NF},
@@ -297,13 +298,13 @@ function explicit_step!(
     ) where {LX, LY, LZ, NF}
     Δt = convert_dt(NF, Δt)
     launch!(
-        grid, XY, explicit_step_slab_kernel!,
+        grid, XY, explicit_stage_slab_kernel!,
         field, tendency, timestepper, Δt, args...
     )
     return nothing
 end
 
-function explicit_step!(
+function explicit_stage!(
         field::AbstractField{LX, LY, Nothing},
         tendency::AbstractField{LX, LY, Nothing},
         grid::AbstractGrid,
@@ -312,13 +313,13 @@ function explicit_step!(
         args...
     ) where {LX, LY}
     launch!(
-        grid, XY, explicit_step_xy_kernel!,
+        grid, XY, explicit_stage_xy_kernel!,
         field, tendency, timestepper, Δt, args...
     )
     return nothing
 end
 
-@kernel function explicit_step_xyz_kernel!(
+@kernel function explicit_stage_xyz_kernel!(
         field,
         grid,
         tendency,
@@ -333,7 +334,7 @@ end
     end
 end
 
-@kernel function explicit_step_xy_kernel!(
+@kernel function explicit_stage_xy_kernel!(
         field,
         grid,
         tendency,
@@ -348,7 +349,7 @@ end
     end
 end
 
-@kernel function explicit_step_slab_kernel!(
+@kernel function explicit_stage_slab_kernel!(
         field,
         grid,
         tendency,
@@ -364,4 +365,4 @@ end
 end
 
 # Default debug hooks
-@inline debughook!(::typeof(explicit_step!), field, name) = checkfinite!(field, name)
+@inline debughook!(::typeof(explicit_stage!), field, name) = checkfinite!(field, name)

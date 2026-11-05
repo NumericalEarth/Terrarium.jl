@@ -25,7 +25,7 @@ end
 Cache for the [`Heun`](@ref) scheme, holding copies of the prognostic state `u₀` and the predictor
 tendencies `∂u∂t₀` (Heun steps in-place on `state`, so only these two are needed). The cache mirrors the
 namespace tree of the `state`: `namespaces` holds a sub-`HeunCache` per namespace so that namespaced
-prognostic variables are staged (saved/restored/averaged) consistently with how [`explicit_step!`](@ref)
+prognostic variables are staged (saved/restored/averaged) consistently with how [`explicit_stage!`](@ref)
 recurses into namespaces.
 """
 struct HeunCache{NF, P, T, NS} <: AbstractTimeStepperCache{NF}
@@ -51,7 +51,7 @@ function Adapt.adapt_structure(to, cache::HeunCache{NF}) where {NF}
 end
 
 # Save the prognostic/tendency fields named in `names` into the Heun cache, recursing into namespaces.
-# As in `explicit_step!`, iterating the (static) prognostic names with an `∈ names` guard keeps this type
+# As in `explicit_stage!`, iterating the (static) prognostic names with an `∈ names` guard keeps this type
 # stable; the same `names` selection is threaded into each namespace.
 function save_cache!(cache::HeunCache, state::StateVariables, names::Tuple)
     fastiterate(prognostic_names(state)) do name
@@ -101,7 +101,7 @@ function timestep!(integrator::ModelIntegrator, timestepper::Heun, Δt, names::T
     save_cache!(cache, state, names)
 
     # Step state forward in place using ∂u∂t₀
-    explicit_step!(state, grid, timestepper, Δt, names)
+    explicit_stage!(state, grid, timestepper, Δt, names)
     # Call timestep! on model
     timestep!(state, model, timestepper, Δt)
     # Apply closure relations
@@ -121,7 +121,7 @@ function timestep!(integrator::ModelIntegrator, timestepper::Heun, Δt, names::T
     restore_prognostic!(cache, state, names)
 
     # Corrector: u ← u₀ + Δt · averaged tendencies
-    explicit_step!(state, grid, timestepper, Δt, names)
+    explicit_stage!(state, grid, timestepper, Δt, names)
     # Call timestep! on model
     timestep!(state, model, timestepper, Δt)
     # Apply closure relations

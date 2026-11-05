@@ -51,7 +51,7 @@ if MAIN_TESTS
     end
 
     @testset "Timestepping" begin
-        include("timestepping/explicit_step.jl")
+        include("timestepping/explicit_stage.jl")
         include("timestepping/run_simulation.jl")
         include("timestepping/heun.jl")
         include("timestepping/vector_eltype.jl")

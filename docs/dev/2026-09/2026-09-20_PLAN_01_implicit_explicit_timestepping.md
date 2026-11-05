@@ -1,6 +1,6 @@
 # Add support for implicit-explicit (IMEX) time stepping
 
-> Status: **completed**. Phases 1–3 and revisions 19–30 are implemented, the test suite and doc build pass in CI, and Phase 4, Path 1, and the Richards Picard safeguard (revision 24) are deferred to future work.
+> Status: **completed**. Phases 1–3 and revisions 19–31 are implemented, the test suite and doc build pass in CI, and Phase 4, Path 1, and the Richards Picard safeguard (revision 24) are deferred to future work.
 
 Date of initial draft: 2026-09-20
 
@@ -518,6 +518,13 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 > `time_stepping.md` keeps the generic description of `BackwardEuler` and `Picard` and summarizes the pattern that both soil steps share (lagged coefficients, a tridiagonal system per column, and a conservative update), with links to the process pages; links to the former `imex-richards` anchor point to the soil hydrology section.
 > Reviewer request (same day): the description of the process hooks in "Enabling implicit timestepping" of `implementing_processes.md` is condensed to what an implementer must provide, and the hook signatures and their contract (the state on exit, and reading other implicit variables) move, condensed, to a new "Process hooks" section of `time_stepping.md` (anchor `imex-process-hooks`), together with the docstrings of `Iteration`, `linearize!`, `implicit_update!`, and `implicit_closure!`.
 > Final sweep (2026-11-05): the stale "advective heat flux" todo admonition of `soil_energy.md` is removed, its linearization is written about the Picard iterate as in `solvers.md`, dead and mistyped cross-references and typos are fixed, the `ξ` notation is applied to the remaining `s` variables of the implicit Richards code, and the uncited Knoll and Keyes entry is dropped from the bibliography.
+
+> **Revision 31, 2026-11-05 (Claude Opus 5.5). Approved. `explicit_step!` and `explicit_stage!` swap names.**
+> Reviewer request: the integrator-level call of an `IMEX` to its explicit partner is named `explicit_step!(integrator, timestepper, Δt, names)`, symmetric with `implicit_step!(integrator, timestepper, Δt, names)` for its implicit partner.
+> The low-level update `u ← u + Δt ∂u/∂t` of the prognostic fields of a state, formerly `explicit_step!(state, grid, timestepper, Δt, names)` and its per-field methods, becomes `explicit_stage!`, since it is one stage of a step in the Runge–Kutta sense (`Heun` applies it twice per step, as predictor and corrector).
+> Its kernels become `explicit_stage_xyz_kernel!`, `explicit_stage_xy_kernel!`, and `explicit_stage_slab_kernel!`, and `test/timestepping/explicit_step.jl` becomes `explicit_stage.jl`.
+> Both functions are internal (not exported), and the signatures differ, so a missed caller fails with a `MethodError`.
+> The benchmark profiling scripts are updated; earlier plan documents keep the old names as historical records, and the earlier sections of this plan are left unchanged for the same reason.
 
 ## Problem description
 
