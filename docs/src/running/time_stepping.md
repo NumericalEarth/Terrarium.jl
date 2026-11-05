@@ -76,19 +76,20 @@ IMEX
 
 A single IMEX step of size ``\Delta t`` consists of the following stages:
 
-1. A single `update_state!` evaluates all inputs, auxiliary variables, and tendencies at ``t^n``. For implicitly routed variables, the tendency holds only the *explicitly treated* terms ``G_\text{exp}``; the implicit operator is omitted (see [Routing variables](@ref) below).
-2. [`update_cache!`](@ref) on the implicit sub-stepper's cache stores what it needs from ``u^n`` (for [`BackwardEuler`](@ref), a copy of ``u^n`` of each implicitly routed variable) before the explicit stage overwrites it.
-3. The explicit sub-stepper's update ([`explicit_step!`](@ref)) is applied to *all* prognostic variables, giving ``u^+ = u^n + \Delta t\, G_\text{exp}(u^n)``. For explicitly routed variables, this is the final result. For implicitly routed variables, it is the right-hand side of the implicit system.
-4. For the implicitly routed variables, [`implicit_step!`](@ref) of the implicit sub-stepper solves
+1. [`update_cache!`](@ref) on the implicit sub-stepper's cache stores what it needs from ``u^n`` (for [`BackwardEuler`](@ref), a copy of ``u^n`` of each implicitly routed variable) before the explicit step overwrites it.
+2. The explicit sub-stepper's step ([`explicit_step!`](@ref)) is applied to *all* prognostic variables. It evaluates the inputs, auxiliary variables, and tendencies itself; for implicitly routed variables, the tendency holds only the *explicitly treated* terms ``G_\text{exp}``, and the implicit operator is omitted (see [Routing variables](@ref) below). The result is ``u^+ = u^n + \Delta t\, G_\text{exp}``, where ``G_\text{exp}`` is ``G_\text{exp}(u^n)`` at ``t^n`` for [`ForwardEuler`](@ref), and the average of the tendencies at ``u^n`` and at the predictor for [`Heun`](@ref). For explicitly routed variables, this is the final result. For implicitly routed variables, it is the right-hand side of the implicit system.
+3. For the implicitly routed variables, [`implicit_step!`](@ref) of the implicit sub-stepper solves
    ```math
    u^{n+1} = u^+ + \Delta t\, G_\text{imp}(u^{n+1})
    ```
    in place.
-5. The model hook `timestep!(state, model, timestepper, Δt)` and `closure!` are applied once, and the clock ticks once.
+4. `closure!`, which also enforces any constraints of the model on its prognostic state, is applied once, and the clock ticks once.
+
+This is sequential (Lie) operator splitting: the IMEX composes the steps of its two partners without depending on how either is done.
 
 `IMEX(ForwardEuler(NF; Δt), BackwardEuler(NF))` is the default timestepper of [`LandModel`](@ref) (`Δt = 900`) and of [`SoilModel`](@ref) with Richards-equation water flow (`Δt = 3600`). Under `IMEX`, the snow meltwater drainage of a `LandModel` is implicit as well (see [Implicit meltwater drainage](@ref)), while the snow heat conduction, vegetation, surface hydrology, and surface energy balance remain explicit and are integrated with an explicit integrator (by default `ForwardEuler`) at the same step; the shorter default time step of `LandModel` is due to the explicit snow heat conduction (which will later also be treated implicitly). Value boundary conditions on `temperature` or `pressure_head` (e.g. [`PrescribedSurfaceTemperature`](@ref)) currently require an explicit timestepper instead (see [Limitations](@ref imex-limitations)).
 
-Because there is only one `update_state!` per step, an IMEX step costs one evaluation of the explicit right-hand side plus the implicit solve. The sub-steppers are given in the order `IMEX(explicit, implicit)`, which is checked when the integrator is initialized. The explicit sub-stepper must be a single-stage scheme; currently this means [`ForwardEuler`](@ref), whose `Δt` is also the default time step of the `IMEX`. The implicit sub-stepper is an [`AbstractTimeStepper`](@ref) whose behavior is further specialized by an [`AbstractImplicitSolver`](@ref):
+With [`ForwardEuler`](@ref) as the explicit partner, an IMEX step costs one evaluation of the explicit right-hand side plus the implicit solve. [`Heun`](@ref) evaluates it twice and reduces the error of the explicitly integrated processes, but the splitting keeps the scheme first order overall. The sub-steppers are given in the order `IMEX(explicit, implicit)`, which is checked when the integrator is initialized. The `Δt` of the explicit partner is the default time step of the `IMEX`. The implicit sub-stepper is an [`AbstractTimeStepper`](@ref) whose behavior is further specialized by an [`AbstractImplicitSolver`](@ref):
 
 ```@docs; canonical = false
 AbstractImplicitSolver
@@ -182,7 +183,6 @@ Phase change is the main source of error. With `iterations = 1`, the lagged appa
 - The meltwater drained by the implicit snow step reaches the soil in the following step (see [Implicit meltwater drainage](@ref)).
 - Value (Dirichlet) boundary conditions on `pressure_head` are rejected when `saturation_water_ice` is implicit; use flux conditions on `saturation_water_ice` (e.g. [`InfiltrationFlux`](@ref)) or gradient conditions on `pressure_head` (e.g. [`FreeDrainage`](@ref)).
 - Only the `FreeWater` freeze curve is supported, since the regularized apparent heat capacity is only implemented for it.
-- [`Heun`](@ref) is not yet supported as the explicit partner of an [`IMEX`](@ref); use [`ForwardEuler`](@ref).
 - The scheme is first order accurate in time.
 
 ### Reactant and Enzyme

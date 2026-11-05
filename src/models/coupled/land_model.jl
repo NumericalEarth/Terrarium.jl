@@ -150,6 +150,7 @@ end
 
 function closure!(state, model::LandModel)
     grid = get_grid(model)
+    enforce_snow_constraints!(state, grid, model.snow)
     closure!(state, grid, model.soil, model.constants, model.surface_hydrology)
     closure!(state, grid, model.snow, model.constants)
     return nothing
@@ -215,13 +216,6 @@ end
 
 function implicit_closure!(state, model::LandModel, iteration::Iteration{:snow_water_equivalent})
     implicit_closure!(state, get_grid(model), model.snow, model.constants, iteration)
-    return nothing
-end
-
-function Terrarium.timestep!(state::StateVariables, model::LandModel, timestepper::Terrarium.AbstractTimeStepper, Δt)
-    if !isnothing(model.snow)
-        timestep!(state, model, model.snow, timestepper, Δt)
-    end
     return nothing
 end
 

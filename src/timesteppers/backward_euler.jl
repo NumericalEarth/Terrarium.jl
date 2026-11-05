@@ -5,9 +5,10 @@ First-order implicit (backward) Euler timestepper for use as the implicit sub-st
 [`IMEX`](@ref) timestepper, e.g. `IMEX(ForwardEuler(NF), BackwardEuler(NF))`. For each prognostic
 variable routed to it (see [`timestepping`](@ref)), the implicit step solves
 
-    uⁿ⁺¹ = u⁺ + Δt G_imp(uⁿ⁺¹),    u⁺ = uⁿ + Δt G_exp(uⁿ),
+    uⁿ⁺¹ = u⁺ + Δt G_imp(uⁿ⁺¹),    u⁺ = uⁿ + Δt G_exp,
 
-where `G_exp` and `G_imp` are the explicitly and implicitly treated tendency terms. The system is solved
+where `G_imp` is the implicitly treated tendency and `u⁺` the result of the explicit partner's step for
+the explicitly treated terms (`G_exp = G_exp(uⁿ)` for [`ForwardEuler`](@ref)). The system is solved
 by `solver` (an [`AbstractImplicitSolver`](@ref)); the linearized operator of all routed variables is
 provided by the model (see [`implicit_operator`](@ref)). `BackwardEuler` has no time step size of its
 own: the [`IMEX`](@ref) takes `Δt` from its explicit partner (see [`default_dt`](@ref)).
@@ -149,7 +150,7 @@ end
     $TYPEDSIGNATURES
 
 Store `uⁿ` of each variable in `names` in `previous_state` of the [`BackwardEulerCache`](@ref). Called
-by the [`AbstractIMEX`](@ref) driver before the explicit stage overwrites the fields with `u⁺`.
+by the [`AbstractIMEX`](@ref) driver before the explicit step overwrites the fields with `u⁺`.
 """
 function update_cache!(cache::BackwardEulerCache, integrator::ModelIntegrator, Δt, names::Tuple)
     prognostic = getfield(integrator.state, :prognostic)

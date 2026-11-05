@@ -122,14 +122,6 @@ Advance prognostic variables of the `integrator` model by one time step based on
 function timestep! end
 
 """
-    timestep!(state, model::AbstractModel, timestepper::AbstractTimeStepper, Δt)
-
-Apply any necessary corrections or model-specific time stepping logic after applying `timestepper` to the prognostic state
-variables defined by `model`.
-"""
-timestep!(state, model::AbstractModel, timestepper::AbstractTimeStepper, Δt) = nothing
-
-"""
     initialize(::AbstractTimeStepper, state)
 
 Initialize and return the [`AbstractTimeStepperCache`](@ref) holding any intermediate fields/state required by the
@@ -181,14 +173,16 @@ standalone process evaluation) gives `Explicit()`. Type stable.
 """
     explicit_step!(integrator::ModelIntegrator, timestepper::AbstractTimeStepper, Δt, names::Tuple)
 
-Apply the explicit update of `timestepper` to the prognostic variables in `names`, using the tendencies
-already in `integrator.state`. It is the counterpart of [`implicit_step!`](@ref): an
-[`AbstractIMEX`](@ref) timestepper, which orchestrates the step itself, calls it on its explicit partner.
-Unlike `timestep!(integrator, timestepper, Δt, names)`, it calls neither `update_state!`, the model hook,
-nor `closure!`. Only single-stage schemes (currently [`ForwardEuler`](@ref)) implement it, by a single
-[`explicit_stage!`](@ref).
+Integrate the prognostic variables in `names` over a step of size `Δt` with the explicit `timestepper`,
+starting from the current state. The step evaluates the auxiliary variables and tendencies itself
+(`update_state!`) and applies one or more [`explicit_stage!`](@ref)s; multi-stage schemes such as
+[`Heun`](@ref) also apply `closure!` between their stages. The closure at the end of the step and the
+clock tick are left to the caller: the single-timestepper `timestep!`, or an [`AbstractIMEX`](@ref)
+timestepper, which calls it on its explicit partner and then [`implicit_step!`](@ref) on its implicit
+partner before applying the closure once. Explicit timesteppers must implement this method.
 """
 function explicit_step! end
+
 
 """
     validate_timestepper(timestepper::AbstractTimeStepper)
@@ -196,8 +190,8 @@ function explicit_step! end
 
 Host-side validation of a timestepper configuration, called from [`initialize`](@ref) before any cache
 is allocated. The one-argument form validates `timestepper` alone (a no-op by default); the two-argument
-form validates it as a sub-stepper of `imex` and throws an `ArgumentError` for unsupported roles (e.g.
-multi-stage schemes such as [`Heun`](@ref) as the explicit partner). Not exported.
+form validates it as a sub-stepper of `imex` and throws an `ArgumentError` for unsupported roles (a
+no-op by default). Not exported.
 """
 validate_timestepper(::AbstractTimeStepper) = nothing
 validate_timestepper(::AbstractTimeStepper, ::AbstractIMEX) = nothing
@@ -206,7 +200,7 @@ validate_timestepper(::AbstractTimeStepper, ::AbstractIMEX) = nothing
     update_cache!(cache::AbstractTimeStepperCache, integrator::ModelIntegrator, Δt, names::Tuple)
 
 Update the timestepper `cache` from the state of `integrator` for the variables in `names`, at the start
-of a step (after `update_state!`, while the prognostic fields still hold `uⁿ`). Timesteppers that retain
+of a step (before the explicit step, while the prognostic fields still hold `uⁿ`). Timesteppers that retain
 beginning-of-step state implement this on their cache type (e.g. [`BackwardEulerCache`](@ref) stores a
 copy of `uⁿ`). The default is a no-op.
 """
@@ -216,9 +210,9 @@ update_cache!(::AbstractTimeStepperCache, integrator, Δt, names) = nothing
     implicit_step!(integrator::ModelIntegrator, timestepper::AbstractTimeStepper, Δt, names::Tuple)
 
 Apply the implicit part of a time step of size `Δt` with the implicit `timestepper` to the variables in
-`names`. Called by an [`AbstractIMEX`](@ref) timestepper after `update_state!` and the explicit stage, so
-each prognostic field in `names` already holds `u⁺ = uⁿ + Δt G_exp`, where `G_exp` contains only the
-explicit terms. `u⁺` is the right-hand side of the implicit system, which this method solves in place.
+`names`. Called by an [`AbstractIMEX`](@ref) timestepper after the [`explicit_step!`](@ref) of its
+explicit partner, so each prognostic field in `names` already holds `u⁺ = uⁿ + Δt G_exp`, where
+`Δt G_exp = u⁺ - uⁿ` is the explicit increment, which contains only the explicit terms. `u⁺` is the right-hand side of the implicit system, which this method solves in place.
 
 This is unrelated to (and does not extend) `Oceananigans.TimeSteppers.implicit_step!`.
 

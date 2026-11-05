@@ -60,6 +60,7 @@ end
 # Closures
 
 function closure!(state, model::SnowModel)
+    enforce_snow_constraints!(state, model.grid, model.snow)
     closure!(state, model.grid, get_closure(model.snow), model.snow, model.constants)
     return nothing
 end
@@ -96,25 +97,28 @@ function implicit_closure!(state, model::SnowModel, iteration::Iteration)
     return nothing
 end
 
-function Terrarium.timestep!(state::StateVariables, model::SnowModel, timestepper::Terrarium.AbstractTimeStepper, Δt)
-    return timestep!(state, model, model.snow, timestepper, Δt)
-end
+"""
+    $TYPEDSIGNATURES
 
-function Terrarium.timestep!(
-        state::StateVariables,
-        model::AbstractModel{NF},
-        snow::AbstractSnow,
-        args...
-    ) where {NF}
-    # Enforce SWE >= 0
+Enforce the constraints on the snow state that are not part of its tendencies: clip negative snow water
+equivalent to zero and remove the energy of a pack without snow. Called by `closure!` of models with snow
+before the snow closure, so that the closure sees an admissible state.
+
+The clipping does not conserve mass; the water it adds to a pack that was overdrawn by an explicit step
+is not taken from anywhere.
+"""
+function enforce_snow_constraints!(state, grid, snow::AbstractSnow)
     # TODO: Rewrite to ensure mass conservation
     (; snow_water_equivalent, snow_energy) = state
     out = (; snow_water_equivalent, snow_energy)
-    launch!(model.grid, XY, enforce_snow_constraints!, out, snow)
+    launch!(grid, XY, enforce_snow_constraints_kernel!, out, snow)
     return nothing
 end
 
-@kernel inbounds = true function enforce_snow_constraints!(out, grid, snow::AbstractSnow{NF}) where {NF}
+# no constraints without snow
+enforce_snow_constraints!(state, grid, ::Nothing) = nothing
+
+@kernel inbounds = true function enforce_snow_constraints_kernel!(out, grid, snow::AbstractSnow{NF}) where {NF}
     i, j = @index(Global, NTuple)
     out.snow_water_equivalent[i, j, end] = max(out.snow_water_equivalent[i, j], zero(NF))
     out.snow_energy[i, j, end] = out.snow_energy[i, j] * (out.snow_water_equivalent[i, j] > zero(NF))

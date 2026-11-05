@@ -14,11 +14,6 @@ timestepping(::Heun) = Explicit()
 
 default_dt(heun::Heun) = heun.Δt
 
-# Multi-stage explicit partners of an IMEX require a per-stage implicit correction, which is not yet supported.
-function validate_timestepper(::Heun, ::AbstractIMEX)
-    throw(ArgumentError("`Heun` is not yet supported as the explicit sub-stepper of an `IMEX` timestepper; use `ForwardEuler` instead"))
-end
-
 """
     $TYPEDEF
 
@@ -88,8 +83,15 @@ function average_tendencies!(cache::HeunCache, state::StateVariables, names::Tup
     return nothing
 end
 
-# Step only the prognostic variables named in `names` with the Heun scheme.
-function timestep!(integrator::ModelIntegrator, timestepper::Heun, Δt, names::Tuple)
+"""
+    $TYPEDSIGNATURES
+
+Heun step for the prognostic variables in `names`: a forward Euler predictor with the tendencies at the
+current state, followed by the closure and a corrector `u ← u₀ + Δt (∂u∂t₀ + ∂u∂t₁) / 2` with the
+tendencies `∂u∂t₁` at the predictor state and the end of the step. The closure after the corrector is
+left to the caller (see [`explicit_step!`](@ref)).
+"""
+function explicit_step!(integrator::ModelIntegrator, timestepper::Heun, Δt, names::Tuple)
     (; model, state, inputs) = integrator
     grid = get_grid(model)
     # fetch Heun's cache
@@ -102,9 +104,7 @@ function timestep!(integrator::ModelIntegrator, timestepper::Heun, Δt, names::T
 
     # Step state forward in place using ∂u∂t₀
     explicit_stage!(state, grid, timestepper, Δt, names)
-    # Call timestep! on model
-    timestep!(state, model, timestepper, Δt)
-    # Apply closure relations
+    # Apply closure relations at the predictor state
     closure!(state, model)
 
     # Recompute tendencies ∂u∂t₁ at the predictor state (u_pred, t + Δt), with the clock advanced to t + Δt so
@@ -122,9 +122,5 @@ function timestep!(integrator::ModelIntegrator, timestepper::Heun, Δt, names::T
 
     # Corrector: u ← u₀ + Δt · averaged tendencies
     explicit_stage!(state, grid, timestepper, Δt, names)
-    # Call timestep! on model
-    timestep!(state, model, timestepper, Δt)
-    # Apply closure relations
-    closure!(state, model)
     return nothing
 end

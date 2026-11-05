@@ -1,6 +1,6 @@
 # Add support for implicit-explicit (IMEX) time stepping
 
-> Status: **completed**. Phases 1–3 and revisions 19–31 are implemented, the test suite and doc build pass in CI, and Phase 4, Path 1, and the Richards Picard safeguard (revision 24) are deferred to future work.
+> Status: **completed**. Phases 1–3 and revisions 19–32 are implemented, the test suite and doc build pass in CI, and Phase 4, Path 1, and the Richards Picard safeguard (revision 24) are deferred to future work.
 
 Date of initial draft: 2026-09-20
 
@@ -525,6 +525,22 @@ Revision 2 reviewed against: e9b9ef82a706492972a70f7a9892a7cd13afdd4e (branch `b
 > Its kernels become `explicit_stage_xyz_kernel!`, `explicit_stage_xy_kernel!`, and `explicit_stage_slab_kernel!`, and `test/timestepping/explicit_step.jl` becomes `explicit_stage.jl`.
 > Both functions are internal (not exported), and the signatures differ, so a missed caller fails with a `MethodError`.
 > The benchmark profiling scripts are updated; earlier plan documents keep the old names as historical records, and the earlier sections of this plan are left unchanged for the same reason.
+
+> **Revision 32, 2026-11-05 (Claude Opus 5.5). Approved. The explicit partner of an `IMEX` takes its full explicit step; the model hook becomes part of `closure!`.**
+> Reviewer request: an `IMEX` step composes the explicit and implicit steps of its partners without knowing how either is done, i.e. sequential (Lie) operator splitting.
+> `explicit_step!(integrator, timestepper, Δt, names)` now integrates the explicit part over the whole step from the current state, including its own `update_state!` calls and, for multi-stage schemes, the closure between stages; only the closure at the end of the step and the clock tick are left to the caller.
+> `ForwardEuler` evaluates the tendencies once and applies one stage, as before; `Heun` evaluates them at `uⁿ` and at the predictor and applies the averaged tendency, so the increment `u⁺ − uⁿ` that the implicit step receives is `Δt (G_exp(uⁿ) + G_exp(u_pred)) / 2`.
+> A single explicit timestepper's `timestep!(integrator, timestepper, Δt, names)` is a generic method that calls `explicit_step!` and then `closure!`, replacing the per-scheme methods.
+> The `IMEX` step stores `uⁿ` for the implicit sub-stepper (`update_cache!`) before the explicit step instead of after `update_state!`, calls `explicit_step!` on its partner for all prognostic variables and `implicit_step!` from the result, and applies `closure!` and the clock tick once.
+> With `ForwardEuler`, the sequence of operations, and hence the result, is unchanged.
+> Considered and reverted (same day): applying the final closure inside `explicit_step!`. It would also run the closure at `u⁺` before the implicit step, which changes the validated results of `IMEX(ForwardEuler, BackwardEuler)` (the hydrology closure would redistribute and route the water of the explicit stage before the Richards step) and applies the closure twice per step, while the implicit variables are reset to `uⁿ` and re-diagnosed anyway.
+> The rejection of `Heun` as the explicit partner in `validate_timestepper` is removed.
+> The overall scheme remains first order, since the splitting error is first order; `Heun` reduces the error of the explicit processes and costs a second evaluation of the tendencies per step.
+> Reviewer request (same revision): the model hook `timestep!(state, model, timestepper, Δt)`, which applied model-specific corrections after each explicit update, is removed, since `explicit_step!` would otherwise call a method named `timestep!`.
+> Its only implementation, the snow constraints (`snow_water_equivalent ≥ 0`, and no energy without snow), becomes `enforce_snow_constraints!`, called at the start of `closure!` of `SnowModel` and of a `LandModel` with snow; it runs at exactly the same points of a step as before, since `closure!(state, model)` always followed the hook.
+> The snow examples and the Heun test that extended the hook now extend `closure!`.
+> Tests: `IMEX(Heun, ·)` with constant and with state-dependent tendencies (the explicit variable matches a standalone `Heun` step), two tendency evaluations per step, and energy and water conservation of `IMEX(Heun, BackwardEuler)` in the soil heat and Richards tests.
+> Docs: the structure of an IMEX step in `time_stepping.md`, the IMEX limitation on `Heun` (removed), and the docstrings of `explicit_step!`, `implicit_step!`, `update_cache!`, `IMEX`, `BackwardEuler`, and `closure!`.
 
 ## Problem description
 

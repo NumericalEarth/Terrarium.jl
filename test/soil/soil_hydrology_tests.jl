@@ -321,8 +321,8 @@ module SoilHydrologyImplicitRichardsTests
             return SoilEnergyWaterCarbon(NF; hydrology, strat, biogeochem)
         end
 
-        implicit_timestepper(NF; iterations = 2) =
-            IMEX(ForwardEuler(NF), BackwardEuler(NF; solver = Picard(NF; iterations)))
+        implicit_timestepper(NF; iterations = 2, explicit = ForwardEuler) =
+            IMEX(explicit(NF), BackwardEuler(NF; solver = Picard(NF; iterations)))
 
         # Soil column with a constant infiltration flux `infiltration` (m/s, positive downward) at the top and,
         # by default, an impermeable bottom.
@@ -497,8 +497,8 @@ module SoilHydrologyImplicitRichardsTests
         grid = ColumnGrid(CPU(), NF, ExponentialSpacing(Δz_min = 0.02, Δz_max = 0.3, N = 20))
         Δt = 3600.0
         infiltration = 2.0e-6
-        for iterations in (2, 3)
-            integrator = build_water_column(grid, implicit_timestepper(NF; iterations); saturation = (x, z) -> 0.4 - 0.1 * z, infiltration)
+        for iterations in (2, 3), explicit in (ForwardEuler, Heun)
+            integrator = build_water_column(grid, implicit_timestepper(NF; iterations, explicit); saturation = (x, z) -> 0.4 - 0.1 * z, infiltration)
             conserved = true
             for _ in 1:48
                 W⁰ = column_water(integrator)

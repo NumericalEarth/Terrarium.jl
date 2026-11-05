@@ -197,7 +197,12 @@ Return the `PhysicalConstants` associated with the given `model`.
 """
     closure!(state, model::AbstractModel)
 
-Apply all closure relations defined for the given `model`.
+Apply all closure relations defined for the given `model`, i.e. update the variables that are determined
+by the prognostic state. This is also where a model enforces constraints on its prognostic state that
+are not part of the tendencies, such as the redistribution of oversaturation in the soil
+([`adjust_saturation_profile!`](@ref)) or the non-negativity of the snow water equivalent
+([`enforce_snow_constraints!`](@ref)). Timesteppers call it at the end of each step (and between the
+stages of multi-stage schemes), after all prognostic variables have been updated.
 """
 closure!(state, model::AbstractModel) = nothing
 

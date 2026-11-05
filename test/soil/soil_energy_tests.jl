@@ -222,8 +222,8 @@ module SoilEnergyImplicitHeatConductionTests
             return initialize(model; boundary_conditions, initializers)
         end
 
-        implicit_timestepper(NF; iterations = 1) =
-            IMEX(ForwardEuler(NF), BackwardEuler(NF; solver = Picard(NF; iterations)))
+        implicit_timestepper(NF; iterations = 1, explicit = ForwardEuler) =
+            IMEX(explicit(NF), BackwardEuler(NF; solver = Picard(NF; iterations)))
 
         # vertical cell thicknesses of the (single) column
         cell_thicknesses(grid) = [Δzᵃᵃᶜ(1, 1, k, ground_domain(grid)) for k in 1:ground_domain(grid).Nz]
@@ -317,8 +317,8 @@ module SoilEnergyImplicitHeatConductionTests
         bottom_flux = 0.05
         # (initial temperature, top flux) for a thawed column and for a column with a freezing front
         cases = (thawed = (5.0, -20.0), freezing = (0.5, 80.0))
-        for (case, (T₀, top_flux)) in pairs(cases), iterations in (1, 3)
-            integrator = build_heat_column(grid, implicit_timestepper(NF; iterations); temperature = T₀, top_flux, bottom_flux)
+        for (case, (T₀, top_flux)) in pairs(cases), iterations in (1, 3), explicit in (ForwardEuler, Heun)
+            integrator = build_heat_column(grid, implicit_timestepper(NF; iterations, explicit); temperature = T₀, top_flux, bottom_flux)
             net_flux = bottom_flux - top_flux
             conserved = true
             for _ in 1:48

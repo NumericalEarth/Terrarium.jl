@@ -17,9 +17,10 @@ Return the implicit sub-stepper of the [`AbstractIMEX`](@ref) timestepper `imex`
 
 Implicit-explicit (IMEX) time stepper that integrates each prognostic variable according to its
 [`timestepping`](@ref) class: variables of class [`Explicit`](@ref) are stepped by `explicit` alone, and
-those of class [`Implicit`](@ref) receive the explicit stage for their explicit terms followed by an
-[`implicit_step!`](@ref) of `implicit`. Only single-stage explicit schemes (currently
-[`ForwardEuler`](@ref)) are supported as the explicit partner.
+those of class [`Implicit`](@ref) receive the explicit step for their explicit terms followed by an
+[`implicit_step!`](@ref) of `implicit` (sequential operator splitting). Any explicit timestepper that
+implements [`explicit_step!`](@ref), e.g. [`ForwardEuler`](@ref) or [`Heun`](@ref), can be the explicit
+partner; the splitting makes the scheme first order in either case.
 
 Each variable's class is resolved from `timestepping(var, model, imex)`, which defaults to `Explicit()`.
 To integrate variables implicitly, specialize [`timestepping`](@ref) on the variable and/or model types
@@ -155,35 +156,30 @@ end
 """
     timestep!(integrator::ModelIntegrator, timestepper::AbstractIMEX, Δt)
 
-Advance the model by one IMEX Euler step of size `Δt` using an [`AbstractIMEX`](@ref) timestepper:
+Advance the model by one IMEX step of size `Δt` using an [`AbstractIMEX`](@ref) timestepper:
 
-1. a single `update_state!`, in which the tendencies of implicitly routed variables hold only their
-   explicit terms (see [`timestepping(state, ::Val)`](@ref timestepping));
-2. [`update_cache!`](@ref) of the implicit sub-stepper for the [`Implicit`](@ref) variables, while
+1. [`update_cache!`](@ref) of the implicit sub-stepper for the [`Implicit`](@ref) variables, while
    their fields still hold `uⁿ`;
-3. the explicit sub-stepper's [`explicit_step!`](@ref) for *all* prognostic variables, giving
-   `u⁺ = uⁿ + Δt G_exp` (the right-hand side of the implicit system for implicitly routed variables);
-4. [`implicit_step!`](@ref) of the implicit sub-stepper for the implicit variables;
-5. the model hook `timestep!(state, model, timestepper, Δt)` followed by `closure!`;
-6. a single clock tick.
-
-Explicit terms are therefore evaluated at `tⁿ`.
+2. the explicit sub-stepper's [`explicit_step!`](@ref) for *all* prognostic variables, which evaluates
+   the tendencies itself; for implicitly routed variables, these hold only the explicit terms (see
+   [`timestepping(state, ::Val)`](@ref timestepping)), so the step gives `u⁺ = uⁿ + Δt G_exp`, the
+   right-hand side of the implicit system, where `Δt G_exp = u⁺ - uⁿ` is the explicit increment of
+   the partner (e.g. evaluated at `tⁿ` for [`ForwardEuler`](@ref));
+3. [`implicit_step!`](@ref) of the implicit sub-stepper for the implicit variables;
+4. `closure!`, followed by a single clock tick.
 """
 function timestep!(integrator::ModelIntegrator, timestepper::AbstractIMEX, Δt)
-    (; state, model, inputs) = integrator
+    (; state, model) = integrator
     # implicitly routed variables
     implicit_names = prognostic_names(state, state.timestepper_cache, Implicit())
-    # auxiliaries and explicit tendencies, once per step
-    update_state!(state, model, inputs; compute_tendencies = true)
-    # store uⁿ before the explicit stage overwrites it
+    # store uⁿ before the explicit step overwrites it
     implicit_cache = get_cache(state.timestepper_cache, implicit_timestepper(timestepper))
     isempty(implicit_names) || update_cache!(implicit_cache, integrator, Δt, implicit_names)
-    # explicit stage for all prognostic variables: u⁺ = uⁿ + Δt G_exp
+    # explicit step for all prognostic variables, including its tendency evaluations: u⁺ = uⁿ + Δt G_exp
     explicit_step!(integrator, explicit_timestepper(timestepper), Δt, prognostic_names(state))
     # implicit solve, starting from u⁺
     isempty(implicit_names) || implicit_step!(integrator, implicit_timestepper(timestepper), Δt, implicit_names)
-    # model post-step corrections and closures
-    timestep!(state, model, timestepper, Δt)
+    # closures, including any constraints on the prognostic state
     closure!(state, model)
     # advance the clock
     tick!(state.clock, Δt)

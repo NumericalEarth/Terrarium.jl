@@ -50,19 +50,19 @@ end
     @test integrator_heun.state.u[2] == (0.1 * dt_heun + (0.1 * dt_heun + 0.1) * dt_heun) / 2
 end
 
-# Use timestep!(state, model, timestepper, Δt) to clip negative values in an super simple example sim
+# Use closure!(state, model) to clip negative values in a super simple example sim
 @testset "ExpModel: clip negative values" begin
     grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 1))
     model = ExpModel(grid)
 
-    Terrarium.timestep!(state, model::ExpModel, timestepper::ForwardEuler, Δt) = begin
+    Terrarium.closure!(state, model::ExpModel) = begin
         state.u[2] = max(state.u[2], 0.0)
     end
 
     initializers = (u = -20, v = -5.0)
     integrator = initialize(model; initializers)
 
-    # Test that timestep! clips negative values
+    # Test that the closure clips negative values after the step
     timestep!(integrator)
 
     @test integrator.state.u[2] >= 0.0

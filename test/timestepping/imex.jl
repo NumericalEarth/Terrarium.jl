@@ -81,6 +81,28 @@ module IMEXTestTypes
     end
 
     Terrarium.timestepping(::AbstractVariable{:a}, ::FlippedModel, ::AbstractIMEX) = Implicit()
+
+    # Model with a state-dependent tendency, ∂a/∂t = a, and a constant one, ∂b/∂t = 1, with `:b` integrated
+    # implicitly under an IMEX timestepper; used to check the explicit step of the explicit partner.
+    @kwdef struct LinearModel{NF, Grid <: AbstractGrid{NF}, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
+        grid::Grid
+        initializer = DefaultInitializer(eltype(grid))
+        timestepper::TS = ForwardEuler(eltype(grid))
+    end
+
+    Terrarium.variables(::LinearModel) = (
+        prognostic(:a, XY()),
+        prognostic(:b, XY()),
+    )
+    Terrarium.compute_auxiliary!(state, ::LinearModel) = nothing
+    function Terrarium.compute_tendencies!(state, ::LinearModel)
+        TENDENCY_EVALUATIONS[] += 1
+        interior(state.tendencies.a) .= interior(state.a)
+        set!(state.tendencies.b, 1.0)
+        return nothing
+    end
+
+    Terrarium.timestepping(::AbstractVariable{:b}, ::LinearModel, ::AbstractIMEX) = Implicit()
 end
 
 @testset "Single timestepper integrates all prognostic variables" begin
@@ -170,11 +192,43 @@ end
     @test @inferred(timestepping(state, Val(:b))) === Explicit()
 end
 
-@testset "Heun is rejected as the explicit partner of an IMEX" begin
+@testset "Heun as the explicit partner of an IMEX" begin
     grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 1))
     timestepper = IMEX(Heun(Float64), IMEXTestTypes.MockImplicit(Float64))
     model = IMEXTestTypes.TwoVarModel(grid; timestepper)
-    @test_throws ArgumentError initialize(model)
+    integrator = initialize(model)
+    cache = integrator.state.timestepper_cache
+    @test cache.explicit isa Terrarium.HeunCache
+    @test cache.implicit isa EmptyCache
+    Δt = default_dt(integrator)
+    IMEXTestTypes.TENDENCY_EVALUATIONS[] = 0
+    timestep!(integrator, Δt; finalize = false)
+    # Heun evaluates the tendencies at uⁿ and at the predictor
+    @test IMEXTestTypes.TENDENCY_EVALUATIONS[] == 2
+    # the clock is ticked once, and restored after the predictor evaluation at t + Δt
+    @test integrator.clock.iteration == 1
+    @test integrator.clock.time ≈ Δt
+    # constant unit tendencies: Heun matches forward Euler
+    @test all(interior(integrator.state.a) .≈ Δt)       # :a → Explicit → Heun: a += 1·Δt
+    @test all(interior(integrator.state.b) .≈ 2 * Δt)   # :b → Implicit → mock: b += 2·Δt
+end
+
+@testset "IMEX applies the full explicit step of its partner" begin
+    grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 1))
+    Δt = 0.1
+    # one step of ∂a/∂t = a from a = 1
+    function step_a(timestepper)
+        integrator = initialize(IMEXTestTypes.LinearModel(grid; timestepper))
+        set!(integrator.state.a, 1.0)
+        timestep!(integrator, Δt)
+        return only(interior(integrator.state.a))
+    end
+    mock = IMEXTestTypes.MockImplicit(Float64)
+    # the explicitly routed variable takes exactly the step of the explicit partner
+    @test step_a(IMEX(ForwardEuler(Float64), mock)) ≈ 1 + Δt
+    @test step_a(IMEX(Heun(Float64), mock)) ≈ 1 + Δt + Δt^2 / 2
+    @test step_a(IMEX(Heun(Float64), mock)) == step_a(Heun(Float64))
+    @test step_a(IMEX(ForwardEuler(Float64), mock)) == step_a(ForwardEuler(Float64))
 end
 
 @testset "IMEX validates the order of its sub-steppers" begin
