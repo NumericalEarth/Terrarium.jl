@@ -19,7 +19,8 @@ arch = CPU()
 NF = Float32
 grid = ColumnGrid(arch, NF, ExponentialSpacing())
 initializer = SoilInitializer(NF)
-model = SoilModel(grid; timestepper = ForwardEuler(NF), initializer = initializer)
+soil = SoilEnergyWaterCarbon(NF; hydrology = SoilHydrology(NF, NoFlow()))
+model = SoilModel(grid; soil, timestepper = ForwardEuler(NF), initializer = initializer)
 # constant surface temperature of 1°C
 bcs = PrescribedSurfaceTemperature(:T_ub, NF(1.0))
 integrator = initialize(model, boundary_conditions = bcs)

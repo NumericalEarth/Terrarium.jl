@@ -347,7 +347,8 @@ end
 @testset "SoilModel routes internal energy implicitly under IMEX" begin
     grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 10))
     timestepper = IMEX(ForwardEuler(Float64), BackwardEuler(Float64))
-    model = SoilModel(grid; timestepper)
+    soil = SoilEnergyWaterCarbon(Float64; hydrology = SoilHydrology(Float64, NoFlow()))
+    model = SoilModel(grid; soil, timestepper)
     integrator = initialize(model)
     state = integrator.state
     @test timestepping(state, Val(:internal_energy)) === Implicit()
@@ -362,28 +363,31 @@ end
     # implicitly integrated heat conduction imposes no diffusive time step restriction
     @test isinf(Terrarium.cell_diffusion_timescale(integrator))
     # with a single explicit timestepper the diffusive restriction is finite
-    integrator = initialize(SoilModel(grid; timestepper = ForwardEuler(Float64)))
+    integrator = initialize(SoilModel(grid; soil, timestepper = ForwardEuler(Float64)))
     @test timestepping(integrator.state, Val(:internal_energy)) === Explicit()
     @test isfinite(Terrarium.cell_diffusion_timescale(integrator))
 end
 
 @testset "Default timesteppers" begin
     grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 10))
-    # Richards soil and land models default to IMEX with the step taken from the explicit partner
-    richards_soil = SoilEnergyWaterCarbon(Float64; hydrology = SoilHydrology(Float64, RichardsEq()))
-    for (model, Δt) in ((SoilModel(grid; soil = richards_soil), 3600), (LandModel(grid), 900))
+    # Richards-equation hydrology is the default of `SoilHydrology`
+    @test SoilHydrology(Float64).vertical_flow isa RichardsEq
+    # soil and land models (with Richards hydrology by default) default to IMEX with the step taken from the explicit partner
+    for (model, Δt) in ((SoilModel(grid), 3600), (LandModel(grid), 900), (LandModel(grid; vegetation = nothing), 900))
         @test model.timestepper isa IMEX{Float64, ForwardEuler{Float64}, <:BackwardEuler{Float64}}
         @test Terrarium.default_dt(model.timestepper) == Δt
     end
-    # all other models, including a soil model without water flow (the default `NoFlow`), keep forward Euler
-    for model in (SoilModel(grid), SnowModel(grid), VegetationModel(grid), SurfaceEnergyModel(grid))
+    # all other models, including a soil model without water flow (`NoFlow`), keep forward Euler
+    noflow_soil = SoilEnergyWaterCarbon(Float64; hydrology = SoilHydrology(Float64, NoFlow()))
+    for model in (SoilModel(grid; soil = noflow_soil), SnowModel(grid), VegetationModel(grid), SurfaceEnergyModel(grid))
         @test model.timestepper isa ForwardEuler{Float64}
     end
 end
 
 @testset "LandModel routes the snow meltwater drainage implicitly under IMEX" begin
     grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 10))
-    integrator = initialize(LandModel(grid; vegetation = nothing))
+    soil = SoilEnergyWaterCarbon(Float64; hydrology = SoilHydrology(Float64, NoFlow()))
+    integrator = initialize(LandModel(grid; soil, vegetation = nothing))
     state = integrator.state
     @test timestepping(state, Val(:snow_water_equivalent)) === Implicit()
     @test timestepping(state, Val(:snow_energy)) === Explicit()
@@ -396,7 +400,7 @@ end
     @test state.timestepper_cache.implicit.workspaces.snow_water_equivalent.iteration ==
         Terrarium.Iteration(:snow_water_equivalent; target = :snow_liquid_fraction)
     # without snow, only the soil is implicit
-    integrator = initialize(LandModel(grid; vegetation = nothing, snow = nothing))
+    integrator = initialize(LandModel(grid; soil, vegetation = nothing, snow = nothing))
     @test keys(integrator.state.timestepper_cache.implicit.operator.operators) == (:internal_energy,)
 end
 
@@ -431,7 +435,7 @@ module IMEXSoilRoutingTests
         @test default_timestepping(SoilHydrology(NF, NoFlow())) === Explicit()
         @test default_timestepping(SoilHydrology(NF, RichardsEq())) === Implicit()
         # NoFlow: saturation is not prognostic, so it is never routed, and only energy is implicit
-        model = SoilModel(grid; timestepper = implicit_timestepper(NF))
+        model = SoilModel(grid; soil = SoilEnergyWaterCarbon(NF; hydrology = SoilHydrology(NF, NoFlow())), timestepper = implicit_timestepper(NF))
         @test timestepping(Terrarium.prognostic(:saturation_water_ice, Terrarium.Ground(Terrarium.XYZ())), model, model.timestepper) === Explicit()
         integrator = initialize(model)
         @test timestepping(integrator.state, Val(:saturation_water_ice)) === Explicit()

@@ -177,7 +177,8 @@ end
     surface_heat_flux(x, t, p) = p.amplitude * sin(2π * t / p.period)
     boundary_conditions = SoilHeatFlux(surface_heat_flux; parameters = (amplitude = 100.0, period = period))
     function simulate(Δt)
-        model = SoilModel(grid; timestepper = Heun(Float64))
+        soil = SoilEnergyWaterCarbon(Float64; hydrology = SoilHydrology(Float64, NoFlow()))
+        model = SoilModel(grid; soil, timestepper = Heun(Float64))
         integrator = initialize(model; boundary_conditions, initializers = (temperature = 10.0, saturation_water_ice = 0.5))
         run!(integrator; steps = round(Int, period / Δt), Δt)
         @test integrator.clock.time ≈ period

@@ -4,6 +4,9 @@ using Test
 import Oceananigans.Advection: cell_advection_timescale
 import Oceananigans.Diagnostics: cell_diffusion_timescale
 
+# Soil with immobile water (the default hydrology is Richards flow)
+noflow_soil(NF; kwargs...) = SoilEnergyWaterCarbon(NF; hydrology = SoilHydrology(NF, NoFlow()), kwargs...)
+
 # Recompute the thermal diffusion timescale independently from the public pointwise property
 # functions, mirroring τ = Δz² C / κ, and return the per-cell minimum over the interior.
 function reference_thermal_timescale(integrator)
@@ -30,7 +33,7 @@ end
 
 @testset "cell_diffusion_timescale (SoilModel, NoFlow)" begin
     grid = ColumnGrid(UniformSpacing(Δz = 0.1, N = 20))
-    model = SoilModel(grid; timestepper = ForwardEuler(Float64))
+    model = SoilModel(grid; soil = noflow_soil(Float64), timestepper = ForwardEuler(Float64))
     integrator = initialize(model)
 
     τ = cell_diffusion_timescale(integrator)
@@ -68,7 +71,7 @@ end
 
 @testset "single-float32 numeric type" begin
     grid = ColumnGrid(UniformSpacing(Δz = 0.1f0, N = 10))
-    model = SoilModel(grid; timestepper = ForwardEuler(Float32))
+    model = SoilModel(grid; soil = noflow_soil(Float32), timestepper = ForwardEuler(Float32))
     integrator = initialize(model)
     τ = cell_diffusion_timescale(integrator)
     @test typeof(τ) === Float32
@@ -77,7 +80,7 @@ end
 
 @testset "TimeStepWizard drives an adaptive Simulation" begin
     grid = ColumnGrid(UniformSpacing(Δz = 0.1, N = 20))
-    integrator = initialize(SoilModel(grid; timestepper = ForwardEuler(Float64)))
+    integrator = initialize(SoilModel(grid; soil = noflow_soil(Float64), timestepper = ForwardEuler(Float64)))
     sim = Simulation(integrator; Δt = 100.0, stop_iteration = 20)
     wizard = TimeStepWizard(diffusive_cfl = 0.4)
     sim.callbacks[:wizard] = Callback(wizard, IterationInterval(2))
@@ -100,6 +103,8 @@ module IMEXWizardTests
         get_energy_balance, get_hydrology, get_stratigraphy, get_biogeochemistry, cell_advection_timescale, cell_diffusion_timescale
 
     const POROSITY = 0.4
+
+    noflow_soil(NF) = SoilEnergyWaterCarbon(NF; hydrology = SoilHydrology(NF, NoFlow()))
 
     # IMEX that integrates `saturation_water_ice` implicitly but `internal_energy` explicitly
     struct ExplicitEnergyIMEX{NF, E <: AbstractTimeStepper{NF}, I <: AbstractTimeStepper{NF}} <: AbstractIMEX{NF}
@@ -143,8 +148,8 @@ module IMEXWizardTests
     @testset "TimeStepWizard is not throttled by implicit heat conduction (SoilModel)" begin
         NF = Float64
         grid = ColumnGrid(CPU(), NF, ExponentialSpacing(Δz_min = 0.02, Δz_max = 0.5, N = 20))
-        τ_explicit = cell_diffusion_timescale(initialize(SoilModel(grid; timestepper = ForwardEuler(NF))))
-        integrator = initialize(SoilModel(grid; timestepper = implicit_timestepper(NF)))
+        τ_explicit = cell_diffusion_timescale(initialize(SoilModel(grid; soil = noflow_soil(NF), timestepper = ForwardEuler(NF))))
+        integrator = initialize(SoilModel(grid; soil = noflow_soil(NF), timestepper = implicit_timestepper(NF)))
         @test cell_diffusion_timescale(integrator) == Inf
         @test cell_advection_timescale(integrator) == Inf
         max_Δt = 6 * 3600.0

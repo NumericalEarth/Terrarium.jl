@@ -62,7 +62,8 @@ DisplayAs.PNG(fig) #hide
 # Now we create our [`SoilModel`](@ref) with this initializer:
 energy_initializer = QuasiThermalSteadyState(NF; T₀ = climatology, Qgeo = NF(0.05))
 initializer = SoilInitializer(NF; energy = energy_initializer, hydrology = DefaultInitializer(NF))
-model = SoilModel(grid; initializer)
+soil = SoilEnergyWaterCarbon(NF; hydrology = SoilHydrology(NF, NoFlow()))
+model = SoilModel(grid; soil, initializer)
 
 # We will impose a periodic temperature boundary condition at the surface to represent the daily cycle.
 # We can specify it directly as a continuous function thanks to the power of `Oceananigans` `Field`s.

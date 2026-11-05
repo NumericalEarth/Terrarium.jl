@@ -66,7 +66,8 @@ end
             SoilHeatFlux(0.0),
         )
         # explicit, since value conditions on `temperature` are rejected under implicit heat conduction
-        model = SoilModel(grid; timestepper = ForwardEuler(Float64))
+        soil = SoilEnergyWaterCarbon(Float64; hydrology = SoilHydrology(Float64, NoFlow()))
+        model = SoilModel(grid; soil, timestepper = ForwardEuler(Float64))
         integrator = initialize(model; boundary_conditions = bcs, initializers = (temperature = 5.0, saturation_water_ice = 0.5))
         timestep!(integrator, 1.0)
         state = integrator.state

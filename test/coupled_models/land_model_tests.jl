@@ -184,7 +184,7 @@ end
     # depend on the time step. Soil water is immobile (`NoFlow`) so that
     # the explicit Richards equation, which is unstable on this grid at these time steps, does not interfere.
     grid = ColumnGrid(CPU(), ExponentialSpacing(Δz_max = 1.0, N = 50))
-    soil = SoilEnergyWaterCarbon(eltype(grid))
+    soil = SoilEnergyWaterCarbon(eltype(grid); hydrology = SoilHydrology(eltype(grid), NoFlow()))
     snow = SingleLayerSnow(eltype(grid))
     land = LandModel(grid; soil, snow, vegetation = nothing)
     W₀ = 0.005
@@ -313,10 +313,10 @@ end
 
 # Shared setup for the snow boundary heat flux tests below: a snowpack of water equivalent `W₀` (m) at
 # `T_snow` over warm soil (+5 °C near the top) under cold air, night-time radiation, and no precipitation. Soil water is
-# immobile (`NoFlow` is the default soil hydrology) so only the energy balance is exercised.
+# immobile (`NoFlow`) so only the energy balance is exercised.
 function cold_air_snow_simulation(W₀; T_snow = -5.0, T_air = -10.0)
     grid = ColumnGrid(CPU(), ExponentialSpacing(Δz_max = 1.0, N = 50))
-    soil = SoilEnergyWaterCarbon(eltype(grid))
+    soil = SoilEnergyWaterCarbon(eltype(grid); hydrology = SoilHydrology(eltype(grid), NoFlow()))
     land = LandModel(grid; soil, snow = SingleLayerSnow(eltype(grid)), vegetation = nothing)
     initializers = (
         temperature = (x, z) -> 5.0 - 0.1 * z,

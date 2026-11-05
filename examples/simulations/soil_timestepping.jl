@@ -15,9 +15,9 @@ grid = ColumnGrid(CPU(), Float64, ExponentialSpacing(Δz_min = 0.05, N = 20))
 
 # ## Setting the time stepper
 # The time stepper is a property of the model, set with the `timestepper` keyword argument. Without it,
-# [`SoilModel`](@ref) chooses a default that depends on the soil hydrology: [`ForwardEuler`](@ref) if the
-# soil water is immobile (`NoFlow`, the default), and an [`IMEX`](@ref) timestepper that integrates heat
-# conduction and water flow implicitly if the water flow follows the Richards equation.
+# [`SoilModel`](@ref) chooses a default that depends on the soil hydrology: an [`IMEX`](@ref) timestepper
+# that integrates heat conduction and water flow implicitly if the water flow follows the Richards equation
+# (the default), and [`ForwardEuler`](@ref) if the soil water is immobile ([`NoFlow`](@ref)).
 model = SoilModel(grid)
 model.timestepper
 
@@ -123,7 +123,7 @@ heat_flux = SoilHeatFlux(surface_heat_flux; parameters = (mean = 40.0, amplitude
 # The wet column starts just above 0 °C, so that a freezing front enters the soil, and the top layers
 # freeze and partially thaw again over each daily cycle. The latent heat released or absorbed at the
 # front makes this a much harder test than heat conduction alone.
-soil = SoilEnergyWaterCarbon(Float64)
+soil = SoilEnergyWaterCarbon(Float64; hydrology = SoilHydrology(Float64, NoFlow()))
 initializers = (temperature = 0.5, saturation_water_ice = 0.8)
 @time errors = compare_timesteppers((timestepper, Δt) -> simulate(timestepper, Δt, soil; boundary_conditions = heat_flux, initializers))
 

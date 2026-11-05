@@ -34,7 +34,8 @@ As an example, let's consider the construction and initialization of a [`SoilMod
 ```@example simulation
 arch = CPU()
 grid = ColumnGrid(arch, Float32, ExponentialSpacing(N=10))
-model = SoilModel(grid, timestepper=ForwardEuler(Float32))
+soil = SoilEnergyWaterCarbon(Float32; hydrology = SoilHydrology(Float32, NoFlow())) # immobile soil water
+model = SoilModel(grid; soil, timestepper = ForwardEuler(Float32))
 integrator = initialize(model)
 ```
 
@@ -151,7 +152,7 @@ We configure a [`SoilModel`](@ref) with an `IMEX(ForwardEuler(Float32), Backward
 solver = Picard(Float32; iterations = 2)
 timestepper = IMEX(ForwardEuler(Float32; Δt = 3600), BackwardEuler(Float32; solver))
 imex_grid = ColumnGrid(CPU(), Float32, ExponentialSpacing(Δz_min = 0.02, Δz_max = 0.5, N = 20))
-imex_model = SoilModel(imex_grid; timestepper)
+imex_model = SoilModel(imex_grid; soil, timestepper)
 imex_integrator = initialize(
     imex_model;
     boundary_conditions = SoilHeatFlux(80.0f0),
@@ -284,7 +285,7 @@ diffusive restriction from implicitly integrated terms (see [Adaptive time stepp
 callback,
 
 ```@example simulation
-integrator = initialize(SoilModel(grid; timestepper = ForwardEuler(Float32)))
+integrator = initialize(SoilModel(grid; soil, timestepper = ForwardEuler(Float32)))
 sim = Simulation(integrator; stop_iteration = 50, Δt = 60.0)
 
 wizard = TimeStepWizard(diffusive_cfl = 0.5, max_change = 1.1)
@@ -297,7 +298,7 @@ sim.Δt   # adapted time step (s)
 or more succinctly via [`conjure_time_step_wizard!`](@extref Oceananigans.Simulations.conjure_time_step_wizard!):
 
 ```@example simulation
-integrator = initialize(SoilModel(grid; timestepper = ForwardEuler(Float32)))
+integrator = initialize(SoilModel(grid; soil, timestepper = ForwardEuler(Float32)))
 sim = Simulation(integrator; stop_iteration = 50, Δt = 60.0)
 conjure_time_step_wizard!(sim, show_progress = false)
 run!(sim)
@@ -330,7 +331,7 @@ and the advective limit of the heat advection is `Inf` when `internal_energy` is
 by the terms that remain explicit and by `max_Δt`. Without water flow, only `max_Δt` remains:
 
 ```@example simulation
-wizard_integrator = initialize(SoilModel(imex_grid; timestepper = IMEX(ForwardEuler(Float32), BackwardEuler(Float32))))
+wizard_integrator = initialize(SoilModel(imex_grid; soil, timestepper = IMEX(ForwardEuler(Float32), BackwardEuler(Float32))))
 sim = Simulation(wizard_integrator; stop_iteration = 50, Δt = 60.0)
 wizard = TimeStepWizard(diffusive_cfl = 0.5, max_change = 1.5, max_Δt = 6 * 3600.0)
 sim.callbacks[:wizard] = Callback(wizard, IterationInterval(1))

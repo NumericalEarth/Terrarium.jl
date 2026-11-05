@@ -31,7 +31,7 @@ end
 @testset "Soil energy: initialize!" begin
     grid = ColumnGrid(CPU(), Float64, ExponentialSpacing())
     energy = SoilThermodynamics(eltype(grid))
-    soil = SoilEnergyWaterCarbon(eltype(grid); energy)
+    soil = SoilEnergyWaterCarbon(eltype(grid); energy, hydrology = SoilHydrology(eltype(grid), NoFlow()))
     constants = PhysicalConstants(eltype(grid))
     state = StateVariables(soil, grid)
     # Test initialization with 0°C temperature
@@ -54,7 +54,7 @@ end
 @testset "Soil energy: compute_tendencies!" begin
     grid = ColumnGrid(CPU(), Float64, ExponentialSpacing(N = 10))
     energy = SoilThermodynamics(eltype(grid))
-    soil = SoilEnergyWaterCarbon(eltype(grid); energy)
+    soil = SoilEnergyWaterCarbon(eltype(grid); energy, hydrology = SoilHydrology(eltype(grid), NoFlow()))
     constants = PhysicalConstants(eltype(grid))
     state = StateVariables(soil, grid)
     set!(state.temperature, (x, z) -> 0.0 - 0.01 * z)
@@ -66,7 +66,7 @@ end
 @testset "Soil energy: closure!" begin
     grid = ColumnGrid(CPU(), Float64, ExponentialSpacing(N = 10))
     energy = SoilThermodynamics(eltype(grid))
-    soil = SoilEnergyWaterCarbon(eltype(grid); energy)
+    soil = SoilEnergyWaterCarbon(eltype(grid); energy, hydrology = SoilHydrology(eltype(grid), NoFlow()))
     constants = PhysicalConstants(eltype(grid))
     state = StateVariables(soil, grid)
     set!(state.internal_energy, 1.0e6)
@@ -116,7 +116,7 @@ end
         heat_capacities = SoilHeatCapacities(mineral = c),
     )
     energy = SoilThermodynamics(eltype(grid); thermal_properties)
-    soil = SoilEnergyWaterCarbon(eltype(grid); energy, strat, biogeochem)
+    soil = SoilEnergyWaterCarbon(eltype(grid); energy, hydrology = SoilHydrology(eltype(grid), NoFlow()), strat, biogeochem)
     initializer = DefaultInitializer(eltype(grid))
     # explicit, since value conditions on `temperature` are rejected under implicit heat conduction
     model = SoilModel(grid; soil, initializer, timestepper = ForwardEuler(Float64))
@@ -161,7 +161,7 @@ end
     # use a pure-clay (non-quartz) texture so the bulk solid conductivity equals the `mineral`
     # endpoint, isolating the analytical conduction comparison from the texture weighting
     strat = HomogeneousSoilStratigraphy(Float64; texture = SoilTexture(Float64, :clay), porosity = soil_porosity)
-    soil = SoilEnergyWaterCarbon(eltype(grid); strat, biogeochem)
+    soil = SoilEnergyWaterCarbon(eltype(grid); hydrology = SoilHydrology(eltype(grid), NoFlow()), strat, biogeochem)
     model = SoilModel(grid; soil, initializer, timestepper = ForwardEuler(Float64))
     # constant upper boundary temperature set to T₁
     bcs = (temperature = (top = ValueBoundaryCondition(T₁),),)
@@ -216,7 +216,8 @@ module SoilEnergyImplicitHeatConductionTests
         # and `bottom_flux` (W/m², positive upward, i.e. into the soil).
         function build_heat_column(grid, timestepper; temperature, top_flux = 0.0, bottom_flux = 0.0, saturation = 0.8, extra_boundary_conditions = (;))
             NF = eltype(grid)
-            model = SoilModel(grid; timestepper)
+            soil = SoilEnergyWaterCarbon(NF; hydrology = SoilHydrology(NF, NoFlow()))
+            model = SoilModel(grid; soil, timestepper)
             boundary_conditions = merge_boundary_conditions(SoilHeatFlux(NF(top_flux)), GeothermalHeatFlux(NF(bottom_flux)), extra_boundary_conditions)
             initializers = (; temperature, saturation_water_ice = NF(saturation))
             return initialize(model; boundary_conditions, initializers)
@@ -405,15 +406,16 @@ module SoilEnergyImplicitHeatConductionTests
     @testset "Implicit heat conduction: unsupported boundary conditions" begin
         NF = Float64
         grid = ColumnGrid(CPU(), NF, UniformSpacing(Δz = 0.1, N = 10))
+        soil = SoilEnergyWaterCarbon(NF; hydrology = SoilHydrology(NF, NoFlow()))
         for boundary_conditions in (PrescribedSurfaceTemperature(:T_ub, NF(1)), PrescribedBottomTemperature(:T_lb, NF(1)))
-            model = SoilModel(grid; timestepper = implicit_timestepper(NF))
+            model = SoilModel(grid; soil, timestepper = implicit_timestepper(NF))
             @test_throws ArgumentError initialize(model; boundary_conditions)
             # the same boundary conditions are fine under explicit time stepping
-            @test initialize(SoilModel(grid; timestepper = ForwardEuler(NF)); boundary_conditions) isa ModelIntegrator
+            @test initialize(SoilModel(grid; soil, timestepper = ForwardEuler(NF)); boundary_conditions) isa ModelIntegrator
         end
         # gradient boundary conditions on temperature are supported
         gradient_bc = (temperature = (bottom = GradientBoundaryCondition(NF(-0.03)),),)
-        model = SoilModel(grid; timestepper = implicit_timestepper(NF))
+        model = SoilModel(grid; soil, timestepper = implicit_timestepper(NF))
         @test initialize(model; boundary_conditions = gradient_bc) isa ModelIntegrator
     end
 
@@ -478,7 +480,8 @@ module SoilEnergyImplicitHeatConductionTests
         )
         for (name, config) in pairs(configurations)
             grid = ColumnGrid(CPU(), NF, ExponentialSpacing(Δz_max = 1.0, N = 30))
-            land = LandModel(grid; snow = config.snow, vegetation = nothing, timestepper = implicit_timestepper(NF))
+            soil = SoilEnergyWaterCarbon(NF; hydrology = SoilHydrology(NF, NoFlow()))
+            land = LandModel(grid; soil, snow = config.snow, vegetation = nothing, timestepper = implicit_timestepper(NF))
             @test get_hydrology(land.soil).vertical_flow isa NoFlow
             integrator = initialize(land; initializers = config.initializers, boundary_conditions = GeothermalHeatFlux(NF(geothermal_flux)))
             state = integrator.state
@@ -591,7 +594,8 @@ module SoilEnergyAdvectionTests
         NF = Float64
         grid = ColumnGrid(CPU(), NF, UniformSpacing(Δz = 0.1, N = 10))
         # immobile water carries no heat
-        integrator = initialize(SoilModel(grid; timestepper = ForwardEuler(NF)); initializers = (temperature = 5.0, saturation_water_ice = 0.5))
+        noflow_soil = SoilEnergyWaterCarbon(NF; hydrology = SoilHydrology(NF, NoFlow()))
+        integrator = initialize(SoilModel(grid; soil = noflow_soil, timestepper = ForwardEuler(NF)); initializers = (temperature = 5.0, saturation_water_ice = 0.5))
         soil = integrator.model.soil
         energy, hydrology = get_energy_balance(soil), get_hydrology(soil)
         fields = get_fields(integrator.state, energy, hydrology)

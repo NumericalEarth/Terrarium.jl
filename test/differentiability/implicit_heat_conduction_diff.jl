@@ -9,7 +9,8 @@ function build_implicit_soil_energy_model(arch, ::Type{NF}; iterations = 1) wher
     initializer = SoilInitializer(eltype(grid))
     solver = Picard(NF; iterations)
     timestepper = IMEX(ForwardEuler(NF), BackwardEuler(NF; solver))
-    model = SoilModel(grid; initializer, timestepper)
+    soil = SoilEnergyWaterCarbon(NF; hydrology = SoilHydrology(NF, NoFlow()))
+    model = SoilModel(grid; soil, initializer, timestepper)
     return model
 end
 
