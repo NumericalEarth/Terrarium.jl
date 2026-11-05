@@ -100,7 +100,7 @@ function linearize!(
         coefficients, fields, energy, fc, hydrology, strat, bgc, constants
     )
     # right-hand side C_app Tᵐ - Uᵐ + U⁺
-    launch!(grid, XYZ, compute_implicit_energy_rhs_kernel!, rhs, fields, diagonal_coefficient, explicit_energy)
+    launch!(grid, XYZ, compute_implicit_energy_rhs_kernel!, rhs, fields, operator.diagonal_coefficient, explicit_energy)
     return nothing
 end
 
