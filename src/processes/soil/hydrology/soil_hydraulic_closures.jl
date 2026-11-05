@@ -65,8 +65,8 @@ function compute_saturation_closure!(
         closure::SoilSaturationPressureClosure,
         hydrology::SoilHydrology{NF, RichardsEq},
         soil::AbstractSoil,
-        runoff::AbstractSurfaceRunoff,
-        energy::AbstractSoilThermodynamics
+        runoff::Optional{AbstractSurfaceRunoff},
+        energy::Optional{AbstractSoilThermodynamics}
     ) where {NF}
     strat = get_stratigraphy(soil)
     bgc = get_biogeochemistry(soil)
