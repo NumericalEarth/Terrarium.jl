@@ -113,6 +113,10 @@ compute_f_temp
 ```
 
 ```@docs; canonical = false
+compute_resp10
+```
+
+```@docs; canonical = false
 compute_Rm
 ```
 

@@ -64,6 +64,21 @@ end
 """
 $SIGNATURES
 
+Computes `resp10`, the tissue respiration rate at 10 °C per unit tissue nitrogen (kgC/kgN/day).
+
+This is a placeholder that returns the constant parameter `resp10`. In PALADYN
+([willeitPALADYNV10Comprehensive2016](@cite)), the rate of tree PFTs varies with the temperature of the coldest
+month, between 0.011 for tropical and 0.066 kgC/kgN/day for extratropical trees.
+
+# References
+
+* [willeitPALADYNV10Comprehensive2016](@cite) Willeit & Ganopolski, Geoscientific Model Development (2016)
+"""
+@inline compute_resp10(autoresp::PALADYNAutotrophicRespiration) = autoresp.resp10
+
+"""
+$SIGNATURES
+
 Computes maintenance respiration `Rm` in [kgC/m²/s].
 """
 @inline function compute_Rm(
@@ -81,7 +96,7 @@ Computes maintenance respiration `Rm` in [kgC/m²/s].
     f_temp_air, f_temp_soil = compute_f_temp(autoresp, T_air, T_soil)
 
     # Tissue respiration rate at 10 °C, converted from per day to per second
-    resp10 = autoresp.resp10 / seconds_per_day(NF)
+    resp10 = compute_resp10(autoresp) / seconds_per_day(NF)
 
     # Leaf respiration as computed by the photosynthesis scheme
     R_leaf = Rd
