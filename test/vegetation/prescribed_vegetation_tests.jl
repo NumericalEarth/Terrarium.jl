@@ -47,6 +47,31 @@ variable_names(vars::Variables) = union(keys(vars.prognostic), keys(vars.tendenc
     @test_throws MethodError PrescribedVegetation(Float64; phenology = PALADYNPhenology(Float64))
 end
 
+@testset "Prescribed leaf area index under time stepping" begin
+    grid = ColumnGrid(CPU(), Float64, ExponentialSpacing(N = 5))
+    traits = PlantTraits(Float64; maximum_leaf_area_index = 4.0)
+    model = VegetationModel(grid; vegetation = PrescribedVegetation(Float64; traits))
+    LAI = 3.0
+    # the leaf area index is prescribed either by an input source or by setting the input field directly
+    lai_field = Field(grid, XY())
+    set!(lai_field, LAI)
+    lai_source = InputSource(grid, lai_field; name = :leaf_area_index, domain = Terrarium.Canopy())
+    @testset "$label" for (label, inputs) in (("input source", InputSources(lai_source)), ("set!", InputSources(Float64)))
+        integrator = initialize(model; inputs)
+        state = integrator.state
+        label == "set!" && set!(state.leaf_area_index, LAI)
+        set!(state.air_temperature, 20.0) # °C
+        set!(state.surface_shortwave_down, 400.0) # W/m²
+        for _ in 1:24
+            timestep!(integrator, 3600.0)
+            # the prescribed value is neither integrated nor overwritten by the vegetation processes
+            @test all(interior(state.leaf_area_index) .== LAI)
+            # and drives photosynthesis
+            @test all(interior(state.gross_primary_production) .> 0)
+        end
+    end
+end
+
 @testset "Vegetated area fraction from prescribed leaf area index" begin
     grid = ColumnGrid(CPU(), Float64, ExponentialSpacing(N = 5))
     traits = PlantTraits(Float64; maximum_leaf_area_index = 4.0)
