@@ -37,8 +37,8 @@ end
     include("integration_tests.jl")
 end
 
-@testset "Unit consistency" begin
-    include("unit_consistency_tests.jl")
+@testset "Float32 preservation" begin
+    include("float32_tests.jl")
 end
 
 @testset "Vegetation carbon cycle column" begin
