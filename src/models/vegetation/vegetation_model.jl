@@ -23,7 +23,7 @@ $TYPEDFIELDS
     @component atmosphere::Atmosphere = PrescribedAtmosphere(eltype(grid))
 
     "Vegetation processes"
-    @component vegetation::Vegetation = VegetationCarbonCycle(eltype(grid))
+    @component vegetation::Vegetation = PrognosticVegetation(eltype(grid))
 
     "Physical constants"
     @component constants::PhysicalConstants{NF} = PhysicalConstants(eltype(grid))

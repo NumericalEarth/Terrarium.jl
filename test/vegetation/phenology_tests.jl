@@ -1,6 +1,6 @@
 using Terrarium
 using Terrarium: compute_phenology_factor, compute_leaf_area_index, compute_gdd_tendency,
-    compute_auxiliary!, initialize, VegetationCarbonCycle, PALADYNPhenology,
+    compute_auxiliary!, initialize, PrognosticVegetation, PALADYNPhenology,
     seconds_per_day
 using Oceananigans: set!, interior
 using Test
@@ -51,7 +51,7 @@ end
 
 @testset "PALADYNPhenology in VegetationModel" begin
     grid = ColumnGrid(CPU(), Float64, ExponentialSpacing(N = 5))
-    model = VegetationModel(grid; vegetation = VegetationCarbonCycle(Float64; phenology = PALADYNPhenology(Float64)))
+    model = VegetationModel(grid; vegetation = PrognosticVegetation(Float64; phenology = PALADYNPhenology(Float64)))
     integrator = initialize(model)
     state = integrator.state
     set!(state.air_temperature, 20.0)

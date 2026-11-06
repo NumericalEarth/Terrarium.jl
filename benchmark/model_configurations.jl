@@ -104,7 +104,7 @@ function build_model(::Val{:land}, arch, ::Type{NF}; nlat_half::Integer, nz::Int
     soil = SoilEnergyWaterCarbon(NF; strat, hydrology = SoilHydrology(NF, RichardsEq()))
 
     vegetation_dynamics = PALADYNVegetationDynamics(NF)
-    vegetation = VegetationCarbonCycle(NF; vegetation_dynamics)
+    vegetation = PrognosticVegetation(NF; vegetation_dynamics)
 
     snow = SingleLayerSnow(NF)
     kwargs = merge(land_solver_kwargs(NF), resolve_model_kwargs(model_kwargs, NF))

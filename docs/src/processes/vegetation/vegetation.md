@@ -35,27 +35,27 @@ subtypes(Terrarium.AbstractVegetation)
 
 ## Vegetation carbon
 
-The primary implementation of [`AbstractVegetation`](@ref) is [`VegetationCarbonCycle`](@ref), which couples together all of the above processes governing the carbon cycle of natural vegetation. `VegetationCarbonCycle` also provides a coupling interface for interacting with [`AbstractAtmosphere`](@ref) and [`AbstractSoil`](@ref) components.
+The primary implementation of [`AbstractVegetation`](@ref) is [`PrognosticVegetation`](@ref), which couples together all of the above processes governing the carbon cycle of natural vegetation. `PrognosticVegetation` also provides a coupling interface for interacting with [`AbstractAtmosphere`](@ref) and [`AbstractSoil`](@ref) components.
 
 ```@docs; canonical = false
-VegetationCarbonCycle
+PrognosticVegetation
 ```
 
 ```@example vegetation
-variables(VegetationCarbonCycle(Float32))
+variables(PrognosticVegetation(Float32))
 ```
 
 ```@docs; canonical = false
 compute_auxiliary!(
         state, grid,
-        veg::VegetationCarbonCycle,
+        veg::PrognosticVegetation,
         constants::PhysicalConstants,
         atmos::AbstractAtmosphere,
         soil::Optional{AbstractSoil} = nothing,
         args...
     )
 
-compute_tendencies!(state, grid, veg::VegetationCarbonCycle, constants::PhysicalConstants, atmos::AbstractAtmosphere, args...)
+compute_tendencies!(state, grid, veg::PrognosticVegetation, constants::PhysicalConstants, atmos::AbstractAtmosphere, args...)
 ```
 
 ## Prescribed vegetation

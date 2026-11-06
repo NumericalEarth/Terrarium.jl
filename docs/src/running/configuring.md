@@ -108,13 +108,13 @@ model = LandModel(grid; vegetation=nothing, soil)
 
 ### Customized vegetation processes
 
-You can customize individual vegetation processes by passing them to [`VegetationCarbonCycle`](@ref):
+You can customize individual vegetation processes by passing them to [`PrognosticVegetation`](@ref):
 
 ```@example configuring
 photosynthesis = LUEPhotosynthesis(eltype(grid))
 stomatal_conductance = MedlynStomatalConductance(eltype(grid))
 carbon_dynamics = PALADYNCarbonDynamics(eltype(grid))
-vegetation = VegetationCarbonCycle(eltype(grid);
+vegetation = PrognosticVegetation(eltype(grid);
     photosynthesis,
     stomatal_conductance,
     carbon_dynamics
@@ -131,7 +131,7 @@ seb = SurfaceEnergyBalance(eltype(grid);
     radiative_fluxes,
     turbulent_fluxes
 )
-vegetation = VegetationCarbonCycle(eltype(grid))
+vegetation = PrognosticVegetation(eltype(grid))
 model = LandModel(grid; vegetation, surface_energy_balance = seb)
 ```
 

@@ -43,7 +43,7 @@ Both components are summarized briefly below. See the linked process pages for m
 
 ### Vegetation
 
-The `vegetation` component should be a subtype of [`AbstractVegetation`](@ref) type that represents a functional representation of the vegetation carbon cycle. The default implementation is [`VegetationCarbonCycle`](@ref) (see also the relevant doc page on [vegetation processes](@ref vegetation_docs)), which couples photosynthesis, stomatal conductance, autotrophic respiration, phenology, and carbon and vegetation dynamics. See [Vegetation](@ref vegetation_docs) for detailed descriptions of photosynthesis, respiration, phenology, and carbon dynamics implementations.
+The `vegetation` component should be a subtype of [`AbstractVegetation`](@ref) type that represents a functional representation of the vegetation carbon cycle. The default implementation is [`PrognosticVegetation`](@ref) (see also the relevant doc page on [vegetation processes](@ref vegetation_docs)), which couples photosynthesis, stomatal conductance, autotrophic respiration, phenology, and carbon and vegetation dynamics. See [Vegetation](@ref vegetation_docs) for detailed descriptions of photosynthesis, respiration, phenology, and carbon dynamics implementations.
 
 ### Atmosphere
 

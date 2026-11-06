@@ -79,7 +79,7 @@ end
 
 @testset "Vegetation carbon cycle model: timestep!" begin
     grid = ColumnGrid(CPU(), Float64, ExponentialSpacing(N = 5))
-    model = VegetationModel(grid; vegetation = VegetationCarbonCycle(Float64))
+    model = VegetationModel(grid; vegetation = PrognosticVegetation(Float64))
     initializers = (carbon_vegetation = 5.0, vegetation_area_fraction = 0.5, growing_degree_days = 300.0)
     integrator = initialize(model; initializers)
     set!(integrator.state.air_temperature, 15.0)

@@ -133,8 +133,8 @@ include("vegetation/stomatal_conductance/medlyn_stomatal_conductance.jl")
 export PALADYNAutotrophicRespiration
 include("vegetation/respiration/autotrophic_respiration.jl")
 
-export VegetationCarbonCycle
-include("vegetation/vegetation_carbon_cycle.jl")
+export PrognosticVegetation
+include("vegetation/prognostic_vegetation.jl")
 
 export PrescribedVegetation
 include("vegetation/prescribed_vegetation.jl")

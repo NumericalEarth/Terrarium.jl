@@ -2,12 +2,12 @@
     $TYPEDEF
 
 Coupled vegetation process representing natural vegetation with a *prescribed* leaf area index. Unlike
-prognostic vegetation ([`VegetationCarbonCycle`](@ref)), in which the vegetation carbon pool and the leaf
-area evolve in time, the leaf area index here is the input variable `leaf_area_index` (m²/m², e.g. an
-observed or reanalysis climatology). It drives the carbon uptake by photosynthesis, stomatal conductance,
-and the associated water/energy exchange, but there is no phenology, prognostic carbon-pool, or
-vegetation-dynamics component and no autotrophic respiration; `compute_tendencies!` is a no-op. Plant functional-type parameters (including the maximum leaf area index
-used to derive the vegetated area fraction) are supplied through the `traits` component.
+[`PrognosticVegetation`](@ref), in which the vegetation carbon pool and the leaf area evolve in time, the leaf
+area index here is the input variable `leaf_area_index` (m²/m², e.g. an observed or reanalysis climatology).
+It drives the carbon uptake by photosynthesis, stomatal conductance, and the associated water/energy exchange,
+but there is no phenology, prognostic carbon-pool, or vegetation-dynamics component and no autotrophic
+respiration; `compute_tendencies!` is a no-op. Plant functional-type parameters (including the maximum leaf
+area index used to derive the vegetated area fraction) are supplied through the `traits` component.
 
 Properties:
 $TYPEDFIELDS
