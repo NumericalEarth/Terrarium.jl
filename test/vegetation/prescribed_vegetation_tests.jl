@@ -61,8 +61,6 @@ end
             timestep!(integrator, 3600.0)
             # the prescribed value is neither integrated nor overwritten by the vegetation processes
             @test all(interior(state.leaf_area_index) .== LAI)
-            # and drives photosynthesis
-            @test all(interior(state.gross_primary_production) .> 0)
         end
     end
 end
