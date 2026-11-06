@@ -25,9 +25,7 @@ variable_names(vars::Variables) = union(keys(vars.prognostic), keys(vars.tendenc
         vegetation.plant_available_water,
     )
     included_names = union((variable_names(Variables(process)) for process in included)...)
-    @testset "$name present" for name in sort(collect(included_names))
-        @test name in names
-    end
+    @test isempty(setdiff(included_names, names))
 
     # all variables that belong only to processes of prognostic vegetation are absent
     excluded = (
@@ -38,9 +36,7 @@ variable_names(vars::Variables) = union(keys(vars.prognostic), keys(vars.tendenc
     )
     excluded_names = setdiff(union((variable_names(Variables(process)) for process in excluded)...), included_names, (:leaf_area_index,))
     @test :phenology_factor in excluded_names
-    @testset "$name absent" for name in sort(collect(excluded_names))
-        @test !(name in names)
-    end
+    @test isempty(intersect(excluded_names, names))
 
     # PrescribedVegetation has no phenology component
     @test !hasfield(typeof(vegetation), :phenology)
