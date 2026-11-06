@@ -17,27 +17,6 @@ Base revision: dd85eaf3652ffbb76d06945424a3375a39af52fd
 > applied in both state_variables.jl and abstract_variables.jl. You can evaluate the performance
 > improvement using the land_compiler_analysis.jl script.
 
-## Revision log
-
-- 2026-08-16: Initial draft. Scope confirmed: all 4 variable groups (prognostic, tendencies, auxiliary,
-  inputs) plus `Variables` itself. DataStructures.jl already a dependency. Focus on inference time
-  reduction. Full test suite + snoop benchmark for validation.
-- 2026-08-16: Implementation complete. Key deviations from original plan:
-  - User rewrote the `Variables` constructor with a `register!` pattern instead of the planned
-    OrderedDict-based deduplication (see [Summary of changes](#summary-of-changes)).
-  - Per-variable `initialize()` dispatches accept `OrderedDict{Symbol, AbstractField}` for the
-    fields context (not NamedTuple as originally planned in Option A), with a convenience wrapper
-    that converts NamedTuple → OrderedDict at the boundary.
-  - Auxiliary custom constructors receive `NamedTuple(fields)` — converted from the accumulated
-    dict at call time (same as plan).
-- 2026-08-16: Benchmarks run on both `main` and `bg/compile-latency`; results recorded below.
-- 2026-08-17: Moved SEB solve from `compute_auxiliary!` to `compute_boundary_conditions!` in
-  `LandModel` and `SurfaceEnergyModel`. Made `fill_halo_regions!` and `compute_boundary_conditions!`
-  explicit per-process rather than blanket calls over all variables. Updated docs and tests.
-- 2026-08-17: Final timings — `initialize()` down to 47.7 s (from 96.2 s), `timestep!()` down to
-  74.7 s (from 115.2 s). Combined with OrderedDict changes, total cold-start compile time reduced
-  ~70% for initialize and ~32% for timestep.
-
 ## Problem description
 
 Model initialization in Terrarium is slow due to Julia's compiler inferring types through deeply nested
@@ -382,3 +361,24 @@ issue from the first-call compile cost addressed by this change.
 
 4. The `get_fields(state, vars::Tuple{...})` generated function is already type-stable; no changes
    needed after the Variables internal representation change.
+
+## Revision log
+
+- 2026-08-16: Initial draft. Scope confirmed: all 4 variable groups (prognostic, tendencies, auxiliary,
+  inputs) plus `Variables` itself. DataStructures.jl already a dependency. Focus on inference time
+  reduction. Full test suite + snoop benchmark for validation.
+- 2026-08-16: Implementation complete. Key deviations from original plan:
+  - User rewrote the `Variables` constructor with a `register!` pattern instead of the planned
+    OrderedDict-based deduplication (see [Summary of changes](#summary-of-changes)).
+  - Per-variable `initialize()` dispatches accept `OrderedDict{Symbol, AbstractField}` for the
+    fields context (not NamedTuple as originally planned in Option A), with a convenience wrapper
+    that converts NamedTuple → OrderedDict at the boundary.
+  - Auxiliary custom constructors receive `NamedTuple(fields)` — converted from the accumulated
+    dict at call time (same as plan).
+- 2026-08-16: Benchmarks run on both `main` and `bg/compile-latency`; results recorded below.
+- 2026-08-17: Moved SEB solve from `compute_auxiliary!` to `compute_boundary_conditions!` in
+  `LandModel` and `SurfaceEnergyModel`. Made `fill_halo_regions!` and `compute_boundary_conditions!`
+  explicit per-process rather than blanket calls over all variables. Updated docs and tests.
+- 2026-08-17: Final timings — `initialize()` down to 47.7 s (from 96.2 s), `timestep!()` down to
+  74.7 s (from 115.2 s). Combined with OrderedDict changes, total cold-start compile time reduced
+  ~70% for initialize and ~32% for timestep.
