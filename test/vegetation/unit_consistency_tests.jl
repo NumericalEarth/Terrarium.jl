@@ -116,7 +116,7 @@ end
 @testset "Declared units of carbon variables are kgC" begin
     areal_mass_flux = dimension(u"kg/m^2/s")
     areal_mass = dimension(u"kg/m^2")
-    for vegetation in (VegetationCarbonCycle(Float64), PrescribedVegetation(Float64))
+    for vegetation in (PrognosticVegetation(Float64), PrescribedVegetation(Float64))
         vars = Variables(vegetation)
         for group in (vars.prognostic, vars.auxiliary, vars.inputs), var in values(group)
             units = varunits(var)

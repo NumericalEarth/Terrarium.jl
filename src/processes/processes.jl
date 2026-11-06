@@ -115,9 +115,8 @@ include("vegetation/dynamics/carbon_dynamics.jl")
 export PALADYNVegetationDynamics
 include("vegetation/dynamics/vegetation_dynamics.jl")
 
-export PALADYNPhenology, PrescribedPhenology
+export PALADYNPhenology
 include("vegetation/phenology/paladyn_phenology.jl")
-include("vegetation/phenology/prescribed_phenology.jl")
 
 export StaticExponentialRootDistribution
 include("vegetation/hydraulics/root_distribution.jl")
@@ -134,8 +133,8 @@ include("vegetation/stomatal_conductance/medlyn_stomatal_conductance.jl")
 export PALADYNAutotrophicRespiration
 include("vegetation/respiration/autotrophic_respiration.jl")
 
-export VegetationCarbonCycle
-include("vegetation/vegetation_carbon_cycle.jl")
+export PrognosticVegetation
+include("vegetation/prognostic_vegetation.jl")
 
 export PrescribedVegetation
 include("vegetation/prescribed_vegetation.jl")

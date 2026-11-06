@@ -1,8 +1,7 @@
 # # [Simulating global vegetation with prescribed LAI](@id vegetation_prescribed_global)
-# This example sets up a global [`VegetationModel`](@ref) driven by the [`PrescribedPhenology`](@ref)
-# scheme, using the ERA5-Land leaf area index (LAI) climatology for high vegetation (`lai_hv`) as a
-# annually repeating, time-varying input. The phenology factor `ϕ` is derived from the prescribed LAI
-# and used by the vegetation carbon-cycle processes.
+# This example sets up a global [`VegetationModel`](@ref) with [`PrescribedVegetation`](@ref), using the
+# ERA5-Land leaf area index (LAI) climatology for high vegetation (`lai_hv`) as an annually repeating,
+# time-varying input that drives photosynthesis and stomatal conductance.
 
 using Terrarium
 
@@ -44,7 +43,7 @@ lai_highveg = convert.(NF, replace_missing(lai_raster[:lai_hv], zero(NF)))
 lai_input = InputSource(grid, lai_highveg; source_grid = Terrarium.native_grid(lai_asset), name = :leaf_area_index, cycle = true, domain = Terrarium.Canopy())
 
 # ## Vegetation model
-# Here we set up a [`PrescribedVegetation`](@ref) model which uses [`PrescribedPhenology`](@ref) to take LAI as a prescribed input.
+# Here we set up a [`PrescribedVegetation`](@ref) model, which takes the LAI as the prescribed input `leaf_area_index`.
 # Photosynthesis and stomatal conductance are still simulated but are not used by the standalone [`VegetationModel`](@ref).
 # We provide the LAI climatology to the model via `inputs = lai_input`.
 vegetation = PrescribedVegetation(NF)

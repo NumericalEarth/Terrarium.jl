@@ -23,7 +23,7 @@ $(TYPEDFIELDS)
     grid::GridType
 
     "Vegetation processes"
-    @component vegetation::Vegetation = VegetationCarbonCycle(eltype(grid))
+    @component vegetation::Vegetation = PrognosticVegetation(eltype(grid))
 
     "Soil processes"
     @component soil::Soil = default_soil(grid, vegetation)

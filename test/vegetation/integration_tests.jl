@@ -1,7 +1,7 @@
 using Terrarium
 using Test
 
-# The coupled `VegetationCarbonCycle.compute_auxiliary!` fuses the carbon-dynamics, phenology,
+# The coupled `PrognosticVegetation.compute_auxiliary!` fuses the carbon-dynamics, phenology,
 # photosynthesis, stomatal-conductance, and autotrophic-respiration auxiliaries into a single launch.
 # These tests check that the fused kernel reproduces the per-process fan-out (the pre-fusion path) to
 # machine precision.
@@ -22,7 +22,7 @@ function vegetated_land(NF)
     hydraulic_properties = ConstantSoilHydraulics(NF; swrc, unsat_hydraulic_cond = UnsatKVanGenuchten(NF))
     hydrology = SoilHydrology(NF, RichardsEq(); hydraulic_properties)
     soil = SoilEnergyWaterCarbon(NF; hydrology)
-    vegetation = VegetationCarbonCycle(NF)
+    vegetation = PrognosticVegetation(NF)
     land = LandModel(grid; soil, vegetation)
     initializers = (
         temperature = (x, z) -> 15.0 - 0.02 * z,
@@ -69,4 +69,14 @@ end
         @test all(isfinite.(fused_vals))
         @test fused_vals ≈ per_process_vals
     end
+end
+
+@testset "Deprecated VegetationCarbonCycle alias" begin
+    # the old name is the same type, so existing constructors and dispatch keep working
+    @test Terrarium.VegetationCarbonCycle === PrognosticVegetation
+    @test Terrarium.VegetationCarbonCycle(Float64) isa PrognosticVegetation{Float64}
+    # the binding is flagged as deprecated, so Julia warns when it is used with --depwarn=yes
+    @test Base.isdeprecated(Terrarium, :VegetationCarbonCycle)
+    # and still exported, so existing scripts using the bare name keep working
+    @test VegetationCarbonCycle === PrognosticVegetation
 end

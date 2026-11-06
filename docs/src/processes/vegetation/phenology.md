@@ -51,31 +51,6 @@ The leaf area index (LAI) is computed from the balanced LAI $\text{LAI}_b$ as fo
 !!! warning
     Phenology is not fully implemented yet: currently $\phi = 1$ and $f_{\text{deciduous}} = 0$ which assumes an evergreen phenology.
 
-## Prescribed phenology
-
-```@docs; canonical = false
-PrescribedPhenology
-```
-
-```@example vegphen
-variables(PrescribedPhenology(Float32))
-```
-
-The [`PrescribedPhenology`](@ref) scheme treats the leaf area index as an externally imposed (and possibly time-varying) input rather than deriving it from a prognostic carbon pool. It is intended for simulations driven by observed or reanalysis LAI (e.g. an ERA5-Land LAI climatology).
-
-When plant traits are supplied by the enclosing vegetation component, the scheme additionally derives the phenology factor $\phi$ by inverting the deciduous relation $\text{LAI} = \phi \cdot \text{LAI}_b$, using the maximum (reference, annual-maximum) leaf area index $\text{LAI}_{\max}$ as the balanced LAI:
-
-```math
-\begin{equation}
-\phi = \mathrm{clamp}\!\left(\frac{\text{LAI}}{\text{LAI}_{\max}},\ 0,\ 1\right)
-\end{equation}
-```
-
-so that `PrescribedPhenology` becomes a drop-in producer of `phenology_factor` for downstream processes. $\text{LAI}_{\max}$ is a plant functional-type parameter carried by the vegetation traits.
-
-!!! note
-    The seasonal amplitude of $\phi$ is set entirely by how well $\text{LAI}_{\max}$ matches the true annual maximum of the prescribed LAI series. Because $\phi$ here is a structural ratio rather than a phenological leaf-out state, it is most appropriate for deciduous vegetation; for an evergreen plant functional type $\phi$ should remain near 1 regardless of LAI.
-
 ## Process interface
 
 ```@docs; canonical = false

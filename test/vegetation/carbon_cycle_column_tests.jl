@@ -13,7 +13,7 @@ column_value(field) = Array(interior(field))[1]
 @testset "Vegetation carbon budget closure" begin
     NF = Float64
     grid = ColumnGrid(CPU(), NF, ExponentialSpacing(N = 5))
-    vegetation = VegetationCarbonCycle(NF)
+    vegetation = PrognosticVegetation(NF)
     model = VegetationModel(grid; vegetation)
     initializers = (carbon_vegetation = 5.0, vegetation_area_fraction = 0.5, growing_degree_days = 300.0)
     integrator = initialize(model; initializers, inputs = InputSources(NF))
@@ -41,7 +41,7 @@ end
 @testset "Multi-year seasonal column run" begin
     NF = Float64
     grid = ColumnGrid(CPU(), NF, ExponentialSpacing(N = 5))
-    model = VegetationModel(grid; vegetation = VegetationCarbonCycle(NF))
+    model = VegetationModel(grid; vegetation = PrognosticVegetation(NF))
     # Daily climatology of a cold-temperate site: air temperature between -7 and 17 °C and daily mean
     # shortwave radiation between 30 and 270 W/m², repeated every 365 days.
     year = 365 * SECONDS_PER_DAY

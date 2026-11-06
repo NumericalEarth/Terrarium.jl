@@ -200,4 +200,6 @@ include("diagnostics/debugging.jl")
 include("diagnostics/progress.jl")
 include("diagnostics/surface_fluxes.jl")
 
+include("deprecated.jl")
+
 end # module Terrarium
