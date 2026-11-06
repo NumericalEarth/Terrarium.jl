@@ -49,7 +49,7 @@ end
     vpd = 800.0      # Pa
     T_air = 20.0     # °C
     pres = 101325.0  # Pa
-    An = 1.0e-4      # gC m⁻² s⁻¹ (≈ 25 μmol CO₂/m²/s, typical midday C3 leaf rate)
+    An = 1.0e-7      # kgC m⁻² s⁻¹ (≈ 8.3 μmol CO₂/m²/s, typical midday C3 rate)
     co2 = 415.0      # ppm
     LAI = 3.0        # m²/m²
     β = 1.0          # no soil moisture stress
@@ -64,7 +64,7 @@ end
     vpd = 800.0      # Pa
     T_air = 20.0     # °C
     pres = 101325.0  # Pa
-    An = 1.0e-4      # gC m⁻² s⁻¹
+    An = 1.0e-7      # kgC m⁻² s⁻¹
     co2 = 415.0      # ppm
     β = 1.0
     g_low = compute_stomatal_conductance(stomcond, traits, constants, vpd, T_air, pres, co2, An, 0.5, β)
@@ -80,7 +80,7 @@ end
     vpd = 800.0      # Pa
     T_air = 20.0     # °C
     pres = 101325.0  # Pa
-    An = 1.0e-4      # gC m⁻² s⁻¹
+    An = 1.0e-7      # kgC m⁻² s⁻¹
     co2 = 415.0      # ppm
     LAI = 3.0        # m²/m²
     g_no_stress = compute_stomatal_conductance(stomcond, traits, constants, vpd, T_air, pres, co2, An, LAI, 1.0)
@@ -94,7 +94,7 @@ end
     constants = PhysicalConstants()
     T_air = 20.0     # °C
     pres = 101325.0  # Pa
-    An = 1.0e-4      # gC m⁻² s⁻¹
+    An = 1.0e-7      # kgC m⁻² s⁻¹
     co2 = 415.0      # ppm
     LAI = 3.0        # m²/m²
     β = 1.0
@@ -114,8 +114,8 @@ end
     co2 = 415.0      # ppm
     LAI = 3.0        # m²/m²
     β = 1.0
-    g_low_A = compute_stomatal_conductance(stomcond, traits, constants, vpd, T_air, pres, co2, 5.0e-5, LAI, β)
-    g_high_A = compute_stomatal_conductance(stomcond, traits, constants, vpd, T_air, pres, co2, 4.0e-4, LAI, β)
+    g_low_A = compute_stomatal_conductance(stomcond, traits, constants, vpd, T_air, pres, co2, 5.0e-8, LAI, β)
+    g_high_A = compute_stomatal_conductance(stomcond, traits, constants, vpd, T_air, pres, co2, 4.0e-7, LAI, β)
     # Higher assimilation → higher conductance (quasi-linear relationship)
     @test g_high_A > g_low_A
 end
@@ -127,7 +127,7 @@ end
     vpd = 800.0      # Pa
     T_air = 20.0     # °C
     pres = 101325.0  # Pa
-    An = 1.0e-4      # gC m⁻² s⁻¹
+    An = 1.0e-7      # kgC m⁻² s⁻¹
     LAI = 3.0        # m²/m²
     β = 1.0
     g_low_co2 = compute_stomatal_conductance(stomcond, traits, constants, vpd, T_air, pres, 350.0, An, LAI, β)
@@ -179,7 +179,7 @@ end
     vpd = 800.0      # Pa
     T_air = 20.0     # °C
     pres = 101325.0  # Pa
-    An = 1.0e-4      # gC m⁻² s⁻¹ (typical midday C3 rate)
+    An = 1.0e-7      # kgC m⁻² s⁻¹ (typical midday C3 rate)
     co2 = 415.0      # ppm
     LAI = 3.0        # m²/m²
     β = 1.0
@@ -211,7 +211,7 @@ end
     pres = 101325.0  # Pa
     co2 = 415.0      # ppm
     LAI = 3.0        # m²/m²
-    An = 1.0e-4      # gC m⁻² s⁻¹
+    An = 1.0e-7      # kgC m⁻² s⁻¹
     β = 1.0
     g_zero_A = compute_stomatal_conductance(stomcond, traits, constants, vpd, T_air, pres, co2, 0.0, LAI, β)
     g_with_A = compute_stomatal_conductance(stomcond, traits, constants, vpd, T_air, pres, co2, An, LAI, β)
@@ -229,7 +229,7 @@ end
     traits = PlantTraits()
     constants = PhysicalConstants()
     # Typical midday conditions; VPD = 0.8 kPa, An ≈ 8 μmol CO₂ m⁻² s⁻¹.
-    g_stm = compute_stomatal_conductance(stomcond, traits, constants, 800.0, 20.0, 101325.0, 415.0, 1.0e-4, 3.0, 1.0)
+    g_stm = compute_stomatal_conductance(stomcond, traits, constants, 800.0, 20.0, 101325.0, 415.0, 1.0e-7, 3.0, 1.0)
     # Bracketed tightly enough to catch a Pa/kPa mix-up in the g₁/√VPD term, which
     # would put this near 1.2 mm/s instead.
     @test 2.5e-3 < g_stm < 4.0e-3
@@ -248,7 +248,7 @@ end
     pres = 101325.0  # Pa
     co2 = 415.0      # ppm
     LAI = 3.0        # m²/m²
-    An = 1.0e-4      # gC m⁻² s⁻¹
+    An = 1.0e-7      # kgC m⁻² s⁻¹
     β = 1.0
 
     M_C = constants.material.atomic_weight_carbon
