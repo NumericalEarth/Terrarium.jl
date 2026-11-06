@@ -71,7 +71,9 @@ end
     vegetation = PrescribedVegetation(Float64; traits)
     model = VegetationModel(grid; vegetation)
     state = initialize(model).state
-    # the vegetated area fraction is the leaf area relative to its maximum, clamped to [0, 1]
+    # With prescribed vegetation, the vegetated area fraction is not a state variable but is diagnosed on the fly
+    # from the prescribed leaf area index, as the leaf area relative to its maximum, clamped to [0, 1]. (With
+    # prognostic vegetation, it is the prognostic variable of the vegetation dynamics instead.)
     for (LAI, fraction) in ((0.0, 0.0), (1.0, 0.25), (2.0, 0.5), (6.0, 1.0))
         set!(state.leaf_area_index, LAI)
         @test vegetation_area_fraction(1, 1, grid, (; leaf_area_index = state.leaf_area_index), vegetation) ≈ fraction
