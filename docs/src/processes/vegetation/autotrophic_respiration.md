@@ -71,8 +71,18 @@ R_{\text{root}} = r_{10} \, f(T_{\text{soil}}) \, \phi \, \frac{C_{\text{root}}}
 \end{equation}
 ```
 
-where $r_{10}$ (`resp10`) is the tissue respiration rate at 10 °C per unit nitrogen (kgC/kgN/day, converted to per second), $f(T) = \exp\left(308.56 \left(1/56.02 - 1/(T + 46.02)\right)\right)$ is the temperature factor of [lloydTemperatureDependenceSoil1994](@cite) with $T$ in °C, $a_{ws}$ is the ratio of total to respiring stem carbon, and $\phi$ is the phenology factor.
+where $r_{10}$ (`resp10`) is the tissue respiration rate at 10 °C per unit nitrogen (kgC/kgN/day, converted to per second), $a_{ws}$ is the ratio of total to respiring stem carbon, $\phi$ is the phenology factor, and $f(T)$ is the temperature factor.
 All fluxes are in kgC/m²/s.
+
+The temperature factor is a modified Arrhenius equation [lloydTemperatureDependenceSoil1994](@cite),
+
+```math
+\begin{equation}
+f(T) = \exp\left(308.56 \left(\frac{1}{56.02} - \frac{1}{T + 46.02}\right)\right),
+\end{equation}
+```
+
+where $T$ is the air or soil temperature in °C; $f(10\,°\text{C}) = 1$.
 
 The vegetation carbon $C_{\text{veg}}$ is a single prognostic pool.
 The tissue pools are diagnosed from it with the allometry of [willeitPALADYNV10Comprehensive2016](@cite) (see [`compute_leaf_carbon`](@ref), [`compute_root_carbon`](@ref), and [`compute_stem_carbon`](@ref)), with the balanced leaf area index $\text{LAI}_b = C_{\text{veg}} / (2/\text{SLA} + a_{wl})$,
