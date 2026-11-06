@@ -2,15 +2,48 @@ using Terrarium
 using Terrarium: Variables, compute_auxiliary!, vegetation_area_fraction
 using Test
 
+# names of all variables (prognostic, tendency, auxiliary, and input) declared by `vars`
+variable_names(vars::Variables) = union(keys(vars.prognostic), keys(vars.tendencies), keys(vars.auxiliary), keys(vars.inputs))
+
 @testset "PrescribedVegetation variables" begin
-    vars = Variables(PrescribedVegetation(Float64))
-    # the leaf area index is a prescribed input, and there is no phenology factor
+    vegetation = PrescribedVegetation(Float64)
+    vars = Variables(vegetation)
+    names = variable_names(vars)
+
+    # the leaf area index is a prescribed input
     @test haskey(vars.inputs, :leaf_area_index)
-    @test !haskey(vars.auxiliary, :phenology_factor)
-    @test !haskey(vars.inputs, :phenology_factor)
+    @test !haskey(vars.auxiliary, :leaf_area_index)
+    # there is nothing to integrate in time
     @test isempty(vars.prognostic)
+    @test isempty(vars.tendencies)
+
+    # all variables of the included processes are present
+    included = (
+        vegetation.photosynthesis,
+        vegetation.stomatal_conductance,
+        vegetation.root_distribution,
+        vegetation.plant_available_water,
+    )
+    included_names = union((variable_names(Variables(process)) for process in included)...)
+    @testset "$name present" for name in sort(collect(included_names))
+        @test name in names
+    end
+
+    # all variables that belong only to processes of prognostic vegetation are absent
+    excluded = (
+        PALADYNPhenology(Float64),
+        PALADYNCarbonDynamics(Float64),
+        PALADYNVegetationDynamics(Float64),
+        PALADYNAutotrophicRespiration(Float64),
+    )
+    excluded_names = setdiff(union((variable_names(Variables(process)) for process in excluded)...), included_names, (:leaf_area_index,))
+    @test :phenology_factor in excluded_names
+    @testset "$name absent" for name in sort(collect(excluded_names))
+        @test !(name in names)
+    end
+
     # PrescribedVegetation has no phenology component
-    @test !hasfield(typeof(PrescribedVegetation(Float64)), :phenology)
+    @test !hasfield(typeof(vegetation), :phenology)
     @test_throws MethodError PrescribedVegetation(Float64; phenology = PALADYNPhenology(Float64))
 end
 
