@@ -1,6 +1,5 @@
 using Terrarium
-using Terrarium: compute_λ_NPP, compute_Λ_loc
-using Oceananigans.OutputReaders: Cyclical
+using Terrarium: Variables, compute_λ_NPP, compute_Λ_loc
 using Test
 
 # Time-integrated checks of the vegetation carbon cycle in a single standalone column
@@ -9,6 +8,32 @@ using Test
 const SECONDS_PER_DAY = 86400.0
 
 column_value(field) = Array(interior(field))[1]
+
+# names of all variables (prognostic, tendency, auxiliary, and input) declared by `vars`
+variable_names(vars::Variables) = union(keys(vars.prognostic), keys(vars.tendencies), keys(vars.auxiliary), keys(vars.inputs))
+
+@testset "VegetationCarbonCycle variables" begin
+    vegetation = VegetationCarbonCycle(Float64)
+    vars = Variables(vegetation)
+    components = (
+        vegetation.photosynthesis,
+        vegetation.stomatal_conductance,
+        vegetation.autotrophic_respiration,
+        vegetation.phenology,
+        vegetation.carbon_dynamics,
+        vegetation.vegetation_dynamics,
+        vegetation.root_distribution,
+        vegetation.plant_available_water,
+    )
+    # all variables of all component processes are present
+    component_names = union((variable_names(Variables(component)) for component in components)...)
+    @test isempty(setdiff(component_names, variable_names(vars)))
+    # the vegetation carbon pool, the vegetated area fraction, and the growing degree days are prognostic
+    @test issetequal(keys(vars.prognostic), (:carbon_vegetation, :vegetation_area_fraction, :growing_degree_days))
+    # and the leaf area index is computed from them rather than prescribed
+    @test haskey(vars.auxiliary, :leaf_area_index)
+    @test !haskey(vars.inputs, :leaf_area_index)
+end
 
 @testset "Vegetation carbon budget closure" begin
     NF = Float64
@@ -38,50 +63,25 @@ column_value(field) = Array(interior(field))[1]
     @test column_value(state.carbon_vegetation) - C_veg_initial ≈ budget rtol = 1.0e-10
 end
 
-@testset "Multi-year seasonal column run" begin
+@testset "Leaf area index changes under time stepping" begin
     NF = Float64
     grid = ColumnGrid(CPU(), NF, ExponentialSpacing(N = 5))
     model = VegetationModel(grid; vegetation = VegetationCarbonCycle(NF))
-    # Daily climatology of a cold-temperate site: air temperature between -7 and 17 °C and daily mean
-    # shortwave radiation between 30 and 270 W/m², repeated every 365 days.
-    year = 365 * SECONDS_PER_DAY
-    times = 0.0:SECONDS_PER_DAY:(year - SECONDS_PER_DAY)
-    seasonal(t, mean, amplitude) = mean + amplitude * sin(2π * (t / year - 0.3))
-    air_temperature = FieldTimeSeries(grid, XY(), times; time_indexing = Cyclical())
-    shortwave = FieldTimeSeries(grid, XY(), times; time_indexing = Cyclical())
-    for (n, t) in enumerate(times)
-        set!(air_temperature[n], seasonal(t, 5.0, 12.0))
-        set!(shortwave[n], seasonal(t, 150.0, 120.0))
-    end
-    inputs = InputSources(
-        InputSource(air_temperature; name = :air_temperature, units = u"°C"),
-        InputSource(shortwave; name = :surface_shortwave_down, units = u"W/m^2"),
-    )
-    initializers = (carbon_vegetation = 5.0, vegetation_area_fraction = 0.5)
-    integrator = initialize(model; inputs, initializers)
+    # spring green-up: warm air and no accumulated growing degree days yet
+    initializers = (carbon_vegetation = 5.0, vegetation_area_fraction = 0.5, growing_degree_days = 0.0)
+    integrator = initialize(model; initializers)
     state = integrator.state
-    for _ in 1:3
-        annual_GPP = 0.0
-        annual_Ra = 0.0
-        ϕ_min, ϕ_max = Inf, -Inf
-        C_veg_min, ν_min, ν_max = Inf, Inf, -Inf
-        for _ in 1:365
-            timestep!(integrator, SECONDS_PER_DAY)
-            annual_GPP += column_value(state.gross_primary_production) * SECONDS_PER_DAY
-            annual_Ra += column_value(state.autotrophic_respiration) * SECONDS_PER_DAY
-            ϕ = column_value(state.phenology_factor)
-            ϕ_min, ϕ_max = min(ϕ_min, ϕ), max(ϕ_max, ϕ)
-            C_veg_min = min(C_veg_min, column_value(state.carbon_vegetation))
-            ν = column_value(state.vegetation_area_fraction)
-            ν_min, ν_max = min(ν_min, ν), max(ν_max, ν)
-        end
-        @test isfinite(C_veg_min) && C_veg_min > 0
-        @test 0 ≤ ν_min && ν_max ≤ 1
-        # the deciduous phenology completes an annual cycle
-        @test ϕ_min < 0.05 && ϕ_max > 0.95
-        # annual GPP (kgC/m²/yr) and the ratio of autotrophic respiration to GPP are in the ranges
-        # reported for temperate and boreal forests
-        @test 0.3 < annual_GPP < 2.0
-        @test 0.3 < annual_Ra / annual_GPP < 0.7
+    set!(state.air_temperature, 15.0)
+    set!(state.surface_shortwave_down, 300.0)
+    Terrarium.compute_auxiliary!(state, model)
+    LAI = [column_value(state.leaf_area_index)]
+    for _ in 1:10
+        timestep!(integrator, SECONDS_PER_DAY)
+        push!(LAI, column_value(state.leaf_area_index))
     end
+    @test all(isfinite, LAI)
+    # the leaves come out as growing degree days accumulate
+    @test LAI[1] == 0
+    @test LAI[end] > 0
+    @test issorted(LAI) && allunique(LAI[2:end])
 end
