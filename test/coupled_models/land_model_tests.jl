@@ -2,7 +2,7 @@ using Terrarium
 using Test
 
 using Oceananigans.BoundaryConditions: BoundaryCondition, Flux
-using Oceananigans: Face, znodes
+using Oceananigans: Center, Face, znodes, zspacings
 using Oceananigans.TimeSteppers: update_state!
 
 import RingGrids
@@ -130,14 +130,13 @@ end
 end
 
 @testset "LandModel: snow meltwater reaches the soil surface" begin
-    # Water-conservation check for the snow→soil coupling (Option A): with a melting snowpack and no
-    # rain, the meltwater outflow M_r is the sole surface water input, so the runoff scheme must
-    # partition exactly M_r into infiltration + surface runoff (no drainage when the surface reservoir
-    # is empty): infiltration + surface_runoff ≈ M_r.
+    # Water-conservation check for the snow→soil coupling: with a melting snowpack and no rain, the
+    # meltwater outflow `meltwater_flux` is the sole surface water input, so the runoff scheme must
+    # partition exactly that flux into infiltration + surface runoff (no drainage when the surface
+    # reservoir is empty).
     grid = ColumnGrid(CPU(), ExponentialSpacing(Δz_max = 1.0, N = 50))
     soil = SoilEnergyWaterCarbon(eltype(grid); hydrology = SoilHydrology(eltype(grid), RichardsEq()))
     snow = SingleLayerSnow(eltype(grid))
-    land = LandModel(grid; soil, snow, vegetation = nothing)
     # Fully-liquid (melting) pack over unsaturated soil; no rainfall
     initializers = (
         temperature = (x, z) -> 1.0 - 0.02 * z,
@@ -145,21 +144,37 @@ end
         snow_water_equivalent = 0.2,
         snow_temperature = 0.0,
     )
-    integrator = initialize(land; initializers)
+    function melting_land(timestepper)
+        land = LandModel(grid; soil, snow, vegetation = nothing, timestepper)
+        integrator = initialize(land; initializers)
+        state = integrator.state
+        set!(state.rainfall, 0.0)
+        set!(state.snow_energy, 0.0) # set snow energy to zero -> fully melted (not realistic...)
+        Terrarium.closure!(state, land)
+        compute_auxiliary!(state, land)
+        return land, integrator
+    end
+    surface_input(state) = Array(interior(state.infiltration)) .+ Array(interior(state.surface_runoff))
+
+    # explicit: the outflow at the diagnosed liquid fraction
+    land, integrator = melting_land(ForwardEuler(eltype(grid)))
     state = integrator.state
-    set!(state.rainfall, 0.0)
-    set!(state.snow_energy, 0.0) # set snow energy to zero -> fully melted (not realistic...)
-    Terrarium.closure!(state, land)
-    compute_auxiliary!(state, land)
-    # meltwater outflow implied by the diagnosed liquid fraction
     θ_liq = Array(interior(state.snow_liquid_fraction))
     W_snow = Array(interior(state.snow_water_equivalent))
     M_r = Terrarium.compute_meltwater_outflow.(Ref(snow.hydraulic_properties), θ_liq, W_snow)
     @test all(θ_liq .≈ 1)                     # fully melted pack
     @test all(M_r .> 0)                       # meltwater draining
-    infil = Array(interior(state.infiltration))
-    runoff = Array(interior(state.surface_runoff))
-    @test all(isapprox.(infil .+ runoff, M_r; rtol = 1.0e-6))
+    @test all(isapprox.(surface_input(state), M_r; rtol = 1.0e-6))
+
+    # implicit: the drainage of the last implicit step, which the surface hydrology receives in the next step
+    land, integrator = melting_land(IMEX(ForwardEuler(eltype(grid); Δt = 900), BackwardEuler(eltype(grid))))
+    state = integrator.state
+    W⁰ = state.snow_water_equivalent[1, 1, 1]
+    timestep!(integrator)
+    M = Array(interior(state.meltwater_flux))
+    @test all(M .> 0)
+    @test all(M .* 900 .<= W⁰)                # drains no more than the pack holds
+    @test all(isapprox.(surface_input(state), M; rtol = 1.0e-6))
 end
 
 @testset "LandModel: thin melting snowpack conserves water independently of Δt" begin
@@ -169,7 +184,7 @@ end
     # depend on the time step. Soil water is immobile (`NoFlow`) so that
     # the explicit Richards equation, which is unstable on this grid at these time steps, does not interfere.
     grid = ColumnGrid(CPU(), ExponentialSpacing(Δz_max = 1.0, N = 50))
-    soil = SoilEnergyWaterCarbon(eltype(grid))
+    soil = SoilEnergyWaterCarbon(eltype(grid); hydrology = SoilHydrology(eltype(grid), NoFlow()))
     snow = SingleLayerSnow(eltype(grid))
     land = LandModel(grid; soil, snow, vegetation = nothing)
     W₀ = 0.005
@@ -298,10 +313,10 @@ end
 
 # Shared setup for the snow boundary heat flux tests below: a snowpack of water equivalent `W₀` (m) at
 # `T_snow` over warm soil (+5 °C near the top) under cold air, night-time radiation, and no precipitation. Soil water is
-# immobile (`NoFlow` is the default soil hydrology) so only the energy balance is exercised.
+# immobile (`NoFlow`) so only the energy balance is exercised.
 function cold_air_snow_simulation(W₀; T_snow = -5.0, T_air = -10.0)
     grid = ColumnGrid(CPU(), ExponentialSpacing(Δz_max = 1.0, N = 50))
-    soil = SoilEnergyWaterCarbon(eltype(grid))
+    soil = SoilEnergyWaterCarbon(eltype(grid); hydrology = SoilHydrology(eltype(grid), NoFlow()))
     land = LandModel(grid; soil, snow = SingleLayerSnow(eltype(grid)), vegetation = nothing)
     initializers = (
         temperature = (x, z) -> 5.0 - 0.1 * z,
@@ -411,4 +426,65 @@ end
     @test all(isfinite.(state.temperature))
     @test all(isfinite.(state.saturation_water_ice))
     @test all(isfinite.(state.ground_heat_flux))
+end
+
+@testset "LandModel: dry soil under strong evaporation demand stays physical (ground resistance $(nameof(typeof(ground_resistance))))" for ground_resistance in (
+        ConstantEvaporationResistanceFactor(Float64),
+        SoilMoistureResistanceFactor(Float64),
+    )
+    # A sparsely vegetated column on the Somali coast (46.8°E, 4.7°N) in the dry season, where a coupled
+    # SpeedyWeather simulation failed: SoilGrids texture of that column, and the forcing SpeedyWeather passed to it
+    # (except for the air temperature, which is set to a typical value). The soil starts close to residual
+    # saturation without rain, so ground evaporation (unlimited with `ConstantEvaporationResistanceFactor`) acts
+    # on an almost dry Richards column. Over a few time steps, the soil must keep its saturation in the valid range,
+    # lose exactly the water that evaporates, and keep physically plausible temperatures.
+    NF = Float64
+    grid = ColumnGrid(CPU(), NF, ExponentialSpacing(; N = 30))
+    φ = 0.45
+    texture = SoilTexture(NF; sand = 0.386, silt = 0.315, clay = 0.299)
+    strat = HomogeneousSoilStratigraphy(NF; texture, porosity = ConstantSoilPorosity(NF; mineral_porosity = φ))
+    biogeochem = ConstantSoilCarbonDensity(NF; ρ_soc = 0.0) # zero SOC -> pure mineral porosity
+    soil = SoilEnergyWaterCarbon(NF; strat, biogeochem)
+    evapotranspiration = PALADYNCanopyEvapotranspiration(NF; ground_resistance)
+    surface_hydrology = SurfaceHydrology(NF; evapotranspiration)
+    land = LandModel(grid; soil, vegetation = PrescribedVegetation(NF), surface_hydrology)
+    T_air = 27.0
+    integrator = initialize(land; initializers = (temperature = T_air, saturation_water_ice = 0.05))
+    state = integrator.state
+    set!(state.air_temperature, T_air)
+    set!(state.specific_humidity, 0.0098)
+    set!(state.windspeed, 9.0)
+    set!(state.air_pressure, 98_931.0)
+    set!(state.rainfall, 0.0)
+    set!(state.surface_shortwave_down, 343.0)
+    set!(state.surface_longwave_down, 321.0)
+    set!(state.leaf_area_index, 0.0)
+    compute_auxiliary!(state, land)
+
+    Δz = Array(interior(zspacings(Terrarium.ground_domain(grid), Center(), Center(), Center())))[:]
+    # soil water plus the surface pool that receives excess water from the top soil cell (m)
+    column_water(state) = φ * sum(interior(state.saturation_water_ice)[1, 1, :] .* Δz) + only(interior(state.surface_excess_water))
+    s_res = Terrarium.residual_saturation(Terrarium.get_hydraulic_properties(Terrarium.get_hydrology(soil)))
+    W₀ = column_water(state)
+    Δt = 450.0
+    removed = 0.0
+    Nt = 16 # number of time steps
+    for _ in 1:Nt
+        # recompute the fluxes from the current prognostic state, so that they are the ones the step applies
+        update_state!(integrator)
+        removed += Δt * (only(interior(state.evaporation_ground)) + only(interior(state.surface_runoff)))
+        Terrarium.timestep!(integrator, Δt)
+    end
+    sat = interior(state.saturation_water_ice)[1, 1, :]
+    @test all(isfinite, sat)
+    @test all(isfinite, interior(state.internal_energy))
+    @test all(s_res - 1.0e-6 .<= sat .<= 1)
+    # Broken: with the default Brooks–Corey retention curve and linear unsaturated conductivity, the suction
+    # fluxes in dry soil are unbounded, so the second step saturates the top cells, loses water, and the
+    # temperatures run away (see docs/dev/2026-11/2026-11-06_PLAN_dry_soil_richards_robustness.md).
+    # no water is created or lost other than by evaporation and surface runoff
+    @test_broken column_water(state) ≈ W₀ - removed rtol = 1.0e-3
+    # temperatures stays close to air temperature
+    @test_broken abs(only(interior(state.skin_temperature)) - T_air) < 20
+    @test_broken all(abs.(interior(state.temperature)[1, 1, :] .- T_air) .< 20)
 end

@@ -21,7 +21,8 @@ import CairoMakie as Makie
 # as the CPU example.
 
 grid = ColumnGrid(ReactantState(), Float32, ExponentialSpacing())
-model = SoilModel(grid)
+soil = SoilEnergyWaterCarbon(Float32; hydrology = SoilHydrology(Float32, NoFlow()))
+model = SoilModel(grid; soil, timestepper = ForwardEuler(Float32))   # explicit, for the prescribed surface temperature
 bcs = PrescribedSurfaceTemperature(:T_ub, 1.0f0)   # constant 1 °C surface temperature
 initializers = (temperature = (x, z) -> -1.0f0 - 0.05f0 * z,)
 integrator = initialize(model; boundary_conditions = bcs, initializers)

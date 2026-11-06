@@ -59,7 +59,10 @@ using Terrarium
 num_columns = 1
 arch = CPU()
 grid = ColumnGrid(arch, Float32, ExponentialSpacing(N=10), num_columns)
-model = SoilModel(grid)
+# Soil with immobile water, so that only heat is transported
+soil = SoilEnergyWaterCarbon(Float32; hydrology = SoilHydrology(Float32, NoFlow()))
+# Prescribed surface temperatures currently require explicit time stepping
+model = SoilModel(grid; soil, timestepper = ForwardEuler(Float32))
 # Prescribe a constant surface temperature of 1°C
 bcs = PrescribedSurfaceTemperature(:T_ub, 1.0)
 integrator = initialize(model, boundary_conditions = bcs)
@@ -81,7 +84,8 @@ using CUDA # needs to be separately installed
 rings = FullGaussianGrid(8) # Gaussian grid with 16 latitudinal rings, 8 per hemisphere (512 points, ~9.0˚ lat/lon)
 arch = CUDA.functional() ? GPU() : CPU() # run on the GPU (if available)
 grid = ColumnRingGrid(arch, Float32, ExponentialSpacing(N=10), rings) # create grid
-model = SoilModel(grid)
+soil = SoilEnergyWaterCarbon(Float32; hydrology = SoilHydrology(Float32, NoFlow()))
+model = SoilModel(grid; soil, timestepper = ForwardEuler(Float32))
 # Prescribe a constant surface temperature of 1°C
 bcs = PrescribedSurfaceTemperature(:T_ub, 1.0)
 integrator = initialize(model, boundary_conditions = bcs)
