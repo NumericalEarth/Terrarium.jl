@@ -15,16 +15,17 @@ $TYPEDFIELDS
 * [coxDescriptionTRIFFIDDynamic2001](@cite) Cox, Hadley Centre Technical Note (2001)
 """
 @parameterized @kwdef struct PALADYNAutotrophicRespiration{NF} <: AbstractAutotrophicRespiration{NF}
-    # TODO check physical meaning of this parameter + add unit
-    "Sapwood parameter"
+    "Carbon-to-nitrogen mass ratio of sapwood (kgC/kgN)"
     @param cn_sapwood::NF = 330.0 (bounds = Positive,)
 
-    # TODO check physical meaning of this parameter + add unit
-    "Root parameter"
+    "Carbon-to-nitrogen mass ratio of fine roots (kgC/kgN)"
     @param cn_root::NF = 29.0 (bounds = Positive,)
 
     "Ratio of total to respiring stem carbon, [coxDescriptionTRIFFIDDynamic2001](@cite). PFT specific."
     @param aws::NF = 10.0 (bounds = Positive,) # Value for Needleleaf tree PFT
+
+    "Tissue respiration rate at 10 °C per unit tissue nitrogen (kgC/kgN/day), as in [willeitPALADYNV10Comprehensive2016](@cite)"
+    @param resp10::NF = 0.066 (units = u"d^-1", bounds = Positive)
 end
 
 PALADYNAutotrophicRespiration(::Type{NF}; kwargs...) where {NF} = PALADYNAutotrophicRespiration{NF}(; kwargs...)
@@ -33,8 +34,8 @@ variables(::PALADYNAutotrophicRespiration) = (
     auxiliary(:autotrophic_respiration, Canopy(XY()), units = u"kg/m^2/s"), # Autotrophic respiration [kgC/m²/s]
     auxiliary(:net_primary_production, Canopy(XY()), units = u"kg/m^2/s"), # Net Primary Production [kgC/m²/s]
     input(:gross_primary_production, Canopy(XY()), units = u"kg/m^2/s"), # Gross Primary Production [kgC/m²/s]
-    input(:daily_leaf_respiration, Canopy(XY()), units = u"g/m^2/s"), # Daily leaf respiration [gC/m²/s]
-    input(:ground_temperature, Ground(Top(z = Center())), default = 10.0, units = u"°C"), # Ground surface temperature [°C]
+    input(:leaf_respiration, Canopy(XY()), units = u"kg/m^2/s"), # Leaf respiration [kgC/m²/s]
+    input(:ground_temperature, Ground(Top(z = Center())), default = 10, units = u"°C"), # Ground surface temperature [°C]
 )
 
 """
@@ -63,21 +64,7 @@ end
 """
 $SIGNATURES
 
-Computes `resp10` 
-"""
-@inline function compute_resp10(autoresp::PALADYNAutotrophicRespiration{NF}) where {NF}
-    # TODO check physical meaning of this variable + add unit
-    # TODO add resp10 implementation
-    # For now, placeholder as a constant value
-    resp10 = NF(0.066)
-
-    return resp10
-end
-
-"""
-$SIGNATURES
-
-Computes maintenance respiration `Rm` in [kgC/m²/day].
+Computes maintenance respiration `Rm` in [kgC/m²/s].
 """
 @inline function compute_Rm(
         autoresp::PALADYNAutotrophicRespiration{NF},
@@ -93,19 +80,23 @@ Computes maintenance respiration `Rm` in [kgC/m²/day].
     # Compute f_temp for autotrophic respiration
     f_temp_air, f_temp_soil = compute_f_temp(autoresp, T_air, T_soil)
 
-    # Compute resp10
-    resp10 = compute_resp10(autoresp)
+    # Tissue respiration rate at 10 °C, converted from per day to per second
+    resp10 = autoresp.resp10 / seconds_per_day(NF)
 
-    # Compute leaf respiration
-    R_leaf = Rd / NF(1000.0) # convert from gC/m²/day to kgC/m²/day
+    # Leaf respiration as computed by the photosynthesis scheme
+    R_leaf = Rd
 
-    # Compute stem respiration
-    R_stem = resp10 * f_temp_air * (traits.awl * ((NF(2.0) / traits.specific_leaf_area) + traits.awl)) /
-        (C_veg * autoresp.aws * autoresp.cn_sapwood)
+    # Diagnose the stem and root carbon pools from the single vegetation carbon pool via the
+    # allometry (Willeit & Ganopolski, 2016, Eqs. 76-79)
+    LAI_b = compute_balanced_leaf_area_index(vegcarbon_dynamics, traits, C_veg)
+    C_stem = compute_stem_carbon(vegcarbon_dynamics, traits, LAI_b)
+    C_root = compute_root_carbon(vegcarbon_dynamics, traits, LAI_b)
+
+    # Compute stem respiration of the respiring (sapwood) fraction 1/aws of the stem carbon
+    R_stem = resp10 * f_temp_air * C_stem / (autoresp.aws * autoresp.cn_sapwood)
 
     # Compute root respiration
-    R_root = resp10 * f_temp_soil * phen * (NF(2.0) / traits.specific_leaf_area) /
-        (traits.specific_leaf_area * C_veg * autoresp.cn_root)
+    R_root = resp10 * f_temp_soil * phen * C_root / autoresp.cn_root
 
     # Compute maintenance respiration Rm
     Rm = R_leaf + R_stem + R_root
@@ -184,7 +175,7 @@ Compute autotrophic respiration following the scheme of [willeitPALADYNV10Compre
     )
     T_air = air_temperature(i, j, grid, fields, atmos)
     T_soil = fields.ground_temperature[i, j]
-    Rd = fields.daily_leaf_respiration[i, j]
+    Rd = fields.leaf_respiration[i, j]
     phen = fields.phenology_factor[i, j]
     C_veg = fields.carbon_vegetation[i, j]
     GPP = fields.gross_primary_production[i, j]

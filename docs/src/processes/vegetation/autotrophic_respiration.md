@@ -62,7 +62,29 @@ R_m = R_{\text{leaf}} + R_{\text{stem}} + R_{\text{root}}
 \end{equation}
 ```
 
-where $R_{\text{leaf}}$ is the dark respiration computed by the photosynthesis scheme, and $R_{\text{stem}}$ and $R_{\text{root}}$ are each computed from the corresponding tissue carbon pool and their assigned C:N ratios.
+where $R_{\text{leaf}}$ is the dark respiration computed by the photosynthesis scheme, and $R_{\text{stem}}$ and $R_{\text{root}}$ are each computed from the corresponding tissue carbon pool and their assigned C:N ratios,
+
+```math
+\begin{equation}
+R_{\text{stem}} = r_{10} \, f(T_{\text{air}}) \, \frac{C_{\text{stem}}}{a_{ws} \, \text{CN}_{\text{sapwood}}}, \qquad
+R_{\text{root}} = r_{10} \, f(T_{\text{soil}}) \, \phi \, \frac{C_{\text{root}}}{\text{CN}_{\text{root}}}
+\end{equation}
+```
+
+where $r_{10}$ (`resp10`) is the tissue respiration rate at 10 °C per unit nitrogen (kgC/kgN/day, converted to per second), $f(T) = \exp\left(308.56 \left(1/56.02 - 1/(T + 46.02)\right)\right)$ is the temperature factor of [lloydTemperatureDependenceSoil1994](@cite) with $T$ in °C, $a_{ws}$ is the ratio of total to respiring stem carbon, and $\phi$ is the phenology factor.
+All fluxes are in kgC/m²/s.
+
+The vegetation carbon $C_{\text{veg}}$ is a single prognostic pool.
+The tissue pools are diagnosed from it with the allometry of [willeitPALADYNV10Comprehensive2016](@cite) (see [`compute_leaf_carbon`](@ref), [`compute_root_carbon`](@ref), and [`compute_stem_carbon`](@ref)), with the balanced leaf area index $\text{LAI}_b = C_{\text{veg}} / (2/\text{SLA} + a_{wl})$,
+
+```math
+\begin{equation}
+C_{\text{leaf}} = C_{\text{root}} = \frac{\text{LAI}_b}{\text{SLA}}, \qquad
+C_{\text{stem}} = a_{wl} \, \text{LAI}_b
+\end{equation}
+```
+
+so that $C_{\text{leaf}} + C_{\text{root}} + C_{\text{stem}} = C_{\text{veg}}$, and stem and root respiration are proportional to $C_{\text{veg}}$.
 
 ### Growth respiration
 
@@ -78,10 +100,6 @@ R_g = 0.25 \cdot (\text{GPP} - R_m)
 
 ```@docs; canonical = false
 compute_f_temp
-```
-
-```@docs; canonical = false
-compute_resp10
 ```
 
 ```@docs; canonical = false

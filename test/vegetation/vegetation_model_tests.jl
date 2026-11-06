@@ -36,3 +36,11 @@ end
 @testset "Vegetation carbon cycle integration" begin
     include("integration_tests.jl")
 end
+
+@testset "Unit consistency" begin
+    include("unit_consistency_tests.jl")
+end
+
+@testset "Vegetation carbon cycle column" begin
+    include("carbon_cycle_column_tests.jl")
+end
