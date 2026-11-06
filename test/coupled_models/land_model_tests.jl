@@ -2,7 +2,7 @@ using Terrarium
 using Test
 
 using Oceananigans.BoundaryConditions: BoundaryCondition, Flux
-using Oceananigans: Face, znodes
+using Oceananigans: Center, Face, znodes, zspacings
 using Oceananigans.TimeSteppers: update_state!
 
 import RingGrids
@@ -426,4 +426,62 @@ end
     @test all(isfinite.(state.temperature))
     @test all(isfinite.(state.saturation_water_ice))
     @test all(isfinite.(state.ground_heat_flux))
+end
+
+@testset "LandModel: dry soil under strong evaporation demand stays physical (ground resistance $(nameof(typeof(ground_resistance))))" for ground_resistance in (
+        ConstantEvaporationResistanceFactor(Float64),
+        SoilMoistureResistanceFactor(Float64),
+    )
+    # A sparsely vegetated column on the Somali coast (46.8°E, 4.7°N) in the dry season, where a coupled
+    # SpeedyWeather simulation failed: SoilGrids texture of that column, and the forcing SpeedyWeather passed to it
+    # (except for the air temperature, which is set to a typical value). The soil starts close to residual
+    # saturation without rain, so ground evaporation (unlimited with `ConstantEvaporationResistanceFactor`) acts
+    # on an almost dry Richards column. Over a few time steps, the soil must keep its saturation in the valid range,
+    # lose exactly the water that evaporates, and keep physically plausible temperatures.
+    NF = Float64
+    grid = ColumnGrid(CPU(), NF, ExponentialSpacing(; N = 30))
+    φ = 0.45
+    texture = SoilTexture(NF; sand = 0.386, silt = 0.315, clay = 0.299)
+    strat = HomogeneousSoilStratigraphy(NF; texture, porosity = ConstantSoilPorosity(NF; mineral_porosity = φ))
+    biogeochem = ConstantSoilCarbonDensity(NF; ρ_soc = 0.0) # zero SOC -> pure mineral porosity
+    soil = SoilEnergyWaterCarbon(NF; strat, biogeochem)
+    evapotranspiration = PALADYNCanopyEvapotranspiration(NF; ground_resistance)
+    surface_hydrology = SurfaceHydrology(NF; evapotranspiration)
+    land = LandModel(grid; soil, vegetation = PrescribedVegetation(NF), surface_hydrology)
+    T_air = 27.0
+    integrator = initialize(land; initializers = (temperature = T_air, saturation_water_ice = 0.05))
+    state = integrator.state
+    set!(state.air_temperature, T_air)
+    set!(state.specific_humidity, 0.0098)
+    set!(state.windspeed, 9.0)
+    set!(state.air_pressure, 98_931.0)
+    set!(state.rainfall, 0.0)
+    set!(state.surface_shortwave_down, 343.0)
+    set!(state.surface_longwave_down, 321.0)
+    set!(state.leaf_area_index, 0.0)
+    compute_auxiliary!(state, land)
+
+    Δz = Array(interior(zspacings(Terrarium.ground_domain(grid), Center(), Center(), Center())))[:]
+    # soil water plus the surface pool that receives excess water from the top soil cell (m)
+    column_water(state) = φ * sum(interior(state.saturation_water_ice)[1, 1, :] .* Δz) + only(interior(state.surface_excess_water))
+    s_res = Terrarium.residual_saturation(Terrarium.get_hydraulic_properties(Terrarium.get_hydrology(soil)))
+    W₀ = column_water(state)
+    Δt = 450.0
+    removed = 0.0
+    Nt = 16 # number of time steps
+    for _ in 1:Nt
+        # recompute the fluxes from the current prognostic state, so that they are the ones the step applies
+        update_state!(integrator)
+        removed += Δt * (only(interior(state.evaporation_ground)) + only(interior(state.surface_runoff)))
+        Terrarium.timestep!(integrator, Δt)
+    end
+    sat = interior(state.saturation_water_ice)[1, 1, :]
+    @test all(isfinite, sat)
+    @test all(isfinite, interior(state.internal_energy))
+    @test all(s_res - 1.0e-6 .<= sat .<= 1)
+    # no water is created or lost other than by evaporation and surface runoff
+    @test column_water(state) ≈ W₀ - removed rtol = 1.0e-3
+    # temperatures stays close to air temperature
+    @test abs(only(interior(state.skin_temperature)) - T_air) < 20
+    @test all(abs.(interior(state.temperature)[1, 1, :] .- T_air) .< 20)
 end
