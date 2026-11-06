@@ -63,8 +63,9 @@ latest state of the variables solved before it and the initial iterate of those 
 explicit stage from its current field, as in a sequential split.
 """
 function implicit_step!(solver::Picard, operator::SplitOperator, workspaces::NamedTuple, state, model::AbstractModel, Δt)
-    fastiterate(split_variable_names(operator)) do name
-        implicit_step!(solver, operator.operators[name], workspaces[name], state, model, Δt)
+    # iterate over the components of `operator` (keys resolved at compile time) and their workspaces
+    fastiterate(operator.operators, select_keys(workspaces, operator.operators)) do variable_operator, workspace
+        implicit_step!(solver, variable_operator, workspace, state, model, Δt)
     end
     return nothing
 end

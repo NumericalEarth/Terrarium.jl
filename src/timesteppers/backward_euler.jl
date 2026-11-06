@@ -153,9 +153,11 @@ Store `uⁿ` of each variable in `names` in `previous_state` of the [`BackwardEu
 by the [`AbstractIMEX`](@ref) driver before the explicit step overwrites the fields with `u⁺`.
 """
 function update_cache!(cache::BackwardEulerCache, integrator::ModelIntegrator, Δt, names::Tuple)
-    prognostic = getfield(integrator.state, :prognostic)
-    fastiterate(names) do name
-        copyto!(cache.previous_state[name], prognostic[name])
+    # `previous_state` holds exactly the variables in `names`; iterating over it (rather than over `names`)
+    # resolves each variable at compile time
+    prognostic = select_keys(getfield(integrator.state, :prognostic), cache.previous_state)
+    fastiterate(cache.previous_state, prognostic) do previous, u
+        copyto!(previous, u)
     end
     return nothing
 end
@@ -176,13 +178,15 @@ function implicit_step!(integrator::ModelIntegrator, timestepper::BackwardEuler,
     (; state, model) = integrator
     cache = get_cache(state.timestepper_cache, timestepper)
     Δt = convert_dt(eltype(get_grid(model)), Δt)
-    prognostic = getfield(state, :prognostic)
+    # the cache holds exactly the variables in `names`; iterating over it (rather than over `names`)
+    # resolves each variable at compile time
+    prognostic = select_keys(getfield(state, :prognostic), cache.workspaces)
     # store Δt G_exp = u⁺ - uⁿ and reset to the initial iterate u⁰ = uⁿ
-    fastiterate(names) do name
-        explicit_stage = cache.workspaces[name].explicit_stage
-        copyto!(explicit_stage, prognostic[name])
-        add_scaled!(explicit_stage, cache.previous_state[name], -one(eltype(explicit_stage)))
-        copyto!(prognostic[name], cache.previous_state[name])
+    fastiterate(cache.workspaces, cache.previous_state, prognostic) do workspace, previous, u
+        explicit_stage = workspace.explicit_stage
+        copyto!(explicit_stage, u)
+        add_scaled!(explicit_stage, previous, -one(eltype(explicit_stage)))
+        copyto!(u, previous)
     end
     implicit_step!(timestepper.solver, cache.operator, cache.workspaces, state, model, Δt)
     return nothing
