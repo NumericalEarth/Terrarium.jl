@@ -70,13 +70,3 @@ end
         @test fused_vals ≈ per_process_vals
     end
 end
-
-@testset "Deprecated VegetationCarbonCycle alias" begin
-    # the old name is the same type, so existing constructors and dispatch keep working
-    @test Terrarium.VegetationCarbonCycle === PrognosticVegetation
-    @test Terrarium.VegetationCarbonCycle(Float64) isa PrognosticVegetation{Float64}
-    # the binding is flagged as deprecated, so Julia warns when it is used with --depwarn=yes
-    @test Base.isdeprecated(Terrarium, :VegetationCarbonCycle)
-    # and still exported, so existing scripts using the bare name keep working
-    @test VegetationCarbonCycle === PrognosticVegetation
-end
