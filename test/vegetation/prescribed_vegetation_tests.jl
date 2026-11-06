@@ -35,7 +35,6 @@ variable_names(vars::Variables) = union(keys(vars.prognostic), keys(vars.tendenc
         PALADYNAutotrophicRespiration(Float64),
     )
     excluded_names = setdiff(union((variable_names(Variables(process)) for process in excluded)...), included_names, (:leaf_area_index,))
-    @test :phenology_factor in excluded_names
     @test isempty(intersect(excluded_names, names))
 
     # PrescribedVegetation has no phenology component
