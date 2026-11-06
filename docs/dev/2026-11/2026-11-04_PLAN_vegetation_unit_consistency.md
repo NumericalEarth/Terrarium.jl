@@ -35,6 +35,12 @@ Base revision: `3ba9c3c08500a7988ddf6202eff17a8809db21f8` (`main`)
   The tissue carbon helpers are listed under Methods rather than Kernel functions on the carbon dynamics doc page, since they do not take grid indices.
   `compute_Λ_loc` was rewritten in terms of the tissue carbon helpers (the optional refactor of Phase 2.2), and `compute_resp10` was removed.
   The respiration doc page cites Lloyd and Taylor (1994) for the temperature factor, which required a new entry in `docs/src/references.bib`.
+- **Rev 5 (2026-11-06, Claude Opus 5.5, Claude Code):** Changes from the review of PR #233 by @mahabadri and Brian Groenke, requested by Brian Groenke.
+  `compute_resp10` is kept as a placeholder that returns the `resp10` parameter, with its test.
+  The Unitful reference checks and the declared-unit guard are removed; only the Float32 test remains, in `test/vegetation/float32_tests.jl`.
+  The multi-year column run is replaced by tests that all component variables of `VegetationCarbonCycle` are present and that the leaf area index changes under time stepping; the carbon budget closure test is kept.
+  The differentiability tests now cover the prescribed vegetation setup: gradients of GPP with respect to `α_C3`, `g₁`, and the leaf area index, and the adjoint of a `PrescribedVegetation` time step with respect to the prescribed leaf area index; the gradients of NPP and the carbon tendency and the `VegetationCarbonCycle` adjoint are removed.
+  The temperature factor of autotrophic respiration is documented as a separate equation.
 
 ## Problem description
 
