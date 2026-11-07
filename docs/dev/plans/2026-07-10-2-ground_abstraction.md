@@ -21,19 +21,6 @@ Base revision: 462c6422b22829b88e491457894264419704d691
 > give feedback on this and include it in the design doc for PR-A. Make sure to include my original
 > prompt in that document.
 
-## Revision log
-
-Naming and structure evolved during implementation:
-
-- The energy-balance supertype was renamed across iterations (`AbstractGroundEnergyBalance` →
-  `AbstractInternalEnergyBalance` → `AbstractEnergyBalance` → `AbstractThermodynamics`), and the
-  concrete `SoilEnergyBalance` → `SoilThermodynamics`.
-- The speculative `AbstractGround` coupled-process supertype was dropped (single subtype, no dispatch);
-  `AbstractSoil` subtypes `AbstractCoupledProcesses` directly and the `soil/` directory was kept.
-- The generic framework was lifted into a top-level `thermodynamics/` module (rather than `heat/` or a
-  `ground/energy/` subtree). Merging `surface_energy/` + `surface_hydrology/` into `surface/` and the
-  vegetation subfolder reorganization landed alongside as related structural cleanup.
-
 ## Purpose
 
 Much of the soil **energy** machinery is medium-agnostic, and the single-layer snow scheme reuses it:
@@ -320,3 +307,16 @@ are unaffected.
   since its depth-integrated energy is a flux-sum balance with no transport divergence. A future
   multi-layer snow column would subtype `AbstractInternalEnergyBalance` and additionally reuse the
   conduction operator skeleton.
+
+## Revision log
+
+Naming and structure evolved during implementation:
+
+- The energy-balance supertype was renamed across iterations (`AbstractGroundEnergyBalance` →
+  `AbstractInternalEnergyBalance` → `AbstractEnergyBalance` → `AbstractThermodynamics`), and the
+  concrete `SoilEnergyBalance` → `SoilThermodynamics`.
+- The speculative `AbstractGround` coupled-process supertype was dropped (single subtype, no dispatch);
+  `AbstractSoil` subtypes `AbstractCoupledProcesses` directly and the `soil/` directory was kept.
+- The generic framework was lifted into a top-level `thermodynamics/` module (rather than `heat/` or a
+  `ground/energy/` subtree). Merging `surface_energy/` + `surface_hydrology/` into `surface/` and the
+  vegetation subfolder reorganization landed alongside as related structural cleanup.

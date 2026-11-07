@@ -12,76 +12,6 @@ Date of initial draft: 2026-07-22
 
 Base revision: b53747d7fb9bd12c213d3a144a3fc064cf519dfd
 
-## Revision log
-
-> 2026-07-22 — Initial draft.
->
-> 2026-07-22 — Part A implemented and verified. `PrescribedPhenology` derives `phenology_factor`
-> via the `kernel(...)` lazy-auxiliary API. Getting this to work end-to-end required finishing that
-> API, which `PrescribedPhenology` is the first consumer of:
-> - `src/abstract_variables.jl`: added an `auxiliary(::Variable, ::KernelFunction, ::Nothing)`
->   dispatch (the convenience constructor previously only accepted `ctor::Function` or `::Nothing`),
->   and relaxed the `AuxiliaryVariable` `ctor` field type bound from `Union{Nothing, Function}` to
->   unconstrained (a `KernelFunction` is a callable struct, not a `Function`).
-> - `src/utils/kernel_utils.jl`: the `KernelFunction` call operators now (i) unwrap the Terrarium
->   grid via `get_field_grid` before constructing the Oceananigans `KernelFunctionOperation`,
->   (ii) pass location *types* (`map(typeof, location(...))`) as required by `KernelFunctionOperation`
->   indexing, and (iii) invert the `clock` kwarg so `clock = false` (the default) yields the
->   autonomous variant that does not pass the clock to the kernel function.
-> - `src/processes/vegetation/phenology/prescribed_phenology.jl`: `variables(phenol::...)` binds the
->   process instance and passes it through `kernel(phenology_factor, phenol)` so the kernel function
->   receives the parameters. Verified: for prescribed `LAI = 2.0`, `max_leaf_area_index = 4.0`, the
->   computed `phenology_factor` is `0.5`. Full vegetation, state-variable, and abstract-variable test
->   suites pass (the one `parameter_handling` failure is pre-existing and unrelated).
->
-> 2026-07-22 — Part B implemented. `PALADYNPhenology` rewritten as a prognostic GDD scheme:
-> - New parameters `T_gdd_base`, `gdd_crit`, `T_senescence_range`, `gdd_relaxation_time`,
->   `f_deciduous` (placeholder defaults; PALADYN Table 5 values flagged TODO).
-> - New prognostic variable `growing_degree_days` (K⋅day) with tendency
->   `d(gdd)/dt = max(T_air − T_gdd_base, 0)/spd − 𝟙[T_air<T_gdd_base]·gdd/(gdd_relaxation_time·spd)`,
->   where `spd = seconds_per_day` (accumulation in degree-days while the timestepper integrates in
->   seconds). Diagnostic `ϕ = f_deciduous·min(gdd/gdd_crit, senescence_ramp) + (1−f_deciduous)`,
->   `LAI = ϕ·LAI_b`.
-> - Air temperature is obtained through the `air_temperature(i, j, grid, fields, atmos)` accessor, so
->   `atmosphere` is now threaded into the phenology `compute_auxiliary!`/`compute_tendencies!`. This
->   required adding `atmosphere` to `VegetationCarbonCycle`'s `compute_tendencies!` and to the
->   `VegetationModel` / `LandModel` tendency couplings (`compute_tendencies!(..., constants,
->   atmosphere)`); `PrescribedPhenology`'s no-op methods absorb the extra argument via `args...`.
-> - Added the `sitchEvaluationEcosystemDynamics2003` bibliography entry (cited by the new docstrings).
-> - Rewrote `test/vegetation/phenology_tests.jl`: 26 tests across green-up/mature/senescence/dormant
->   regimes, the evergreen limit, the GDD tendency (warm accumulation, cold relaxation, zero at base),
->   and in-model `PALADYNPhenology`/`PrescribedPhenology`. Full vegetation suite green. Regime values
->   verified against hand calculations (e.g. gdd=100/gdd_crit=200 ⇒ ϕ=0.5; T_air=2 °C ⇒ ϕ=0.4).
->
-> 2026-07-22 — Prescribed-LAI input pipeline + global example (`PrescribedPhenology` driven by an
-> ERA5-Land LAI climatology). This extended the work to the input-source layer and a runnable example.
-> - **Rasters extension refactor** (`ext/TerrariumRastersExt/TerrariumRastersExt.jl`):
->   - Static (time-invariant) rasters now reduce to a plain `FieldInputSource` — `InputSource(grid,
->     raster)` dispatches on `dims(raster, Ti)`, regridding a static raster once into a `RingGrids.Field`
->     (scattering masked cells via `idxmap`, which `Field(ring_field, grid)` gathers back out) and
->     deferring to the core input source. The bespoke static branches of `RasterInputSource` are deleted.
->   - `RasterInputSource` is now time-varying-only and gained a `cycle::Bool` field. With `cycle = true`,
->     `update_from_raster_cyclic!` maps the requested time into one period (`span + mean spacing`, so no
->     phase drift) and interpolates, wrapping the last record back to the first across the period
->     boundary; the non-cyclic path is unchanged. This is the climatology-repeat mechanism.
->   - Updated `test/inputs/raster_inputs.jl`: static/multiple-raster cases expect `FieldInputSource`;
->     added a "Cyclic time-varying raster input" testset (5→record 1, 6 h→record 2, wrap-gap
->     interpolation). All 27 raster tests pass; the broader `test/inputs` suite is green.
-> - **Assets** (`src/input_output/assets.jl`, `src/Terrarium.jl`): fixed a stale `include` that still
->   pointed at the renamed `get_asset.jl` (now `assets.jl`) — this had blocked precompilation of the
->   whole package — and exported the new `ERA5LandLeafAreaIndex` asset type (daily 1980–2010 LAI
->   climatology, `lai_hv`/`lai_lv`, native `FullClenshawGrid(900)` ≈ 6.48 M points).
-> - **`VegetationCarbon` → `VegetationCarbonCycle` rename** propagated through the phenology tests.
-> - **Example** `examples/simulations/vegetation_global.jl` (name being iterated by the author): a
->   global `VegetationModel` with `PrescribedPhenology`, driven by the regridded `lai_hv` climatology
->   as a cyclic input (`InputSource(grid, lai_raster; cycle = true)`). Config per the design decision
->   below: `vegetation_dynamics = nothing` and `carbon_vegetation` initialized to a constant.
-> - **Verification.** The full data-flow (regrid → model-grid raster → cyclic input → `VegetationModel`
->   with `PrescribedPhenology` → `run!`) was validated on **synthetic** small-grid data: LAI cycles
->   seasonally (5.0 → 1.02 → 4.995 after 365 days) and `ϕ` tracks it and repeats — confirming cyclic
->   input + prescribed phenology work together end-to-end. All real-asset API calls were statically
->   checked. The real 2.5 GB LAI artifact was **not** downloaded/run locally.
-
 ## Problem description
 
 The autotrophic respiration scheme `PALADYNAutotrophicRespiration` requires a `phenology_factor`
@@ -299,3 +229,73 @@ scope** for this plan unless noted:
   and marked to be converted to daily; the disturbance rate `γv` is a placeholder minimum awaiting
   the soil-moisture-dependent PALADYN formulation; leaf/stem/root carbon splitting is not yet
   implemented.
+
+## Revision log
+
+> 2026-07-22 — Initial draft.
+>
+> 2026-07-22 — Part A implemented and verified. `PrescribedPhenology` derives `phenology_factor`
+> via the `kernel(...)` lazy-auxiliary API. Getting this to work end-to-end required finishing that
+> API, which `PrescribedPhenology` is the first consumer of:
+> - `src/abstract_variables.jl`: added an `auxiliary(::Variable, ::KernelFunction, ::Nothing)`
+>   dispatch (the convenience constructor previously only accepted `ctor::Function` or `::Nothing`),
+>   and relaxed the `AuxiliaryVariable` `ctor` field type bound from `Union{Nothing, Function}` to
+>   unconstrained (a `KernelFunction` is a callable struct, not a `Function`).
+> - `src/utils/kernel_utils.jl`: the `KernelFunction` call operators now (i) unwrap the Terrarium
+>   grid via `get_field_grid` before constructing the Oceananigans `KernelFunctionOperation`,
+>   (ii) pass location *types* (`map(typeof, location(...))`) as required by `KernelFunctionOperation`
+>   indexing, and (iii) invert the `clock` kwarg so `clock = false` (the default) yields the
+>   autonomous variant that does not pass the clock to the kernel function.
+> - `src/processes/vegetation/phenology/prescribed_phenology.jl`: `variables(phenol::...)` binds the
+>   process instance and passes it through `kernel(phenology_factor, phenol)` so the kernel function
+>   receives the parameters. Verified: for prescribed `LAI = 2.0`, `max_leaf_area_index = 4.0`, the
+>   computed `phenology_factor` is `0.5`. Full vegetation, state-variable, and abstract-variable test
+>   suites pass (the one `parameter_handling` failure is pre-existing and unrelated).
+>
+> 2026-07-22 — Part B implemented. `PALADYNPhenology` rewritten as a prognostic GDD scheme:
+> - New parameters `T_gdd_base`, `gdd_crit`, `T_senescence_range`, `gdd_relaxation_time`,
+>   `f_deciduous` (placeholder defaults; PALADYN Table 5 values flagged TODO).
+> - New prognostic variable `growing_degree_days` (K⋅day) with tendency
+>   `d(gdd)/dt = max(T_air − T_gdd_base, 0)/spd − 𝟙[T_air<T_gdd_base]·gdd/(gdd_relaxation_time·spd)`,
+>   where `spd = seconds_per_day` (accumulation in degree-days while the timestepper integrates in
+>   seconds). Diagnostic `ϕ = f_deciduous·min(gdd/gdd_crit, senescence_ramp) + (1−f_deciduous)`,
+>   `LAI = ϕ·LAI_b`.
+> - Air temperature is obtained through the `air_temperature(i, j, grid, fields, atmos)` accessor, so
+>   `atmosphere` is now threaded into the phenology `compute_auxiliary!`/`compute_tendencies!`. This
+>   required adding `atmosphere` to `VegetationCarbonCycle`'s `compute_tendencies!` and to the
+>   `VegetationModel` / `LandModel` tendency couplings (`compute_tendencies!(..., constants,
+>   atmosphere)`); `PrescribedPhenology`'s no-op methods absorb the extra argument via `args...`.
+> - Added the `sitchEvaluationEcosystemDynamics2003` bibliography entry (cited by the new docstrings).
+> - Rewrote `test/vegetation/phenology_tests.jl`: 26 tests across green-up/mature/senescence/dormant
+>   regimes, the evergreen limit, the GDD tendency (warm accumulation, cold relaxation, zero at base),
+>   and in-model `PALADYNPhenology`/`PrescribedPhenology`. Full vegetation suite green. Regime values
+>   verified against hand calculations (e.g. gdd=100/gdd_crit=200 ⇒ ϕ=0.5; T_air=2 °C ⇒ ϕ=0.4).
+>
+> 2026-07-22 — Prescribed-LAI input pipeline + global example (`PrescribedPhenology` driven by an
+> ERA5-Land LAI climatology). This extended the work to the input-source layer and a runnable example.
+> - **Rasters extension refactor** (`ext/TerrariumRastersExt/TerrariumRastersExt.jl`):
+>   - Static (time-invariant) rasters now reduce to a plain `FieldInputSource` — `InputSource(grid,
+>     raster)` dispatches on `dims(raster, Ti)`, regridding a static raster once into a `RingGrids.Field`
+>     (scattering masked cells via `idxmap`, which `Field(ring_field, grid)` gathers back out) and
+>     deferring to the core input source. The bespoke static branches of `RasterInputSource` are deleted.
+>   - `RasterInputSource` is now time-varying-only and gained a `cycle::Bool` field. With `cycle = true`,
+>     `update_from_raster_cyclic!` maps the requested time into one period (`span + mean spacing`, so no
+>     phase drift) and interpolates, wrapping the last record back to the first across the period
+>     boundary; the non-cyclic path is unchanged. This is the climatology-repeat mechanism.
+>   - Updated `test/inputs/raster_inputs.jl`: static/multiple-raster cases expect `FieldInputSource`;
+>     added a "Cyclic time-varying raster input" testset (5→record 1, 6 h→record 2, wrap-gap
+>     interpolation). All 27 raster tests pass; the broader `test/inputs` suite is green.
+> - **Assets** (`src/input_output/assets.jl`, `src/Terrarium.jl`): fixed a stale `include` that still
+>   pointed at the renamed `get_asset.jl` (now `assets.jl`) — this had blocked precompilation of the
+>   whole package — and exported the new `ERA5LandLeafAreaIndex` asset type (daily 1980–2010 LAI
+>   climatology, `lai_hv`/`lai_lv`, native `FullClenshawGrid(900)` ≈ 6.48 M points).
+> - **`VegetationCarbon` → `VegetationCarbonCycle` rename** propagated through the phenology tests.
+> - **Example** `examples/simulations/vegetation_global.jl` (name being iterated by the author): a
+>   global `VegetationModel` with `PrescribedPhenology`, driven by the regridded `lai_hv` climatology
+>   as a cyclic input (`InputSource(grid, lai_raster; cycle = true)`). Config per the design decision
+>   below: `vegetation_dynamics = nothing` and `carbon_vegetation` initialized to a constant.
+> - **Verification.** The full data-flow (regrid → model-grid raster → cyclic input → `VegetationModel`
+>   with `PrescribedPhenology` → `run!`) was validated on **synthetic** small-grid data: LAI cycles
+>   seasonally (5.0 → 1.02 → 4.995 after 365 days) and `ϕ` tracks it and repeats — confirming cyclic
+>   input + prescribed phenology work together end-to-end. All real-asset API calls were statically
+>   checked. The real 2.5 GB LAI artifact was **not** downloaded/run locally.

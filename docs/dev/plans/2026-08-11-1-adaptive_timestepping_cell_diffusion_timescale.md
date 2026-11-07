@@ -13,16 +13,6 @@ Base revision: 9ece81381cb88a1b8a8418c25545ca41d7a0923e
 > the implementation of `cell_diffusion_timescale` in Terrarium models. Please investigate this and
 > try implementing it.
 
-## Revision log
-
-> 2026-08-11 — Initial draft.
->
-> Clarifications received during scoping:
-> - Advection may be ignored for now (land models have no advective transport).
-> - Both the thermal and hydraulic (Richards) diffusion timescales should be implemented. The
->   moisture-capacity derivative ∂θ/∂ψ needed for the hydraulic timescale is available analytically
->   from FreezeCurves.jl (`swrc(FreezeCurves.derivative, ψ)`).
-
 ## Problem description
 
 Terrarium currently integrates all prognostic variables with fixed-step explicit schemes
@@ -190,3 +180,13 @@ New `test/timestepping/adaptive_timestep.jl` (added to the `Timestepping` testse
   models (thermal/hydraulic only).
 - An apparent-heat-capacity variant of `τ_heat` for sharper (less conservative) steps through the
   phase-change zone.
+
+## Revision log
+
+> 2026-08-11 — Initial draft.
+>
+> Clarifications received during scoping:
+> - Advection may be ignored for now (land models have no advective transport).
+> - Both the thermal and hydraulic (Richards) diffusion timescales should be implemented. The
+>   moisture-capacity derivative ∂θ/∂ψ needed for the hydraulic timescale is available analytically
+>   from FreezeCurves.jl (`swrc(FreezeCurves.derivative, ψ)`).
