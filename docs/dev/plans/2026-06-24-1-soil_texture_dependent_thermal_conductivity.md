@@ -11,10 +11,6 @@ Base revision: ac4b8ede34ab570734911061a8426c0eb40d1c5d
 
 > (Not recorded — this plan predates the implementation-planning workflow.)
 
-## Revision log
-
-> (Not recorded — this plan predates the implementation-planning workflow.)
-
 ## Problem
 
 Soil texture (sand/silt/clay) currently influences porosity and hydraulic properties but
@@ -181,3 +177,7 @@ sub-component rather than as loose fields on `SoilThermalConductivities`.
 - **Frozen vs unfrozen Kersten number.** Option A's saturation/phase dependence comes entirely
   from the inverse-quadratic mix; Johansen uses distinct `Ke` curves for frozen and unfrozen
   soil, relevant for permafrost applications.
+
+## Revision log
+
+> (Not recorded — this plan predates the implementation-planning workflow.)

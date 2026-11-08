@@ -61,7 +61,7 @@ skin temperature is solved with the fixed-iteration `NewtonSolver` on every arch
 Reactant needs it, because the default solver (`RootSolver`) iterates to a tolerance, and that
 convergence-tested loop cannot be raised to StableHLO (`test/reactant/setup.jl` does the same). Native
 runs use it too, so that all architectures integrate the same physics; on native architectures the two
-solvers cost the same (see `docs/dev/2026-10/2026-10-17_PLAN_native_vs_reactant_performance_gap.md`).
+solvers cost the same (see `docs/dev/plans/2026-10-17-1-native_vs_reactant_performance_gap.md`).
 """
 function land_solver_kwargs(::Type{NF}) where {NF}
     skin_temperature = ImplicitSkinTemperature(NF; solver = Terrarium.NewtonSolver(NF; iterations = 5))

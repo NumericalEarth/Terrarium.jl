@@ -15,24 +15,6 @@ Base revision: `887c8849f8c30acbce4b59284802419821094bae` (`joss-paper`); the fi
 > There seems to be very little to no snow in the northern US and southern Canada. That seems wrong.
 > Draft an implementation plan and I will have another agent work on applying it.
 
-## Revision log
-
-- **Rev 1 (2026-11-01):** Initial draft (Claude Opus 5.5).
-- **Rev 2 (2026-11-01, Claude Fable 5.1, Claude Code):** Review against the code on `main` (`077c8a9ed`).
-  Corrected the field-allocation note in change 1 (the input field is allocated automatically once the alias is dropped).
-  Clarified the `(W > 0)` gate in change 3, the standalone `SnowModel` docstring in change 6, and how to obtain the atmosphere-side flux `G₀` in test 2.
-  Noted the stale `W_ref = 0.1 m` comments in existing tests as out of scope.
-  Approved by Brian Groenke on 2026-11-01.
-- **Rev 3 (2026-11-01, Claude Sonnet, Claude Code; logged by Claude Opus 5.5):** Deviation made during implementation.
-  Removed the kernel function `compute_snow_soil_heat_flux` and its doc page entry instead of keeping it unchanged as change 2 specified.
-  The blend `f·Q_base + (1 − f)·G` is now computed inline in `compute_snow_interface_fluxes!`, so `Q_base` is evaluated once per cell.
-  The formula itself is unchanged.
-  Approved by Brian Groenke on 2026-11-01.
-- **Rev 4 (2026-11-01, Claude Opus 5.5, Claude Code):** Requested and approved by Brian Groenke on 2026-11-01.
-  Renamed the `SingleLayerSnow` inputs `surface_heat_flux` and `basal_heat_flux` to `snow_surface_heat_flux` and `snow_basal_heat_flux`.
-  The new input name coincides with the former `LandModel` auxiliary `snow_surface_heat_flux`, so that auxiliary and the input alias are removed; both snow fluxes are now snow inputs that `StateVariables` allocates automatically and `compute_snow_interface_fluxes!` fills.
-  Without snow, the state no longer contains a `snow_surface_heat_flux` field (it was previously an alias of `ground_heat_flux`).
-
 ## Problem description
 
 In the coupled SpeedyWeather–Terrarium run for the JOSS paper (T64, `SingleLayerSnow`, `NoFlow` soil hydrology), snow does not accumulate in the northern US, southern Canada, and eastern Europe, although snow falls there at subfreezing temperatures.
@@ -138,3 +120,21 @@ Do not change the skin temperature solve, the snow cover parameterization, or th
 
 - A multi-layer snow scheme or separate skin temperatures for the snow and bare fractions.
 - A process-level energy-conservation test harness for all `LandModel` configurations.
+
+## Revision log
+
+- **Rev 1 (2026-11-01):** Initial draft (Claude Opus 5.5).
+- **Rev 2 (2026-11-01, Claude Fable 5.1, Claude Code):** Review against the code on `main` (`077c8a9ed`).
+  Corrected the field-allocation note in change 1 (the input field is allocated automatically once the alias is dropped).
+  Clarified the `(W > 0)` gate in change 3, the standalone `SnowModel` docstring in change 6, and how to obtain the atmosphere-side flux `G₀` in test 2.
+  Noted the stale `W_ref = 0.1 m` comments in existing tests as out of scope.
+  Approved by Brian Groenke on 2026-11-01.
+- **Rev 3 (2026-11-01, Claude Sonnet, Claude Code; logged by Claude Opus 5.5):** Deviation made during implementation.
+  Removed the kernel function `compute_snow_soil_heat_flux` and its doc page entry instead of keeping it unchanged as change 2 specified.
+  The blend `f·Q_base + (1 − f)·G` is now computed inline in `compute_snow_interface_fluxes!`, so `Q_base` is evaluated once per cell.
+  The formula itself is unchanged.
+  Approved by Brian Groenke on 2026-11-01.
+- **Rev 4 (2026-11-01, Claude Opus 5.5, Claude Code):** Requested and approved by Brian Groenke on 2026-11-01.
+  Renamed the `SingleLayerSnow` inputs `surface_heat_flux` and `basal_heat_flux` to `snow_surface_heat_flux` and `snow_basal_heat_flux`.
+  The new input name coincides with the former `LandModel` auxiliary `snow_surface_heat_flux`, so that auxiliary and the input alias are removed; both snow fluxes are now snow inputs that `StateVariables` allocates automatically and `compute_snow_interface_fluxes!` fills.
+  Without snow, the state no longer contains a `snow_surface_heat_flux` field (it was previously an alias of `ground_heat_flux`).
