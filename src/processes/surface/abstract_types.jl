@@ -29,6 +29,13 @@ Return the `skin_temperature` process from the surface energy balance.
 @inline get_skin_temperature(seb::AbstractSurfaceEnergyBalance) = seb.skin_temperature
 
 """
+    get_ground_heat_flux(seb)
+
+Return the `ground_heat_flux` process from the surface energy balance.
+"""
+@inline get_ground_heat_flux(seb::AbstractSurfaceEnergyBalance) = seb.ground_heat_flux
+
+"""
     get_albedo(seb)
 
 Return the `albedo` parameterization associated with the surface energy balance.
@@ -44,7 +51,9 @@ The required `args` are implementation dependent.
 function compute_surface_energy_fluxes! end
 
 """
-Base type for skin temperature and ground heat flux schemes.
+Base type for skin temperature schemes, i.e. schemes that determine the effective longwave emission
+temperature of the land surface. The ground heat flux is a separate sub-process; see
+[`AbstractGroundHeatFlux`](@ref).
 """
 abstract type AbstractSkinTemperature{NF} <: AbstractProcess{NF} end
 
@@ -56,11 +65,25 @@ Return the current skin temperature at the given indices.
 @propagate_inbounds skin_temperature(i, j, grid, fields, ::AbstractSkinTemperature) = fields.skin_temperature[i, j]
 
 """
-    ground_heat_flux(i, j, grid, fields, ::AbstractSkinTemperature)
+Base type for ground heat flux schemes, i.e. schemes that determine the energy flux `G` across the
+top of the ground (soil) column. All fluxes are positive upward.
+"""
+abstract type AbstractGroundHeatFlux{NF} <: AbstractProcess{NF} end
+
+"""
+    ground_heat_flux(i, j, grid, fields, ::AbstractGroundHeatFlux)
 
 Return the current ground heat flux at the given indices.
 """
-@propagate_inbounds ground_heat_flux(i, j, grid, fields, ::AbstractSkinTemperature) = fields.ground_heat_flux[i, j]
+@propagate_inbounds ground_heat_flux(i, j, grid, fields, ::AbstractGroundHeatFlux) = fields.ground_heat_flux[i, j]
+
+"""
+    compute_ground_heat_flux_demand(ghf::AbstractGroundHeatFlux, args...)
+
+Return the ground heat flux *demanded* by the rest of the surface energy balance, which the skin
+temperature schemes invert their conduction relations against.
+"""
+function compute_ground_heat_flux_demand end
 
 """
 Base type for radiative flux parameterizations.

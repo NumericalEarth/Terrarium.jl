@@ -27,11 +27,12 @@ update_inputs!(inputs, grid, clock, fields, input::InputSource)
 A [`FieldInputSource`](@ref) holds a single `Field` that is copied into the state once at initialization and is thereafter unchanged. This is the appropriate input source for spatially-varying but time-constant forcings (e.g. maps of soil properties or prescribed climatology).
 
 ```@docs; canonical = false
-InputSource(grid::AbstractLandGrid{NF}, field::FS) where {NF, FS <: AnyField{NF}}
+InputSource(grid::AbstractGrid{NF}, field::FS; name, domain, units) where {NF, FS <: AnyField{NF}}
 ```
 
 ```julia
 using Oceananigans: Field
+using Terrarium: Atmosphere, Ground, Snow, Surface
 
 # Existing Field or array on the model grid
 albedo_field = Field(grid_2d)
@@ -56,13 +57,13 @@ using Oceananigans.Units: hours
 
 # Allocate and populate a FieldTimeSeries
 times = 0.0:3600.0:86400.0 # hourly for one day (seconds)
-fts = FieldTimeSeries(grid, XY(), times)
+fts = FieldTimeSeries(grid, Atmosphere(XY()), times)
 fts.data .= randn(size(fts)) # fill with data
 source = InputSource(fts; name = :air_temperature, units = u"°C")
 ```
 
 ```@docs; canonical = false
-InputSource(grid::AbstractLandGrid{NF}, field::FS) where {NF, FS <: AnyFieldTimeSeries{NF}}
+InputSource(fts::AnyFieldTimeSeries{NF}; name, domain, reftime, units) where {NF}
 ```
 
 The `FieldTimeSeries` can also be loaded from a file using the relevant constructors provided by Oceananigans.
@@ -157,9 +158,9 @@ The minimum set of input fields needed by a process is declared by including `in
 
 ```julia
 Terrarium.variables(snow::DegreeDaySnow{NF}) where {NF} = (
-    input(:air_temperature, XY(), units = u"°C"),
-    input(:snow_fall,       XY(), units = u"m/s"),
-    prognostic(:snow_storage, XY()),
+    input(:air_temperature, Atmosphere(XY()), units = u"°C"),
+    input(:snow_fall,       Snow(XY()), units = u"m/s"),
+    prognostic(:snow_storage, Snow(XY())),
 )
 ```
 
@@ -176,7 +177,7 @@ To add a new input source backend:
 3. Implement `initialize!(fields, source::MySource, clock)` for any one-time setup.
 4. Implement `update_inputs!(fields, source::MySource, clock::Clock)` to update the
    input field at each time step.
-5. Optionally provide a convenience `InputSource(grid, ...; name, units)` constructor
+5. Optionally provide a convenience `InputSource(grid, ...; name, units, domain)` constructor
    dispatch so users do not need to reference the concrete type name.
 
 ```julia
@@ -184,7 +185,7 @@ struct MyInputSource{NF} <: InputSource{NF, :my_var}
     data::Vector{NF}
 end
 
-Terrarium.variables(::MyInputSource{NF}) where {NF} = (input(:my_var, XY()),)
+Terrarium.variables(::MyInputSource{NF}) where {NF} = (input(:my_var, XY())y),)
 
 function Terrarium.update_inputs!(fields, source::MyInputSource, clock::Clock)
     # populate fields.my_var from source.data at clock.time

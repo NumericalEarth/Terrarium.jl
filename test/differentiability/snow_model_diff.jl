@@ -15,15 +15,22 @@ end
 # diagnostics and fluxes.
 
 @testset "Snow meltwater outflow: differentiability" begin
-    # Darcy outflow M_r = K_sat·S*³; gradient w.r.t. the liquid fraction
+    # storage-limited Darcy outflow M_r = min(K_sat·S*³, (θ_liq − L_c)·W/τ_m); gradients w.r.t. the
+    # liquid fraction and the snow water equivalent
     hydraulics = ConstantSnowHydraulics(Float64)
-    ## above capillary retention -> nonzero, smooth gradient
-    grad, = Enzyme.autodiff(Reverse, Terrarium.compute_meltwater_outflow, Active, Const(hydraulics), Active(0.5))
+    ## above capillary retention, thick pack (Darcy-limited) -> nonzero gradient w.r.t. θ_liq only
+    grad, = Enzyme.autodiff(Reverse, Terrarium.compute_meltwater_outflow, Active, Const(hydraulics), Active(0.5), Active(10.0))
     @test isfinite(grad[2])
     @test grad[2] > 0
-    ## below capillary retention -> no outflow, zero gradient
-    grad, = Enzyme.autodiff(Reverse, Terrarium.compute_meltwater_outflow, Active, Const(hydraulics), Active(0.01))
+    @test iszero(grad[3])
+    ## above capillary retention, thin pack (storage-limited) -> nonzero gradients w.r.t. θ_liq and W
+    grad, = Enzyme.autodiff(Reverse, Terrarium.compute_meltwater_outflow, Active, Const(hydraulics), Active(0.5), Active(0.005))
+    @test grad[2] > 0
+    @test grad[3] > 0
+    ## below capillary retention -> no outflow, zero gradients
+    grad, = Enzyme.autodiff(Reverse, Terrarium.compute_meltwater_outflow, Active, Const(hydraulics), Active(0.01), Active(0.005))
     @test iszero(grad[2])
+    @test iszero(grad[3])
 end
 
 @testset "Snow cover fraction: differentiability" begin
@@ -62,7 +69,7 @@ end
     # dstate), mirroring the closure! pattern in soil_hydrology_diff.jl, rather than a standalone scalar
     # closure (which no longer exists — the real function reads composition-dependent conductivities).
     grid = ColumnGrid(CPU(), Float64, ExponentialSpacing(N = 5))
-    soil = SoilEnergyWaterCarbon(Float64)
+    soil = SoilEnergyWaterCarbon(Float64; hydrology = SoilHydrology(Float64, NoFlow()))
     snow = SingleLayerSnow(Float64)
     land = LandModel(grid; soil, snow, vegetation = nothing)
     integrator = initialize(
@@ -103,8 +110,8 @@ end
         initializers = (
             snow_water_equivalent = 0.3,
             snow_temperature = -5.0,
-            surface_heat_flux = 50.0,
-            basal_heat_flux = 0.0,
+            snow_surface_heat_flux = 50.0,
+            snow_basal_heat_flux = 0.0,
         )
     )
     state = integrator.state

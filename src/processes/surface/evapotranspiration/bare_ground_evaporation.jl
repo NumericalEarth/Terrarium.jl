@@ -45,9 +45,9 @@ end
 
 variables(::BareGroundEvaporation) = (
     # Skin-driven vapor conductance β/rₐ (independent of skin temperature; held fixed during the SEB solve)
-    auxiliary(:ground_evaporation_conductance, XY(), units = u"m/s", desc = "Ground evaporation vapor conductance"),
-    auxiliary(:evaporation_ground, XY(), units = u"m/s", desc = "Ground evaporation flux in meters liquid water height"),
-    input(:skin_temperature, XY(), units = u"°C", desc = "Skin temperature of the surface"),
+    auxiliary(:ground_evaporation_conductance, Ground(XY()), units = u"m/s", desc = "Ground evaporation vapor conductance"),
+    auxiliary(:evaporation_ground, Ground(XY()), units = u"m/s", desc = "Ground evaporation flux in meters liquid water height"),
+    input(:skin_temperature, Surface(XY()), units = u"°C", desc = "Skin temperature of the surface"),
 )
 
 """ $TYPEDSIGNATURES """
@@ -102,7 +102,7 @@ bare-ground `evaporation` scheme.
         soil::Optional{AbstractSoil} = nothing
     )
     g_gnd = compute_evapotranspiration_conductances(i, j, grid, fields, evaporation, constants, atmos, soil)
-    out.ground_evaporation_conductance[i, j, 1] = g_gnd
+    out.ground_evaporation_conductance[i, j, end] = g_gnd
     return out
 end
 
@@ -136,7 +136,7 @@ end
     ρ_w = constants.material.density_water
     # Scale Qh_gnd by snow-free fraction and and scale by air-water density ratio to get evaporative flux E_gnd
     E_gnd = (NF(1) - f_snow) * Qh_gnd * ρ_a / ρ_w
-    out.evaporation_ground[i, j, 1] = E_gnd
+    out.evaporation_ground[i, j, end] = E_gnd
     return out
 end
 # Kernels

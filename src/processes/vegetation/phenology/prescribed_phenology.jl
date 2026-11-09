@@ -11,21 +11,17 @@ $TYPEDFIELDS
 PrescribedPhenology(::Type{NF}) where {NF} = PrescribedPhenology{NF}()
 
 variables(::PrescribedPhenology) = (
-    input(:leaf_area_index, XY()), # Leaf Area Index [m²/m²]
+    input(:leaf_area_index, Canopy(XY())), # Leaf Area Index [m²/m²]
 )
 
 # if PlantTraits are given, also compute phenology factor
 variables(phenol::PrescribedPhenology, traits::PlantTraits) = (
-    auxiliary(:phenology_factor, XY(), kernel(phenology_factor, phenol, traits)),
+    auxiliary(:phenology_factor, Canopy(XY()), kernel(phenology_factor, phenol, traits)),
     variables(phenol)...,
 )
 
-function phenology_factor(i, j, grid, fields, ::PrescribedPhenology{NF}, traits::PlantTraits{NF}) where {NF}
-    LAI = fields.leaf_area_index[i, j]
-    LAI_max = maximum_leaf_area_index(i, j, grid, fields, traits)
-    ϕ = clamp(LAI / LAI_max, NF(0), NF(1))
-    return ϕ
-end
+@propagate_inbounds phenology_factor(i, j, grid, fields, ::PrescribedPhenology{NF}, traits::PlantTraits{NF}) where {NF} =
+    compute_relative_leaf_area(i, j, grid, fields, traits)
 
 @inline compute_auxiliary!(state, grid, phenology::PrescribedPhenology, args...) = nothing
 

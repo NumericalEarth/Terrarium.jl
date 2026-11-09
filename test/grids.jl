@@ -2,8 +2,8 @@ using Terrarium
 using Test
 
 import Oceananigans
-import Oceananigans: CenterField, Center, set!, interior
-import Oceananigans.Grids: RectilinearGrid, z_domain, halo_size, total_size, nodes, xnodes, znodes, isrectilinear
+import Oceananigans: CenterField, Center, Face, set!, interior
+import Oceananigans.Grids: RectilinearGrid, LatitudeLongitudeGrid, Bounded, z_domain, halo_size, total_size, nodes, xnodes, znodes, isrectilinear
 import Terrarium.RingGrids
 import Terrarium.RingGrids: FullHEALPixGrid, get_npoints
 
@@ -144,6 +144,13 @@ end
     @test rectilinear_grid.Ny == 1
     @test rectilinear_grid.Nz == 10
     @test z_domain(rectilinear_grid) == (-5.0, 0.0)
+
+    # Horizontal metrics are forwarded to the wrapped grid, so areas and volumes (e.g. the scaling of
+    # flux boundary conditions) agree with those of the RectilinearGrid
+    for loc in ((Center(), Center(), Center()), (Center(), Center(), Face()), (Face(), Center(), Center()))
+        @test Oceananigans.Operators.Az(3, 1, 2, grid, loc...) == Oceananigans.Operators.Az(3, 1, 2, rectilinear_grid, loc...)
+        @test Oceananigans.Operators.volume(3, 1, 2, grid, loc...) == Oceananigans.Operators.volume(3, 1, 2, rectilinear_grid, loc...)
+    end
 
     # Test RingGrids.Field to Oceananigans.Field conversion
     @testset "RingGrids to Oceananigans Field conversion" begin
@@ -306,7 +313,7 @@ end
     @test Terrarium.num_layers(grid) == 5
     @test Oceananigans.Grids.topology(grid) == Oceananigans.Grids.topology(column_grid)
     @test architecture(grid) == architecture(column_grid)
-    @test size(Field(grid, XYZ())) == size(grid)
+    @test size(Field(grid, Terrarium.Ground(XYZ()))) == size(grid)
 
     # Grids which are not land grids are their own ground discretization.
     @test ground_domain(column_grid) === column_grid
@@ -374,16 +381,138 @@ end
 @testset "Model construction from spatial discretizations" begin
     column_grid = ColumnGrid(UniformSpacing(Δz = 0.1f0, N = 5), 2)
 
-    # Models accept an ordinary spatial discretization and build their land grid internally.
+    # Single-domain models keep whatever discretization they are given: an ordinary spatial
+    # discretization is no longer wrapped in a land grid, so a model which resolves only the ground
+    # can be built on a plain Oceananigans grid.
     model = SoilModel(column_grid)
-    @test get_grid(model) isa LandGrid
-    @test ground_domain(get_grid(model)) === column_grid
+    @test get_grid(model) === column_grid
 
-    # A pre-built land grid is stored as-is.
+    # A pre-built land grid is likewise stored as-is.
     land_grid = LandGrid(column_grid)
     @test get_grid(SoilModel(land_grid)) === land_grid
+    @test ground_domain(get_grid(SoilModel(land_grid))) === column_grid
 
-    # Models can also be built directly on a plain Oceananigans grid.
+    # ... including a bare `RectilinearGrid`.
     rect_grid = RectilinearGrid(Float32, size = (2, 1, 5), x = (0, 1), y = (0, 1), z = (-1, 0))
-    @test ground_domain(get_grid(SoilModel(rect_grid))) === rect_grid
+    @test get_grid(SoilModel(rect_grid)) === rect_grid
+
+    # `LandModel` couples several vertical domains, so it is the exception: it builds a land grid
+    # from an ordinary discretization and stores a pre-built one unchanged.
+    @test get_grid(LandModel(column_grid; vegetation = nothing)) isa LandGrid
+    @test ground_domain(get_grid(LandModel(column_grid; vegetation = nothing))) === column_grid
+    @test get_grid(LandModel(land_grid; vegetation = nothing)) === land_grid
+end
+
+"""
+Build a small lat-lon grid for testing. The horizontal extent is kept tiny so that the tests stay
+cheap; the latitudinal range is wide enough that the horizontal metrics vary noticeably between
+rows, which is the main thing that distinguishes a `LatitudeLongitudeGrid` from a `ColumnGrid`.
+"""
+test_latlon_grid(NF = Float64; Nx = 2, Ny = 3, Nz = 5) = LatitudeLongitudeGrid(
+    CPU(), NF;
+    size = (Nx, Ny, Nz),
+    longitude = (0, 10),
+    latitude = (0, 60),
+    z = (-1, 0),
+    topology = (Bounded, Bounded, Bounded),
+)
+
+@testset "LatitudeLongitudeGrid interface" begin
+    grid = test_latlon_grid()
+
+    # A lat-lon grid is an ordinary spatial discretization, so it may also serve as the ground
+    # domain of a land grid, which forwards the horizontal discretization unchanged.
+    land_grid = LandGrid(grid)
+    @test ground_domain(land_grid) === grid
+    @test size(land_grid) == size(grid)
+    @test eltype(land_grid) == eltype(grid)
+    @test halo_size(land_grid) == halo_size(grid)
+    @test !Oceananigans.Grids.isrectilinear(land_grid)
+    @test znodes(land_grid, Center()) ≈ znodes(grid, Center())
+    @test land_grid.Nx == grid.Nx
+    @test land_grid.Ny == grid.Ny
+
+    # Cell areas shrink towards the pole, so the horizontal metrics really are latitude dependent
+    # and are not silently replaced by those of a column grid.
+    Az_south = Oceananigans.Operators.Az(1, 1, 1, grid, Center(), Center(), Center())
+    Az_north = Oceananigans.Operators.Az(1, 3, 1, grid, Center(), Center(), Center())
+    @test Az_north < Az_south
+end
+
+@testset "SoilModel on a LatitudeLongitudeGrid" begin
+    grid = test_latlon_grid()
+    soil = SoilEnergyWaterCarbon(eltype(grid))
+    model = SoilModel(grid; soil)
+
+    # Single-domain models keep the discretization they are given.
+    @test get_grid(model) === grid
+
+    # Initializers of lateral position are evaluated as `f(x, y, z)` on a three-dimensional grid.
+    initializers = (
+        temperature = (x, y, z) -> 5.0 - 0.02 * z + 0.1 * y,
+        saturation_water_ice = (x, y, z) -> min(1, 0.8 - 0.05 * z),
+    )
+    integrator = initialize(model; initializers)
+    state = integrator.state
+
+    # Every prognostic and auxiliary field is allocated over the full horizontal extent.
+    @test size(state.temperature) == size(grid)
+    @test size(state.internal_energy) == size(grid)
+    @test size(state.saturation_water_ice) == size(grid)
+
+    # The initializer's latitudinal gradient is actually resolved; on a column grid all rows would
+    # be identical.
+    temperature = Array(interior(state.temperature))
+    @test temperature[1, 1, end] < temperature[1, end, end]
+
+    timestep!(integrator, 60.0)
+    @test all(isfinite.(interior(state.temperature)))
+    @test all(isfinite.(interior(state.internal_energy)))
+    @test all(isfinite.(interior(state.saturation_water_ice)))
+end
+
+@testset "LandModel on a LatitudeLongitudeGrid" begin
+    grid = test_latlon_grid()
+    land = LandModel(grid; vegetation = nothing)
+
+    # `LandModel` couples several vertical domains, so it wraps the discretization in a land grid.
+    land_grid = get_grid(land)
+    @test land_grid isa LandGrid
+    @test ground_domain(land_grid) === grid
+
+    initializers = (
+        temperature = (x, y, z) -> 5.0 - 0.02 * z,
+        saturation_water_ice = (x, y, z) -> min(1, 0.8 - 0.05 * z),
+    )
+    integrator = initialize(land; initializers)
+    state = integrator.state
+
+    @test size(state.internal_energy) == size(grid)
+    # Surface variables are horizontally resolved but vertically collapsed.
+    @test size(state.ground_heat_flux)[1:2] == size(grid)[1:2]
+
+    compute_boundary_conditions!(state, land)
+    timestep!(integrator, 60.0)
+    @test all(isfinite.(interior(state.internal_energy)))
+    @test all(isfinite.(interior(state.saturation_water_ice)))
+    @test all(isfinite.(interior(state.ground_heat_flux)))
+end
+
+@testset "Float32 LatitudeLongitudeGrid" begin
+    # The number format of the grid is propagated to the model state.
+    grid = test_latlon_grid(Float32)
+    @test eltype(grid) == Float32
+
+    model = SoilModel(grid)
+    integrator = initialize(
+        model; initializers = (
+            temperature = (x, y, z) -> 5.0f0 - 0.02f0 * z,
+            saturation_water_ice = (x, y, z) -> 0.5f0,
+        )
+    )
+    @test eltype(integrator.state.temperature) == Float32
+    @test eltype(integrator.state.internal_energy) == Float32
+
+    timestep!(integrator, 60.0f0)
+    @test all(isfinite.(interior(integrator.state.internal_energy)))
 end

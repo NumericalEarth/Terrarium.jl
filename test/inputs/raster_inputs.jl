@@ -48,7 +48,7 @@ const RasterInputSource = TerrariumRastersExt.RasterInputSource
         # A static (time-invariant) raster reduces to a plain FieldInputSource
         source = InputSource(grid, raster)
         @test isa(source, Terrarium.FieldInputSource)
-        @test source.dims == XY()
+        @test Terrarium.vardims(source) == XY()
         @test varname(source) == :temperature
 
         # Check variables are correctly inferred

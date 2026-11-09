@@ -128,7 +128,7 @@ lai_highveg = Terrarium.load_asset(lai_asset, "lai_hv"; NF, fill_value = zero(NF
 
 # ## Coupled land model
 # We assemble the [`LandModel`](@ref) from its process components. The soil simulates transient heat conduction
-# with static soil hydrology (for now); the vegetation is prescribed (LAI imposed, no prognostic carbon pool);
+# and variably saturated water flow (Richards equation); the vegetation is prescribed (LAI imposed, no prognostic carbon pool);
 # a single-layer snowpack accumulates snowfall and couples to the surface energy balance. The `PrescribedAtmosphere`
 # uses the [`WindVelocity`](@ref) parameterization so that the ERA5 `u`/`v` wind components can be mapped directly to
 # the `windspeed` input required for the surface energy balance.
@@ -136,7 +136,11 @@ soil = SoilEnergyWaterCarbon(NF)
 vegetation = PrescribedVegetation(NF)
 snow = SingleLayerSnow(NF)
 atmosphere = PrescribedAtmosphere(NF; wind = WindVelocity())
-land = LandModel(grid; soil, vegetation, snow, atmosphere)
+# The soil temperature is initialized to a quasi-steady state with a geothermal gradient of 0.05 K/m
+# (see [`QuasiThermalSteadyState`](@ref)); its surface temperature is supplied as an input below.
+energy_initializer = QuasiThermalSteadyState(NF; Qgeo = NF(0.05))
+initializer = SoilInitializer(NF; energy = energy_initializer, hydrology = DefaultInitializer(NF))
+land = LandModel(grid; soil, vegetation, snow, atmosphere, initializer)
 @show variables(land)
 
 # ## Assembling the input sources
@@ -162,7 +166,8 @@ inputs = InputSources(
         name = :leaf_area_index,
         source_grid = Terrarium.native_grid(lai_asset),
         timedim = :dayofyear,
-        cycle = true
+        cycle = true,
+        domain = Terrarium.Canopy()
     ),
 )
 
@@ -171,22 +176,20 @@ inputs = InputSources(
 # and the surface starts snow-free so the winter forcing builds up the snowpack. The soil temperature
 # is initialized from the mean annual air temperature computed directly from the ERA5-Land `t2m`
 # forcing data: we average over all time records, convert to °C, and regridded onto the model's land
-# columns. A mild geothermal gradient (0.05 K/m) is added with depth. Computing the mean from the
-# actual forcing data (rather than a latitude-based climatology) ensures the initialization is
-# consistent with the prescribed atmospheric state.
+# columns. Computing the mean from the actual forcing data (rather than a latitude-based climatology)
+# ensures the initialization is consistent with the prescribed atmospheric state.
 t2m_mean = mean(t2m; dims = Ti)  # average over time axis
 t2m_mean_C = Terrarium.kelvin_to_celsius.(constants, t2m_mean)
 t2m_mean_field = RingGrids.Field(Array(reshape(t2m_mean_C, :)), Terrarium.native_grid(ERA5LandForcings()))
-t2m_mean_on_grid = RingGrids.interpolate(on_architecture(CPU(), grid.rings), t2m_mean_field)[land_mask_cpu]
+t2m_mean_on_grid = RingGrids.interpolate(on_architecture(CPU(), grid.rings), t2m_mean_field)
 
-function initial_soil_temperature(x, z)
-    T₀ = t2m_mean_on_grid[round(Int, x)]
-    T = T₀ - NF(0.05) * z
-    return T
-end
+# The initializer declares its surface temperature as the input variable `initial_surface_temperature`,
+# so we supply the regridded mean air temperature as an [`InputSource`](@ref) with that name. This keeps
+# the data with the inputs rather than in the (grid-agnostic) model.
+T₀_source = InputSource(grid, t2m_mean_on_grid; name = :initial_surface_temperature, domain = Terrarium.Ground(), units = u"°C")
+inputs = InputSources(T₀_source, inputs.sources...)
 
 initializers = (
-    temperature = initial_soil_temperature,
     saturation_water_ice = (x, z) -> min(one(NF), NF(0.6) - NF(0.05) * z),
 )
 integrator = initialize(land; inputs, initializers)

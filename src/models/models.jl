@@ -8,7 +8,8 @@ export SoilHeatFlux, GeothermalHeatFlux, PrescribedSurfaceTemperature, Prescribe
 include("soil/soil_model_bcs.jl")
 
 export SoilInitializer, ConstantSoilTemperature, QuasiThermalSteadyState,
-    PiecewiseLinearInitialSoilTemperature, SaturationWaterTable, ConstantSaturation
+    PiecewiseLinearInitialSoilTemperature, SaturationWaterTable, ConstantSaturation,
+    Saturation, VolumetricWaterContent
 include("soil/soil_model_init.jl")
 
 # Snow

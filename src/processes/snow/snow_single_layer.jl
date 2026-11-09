@@ -32,6 +32,14 @@ $FIELDS
 
     "Snow energy-temperature closure"
     @component closure::Closure
+
+    function SingleLayerSnow(cover, density, thermal_conductivity, hydraulic_properties, albedo, closure)
+        # `closure` is excluded from the promotion since it currently holds no parameters
+        NF = number_format(cover, density, thermal_conductivity, hydraulic_properties, albedo)
+        return new{NF, typeof(cover), typeof(density), typeof(thermal_conductivity), typeof(hydraulic_properties), typeof(albedo), typeof(closure)}(
+            cover, density, thermal_conductivity, hydraulic_properties, albedo, closure
+        )
+    end
 end
 
 function SingleLayerSnow(
@@ -41,14 +49,11 @@ function SingleLayerSnow(
         thermal_conductivity = PowerLawSnowThermalConductivity(NF),
         hydraulic_properties = ConstantSnowHydraulics(NF),
         albedo = ConstantSnowAlbedo(NF),
-        closure = SnowEnergyTemperatureClosure(NF),
+        closure = SnowEnergyTemperatureClosure(),
     ) where {NF}
-    # No field is directly typed `NF` (the minimum conduction thickness is now derived from the grid
-    # rather than stored, see `min_snow_conduction_thickness`), so `NF` is supplied explicitly here and
-    # carried only via the `AbstractSnow{NF}` supertype bound, mirroring `LandModel`/`SnowModel`.
-    return SingleLayerSnow{NF, typeof(cover), typeof(density), typeof(thermal_conductivity), typeof(hydraulic_properties), typeof(albedo), typeof(closure)}(
-        cover, density, thermal_conductivity, hydraulic_properties, albedo, closure
-    )
+    # `NF` is given here only to build the default sub-components; the positional constructor
+    # derives it from them via `number_format`.
+    return SingleLayerSnow(cover, density, thermal_conductivity, hydraulic_properties, albedo, closure)
 end
 
 """
@@ -95,31 +100,34 @@ with the bulk density `ρ_snow`.
 # Process methods
 
 variables(snow::SingleLayerSnow) = (
-    prognostic(:snow_energy, XY(); closure = get_closure(snow), units = u"J/m^2", desc = "Depth-integrated (column) internal energy of the snowpack relative to water at 0°C"),
-    prognostic(:snow_water_equivalent, XY(); units = u"m", desc = "Snow water equivalent (ice + retained liquid)"),
-    auxiliary(:snow_depth, XY(); units = u"m", desc = "Snow layer depth"),
-    auxiliary(:snow_cover_fraction, XY(); bounds = UnitInterval, desc = "Sub-grid snow-covered area fraction"),
-    input(:surface_heat_flux, XY(); units = u"W/m^2", desc = "Net heat flux at the snow surface (positive upward)"),
-    input(:basal_heat_flux, XY(); units = u"W/m^2", desc = "Conductive heat flux at the snow base (positive upward, soil → snow)"),
-    input(:sublimation, XY(); units = u"m/s", desc = "Sublimation/evaporation rate from the snow surface (SWE)"),
+    prognostic(:snow_energy, Snow(XY()); closure = get_closure(snow), units = u"J/m^2", desc = "Depth-integrated (column) internal energy of the snowpack relative to water at 0°C"),
+    prognostic(:snow_water_equivalent, Snow(XY()); units = u"m", desc = "Snow water equivalent (ice + retained liquid)"),
+    auxiliary(:snow_depth, Snow(XY()); units = u"m", desc = "Snow layer depth"),
+    auxiliary(:snow_cover_fraction, Snow(XY()); bounds = UnitInterval, desc = "Sub-grid snow-covered area fraction"),
+    auxiliary(:meltwater_flux, Snow(XY()); units = u"m/s", desc = "Meltwater outflow from the snowpack base (SWE)"),
+    input(:snow_surface_heat_flux, Snow(Top()); units = u"W/m^2", desc = "Grid-cell-mean net heat flux at the snow surface (positive upward), scaled by the snow cover fraction"),
+    input(:snow_basal_heat_flux, Snow(Bottom()); units = u"W/m^2", desc = "Grid-cell-mean conductive heat flux at the snow base (positive upward, soil → snow), scaled by the snow cover fraction"),
+    input(:sublimation, Snow(Top()); units = u"m/s", desc = "Sublimation/evaporation rate from the snow surface (SWE)"),
 )
 
 """
     $TYPEDSIGNATURES
 
-Diagnose the snow geometric and thermal properties (`snow_depth`, `snow_cover_fraction`,
-`snow_thermal_conductivity`) from the current snow water equivalent and bulk density. The enthalpy
-closure (`snow_temperature`, `snow_liquid_fraction`) is added in a later phase.
+Diagnose the snow geometric properties (`snow_depth`, `snow_cover_fraction`) from the current snow water
+equivalent and bulk density, and the `meltwater_flux` from the liquid fraction if `snow_water_equivalent` is
+integrated explicitly by `timestepper`. Under implicit integration, `meltwater_flux` holds the drainage of
+the last implicit step instead (see [`implicit_update!`](@ref)).
 """
 function compute_auxiliary!(
         state, grid,
         snow::SingleLayerSnow,
         constants::PhysicalConstants,
-        args...
+        timestepper::Optional{AbstractTimeStepper} = nothing
     )
+    water_timestepping = timestepping(timestepper, state, Val(:snow_water_equivalent))
     out = auxiliary_fields(state, snow)
     fields = get_fields(state, snow; except = out)
-    launch!(grid, XY, compute_auxiliary_kernel!, out, fields, snow, constants)
+    launch!(grid, XY, compute_auxiliary_kernel!, out, fields, snow, constants, water_timestepping)
     return nothing
 end
 
@@ -128,19 +136,20 @@ end
 
 Compute the snow water-equivalent and depth-integrated energy tendencies (see [`compute_snow_tendencies!`](@ref)),
 driven by the atmospheric precipitation inputs and the prescribed surface/basal heat fluxes and
-sublimation.
+sublimation. The meltwater outflow is omitted if `snow_water_equivalent` is integrated implicitly by
+`timestepper`.
 """
 function compute_tendencies!(
         state, grid,
         snow::SingleLayerSnow,
         constants::PhysicalConstants,
         atmos::AbstractAtmosphere,
-        args...
+        timestepper::Optional{AbstractTimeStepper} = nothing
     )
+    water_timestepping = timestepping(timestepper, state, Val(:snow_water_equivalent))
     tendencies = tendency_fields(state, snow)
-    # pass the closure so `snow_liquid_fraction` (needed for meltwater outflow) is collected
     fields = get_fields(state, snow, atmos)
-    launch!(grid, XY, compute_tendencies_kernel!, tendencies, fields, snow, atmos, constants)
+    launch!(grid, XY, compute_tendencies_kernel!, tendencies, fields, snow, atmos, constants, water_timestepping)
     return nothing
 end
 
@@ -156,41 +165,59 @@ mass and energy balances (see [`compute_snow_water_tendency`](@ref) and [`comput
         tendencies, i, j, grid, fields,
         snow::SingleLayerSnow,
         atmos::AbstractAtmosphere,
-        constants::PhysicalConstants
+        constants::PhysicalConstants,
+        water_timestepping::Timestepping = Explicit()
     )
-    tendencies.snow_water_equivalent[i, j, 1] += compute_snow_water_tendency(i, j, grid, fields, snow, atmos)
-    tendencies.snow_energy[i, j, 1] += compute_snow_energy_tendency(i, j, grid, fields, snow, atmos, constants)
+    tendencies.snow_water_equivalent[i, j, end] += compute_snow_water_tendency(i, j, grid, fields, snow, atmos, water_timestepping)
+    tendencies.snow_energy[i, j, end] += compute_snow_energy_tendency(i, j, grid, fields, snow, atmos, constants)
     return nothing
 end
 """
     $TYPEDSIGNATURES
 
-Compute the snow depth, cover fraction, and thermal conductivity at grid cell `i, j`.
+Compute the snow depth and cover fraction at grid cell `i, j`, and the meltwater outflow if
+`snow_water_equivalent` is integrated explicitly (see [`compute_meltwater_flux!`](@ref)).
 """
 @propagate_inbounds function compute_snow_properties!(
         out, i, j, grid, fields,
         snow::SingleLayerSnow,
-        constants::PhysicalConstants
+        constants::PhysicalConstants,
+        water_timestepping::Timestepping = Explicit()
     )
     W_snow = fields.snow_water_equivalent[i, j]
     ρ_w = constants.material.density_water
     ρ_snow = compute_snow_density(i, j, grid, fields, snow.density)
-    out.snow_depth[i, j, 1] = compute_snow_depth(snow, W_snow, ρ_snow, ρ_w)
-    out.snow_cover_fraction[i, j, 1] = compute_snow_cover_fraction(snow.cover, W_snow)
+    out.snow_depth[i, j, end] = compute_snow_depth(snow, W_snow, ρ_snow, ρ_w)
+    out.snow_cover_fraction[i, j, end] = compute_snow_cover_fraction(snow.cover, W_snow)
+    compute_meltwater_flux!(out, i, j, grid, fields, snow, water_timestepping)
     return nothing
 end
 
 """
     $TYPEDSIGNATURES
 
-Snow meltwater outflow `M_r` [m/s SWE] at grid cell `i, j`: the Darcy-type drainage
-(see [`compute_meltwater_outflow`](@ref)) evaluated at the diagnosed liquid water fraction.
+Store the storage-limited Darcy-type meltwater outflow `M_r` (m/s SWE) at grid cell `i, j` in
+`meltwater_flux`, evaluated at the diagnosed liquid water fraction and the snow water equivalent of the pack
+(see [`compute_meltwater_outflow`](@ref)). A no-op under implicit integration of `snow_water_equivalent`,
+where the implicit step sets it.
 """
-@propagate_inbounds function snow_meltwater_flux(i, j, grid, fields, snow::SingleLayerSnow)
+@propagate_inbounds function compute_meltwater_flux!(out, i, j, grid, fields, snow::SingleLayerSnow, ::Explicit)
     θ_liq = liquid_water_fraction(i, j, grid, fields, snow)
-    M = compute_meltwater_outflow(snow.hydraulic_properties, θ_liq)
-    return M
+    W_snow = snow_water_equivalent(i, j, grid, fields, snow)
+    out.meltwater_flux[i, j, end] = compute_meltwater_outflow(snow.hydraulic_properties, θ_liq, W_snow)
+    return nothing
 end
+
+@inline compute_meltwater_flux!(out, i, j, grid, fields, snow::SingleLayerSnow, ::Implicit) = nothing
+
+"""
+    $TYPEDSIGNATURES
+
+Snow meltwater outflow `M_r` (m/s SWE) at grid cell `i, j`, the `meltwater_flux` auxiliary: the outflow at
+the current liquid fraction under explicit integration (see [`compute_meltwater_flux!`](@ref)), and the
+drainage of the last implicit step otherwise.
+"""
+@propagate_inbounds snow_meltwater_flux(i, j, grid, fields, snow::SingleLayerSnow) = fields.meltwater_flux[i, j]
 
 ## Field-level accessors
 
@@ -208,12 +235,12 @@ end
 
 # Kernels
 
-@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, snow::AbstractSnow, args...)
+@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, snow::AbstractSnow, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_snow_properties!(out, i, j, grid, fields, snow, args...)
 end
 
-@kernel inbounds = true function compute_tendencies_kernel!(tendencies, grid, fields, snow::SingleLayerSnow, args...)
+@kernel inbounds = true function compute_tendencies_kernel!(tendencies, grid, fields, snow::SingleLayerSnow, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_snow_tendencies!(tendencies, i, j, grid, fields, snow, args...)
 end

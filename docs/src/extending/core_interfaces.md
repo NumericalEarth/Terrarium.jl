@@ -134,7 +134,7 @@ Additionally, models with [closure relations](@ref "Closure relations") should i
 
 | Method | Purpose |
 |--------|---------|
-| `closure!(state, model)` | Apply all forward closure relations |
+| `closure!(state, model)` | Apply all forward closure relations and any constraints on the prognostic state (e.g. clipping a quantity that must stay non-negative) |
 | `invclosure!(state, model)` | Apply all inverse closure relations |
 
 The typical pattern is to forward each of these model-level calls to the corresponding process-level call, passing the `grid` and `constants` explicitly.
@@ -143,7 +143,7 @@ Both models and processes may optionally implement [`compute_boundary_conditions
 
 ### The `AbstractInitializer` interface
 
-Standardized model initialization routines can be defined using the [`AbstractInitializer`](@ref) interface (see also [Initialization](@ref)). Each implementation of `AbstractModel` must allow for a user-defined `initializer` (the type can be constrained where appropriate). The simplest initializer is `DefaultInitializer`, which is a no-op that leaves all `Field`s at their default (zero) values. More complex models define their own composite initializers; for example, `SoilInitializer` composes separate initializers for the energy, hydrology, and biogeochemistry state variables. See [Soil models](@ref) for the full list of available initializer types.
+Standardized model initialization routines can be defined using the [`AbstractInitializer`](@ref) interface (see also [Initialization](@ref)). Each implementation of `AbstractModel` must allow for a user-defined `initializer` (the type can be constrained where appropriate). The simplest initializer is `DefaultInitializer`, which is a no-op that leaves all `Field`s at their default (zero) values. More complex models define their own composite initializers; for example, `SoilInitializer` composes separate initializers for the energy, hydrology, and biogeochemistry state variables. See [Soil models](@ref) for the full list of available initializer types. Initializers may declare `input` variables by implementing [`variables`](@ref); these are included in the variables of the model.
 
 ```@docs; canonical = false
 AbstractInitializer

@@ -30,12 +30,20 @@ dynamics are allowed except in very special cases where they must be clearly doc
   using TestEnv; TestEnv.activate()
   include("test/soil/soil_energy_tests.jl")
   ```
-- To run the full suite, use `julia --project=. -e 'using Pkg; Pkg.test()'` (Enzyme/AD tests run
-  via `Pkg.test(; test_args=["enzyme"])`).
+- To run the full suite, use `julia --project=. -e 'using Pkg; Pkg.test()'`.
+- Only run the Enzyme (`Pkg.test(; test_args=["enzyme"])`) or Reactant (`test/reactant/`) test suites
+  locally after directly editing the respective extension modules or unit tests, or when explicitly requested.
+  These tests should otherwise be left to the CI/CD pipeline.
 - Julia errors and associated stack traces are often very long due to long type signatures. To
   mitigate this, always write test output to temporary files and analyze this output using `grep`
   and similar tools.
 - After running the full test suite, always run a draft doc build with ``julia --project=docs docs/make.jl --local --draft` and check for errors due to, e.g. stale docstring entires. Ignore errors from missing files due to the example scripts not being executed.
+- The docs environment must load the local checkout of Terrarium, not a registered release; otherwise the build documents
+  the release, and every docstring added since shows up as an "undefined binding" error. Before the first draft build in
+  a new clone or worktree, run `julia --project=docs -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'`
+  (as the documentation CI workflow does) and check that `docs/Manifest.toml` lists a `path` for Terrarium. Errors about
+  InterLinks inventories that cannot be loaded, and the unresolved external links that follow from them, mean that there
+  is no network access and can be ignored.
 
 ## Critical Rules
 
@@ -203,7 +211,7 @@ Performance benchmarks live in `benchmark/` and are run manually, one architectu
 cd benchmark
 julia --project=. manual_benchmarking.jl                # CPU (auto-labelled cpu-arm or cpu-x86)
 julia --project=. manual_benchmarking.jl gpu            # CUDA GPU
-julia --project=. manual_benchmarking.jl reactant-cpu   # Reactant/XLA, CPU backend
+julia --project=. manual_benchmarking.jl reactant-cpu   # Reactant/XLA, CPU backend (auto-labelled reactant-cpu-arm or reactant-cpu-x86)
 julia --project=. manual_benchmarking.jl reactant-gpu   # Reactant/XLA, CUDA backend
 ```
 
@@ -248,7 +256,9 @@ Follow [ColPrac](https://github.com/SciML/ColPrac). Feature branches, descriptiv
 
 ## Implementation plans
 
-All major feature additions, bug fixes, or refactoring that requires substantial changes to the existing code must be prefaced with an **implementation plan** that is **reviewed and signed off by a human**. These plan documents should be organized by date and stored in `docs/dev/YYYY-MM`. You are **ABSOLUTELY REQUIRED** to get the explicit approval of a human developer before executing the implementation.
+All major feature additions, bug fixes, or refactoring that requires substantial changes to the existing code must be prefaced with an **implementation plan** that is **reviewed and signed off by a human**. These plan documents should be organized by date and stored in `docs/dev/plans` with the filename prefixed wit the pattern `YYYY-MM-dd-#-` where # is an integer starting at 1 and incremented for each plan drafted on that date. Development notes not corresponding to a specific source change can be written to `docs/dev/notes` and changes to upstream packages to `docs/dev/upstream`.
+
+You are **ABSOLUTELY REQUIRED** to get the explicit approval of a human developer before executing the implementation.
 
 Each document should be prefaced by the following template:
 
@@ -259,17 +269,15 @@ Each document should be prefaced by the following template:
 
 Date of initial draft: YYYY-MM-dd
 
+Author: <Name of model and version (if known)>, <harness name and version (if known)>
+
+Reviewer: <Name of human reviewer> (<reviewer email address>)
+
 Base revision: <SHA1 of HEAD when plan was drafted>
 
 ## Originating prompt
 
 > User prompts here
-
-## Revision log
-
-> User prompts here
-
-N.B: Make sure that each revision is given a number and a date.
 
 ## Problem description
 
@@ -277,7 +285,19 @@ N.B: Make sure that each revision is given a number and a date.
 
 ```
 
-The revision log should, to the greatest extent possible, briefly summarize changes to the plan that are made on-the-fly during development. Make sure that each revision is given a number and a date. **A human must approve each revision before implementation**.
+Notes on filling in the template (these notes are guidance about the template; do not copy them into
+the plan document itself):
+
+- Leave the `Reviewer` field blank until a human has approved the plan, then fill in both name and
+  email after approval. Where the reviewer is the repository owner, `git config user.name` and
+  `git config user.email` are an acceptable source for those values.
+- The revision log (see below) should briefly summarize changes to the plan
+  that are made on-the-fly during development.
+- Give each revision in the log a number and a date, and record the model name and version (if known)
+ for that revision, since a plan may be revised by a different model than the one that drafted it. **A human must approve each revision before changing any code**.
+
+Write plan prose with a line break at the end of every sentence (one sentence per line) rather than wrapping at an arbitrary column width.
+This keeps diffs readable when individual sentences are revised.
 
 The remainder of the plan document may be adapted on a case-by-case basis but should generally follow this structure:
 
@@ -291,6 +311,10 @@ The remainder of the plan document may be adapted on a case-by-case basis but sh
 ## Known limitations
 
 ## Future work
+
+## Revision log
+
+> User prompts here
 ```
 
 ## Further Reading

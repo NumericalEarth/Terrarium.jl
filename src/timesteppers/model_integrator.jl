@@ -10,13 +10,14 @@ treated as a "model" in `Oceananigans` `Simulation`s and output reading/writing 
 struct ModelIntegrator{
         NF,
         Arch <: AbstractArchitecture,
-        Grid <: AbstractLandGrid{NF},
-        TimeStepper <: AbstractTimeStepper{NF},
-        Model <: AbstractModel{NF, Grid},
+        Grid <: AbstractGrid,
+        TimeStepper <: AbstractTimeStepper,
+        Model <: AbstractModel,
         StateVars <: AbstractStateVariables,
         ClockType <: Clock,
         Inits <: NamedTuple,
         Inputs <: InputSources,
+        InitialTime,
     } <: Oceananigans.AbstractModel{TimeStepper, Arch}
     "The clock holding all information about the current timestep/iteration of a simulation"
     clock::ClockType
@@ -32,6 +33,9 @@ struct ModelIntegrator{
 
     "Optional named tuple of user-specified field initializers"
     initializers::Inits
+
+    "Time to which `clock` is reset by `initialize!`"
+    initial_time::InitialTime
 end
 
 # Outer constructor so that `ModelIntegrator` can be constructed with a timestepper type
@@ -42,13 +46,14 @@ function ModelIntegrator(
         inputs::InputSources,
         state::AbstractStateVariables,
         initializers::NamedTuple,
+        initial_time = initial_clock_time(clock.time),
     ) where {NF}
     grid = get_grid(model)
     timestepper = get_timestepper(model)
     return ModelIntegrator{
         NF, typeof(architecture(grid)), typeof(grid), typeof(timestepper),
-        typeof(model), typeof(state), typeof(clock), typeof(initializers), typeof(inputs),
-    }(clock, model, inputs, state, initializers)
+        typeof(model), typeof(state), typeof(clock), typeof(initializers), typeof(inputs), typeof(initial_time),
+    }(clock, model, inputs, state, initializers, initial_time)
 end
 
 # Oceananigans model interface
@@ -109,7 +114,7 @@ function Oceananigans.Simulations.run!(
         period::Union{Period, Nothing} = nothing,
         Δt = default_dt(timestepper(integrator)),
         checkpointing = false,
-        show_progress = false
+        show_progress::Union{Bool, Val{true}, Val{false}} = Val(false),
     ) where {NF}
     Δt = convert_dt(NF, Δt)
     if !isnothing(period) && convert_dt(NF, period) < Δt
@@ -134,15 +139,41 @@ integrators override this method in `TerrariumReactantExt`, compiling the loop i
 traced program in which `checkpointing` selects the reverse-mode-AD checkpointing scheme
 (`false`, or a scheme such as `Reactant.Periodic(n)`).
 """
-function run_timesteps!(integrator::ModelIntegrator, Δt, steps, checkpointing = false; show_progress = false)
-    if show_progress
-        @showprogress "Integrating $(nameof(typeof(integrator.model))) for $steps steps" for _ in 1:steps
-            timestep!(integrator, Δt, finalize = false)
-        end
-    else
-        for _ in 1:steps
-            timestep!(integrator, Δt, finalize = false)
-        end
+function run_timesteps!(
+        integrator::ModelIntegrator, Δt, steps, checkpointing = false;
+        show_progress::Union{Bool, Val{true}, Val{false}} = Val(false),
+    )
+    return run_timesteps!(integrator, Δt, steps, checkpointing, as_val(show_progress))
+end
+
+# Normalize `show_progress` to a `Val` so the caller below dispatches on it instead of branching
+# on a runtime `Bool`. This matters for Enzyme: a runtime `if show_progress` branch keeps the
+# `@showprogress`/`ProgressMeter` code path (see below) reachable in the differentiated call
+# graph even when `show_progress` is always `false`, because the boolean is not provably
+# constant across this non-inlined call boundary. When SpeedyWeather is also loaded, that code
+# path resolves (via SpeedyWeather's global `ProgressMeter.speedstring` extension) to code that
+# reads mutable global `Ref`s and fails Enzyme's strict-aliasing type analysis — unrelated to
+# anything physical, but fatal to compilation. Dispatching on `Val{true}`/`Val{false}` instead
+# means only the method matching the caller's concrete type is ever compiled or differentiated;
+# the other one is never part of the call graph at all. `Val(false)` as the *keyword default*
+# (not `false`) is what makes this reliable: it is a literal expression substituted verbatim by
+# Julia's keyword-argument sugar at any call site that omits `show_progress`, so callers that
+# never ask for a progress bar get an unambiguous `Val{false}`, not a `Bool` whose constant-ness
+# depends on inference heuristics.
+@inline as_val(x::Val) = x
+@inline as_val(x::Bool) = Val(x)
+
+function run_timesteps!(integrator::ModelIntegrator, Δt, steps, checkpointing, ::Val{true})
+    @showprogress "Integrating $(nameof(typeof(integrator.model))) for $steps steps" for _ in 1:steps
+        timestep!(integrator, Δt, finalize = false)
+    end
+    compute_auxiliary!(integrator.state, integrator.model)
+    return nothing
+end
+
+function run_timesteps!(integrator::ModelIntegrator, Δt, steps, checkpointing, ::Val{false})
+    for _ in 1:steps
+        timestep!(integrator, Δt, finalize = false)
     end
     compute_auxiliary!(integrator.state, integrator.model)
     return nothing
@@ -153,13 +184,16 @@ end
 """
     $TYPEDEF
 
-Resets the simulation `clock` and calls `initialize!(state, model)` on the underlying model which
-should reset all state variables to their values as defiend by the model initializer.
+Resets the simulation `clock` to its initial time (the time of the `clock` when the integrator was
+constructed) and calls `initialize!(state, model)` on the underlying model which should reset all
+state variables to their values as defined by the model initializer.
 """
 function initialize!(integrator::ModelIntegrator)
     # reset state variables and clock
     reset!(integrator.state)
-    reset!(integrator.clock)
+    reset_clock!(integrator.clock, integrator.initial_time)
+    # reset inputs to the defaults declared by the (possibly reconstructed) model
+    reset_inputs!(integrator.state, Variables(variables(integrator.model)))
     # set inputs based on updated clock/state
     initialize!(integrator.state, get_grid(integrator.model), integrator.inputs)
     # evaluate user-specified field initializers
@@ -168,6 +202,8 @@ function initialize!(integrator::ModelIntegrator)
     initialize!(integrator.state, integrator.model)
     return integrator
 end
+
+initialize!(simulation::Simulation{<:ModelIntegrator}) = initialize!(simulation.model)
 
 current_time(integrator::ModelIntegrator) = integrator.clock.time
 
@@ -214,6 +250,13 @@ function timestep!(integrator::ModelIntegrator, timestepper::AbstractTimeStepper
     timestep!(integrator, timestepper, Δt, names)
     # advance the clock once for the entire step
     tick!(integrator.state.clock, Δt)
+    return nothing
+end
+
+# A single explicit timestepper steps the variables in `names` with its explicit step, followed by the closure.
+function timestep!(integrator::ModelIntegrator, timestepper::AbstractTimeStepper, Δt, names::Tuple)
+    explicit_step!(integrator, timestepper, Δt, names)
+    closure!(integrator.state, integrator.model)
     return nothing
 end
 
@@ -279,9 +322,23 @@ function initialize(
     )
     inputs = InputSources(inputs)
     model = ParameterEditing.reconstruct(integrator.model, params)
-    integrator = ModelIntegrator(clock, model, inputs, integrator.state, integrator.initializers)
+    # keep the start time of the original integrator unless clock is user-specified
+    initial_time = clock === integrator.clock ? integrator.initial_time : initial_clock_time(clock.time)
+    integrator = ModelIntegrator(clock, model, inputs, integrator.state, integrator.initializers, initial_time)
     initialize!(integrator)
     return integrator
+end
+
+# Snapshot of the clock time stored as the integrator's initial time. Numbers and `DateTime`s are
+# immutable values, so the time itself is stored; clock times that are updated in place (e.g. the
+# `ConcreteRNumber` of a Reactant clock) must be copied to a plain value, see `TerrariumReactantExt`.
+initial_clock_time(time) = time
+
+# reset the clock iteration and stage, and its time to `initial_time`
+function reset_clock!(clock::Clock, initial_time)
+    reset!(clock)
+    clock.time = initial_time
+    return clock
 end
 
 get_steps(steps::Nothing, period::Period, Δt::Real) = div(convert_dt(Second, period).value, Δt)

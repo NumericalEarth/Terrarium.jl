@@ -36,6 +36,16 @@ using Terrarium:
     @test fastmap(+, (1, 2, 3), (2, 3, 4)) == (3, 5, 7)
     @test fastmap(+, (a = 1, b = 2, c = 3), (b = 3, c = 4, a = 2)) == (a = 3, b = 5, c = 7)
     @inferred fastmap(*, ("a", 3.0, 1), ("b", 2.0, missing))
+
+    # ntdiff
+    @test Terrarium.ntdiff((a = 1, b = 2, c = 3), (b = 0,)) == (a = 1, c = 3)
+    @test Terrarium.ntdiff((a = 1, b = 2), (;)) == (a = 1, b = 2)
+    @test Terrarium.ntdiff((a = 1, b = 2), (a = 0, b = 0)) == (;)
+    @test Terrarium.ntdiff((a = 1, b = 2), (c = 0,)) == (a = 1, b = 2)
+    ## large `NamedTuple`s, as returned by `get_fields` for several components, must still infer
+    names = Tuple(Symbol(:x, i) for i in 1:40)
+    nt = NamedTuple{names}(Tuple(1:40))
+    @test @inferred(Terrarium.ntdiff(nt, (x2 = 0, x40 = 0))) == NamedTuple{filter(∉((:x2, :x40)), names)}(Tuple(filter(∉((2, 40)), 1:40)))
 end
 
 @testset "Math utilities" begin

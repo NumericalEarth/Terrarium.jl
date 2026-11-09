@@ -26,6 +26,8 @@ integrator = initialize(model)
 SoilModel
 ```
 
+The default timestepper of `SoilModel` depends on the soil hydrology. With Richards-equation water flow (the default), it is `IMEX(ForwardEuler(NF; Δt = 3600), BackwardEuler(NF))`, which treats soil heat conduction and water flow implicitly with a 1-hour time step. Without water flow ([`NoFlow`](@ref)), it is `ForwardEuler(NF)`. Value boundary conditions such as [`PrescribedSurfaceTemperature`](@ref) require an explicit timestepper, e.g. `SoilModel(grid; soil, timestepper = ForwardEuler(NF))`. See [Time stepping](@ref) for details.
+
 ```@example soilmodel
 variables(model)
 ```
@@ -51,7 +53,7 @@ The `energy` component represents heat conduction in the soil column, including 
 
 ### Hydrology
 
-The `hydrology` component governs the vertical movement of water in the soil column. The default implementation is [`SoilHydrology`](@ref), which evolves total saturation (liquid + ice) as the prognostic variable. Vertical flow is disabled by default ([`NoFlow`](@ref)); enabling the Richards equation requires selecting [`RichardsEq`](@ref) as the `vertical_flow` operator. See [Soil hydrology](@ref) for details.
+The `hydrology` component governs the vertical movement of water in the soil column. The default implementation is [`SoilHydrology`](@ref), which evolves total saturation (liquid + ice) as the prognostic variable. By default, the vertical flow follows the Richards equation ([`RichardsEq`](@ref)); selecting [`NoFlow`](@ref) as the `vertical_flow` operator keeps the soil water immobile. See [Soil hydrology](@ref) for details.
 
 ### Biogeochemistry
 
@@ -75,6 +77,31 @@ initializer = SoilInitializer(Float32;
 model = SoilModel(grid; initializer)
 ```
 
+### Spatially varying initial values
+
+The parameters of the energy and hydrology initializers are declared as `input` variables of the model, with the values given to the initializer as their defaults:
+
+| Initializer | Input variables |
+|:--|:--|
+| [`ConstantSoilTemperature`](@ref) | `initial_surface_temperature` (°C) |
+| [`QuasiThermalSteadyState`](@ref) | `initial_surface_temperature` (°C), `geothermal_heat_flux` (W/m²) |
+| [`ConstantSaturation`](@ref) | `initial_saturation` |
+| [`SaturationWaterTable`](@ref) | `vadose_zone_saturation` (saturation or volumetric water content, see below), `water_table_depth` (m) |
+
+Each value may therefore be a number, a function of the horizontal node coordinates, an array, a `Field`, or an [`AbstractFieldInitializer`](@ref).
+These defaults are re-applied at every initialization, so changes to their parameters take effect, and an [`InputSource`](@ref) with the same name and units always takes precedence over them.
+Spatial data, such as a regridded climatology, should preferably be supplied this way rather than as a `Field` stored in the initializer: the initializer is part of the model, which should stay independent of any particular grid and free of state.
+Field initializers such as [`LatitudinalClimatology`](@ref) expose their own parameters as model parameters.
+Note that `geothermal_heat_flux` is the same variable read by the [`GeothermalHeatFlux`](@ref) bottom boundary condition, so the initial profile and the boundary condition stay consistent.
+
+```@example soilmodel
+column_grid = ColumnGrid(arch, Float32, ExponentialSpacing(N = 10), 3) # three columns
+energy = QuasiThermalSteadyState(Float32; T₀ = x -> 2.0f0 * x, Qgeo = 0.05f0)
+model = SoilModel(column_grid; initializer = SoilInitializer(Float32; energy))
+integrator = initialize(model)
+interior(integrator.state.initial_surface_temperature)
+```
+
 ### Energy initializers
 
 ```@docs; canonical = false
@@ -93,6 +120,35 @@ PiecewiseLinearInitialSoilTemperature
 
 ```@docs; canonical = false
 SaturationWaterTable
+```
+
+The vadose zone water content of `SaturationWaterTable` can be given either as saturation or as volumetric water content by wrapping the value in one of the following marker types; plain values are interpreted as saturation.
+Volumetric water content is converted to saturation by dividing by the soil porosity at each grid cell, so that it can be initialized directly from, e.g., soil moisture observations.
+
+```@example soilmodel
+hydrology = SaturationWaterTable(Float32; vadose_zone_saturation = VolumetricWaterContent(0.2f0), water_table_depth = 3.0f0)
+model = SoilModel(grid; initializer = SoilInitializer(Float32; hydrology))
+integrator = initialize(model)
+extrema(interior(integrator.state.saturation_water_ice))
+```
+
+```@docs; canonical = false
+Saturation
+VolumetricWaterContent
+```
+
+```@docs; canonical = false
+ConstantSaturation
+```
+
+### Kernel functions
+
+```@docs; canonical = false
+compute_quasi_steady_state_temperature
+compute_constant_temperature
+compute_water_table_saturation
+compute_vadose_zone_saturation
+compute_constant_saturation
 ```
 
 ### Fallback

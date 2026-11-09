@@ -41,8 +41,8 @@ struct ERA5LandInvariants <: AbstractLandAsset end
 artifact_name(::ERA5LandInvariants) = "era5-land-invariants"
 varnames(::ERA5LandInvariants) = ["cvh", "lsm", "tvl", "cvl", "z", "slt", "dl", "cl", "si10", "tvh"]
 format(::ERA5LandInvariants) = NetCDF()
-indices(::ERA5LandInvariants) = (:, :, 5)
 native_grid(::ERA5LandInvariants) = RingGrids.FullClenshawGrid(900)
+data_indices(::ERA5LandInvariants) = (:, :, 5)
 
 """
     $TYPEDEF
@@ -66,7 +66,7 @@ native_grid(::ERA5LandLeafAreaIndex{N72}) = RingGrids.FullGaussianGrid(72)
 
 varnames(::ERA5LandLeafAreaIndex) = ["lai_lv", "lai_hv"]
 format(::ERA5LandLeafAreaIndex) = NetCDF()
-indices(::ERA5LandLeafAreaIndex) = (:, :, :)
+data_indices(::ERA5LandLeafAreaIndex) = (:, :, :)
 
 """
     $TYPEDEF
@@ -90,8 +90,8 @@ struct ERA5LandForcings <: AbstractLandAsset end
 artifact_name(::ERA5LandForcings) = "era5-land-forcings-N72"
 varnames(::ERA5LandForcings) = ["t2m", "d2m", "tp", "sf", "sp", "ssrd", "strd", "u10", "v10"]
 format(::ERA5LandForcings) = NetCDF()
-indices(::ERA5LandForcings) = (:, :, :)
 native_grid(::ERA5LandForcings) = RingGrids.FullGaussianGrid(72)
+data_indices(::ERA5LandForcings) = (:, :, :)
 
 # get_asset
 
@@ -125,7 +125,7 @@ function load_asset(asset::AbstractLandAsset, name::String; NF = Float32, fill_v
     path = get_asset(asset)
     fmt = format(asset)
     grid = native_grid(asset)
-    return load_asset(path, name, grid, fmt, NF; indices = indices(asset), fill_value)
+    return load_asset(path, name, grid, fmt, NF; indices = data_indices(asset), fill_value)
 end
 
 """

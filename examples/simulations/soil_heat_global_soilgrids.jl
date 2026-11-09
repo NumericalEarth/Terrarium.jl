@@ -22,8 +22,8 @@ import RingGrids
 import DisplayAs #hide
 
 # NumericalEarth.jl provides the `SoilGrids2` dataset together with download and
-# preprocessing machinery.
-using NumericalEarth.DataWrangling: MetadataSet
+# preprocessing machinery, and, through its Terrarium extension, the method that turns it into
+# Terrarium input sources.
 using NumericalEarth.SoilGrids: SoilGrids2
 
 input_dir = "inputs" #hide
@@ -41,6 +41,7 @@ land_sea_frac_field = RingGrids.FullGaussianGrid(Matrix(land_sea_frac), input_as
 land_mask = land_sea_frac_field .> 0.5
 grid = ColumnRingGrid(arch, NF, ExponentialSpacing(N = 30), land_mask.grid, land_mask)
 grid_lon, grid_lat = RingGrids.get_lonlats(grid.rings) # in radians
+grid_latd = rad2deg.(grid_lat) # latitude in degrees
 
 # ## Loading soil texture from SoilGrids 2.0
 # SoilGrids 2.0 provides global predictions of soil properties on a ~10 km grid for the six
@@ -52,29 +53,8 @@ grid_lon, grid_lat = RingGrids.get_lonlats(grid.rings) # in radians
 # for the full reference. NumericalEarth.jl downloads the data on first use (~several hundred
 # MB, cached afterwards), converts the fractions to the unit interval, and returns Oceananigans
 # `Field`s with the vertical axis ordered from the deepest layer (k=1, 100-200 cm) to the
-# surface layer (k=6, 0-5 cm).
-function Terrarium.InputSources(dataset::SoilGrids2, grid::ColumnRingGrid, horizons = (Symbol(:horizon, i) for i in 1:6); name = nameof(typeof(dataset)), verbose = true)
-    soilgrids_vars = (:sand_fraction, :silt_fraction, :clay_fraction, :bulk_density)
-    metadataset = MetadataSet(soilgrids_vars...; dataset)
-    arch = RingGrids.architecture(grid.rings)
-    soilgrids_inputs = []
-    for (idx, horizon) in enumerate(horizons)
-        layer_inputs = Dict()
-        for var in soilgrids_vars
-            verbose && @info "Loading input data for $var on $horizon"
-            var_field = Field(getproperty(metadataset, var))
-            ring_field = RingGrids.on_architecture(arch, RingGrids.FullClenshawField(interior(var_field)[:, (end - 1):-1:2, end - idx + 1], input_as = Matrix))
-            target_field = RingGrids.Field(grid.rings)
-            RingGrids.interpolate!(target_field, ring_field)
-            layer_inputs[var] = InputSource(grid, Field(target_field, grid); name = horizon => var)
-        end
-        # Ensure that mineral texture components with each horizon sum to unity
-        Terrarium.normalize_texture!(layer_inputs[:sand_fraction].field, layer_inputs[:silt_fraction].field, layer_inputs[:clay_fraction].field)
-        append!(soilgrids_inputs, values(layer_inputs))
-    end
-    return InputSources(name, soilgrids_inputs...)
-end
-
+# surface layer (k=6, 0-5 cm). `InputSources(SoilGrids2(), grid)` regrids each horizon onto our
+# ring grid and normalizes the texture fractions of each horizon to sum to one.
 soilgrids_inputs = InputSources(SoilGrids2(), grid)
 
 fig = heatmap(RingGrids.Field(on_architecture(CPU(), soilgrids_inputs.sources[2].field), grid)[:, 1])
@@ -84,30 +64,26 @@ DisplayAs.PNG(fig) #hide
 # We now construct a six-layer `SoilStratigraphy` using the `SoilGridsStratigraphy` convenience constructor.
 porosity = SoilPorositySURFEX(eltype(grid))
 strat = SoilGridsStratigraphy(eltype(grid); porosity)
-soil = SoilEnergyWaterCarbon(eltype(grid); strat)
-model = SoilModel(grid; soil)
+soil = SoilEnergyWaterCarbon(eltype(grid); hydrology = SoilHydrology(eltype(grid), NoFlow()), strat)
 
 # We reuse the simple latitude-dependent climatology from the [global example](@ref soil_heat_global)
-# for the initial and boundary conditions.
-mean_annual_temperature(lat) = 20 - abs(40 * sin(lat))
+# for the initial and boundary conditions. The initial temperature profile is set by
+# [`QuasiThermalSteadyState`](@ref) with the climatology as its surface temperature.
+climatology = LatitudinalClimatology(NF)
+energy_initializer = QuasiThermalSteadyState(NF; T₀ = climatology, Qgeo = NF(0.05))
+initializer = SoilInitializer(NF; energy = energy_initializer, hydrology = DefaultInitializer(NF))
+model = SoilModel(grid; soil, initializer)
 
 lon_masked = grid_lon[land_mask]
-lat_masked = grid_lat[land_mask]
+latd_masked = grid_latd[land_mask]
 
-function initial_soil_temperature(x, z)
-    latᵢ = lat_masked[round(Int, x)]
-    T₀ = mean_annual_temperature(latᵢ)
-    T = T₀ - 0.05 * z
-    return T
-end
-
-function get_temperature_bc(lon::AbstractVector, lat::AbstractVector, amplitude = 10.0)
+function get_temperature_bc(lon::AbstractVector, latd::AbstractVector, amplitude = 10.0)
     lon_device = on_architecture(arch, NF.(lon))
-    lat_device = on_architecture(arch, NF.(lat))
+    lat_device = on_architecture(arch, NF.(latd))
     function periodic_bc(x::NF, t::NF) where {NF}
         lonₓ = lon_device[round(Int, x)]
         latₓ = lat_device[round(Int, x)]
-        T₀ = mean_annual_temperature(latₓ)
+        T₀ = climatology(latₓ)
         seconds_per_day = NF(24 * 3600)
         T = T₀ + NF(amplitude) * sin(2π * t / seconds_per_day - lonₓ)
         return T
@@ -115,12 +91,11 @@ function get_temperature_bc(lon::AbstractVector, lat::AbstractVector, amplitude 
     return periodic_bc
 end
 
-bc = PrescribedSurfaceTemperature(:T_ub, get_temperature_bc(lon_masked, lat_masked))
-inits = (temperature = initial_soil_temperature,)
+bc = PrescribedSurfaceTemperature(:T_ub, get_temperature_bc(lon_masked, latd_masked))
 
 # Initialize the model; the input sources are matched to the namespaced input variables of
 # the prescribed soil horizons.
-integrator = initialize(model, ForwardEuler(NF); inputs = soilgrids_inputs, boundary_conditions = bc, initializers = inits)
+integrator = initialize(model, ForwardEuler(NF); inputs = soilgrids_inputs, boundary_conditions = bc)
 
 # We can verify that the SoilGrids texture has been correctly assigned to the first horizon:
 sand1 = RingGrids.Field(arch, interior(integrator.state.namespaces.horizon1.sand_fraction), grid)

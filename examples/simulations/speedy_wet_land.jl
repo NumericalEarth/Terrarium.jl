@@ -10,7 +10,6 @@ using Rasters, NCDatasets
 using Statistics
 
 using CairoMakie, GeoMakie
-using ProgressMeter
 
 import RingGrids
 import SpeedyWeather as Speedy
@@ -27,56 +26,13 @@ ring_grid = spectral_grid.grid
 plot_land_field(field, z_idx = 1; kwargs...) = heatmap(RingGrids.Field(CPU(), interior(field)[:, :, z_idx], land_grid); kwargs...)
 plot_speedy_field(field; kwargs...) = heatmap(on_architecture(CPU(), field); kwargs...)
 
-
-# To make the simulation a bit more interesting, we will use spatially periodic initial and boundary conditions.
-# The climatology will be determined by latitude with a maximum of 20 °C at the equator and minimum of -20°C at
-# the poles.
-mean_annual_temperature(lat) = 20 - abs(40 * sin(lat)) # maximum at equator
-
-function initial_soil_temperature(grid)
-    _, grid_lat = RingGrids.get_lonlats(grid.rings) # in radians
-    grid_lat_masked = grid_lat[on_architecture(CPU(), grid.mask)]
-    function init(x, z)
-        latᵢ = grid_lat_masked[round(Int, x)]
-        T₀ = mean_annual_temperature(latᵢ)
-        T = T₀ - 0.05 * z
-        return T
-    end
-    return init
-end
-
-function Terrarium.InputSources(dataset::SoilGrids2, grid::ColumnRingGrid, horizons = (Symbol(:horizon, i) for i in 1:6); name = nameof(typeof(dataset)), verbose = true)
-    soilgrids_vars = (:sand_fraction, :silt_fraction, :clay_fraction, :bulk_density)
-    metadataset = MetadataSet(soilgrids_vars...; dataset)
-    arch = RingGrids.architecture(grid.rings)
-    soilgrids_inputs = []
-    for (idx, horizon) in enumerate(horizons)
-        layer_inputs = Dict()
-        for var in soilgrids_vars
-            verbose && @info "Loading input data for $var on $horizon"
-            var_field = Field(getproperty(metadataset, var))
-            ring_field = RingGrids.on_architecture(arch, RingGrids.FullClenshawField(interior(var_field)[:, (end - 1):-1:2, end - idx + 1], input_as = Matrix))
-            target_field = RingGrids.Field(grid.rings)
-            RingGrids.interpolate!(target_field, ring_field)
-            layer_inputs[var] = InputSource(grid, Field(target_field, grid); name = horizon => var)
-        end
-        # Ensure that mineral texture components with each horizon sum to unity
-        Terrarium.normalize_texture!(layer_inputs[:sand_fraction].field, layer_inputs[:silt_fraction].field, layer_inputs[:clay_fraction].field)
-        append!(soilgrids_inputs, values(layer_inputs))
-    end
-    return InputSources(name, soilgrids_inputs...)
-end
-
 lai_asset = ERA5LandLeafAreaIndex(Terrarium.N72)
 lai_highveg = Terrarium.load_asset(lai_asset, "lai_hv"; NF = Float32, fill_value = 0.0f0)
-lai_highveg_fields = []
-@showprogress for t in dims(lai_highveg, :dayofyear)
-    LAI_t = lai_highveg[dayofyear = At(t)]
-    data = reshape(Array(LAI_t), :, 1)
-    src_field = RingGrids.Field(data, Terrarium.native_grid(lai_asset))
-    dst_field = RingGrids.interpolate(ring_grid, on_architecture(arch, src_field))
-    push!(lai_highveg_fields, dst_field)
-end
+# all days of the year as layers, (grid point, day of year), interpolated onto the ring grid in a single batched call
+lai_highveg_data = Float32.(Array(lai_highveg)) # convert explicitly: materializing a lazily loaded raster can give an `Array{Any}`
+lai_highveg_data = reshape(lai_highveg_data, size(lai_highveg_data, 1) * size(lai_highveg_data, 2), :)
+lai_highveg_native = RingGrids.Field(lai_highveg_data, Terrarium.native_grid(lai_asset))
+lai_highveg_daily = RingGrids.interpolate(ring_grid, on_architecture(arch, lai_highveg_native))
 
 # Build the Terrarium land model on the matching ring grid with appropriate land-sea mask
 Nz = 30
@@ -89,20 +45,65 @@ strat = SoilGridsStratigraphy(eltype(land_grid); porosity)
 soil = SoilEnergyWaterCarbon(eltype(land_grid); strat)
 vegetation = PrescribedVegetation(eltype(land_grid))
 surface_energy_balance = SurfaceEnergyBalance(eltype(land_grid); albedo = DiagnosticAlbedo(eltype(land_grid)))
-terrarium_model = Terrarium.LandModel(land_grid; vegetation, soil, surface_energy_balance)
+
+# The initial soil temperature profiles are linear in depth via [`QuasiThermalSteadyState`](@ref), with the
+# surface temperature taken from SpeedyWeather's monthly land surface temperature climatology. We load it
+# directly from the SpeedyWeather assets, regrid it onto our ring grid, and average over the twelve months
+# to obtain the mean annual surface temperature in °C.
+lst_climatology = RingGrids.get_asset(
+    "data/boundary_conditions/land_surface_temperature.nc";
+    from_assets = true,
+    name = "lst",
+    ArrayType = RingGrids.FullGaussianField,
+    FileFormat = NCDataset,
+    output_grid = on_architecture(CPU(), ring_grid),
+)
+mean_lst = RingGrids.Field(on_architecture(CPU(), ring_grid))
+mean_lst.data .= vec(mean(lst_climatology.data, dims = 2)) .- 273.15f0 # K to °C
+
+# The climatology is undefined over the ocean, so some coastal land columns of our grid may not have a value
+# after regridding. For these, we fall back to a simple latitude-dependent climatology given by
+# [`LatitudinalClimatology`](@ref).
+_, ring_lat = RingGrids.get_lonlats(on_architecture(CPU(), ring_grid)) # in radians
+fallback = LatitudinalClimatology(Float32)
+missing_lst = .!isfinite.(mean_lst.data)
+mean_lst.data[missing_lst] .= fallback.(rad2deg.(ring_lat[missing_lst]))
+plot_speedy_field(mean_lst)
+
+# The initializer declares its surface temperature as the input variable `initial_surface_temperature`,
+# so we supply the regridded climatology as an [`InputSource`](@ref) with that name below. This keeps the
+# data with the inputs rather than in the (grid-agnostic) model.
+T₀_source = InputSource(land_grid, mean_lst; name = :initial_surface_temperature, domain = Terrarium.Ground(), units = u"°C")
+energy_initializer = QuasiThermalSteadyState(Float32; Qgeo = 0.05f0)
+initializer = SoilInitializer(eltype(land_grid); energy = energy_initializer, hydrology = DefaultInitializer(eltype(land_grid)))
+terrarium_model = Terrarium.LandModel(land_grid; vegetation, soil, surface_energy_balance, initializer)
 
 # Prepare the input sources: first the SoilGrids data, then the LAI data for prescribed vegetation.
 initial_date = DateTime(2024)
 soilgrids_inputs = InputSources(SoilGrids2(), land_grid)
-lai_highveg_fts = FieldTimeSeries(cat(lai_highveg_fields..., dims = 2), land_grid, 0.0:1day:365day)
-lai_inputs = InputSource(lai_highveg_fts, name = :leaf_area_index, reftime = Speedy.DEFAULT_DATE)
-inputs = InputSources(lai_inputs, soilgrids_inputs.sources...) # combine input sources
+lai_highveg_fts = FieldTimeSeries(lai_highveg_daily, land_grid, 0.0:1day:365day)
+lai_inputs = InputSource(lai_highveg_fts, name = :leaf_area_index, reftime = Speedy.DEFAULT_DATE; domain = Terrarium.Canopy())
+inputs = InputSources(T₀_source, lai_inputs, soilgrids_inputs.sources...) # combine input sources
 
-# Here we set our initial conditions for the soil
+# Here we set the remaining initial conditions for the soil
 initializers = (
-    temperature = initial_soil_temperature(land_grid),
     saturation_water_ice = 1.0, # fully saturated soil everywhere
 )
+
+# Atmospheric time stepping. SpeedyWeather advances the land model over each atmospheric time step, in
+# `div(Δt_atmosphere, Δt_land)` steps of `Δt_land`, so the land time step must divide the atmospheric one
+# for the land clock to keep up with the atmosphere. We give the land model the atmospheric time step
+# itself: one land step per atmospheric step. `Leapfrog` recomputes its time step when the model is
+# initialized, adjusted so that it divides the output interval, so we compute that final value here.
+output_interval = Hour(4)
+time_stepping = Speedy.Leapfrog(spectral_grid, Δt_at_T32 = Minute(15))
+Δt = Second(
+    Speedy.get_Δt_millisec(
+        time_stepping.Δt_at_T32, spectral_grid.truncation, Speedy.DEFAULT_RADIUS,
+        time_stepping.adjust_with_output, output_interval,
+    )
+)
+@info "Atmosphere and land time step: $Δt"
 
 # Wrap the Terrarium model as a SpeedyWeather land component
 land = Speedy.LandModel(
@@ -110,17 +111,20 @@ land = Speedy.LandModel(
     terrarium_model;
     inputs,
     initializers,
-    Δt = Minute(5)
+    Δt,
 )
 
 # Build the coupled PrimitiveWetModel
 surface_heat_flux = Speedy.SurfaceHeatFlux(land.spectral_grid, land = Speedy.PrescribedLandHeatFlux())
 surface_humidity_flux = Speedy.SurfaceHumidityFlux(land.spectral_grid, land = Speedy.PrescribedLandHumidityFlux())
 albedo = Speedy.OceanLandAlbedo(land.spectral_grid, land = Speedy.PrescribedAlbedo(land.spectral_grid))
-output = Speedy.NetCDFOutput(land.spectral_grid, Speedy.PrimitiveDryModel; interval = Hour(4), nlayers_soil = land.geometry.nlayers, path = "outputs/")
-time_stepping = Speedy.Leapfrog(land.spectral_grid, Δt_at_T32 = Minute(15))
+output = Speedy.NetCDFOutput(land.spectral_grid, Speedy.PrimitiveDryModel; interval = output_interval, nlayers_soil = land.geometry.nlayers, path = "outputs/")
+# SpeedyWeather uses a matrix-based spectral transform at low resolution on GPU, whose precomputation can take
+# a long time; the FFT-based `SpectralTransform` avoids it.
+spectral_transform = Speedy.SpectralTransform(land.spectral_grid)
 primitive_wet_coupled = Speedy.PrimitiveWetModel(
     land.spectral_grid;
+    spectral_transform,
     land,
     surface_heat_flux,
     surface_humidity_flux,
@@ -144,6 +148,9 @@ Speedy.add!(primitive_wet_coupled.output, Speedy.TerrariumOutput(terrarium_model
 # Initialize the coupled simulation
 @info "Initializing coupled simulation"
 sim_coupled = @time Speedy.initialize!(primitive_wet_coupled; time = initial_date)
+# the atmosphere uses the time step we gave the land model
+# TODO: make this automatic
+@assert Second(primitive_wet_coupled.time_stepping.Δt_millisec) == land.Δt
 
 # The Terrarium state lives inside SpeedyWeather's Variables tree.
 land_state = sim_coupled.variables.prognostic.land.terrarium
@@ -161,7 +168,7 @@ plot_land_field(land_state.leaf_area_index)
 # Looks good! Let's run it!
 period = Year(1)
 @info "Running simulation for $period"
-@time Speedy.run!(sim_coupled; period, output = true)
+@time Speedy.run!(sim_coupled; period, output = true);
 
 # Land variables (use the SpeedyWeather-owned Terrarium state)
 Tsoil_fig = plot_land_field(land_state.temperature, Nz - 1, title = "Soil temperature (10 cm depth)", size = (800, 400))

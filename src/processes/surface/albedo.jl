@@ -9,8 +9,8 @@ $TYPEDFIELDS
 PrescribedAlbedo(::Type{NF}) where {NF} = PrescribedAlbedo{NF}()
 
 variables(::PrescribedAlbedo) = (
-    input(:albedo, XY(), bounds = UnitInterval, desc = "Surface albedo, i.e. ratio of outgoing to incoming shortwave radiation [-]"),
-    input(:emissivity, XY(), bounds = UnitInterval, desc = "Surface emissivity, i.e. efficiency of longwave emission [-]"),
+    input(:albedo, Surface(XY()), bounds = UnitInterval, desc = "Surface albedo, i.e. ratio of outgoing to incoming shortwave radiation [-]"),
+    input(:emissivity, Surface(XY()), bounds = UnitInterval, desc = "Surface emissivity, i.e. efficiency of longwave emission [-]"),
 )
 
 """
@@ -46,11 +46,13 @@ Return the surface emissivity at grid point `i, j`.
 """
     $TYPEDEF
 
-Diagnosed surface albedo and emissivity. The values are computed in [`compute_auxiliary!`](@ref) as a
-snow-cover-weighted blend of a snow-free background and snow, `α = (1 − f_snow)·α_bg + f_snow·α_snow`
-(and likewise for emissivity), where `f_snow` is the snow-covered area fraction of the optional snow
-component passed to `compute_auxiliary!`. Without a snow component (`snow === nothing`), `f_snow = 0` and
-the background values are used.
+Diagnosed surface albedo and emissivity. The values are computed in [`compute_auxiliary!`](@ref) as an
+area-weighted blend of bare ground, vegetation, and snow,
+`α = (1 − f_snow)·(1 − f_veg)·α_bg + (1 − f_snow)·f_veg·α_veg + f_snow·α_snow` (and likewise for
+emissivity), where `f_veg` is the vegetated area fraction of the optional vegetation component and
+`f_snow` the snow-covered area fraction of the optional snow component passed to `compute_auxiliary!`.
+Snow-covered bare and vegetated areas are assumed to share the same snow albedo and emissivity. Without
+a vegetation or snow component (`nothing`), the corresponding fraction is zero.
 
 Properties:
 $TYPEDFIELDS
@@ -66,15 +68,16 @@ end
 DiagnosticAlbedo(::Type{NF}; kwargs...) where {NF} = DiagnosticAlbedo{NF}(; kwargs...)
 
 variables(::DiagnosticAlbedo) = (
-    auxiliary(:albedo, XY(), bounds = UnitInterval, desc = "Diagnosed surface albedo [-]"),
-    auxiliary(:emissivity, XY(), bounds = UnitInterval, desc = "Diagnosed surface emissivity [-]"),
+    auxiliary(:albedo, Surface(XY()), bounds = UnitInterval, desc = "Diagnosed surface albedo [-]"),
+    auxiliary(:emissivity, Surface(XY()), bounds = UnitInterval, desc = "Diagnosed surface emissivity [-]"),
 )
 
 """
     $TYPEDSIGNATURES
 
-Diagnose the blended surface albedo and emissivity, weighting the snow-free background and snow values
-by the snow-covered area fraction of the optional `snow` component.
+Diagnose the blended surface albedo and emissivity, weighting the bare-ground, vegetation, and snow
+values by the vegetated area fraction of the optional `vegetation` component and the snow-covered area
+fraction of the optional `snow` component.
 """
 function compute_auxiliary!(
         state, grid,
@@ -126,14 +129,14 @@ end
         args...
     )
     α, ϵ = compute_albedo(i, j, grid, fields, albedo, vegetation, snow)
-    out.albedo[i, j, 1] = α
-    out.emissivity[i, j, 1] = ϵ
+    out.albedo[i, j, end] = α
+    out.emissivity[i, j, end] = ϵ
     return nothing
 end
 
 # Kernels
 
-@kernel inbounds = true function compute_albedo_kernel!(out, grid, fields, albedo::DiagnosticAlbedo, args...)
+@kernel inbounds = true function compute_albedo_kernel!(out, grid, fields, albedo::DiagnosticAlbedo, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_albedo!(out, i, j, grid, fields, albedo, args...)
 end

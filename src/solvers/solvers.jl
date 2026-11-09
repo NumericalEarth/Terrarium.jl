@@ -23,7 +23,7 @@ struct ObjectiveFunction{target, F, DF}
     ObjectiveFunction(func, target::Symbol) = ObjectiveFunction(func, nothing, target)
 end
 
-@inline (func::ObjectiveFunction)(args...) = func.func(args...)
+@propagate_inbounds (func::ObjectiveFunction)(args...) = func.func(args...)
 
 """
     $TYPEDEF
@@ -72,3 +72,9 @@ function solve! end
 include("fixed_point.jl")
 include("newton.jl")
 include("root_solvers.jl")
+
+# Implicit solvers
+
+include("linear_operators.jl")
+include("implicit_solvers.jl")
+include("picard.jl")

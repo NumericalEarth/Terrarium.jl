@@ -39,16 +39,19 @@ dW_snow/dt = S + R_snow − M − E_subl
 ```
 where `S` is snowfall, `R_snow = f_snow · rainfall` the rain intercepted by the snow-covered fraction,
 `M` the Darcy meltwater outflow (see [`snow_meltwater_flux`](@ref)), and `E_subl` the sublimation rate.
+`M` is omitted under implicit integration of `snow_water_equivalent`, where the implicit step drains the
+meltwater.
 """
 @propagate_inbounds function compute_snow_water_tendency(
         i, j, grid, fields,
         snow::SingleLayerSnow{NF},
-        atmos::AbstractAtmosphere
+        atmos::AbstractAtmosphere,
+        water_timestepping::Timestepping = Explicit()
     ) where {NF}
     f_snow = snow_cover_fraction(i, j, grid, fields, snow)
     # TODO: account for canopy interception
     S = snowfall(i, j, grid, fields, atmos)
-    M = snow_meltwater_flux(i, j, grid, fields, snow)
+    M = explicit_meltwater_flux(i, j, grid, fields, snow, water_timestepping)
     R = rainfall(i, j, grid, fields, atmos)
     R_snow = f_snow * R
     E_subl = fields.sublimation[i, j]
@@ -58,3 +61,7 @@ where `S` is snowfall, `R_snow = f_snow · rainfall` the rain intercepted by the
     dWdt = S + R_snow - M - E_subl
     return dWdt
 end
+
+# Meltwater outflow in the explicit tendency: drained by the implicit step under implicit integration.
+@propagate_inbounds explicit_meltwater_flux(i, j, grid, fields, snow::AbstractSnow, ::Explicit) = snow_meltwater_flux(i, j, grid, fields, snow)
+@inline explicit_meltwater_flux(i, j, grid, fields, snow::AbstractSnow{NF}, ::Implicit) where {NF} = zero(NF)

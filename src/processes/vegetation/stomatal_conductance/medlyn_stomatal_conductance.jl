@@ -36,10 +36,10 @@ end
 MedlynStomatalConductance(::Type{NF}; kwargs...) where {NF} = MedlynStomatalConductance{NF}(; kwargs...)
 
 variables(::MedlynStomatalConductance) = (
-    auxiliary(:canopy_water_conductance, XY(), units = u"m/s"), # Canopy conducatance for water vapor
-    input(:leaf_area_index, XY(), units = u"m^2/m^2"),
-    input(:net_assimilation, XY(), units = u"g/m^2/s"), # Net photosynthesis rate [gC/m²/s]
-    input(:soil_moisture_limiting_factor, XY()),
+    auxiliary(:canopy_water_conductance, Canopy(XY()), units = u"m/s"), # Canopy conducatance for water vapor
+    input(:leaf_area_index, Canopy(XY()), units = u"m^2/m^2"),
+    input(:net_assimilation, Canopy(XY()), units = u"g/m^2/s"), # Net photosynthesis rate [gC/m²/s]
+    input(:soil_moisture_limiting_factor, Ground(XY())),
 )
 
 @inline @propagate_inbounds stomatal_conductance(i, j, grid, fields, ::MedlynStomatalConductance) = fields.canopy_water_conductance[i, j]
@@ -178,13 +178,13 @@ Calls [`compute_stomatal_conductance`](@ref) and stores the result in `out`.
         args...
     ) where {NF}
     g_stm = compute_stomatal_conductance(i, j, grid, fields, stomcond, traits, constants, atmos, args...)
-    out.canopy_water_conductance[i, j, 1] = g_stm
+    out.canopy_water_conductance[i, j, end] = g_stm
     return out
 end
 
 # Kernels
 
-@kernel function compute_auxiliary_kernel!(out, grid, fields, stomcond::AbstractStomatalConductance, args...)
+@kernel function compute_auxiliary_kernel!(out, grid, fields, stomcond::AbstractStomatalConductance, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_stomatal_conductance!(out, i, j, grid, fields, stomcond, args...)
 end

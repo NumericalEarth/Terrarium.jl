@@ -55,6 +55,20 @@ function resolve_model_kwargs(nt::NamedTuple, ::Type{NF}) where {NF}
 end
 
 """
+Model kwargs of the coupled land configurations, merged in before the per-run `model_kwargs`: the
+skin temperature is solved with the fixed-iteration `NewtonSolver` on every architecture.
+
+Reactant needs it, because the default solver (`RootSolver`) iterates to a tolerance, and that
+convergence-tested loop cannot be raised to StableHLO (`test/reactant/setup.jl` does the same). Native
+runs use it too, so that all architectures integrate the same physics; on native architectures the two
+solvers cost the same (see `docs/dev/plans/2026-10-17-1-native_vs_reactant_performance_gap.md`).
+"""
+function land_solver_kwargs(::Type{NF}) where {NF}
+    skin_temperature = ImplicitSkinTemperature(NF; solver = Terrarium.NewtonSolver(NF; iterations = 5))
+    return (surface_energy_balance = SurfaceEnergyBalance(NF; skin_temperature),)
+end
+
+"""
 Initial state shared by the coupled land configurations: a warm, variably saturated soil column
 under a thin cold snowpack. `carbon_vegetation` is only meaningful with vegetation enabled.
 """
@@ -93,7 +107,8 @@ function build_model(::Val{:land}, arch, ::Type{NF}; nlat_half::Integer, nz::Int
     vegetation = VegetationCarbonCycle(NF; vegetation_dynamics)
 
     snow = SingleLayerSnow(NF)
-    model = LandModel(grid; soil, snow, vegetation, resolve_model_kwargs(model_kwargs, NF)...)
+    kwargs = merge(land_solver_kwargs(NF), resolve_model_kwargs(model_kwargs, NF))
+    model = LandModel(grid; soil, snow, vegetation, kwargs...)
     initializers = land_initializers(NF; vegetation = true)
     return (; model, boundary_conditions = (;), initializers, Δt = NF(600))
 end
@@ -110,7 +125,8 @@ function build_model(::Val{:land_no_vegetation}, arch, ::Type{NF}; nlat_half::In
     soil = SoilEnergyWaterCarbon(NF; strat, hydrology = SoilHydrology(NF, RichardsEq()))
 
     snow = SingleLayerSnow(NF)
-    model = LandModel(grid; soil, snow, vegetation = nothing, resolve_model_kwargs(model_kwargs, NF)...)
+    kwargs = merge(land_solver_kwargs(NF), resolve_model_kwargs(model_kwargs, NF))
+    model = LandModel(grid; soil, snow, vegetation = nothing, kwargs...)
     initializers = land_initializers(NF; vegetation = false)
     return (; model, boundary_conditions = (;), initializers, Δt = NF(600))
 end
@@ -119,12 +135,13 @@ end
 # Mirrors `test/reactant/setup.jl`'s `:soil_heat_global`: the only configuration currently proven to
 # compile under Reactant. It is not part of the headline comparison — it exists so that an empty
 # Reactant column can be attributed to the land physics rather than to the benchmark harness, which
-# is also why it keeps the plain `SoilModel(grid)` defaults (including the default sandy texture)
+# is also why it keeps the default sandy texture, with immobile soil water (`NoFlow`),
 # rather than the loam of the land configurations.
 
 function build_model(::Val{:soil_heat}, arch, ::Type{NF}; nlat_half::Integer, nz::Integer, model_kwargs = (;)) where {NF}
     grid = benchmark_grid(arch, NF; nlat_half, nz)
-    model = SoilModel(grid; resolve_model_kwargs(model_kwargs, NF)...)
+    soil = SoilEnergyWaterCarbon(NF; hydrology = SoilHydrology(NF, NoFlow()))
+    model = SoilModel(grid; soil, resolve_model_kwargs(model_kwargs, NF)...)
 
     ## smooth surface forcing as a function of column index x and time t; the closure must capture
     ## only isbits values to be a valid kernel argument under Reactant

@@ -12,16 +12,30 @@ which is here defined in implementations of [`AbstractSoilHydraulics`](@ref).
 @kwdef struct SoilSaturationPressureClosure <: AbstractSoilWaterClosure end
 
 variables(::SoilSaturationPressureClosure) = (
-    auxiliary(:pressure_head, XYZ(), units = u"m", desc = "Total hydraulic pressure head in m water displaced at standard pressure"),
+    auxiliary(:pressure_head, Ground(XYZ()), units = u"m", desc = "Total hydraulic pressure head in m water displaced at standard pressure"),
 )
 
 """
     $TYPEDSIGNATURES
 
-Computes `pressure_head` ``Ψ = ψm + ψz + ψh`` from the current `saturation_water_ice` state.
+Name of the variable returned by the [`SoilSaturationPressureClosure`](@ref) ([`varname`](@ref)
+interface for closures): the total `pressure_head`, in which the implicit Richards operator of
+`saturation_water_ice` is solved (see [`BackwardEuler`](@ref)).
+"""
+varname(::SoilSaturationPressureClosure) = :pressure_head
+
+"""
+    $TYPEDSIGNATURES
+
+Computes `pressure_head` ``Ψ = ψm + ψz + ψh`` from the current `saturation_water_ice` state, after
+redistributing over- and undersaturation ([`adjust_saturation_profile!`](@ref)) and updating the water
+table.
 
 An optional `runoff` process routes excess water removed from an oversaturated soil surface into the
-runoff-owned `surface_excess_water` pool; without it the excess is discarded.
+runoff-owned `surface_excess_water` pool; without it the excess is discarded. With
+[`SoilThermodynamics`](@ref), the sensible heat of redistributed water is moved in `internal_energy` and
+that of the excess is removed; the energy closure, which runs after
+this one in [`closure!`](@ref) of [`SoilEnergyWaterCarbon`](@ref), then recomputes the temperature.
 """
 function closure!(
         state, grid,
@@ -31,11 +45,46 @@ function closure!(
         runoff::Optional{AbstractSurfaceRunoff} = nothing,
         args...
     ) where {NF}
-    # apply saturation correction
-    adjust_saturation_profile!(state, grid, hydrology, runoff)
+    # apply saturation correction, moving the heat of the redistributed water
+    compute_saturation_closure!(state, grid, closure, hydrology, soil, runoff, get_energy_balance(soil))
+    return nothing
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Saturation–pressure closure of a Richards-equation `hydrology`: redistribute over- and undersaturation
+([`adjust_saturation_profile!`](@ref)), routing surface excess water to `runoff` and moving the heat of the
+redistributed water in the `internal_energy` of `energy` (either may be `nothing` to skip the routing or
+the heat transfer), then update the water table and compute the `pressure_head`. Shared by
+[`closure!`](@ref) and the implicit Richards step, whose intermediate iterations skip the routing and the
+heat transfer.
+"""
+function compute_saturation_closure!(
+        state, grid,
+        closure::SoilSaturationPressureClosure,
+        hydrology::SoilHydrology{NF, RichardsEq},
+        soil::AbstractSoil,
+        runoff::Optional{AbstractSurfaceRunoff},
+        energy::Optional{AbstractSoilThermodynamics}
+    ) where {NF}
+    strat = get_stratigraphy(soil)
+    bgc = get_biogeochemistry(soil)
+    adjust_saturation_profile!(state, grid, hydrology, runoff, strat, bgc, energy)
     # update water table
     compute_water_table!(state, grid, hydrology)
     # determine pressure head from saturation
+    compute_pressure_head!(state, grid, closure, hydrology, soil)
+    return nothing
+end
+
+# Pressure head from saturation and water table (last part of the saturation–pressure closure).
+function compute_pressure_head!(
+        state, grid,
+        closure::SoilSaturationPressureClosure,
+        hydrology::SoilHydrology{NF, RichardsEq},
+        soil::AbstractSoil
+    ) where {NF}
     strat = get_stratigraphy(soil)
     bgc = get_biogeochemistry(soil)
     out = (pressure_head = state.pressure_head,)
@@ -72,7 +121,7 @@ function invclosure!(
         out, fields, closure, hydrology, strat, bgc
     )
     # apply saturation correctionh
-    adjust_saturation_profile!(state, grid, hydrology, runoff)
+    adjust_saturation_profile!(state, grid, hydrology, runoff, get_stratigraphy(soil), get_biogeochemistry(soil))
     # update water table
     compute_water_table!(state, grid, hydrology)
     return nothing
@@ -95,7 +144,7 @@ end
     ψz = z - z_ref
     # compute hydrostatic pressure head assuming impermeable lower boundary
     # TODO: relax this assumption in the future?
-    z₀ = fields.water_table[i, j, 1]
+    z₀ = fields.water_table[i, j, end]
     ψh = max(0, z₀ - z)
     # remove hydrostatic and elevation components
     ψm = ψ - ψh - ψz
@@ -129,7 +178,7 @@ end
     ψz = z - z_ref
     # compute hydrostatic pressure head assuming impermeable lower boundary
     # TODO: can we generalize this for arbitrary lower boundaries?
-    z₀ = fields.water_table[i, j, 1]
+    z₀ = fields.water_table[i, j, end]
     ψh = max(0, z₀ - z)
     # compute total pressure head as sum of ψh + ψm + ψz
     # note that ψh and ψz will cancel out in the saturated zone
@@ -142,8 +191,8 @@ end
 @kernel inbounds = true function pressure_to_saturation_kernel!(
         out, grid, fields,
         closure::SoilSaturationPressureClosure,
-        args...
-    )
+        args::Vararg{Any, N}
+    ) where {N}
     i, j, k = @index(Global, NTuple)
     pressure_to_saturation!(out.saturation_water_ice, i, j, k, grid, fields, closure, args...)
 end
@@ -151,8 +200,8 @@ end
 @kernel inbounds = true function saturation_to_pressure_kernel!(
         out, grid, fields,
         closure::SoilSaturationPressureClosure,
-        args...
-    )
+        args::Vararg{Any, N}
+    ) where {N}
     i, j, k = @index(Global, NTuple)
     saturation_to_pressure!(out.pressure_head, i, j, k, grid, fields, closure, args...)
 end

@@ -8,13 +8,13 @@ Multiple PFTs can be later handled with a `TiledVegetationModel` type that compo
 Properties:
 $TYPEDFIELDS
 """
-@parameterized @kwdef struct VegetationModel{
+@parameterized @kwdef mutable struct VegetationModel{
         NF,
         Vegetation <: AbstractVegetation{NF},
         Atmosphere <: AbstractAtmosphere{NF},
-        GridType <: AbstractLandGrid{NF},
+        GridType <: AbstractGrid,
         Initializer <: AbstractInitializer,
-        Timestepper <: AbstractTimeStepper{NF},
+        Timestepper <: AbstractTimeStepper,
     } <: AbstractVegetationModel{NF, GridType}
     "Spatial grid type"
     grid::GridType

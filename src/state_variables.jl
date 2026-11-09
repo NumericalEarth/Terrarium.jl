@@ -13,20 +13,20 @@ It is worth noting that tendencies are also treated internally as auxiliary vari
 however, they are assigned their own category here since they need to be handled separately
 by the timestepping scheme.
 """
-struct StateVariables{
+mutable struct StateVariables{
         NF,
         prognames, closurenames, auxnames, inputnames, nsnames,
         ProgFields, TendFields, AuxFields, InputFields, Namespaces,
         Cache,
         ClockType,
     } <: AbstractStateVariables
-    prognostic::NamedTuple{prognames, ProgFields}
-    tendencies::NamedTuple{prognames, TendFields}
-    auxiliary::NamedTuple{auxnames, AuxFields}
-    inputs::NamedTuple{inputnames, InputFields}
-    namespaces::NamedTuple{nsnames, Namespaces}
-    timestepper_cache::Cache
-    clock::ClockType
+    const prognostic::NamedTuple{prognames, ProgFields}
+    const tendencies::NamedTuple{prognames, TendFields}
+    const auxiliary::NamedTuple{auxnames, AuxFields}
+    const inputs::NamedTuple{inputnames, InputFields}
+    const namespaces::NamedTuple{nsnames, Namespaces}
+    const timestepper_cache::Cache
+    const clock::ClockType
 
     function StateVariables(
             ::Type{NF},
@@ -85,22 +85,38 @@ function Oceananigans.TimeSteppers.update_state!(state::StateVariables, model::A
     return nothing
 end
 
+# Extra positional arguments for `Field` construction carrying a variable's custom element type, if any.
+field_eltype(grid, var) = isnothing(Base.eltype(var)) ? Base.eltype(grid) : Base.eltype(var)
+
+# Set `field` to zero. Non-`Number` element types (e.g. `SVector`) are wrapped in a `Ref` so `set!` does not broadcast them as arrays.
+function zero!(field)
+    z = zero(eltype(field))
+    return set!(field, isa(z, Number) ? z : Ref(z))
+end
+
+# Zero a single state field.
+#
+# The underlying array is filled directly rather than going through `set!`, which additionally
+# applies the field's boundary conditions. Halo values are about to be recomputed by
+# `initialize!` anyway, and `set!` drags the boundary-condition machinery of every field into the
+# call. Unrolled over all of a state's fields that exceeds the size of Enzyme's type analysis and
+# makes `reset!` undifferentiable (`EnzymeNoTypeError`), even though each individual `set!` is
+# fine on its own.
+#
+# Not every entry is necessarily a `Field`, so dispatch on the entry type rather than branching
+# on it.
+# TODO: technically we should apply auxiliary variable initializers here rather than zeroing.
+reset_field!(field::Field) = (fill!(parent(field), zero(eltype(field))); return nothing)
+reset_field!(field) = nothing
+
 """
 Reset all `Field`s in `state` to zero.
 """
 function Oceananigans.TimeSteppers.reset!(state::StateVariables)
-    # reset all prognostic fields
-    fastiterate(state.prognostic) do field
-        set!(field, zero(eltype(field)))
-    end
-    fastiterate(state.auxiliary) do field
-        # TODO: technically we should apply auxiliary variable initializers here
-        isa(field, Field) && set!(field, zero(eltype(field)))
-    end
-    # reset all tendency fields
-    fastiterate(state.tendencies) do field
-        set!(field, zero(eltype(field)))
-    end
+    # reset all prognostic, auxiliary, and tendency fields
+    fastiterate(reset_field!, state.prognostic)
+    fastiterate(reset_field!, state.auxiliary)
+    fastiterate(reset_field!, state.tendencies)
     # recurse over namespaces
     return fastiterate(state.namespaces) do ns
         reset!(ns)
@@ -108,13 +124,34 @@ function Oceananigans.TimeSteppers.reset!(state::StateVariables)
 end
 
 """
+    $TYPEDSIGNATURES
+
+Reset all input `Field`s in `state` to the defaults declared by the corresponding input variables in
+`vars` (see [`InputVariable`](@ref)), recursing into namespaces. Inputs without a default are left
+unchanged. This is called by `initialize!(::ModelIntegrator)` with the variables of the current model,
+before any [`InputSource`](@ref)s are applied, so that defaults always reflect the current model
+parameters while input sources take precedence over them.
+"""
+function reset_inputs!(state::StateVariables, vars::Variables)
+    for (name, var) in vars.inputs
+        if !isnothing(var.default) && hasproperty(getfield(state, :inputs), name)
+            set!(getproperty(getfield(state, :inputs), name), var.default)
+        end
+    end
+    for (name, ns) in vars.namespaces
+        if hasproperty(getfield(state, :namespaces), name)
+            reset_inputs!(getproperty(getfield(state, :namespaces), name), Variables(variables(ns)))
+        end
+    end
+    return nothing
+end
+
+"""
 Reset all tendencies in `state` to zero.
 """
 function reset_tendencies!(state::StateVariables)
     # reset all tendency fields
-    fastiterate(state.tendencies) do field
-        set!(field, zero(eltype(field)))
-    end
+    fastiterate(reset_field!, state.tendencies)
     # recurse over namespaces
     return fastiterate(state.namespaces) do ns
         reset_tendencies!(ns)
@@ -320,8 +357,9 @@ Initialize a `StateVariables` data structure containing `Field`s defined on the 
 for all variables defined by `process`. Any predefined `boundary_conditions` and `fields` will
 be passed through to `initialize` for each variable.
 
-The `grid` may be either a land grid or an ordinary spatial discretization, which is converted to
-a land grid via [`create_land_grid`](@ref).
+The `grid` may be either a land grid or an ordinary spatial discretization; fields are allocated on
+whichever is given. [`AbstractLandGrid`](@ref)s resolve variables' [`VarDomain`](@ref)s to a
+their respective vertical discretization; on an ordinary grid the domain is ignored.
 """
 function StateVariables(
         process::AbstractProcess{NF},
@@ -350,8 +388,9 @@ for all variables in `vars`. Any predefined `boundary_conditions` and `fields` w
 through to `initialize` for each variable. The `timestepper`'s cache is allocated via
 `initialize(timestepper, state, progvars)`.
 
-The `grid` may be either a land grid or an ordinary spatial discretization, which is converted to
-a land grid via [`create_land_grid`](@ref); state variables always live on a land grid.
+The `grid` may be either a land grid or an ordinary spatial discretization; fields are allocated on
+whichever is given. Only an [`AbstractLandGrid`](@ref) resolves a variable's [`VarDomain`](@ref) to a
+per-domain discretization; on an ordinary grid the domain is ignored.
 """
 function StateVariables(
         vars::Variables,
@@ -363,20 +402,17 @@ function StateVariables(
         initializers = (;),
         fields = (;)
     ) where {NF}
-    # State variables always live on a land grid, so an ordinary spatial discretization is converted
-    # to one here exactly as the model constructors do; this is a no-op for a land grid.
-    land_grid = create_land_grid(grid)
     # Initialize Fields for each variable group, if they are not already given in the user defined `fields`.
     fields_dict = OrderedDict{Symbol, AbstractField}(pairs(fields))
-    input_fields_dict = initialize(vars.inputs, land_grid, clock, fields_dict, boundary_conditions)
-    tendency_fields_dict = initialize(vars.tendencies, land_grid, clock, fields_dict, boundary_conditions)
-    prognostic_fields_dict = initialize(vars.prognostic, land_grid, clock, merge(fields_dict, input_fields_dict), boundary_conditions)
-    auxiliary_fields_dict = initialize(vars.auxiliary, land_grid, clock, merge(fields_dict, input_fields_dict, prognostic_fields_dict), boundary_conditions)
+    input_fields_dict = initialize(vars.inputs, grid, clock, fields_dict, boundary_conditions)
+    tendency_fields_dict = initialize(vars.tendencies, grid, clock, fields_dict, boundary_conditions)
+    prognostic_fields_dict = initialize(vars.prognostic, grid, clock, merge(fields_dict, input_fields_dict), boundary_conditions)
+    auxiliary_fields_dict = initialize(vars.auxiliary, grid, clock, merge(fields_dict, input_fields_dict, prognostic_fields_dict), boundary_conditions)
     # recursively initialize state variables for each namespace
     namespaces = map(values(vars.namespaces)) do ns
         ns_bcs = get(boundary_conditions, varname(ns), (;))
         ns_fields = get(fields, varname(ns), (;))
-        varname(ns) => StateVariables(variables(ns), land_grid; clock, boundary_conditions = ns_bcs, fields = ns_fields)
+        varname(ns) => StateVariables(variables(ns), grid; clock, boundary_conditions = ns_bcs, fields = ns_fields)
     end
     # get closure variable names
     closurenames = map(varname, closure_variables(values(vars.prognostic)))
@@ -427,7 +463,7 @@ for each variable.
 """
 function initialize(
         vars::OrderedDict{Symbol, <:AbstractVariable},
-        grid::AbstractLandGrid,
+        grid::AbstractGrid,
         clock::Clock,
         fields::OrderedDict{Symbol, AbstractField},
         boundary_conditions::NamedTuple,
@@ -448,7 +484,7 @@ end
 # Convenience dispatch that accepts `fields` as a NamedTuple and converts to OrderedDict
 initialize(
     var::AbstractVariable,
-    grid::AbstractLandGrid,
+    grid::AbstractGrid,
     clock::Clock,
     fields::NamedTuple,
     boundary_conditions::NamedTuple,
@@ -464,7 +500,7 @@ Otherwise, the new `Field` is constructed using the given `boundary_conditions`.
 """
 function initialize(
         var::AbstractVariable,
-        grid::AbstractLandGrid,
+        grid::AbstractGrid,
         clock::Clock,
         fields::OrderedDict{Symbol, AbstractField},
         boundary_conditions::NamedTuple,
@@ -474,7 +510,7 @@ function initialize(
         return fields[name]
     else
         bcs = get(boundary_conditions, name, nothing)
-        field = Field(grid, vardims(var), bcs)
+        field = Field(grid, varloc(var), bcs, field_eltype(grid, var))
         # if field is an input variable and has a default value/initializer, call set! on it
         if isa(var, InputVariable) && !isnothing(var.default)
             set!(field, var.default)
@@ -491,7 +527,7 @@ Initialize a `Field` on `grid` for the given [`AuxiliaryVariable`](@ref).
 """
 function initialize(
         var::AuxiliaryVariable,
-        grid::AbstractLandGrid,
+        grid::AbstractGrid,
         clock::Clock,
         fields::OrderedDict{Symbol, AbstractField},
         boundary_conditions::NamedTuple
@@ -502,7 +538,7 @@ function initialize(
     elseif isnothing(var.ctor)
         # retrieve boundary condition (if any) and create Field
         bcs = get(boundary_conditions, name, nothing)
-        return Field(grid, vardims(var), bcs)
+        return Field(grid, varloc(var), bcs, field_eltype(grid, var))
     else
         # invoke field constructor if specified
         return var.ctor(var, grid, clock, NamedTuple(fields))

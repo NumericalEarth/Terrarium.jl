@@ -296,3 +296,39 @@ end
     @test Terrarium.varname(ns2) == :boundary
     @test Terrarium.varname(first(ns2.vars)) == :temperature
 end
+
+@testset "Variable domains" begin
+    using Terrarium: Ground, Snow, Surface, Atmosphere, Top, vardomain
+
+    # A declaration may name a domain or omit it entirely.
+    @test vardomain(Terrarium.var(:x, Ground(XYZ()))) == Ground()
+    @test isnothing(vardomain(Terrarium.var(:x, XYZ())))
+
+    # `Surface` and `Atmosphere` have no vertical discretization, so they are 2D only.
+    @test_throws ErrorException Surface(XYZ())
+    @test_throws ErrorException Atmosphere(XYZ())
+    @test vardomain(Terrarium.var(:x, Atmosphere(XY()))) == Atmosphere()
+
+    # A domainless declaration makes no claim, so it unifies with a stated domain rather than
+    # conflicting with it. This is what lets an `InputSource` stay domain-agnostic.
+    vars = Variables(input(:x, XY(); units = u"K"), auxiliary(:x, Surface(XY()); units = u"K"))
+    @test vardomain(vars.auxiliary[:x]) == Surface()
+    # ... in either declaration order
+    vars = Variables(auxiliary(:x, Surface(XY()); units = u"K"), input(:x, XY(); units = u"K"))
+    @test vardomain(vars.auxiliary[:x]) == Surface()
+    # ... and two domainless declarations stay domainless
+    @test isnothing(vardomain(Variables(input(:x, XY()), auxiliary(:x, XY())).auxiliary[:x]))
+
+    # Two *different* stated domains remain an error. Note that these must be declarations of the
+    # same kind: a prognostic/auxiliary pair of the same name trips the cross-group duplicate check
+    # instead, which is a different code path with its own message.
+    @test_throws ErrorException Variables(auxiliary(:x, Ground(XY())), auxiliary(:x, Snow(XY())))
+
+    # The conflict message names the two domains rather than printing both declarations.
+    err = try
+        Variables(auxiliary(:x, Ground(XY())), auxiliary(:x, Snow(XY())))
+    catch e
+        sprint(showerror, e)
+    end
+    @test occursin("ground", err) && occursin("snow", err)
+end

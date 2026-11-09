@@ -30,9 +30,9 @@ end
 PALADYNCarbonDynamics(::Type{NF}; kwargs...) where {NF} = PALADYNCarbonDynamics{NF}(; kwargs...)
 
 variables(::PALADYNCarbonDynamics) = (
-    prognostic(:carbon_vegetation, XY(), units = u"kg/m^2"), # Vegetation carbon pool [kgC/m²]
-    auxiliary(:balanced_leaf_area_index, XY()), # Balanced Leaf Area Index [m²/m²]
-    input(:net_primary_production, XY(), units = u"kg/m^2/s"), # Net Primary Production [kgC/m²/s]
+    prognostic(:carbon_vegetation, Canopy(XY()), units = u"kg/m^2"), # Vegetation carbon pool [kgC/m²]
+    auxiliary(:balanced_leaf_area_index, Canopy(XY())), # Balanced Leaf Area Index [m²/m²]
+    input(:net_primary_production, Canopy(XY()), units = u"kg/m^2/s"), # Net Primary Production [kgC/m²/s]
 )
 
 """
@@ -162,7 +162,7 @@ Mutating wrapper for [`compute_balanced_leaf_area_index`](@ref) that stores the 
         traits::PlantTraits
     )
     # Compute balanced Leaf Area Index
-    out.balanced_leaf_area_index[i, j, 1] = compute_balanced_leaf_area_index(vegcarbon_dynamics, traits, fields.carbon_vegetation[i, j])
+    out.balanced_leaf_area_index[i, j, end] = compute_balanced_leaf_area_index(vegcarbon_dynamics, traits, fields.carbon_vegetation[i, j])
     return nothing
 end
 
@@ -177,18 +177,18 @@ Calls [`compute_veg_carbon_tendency`](@ref) and stores the result in `out`.
         traits::PlantTraits
     )
     # Compute and store C_veg tendency
-    tend.carbon_vegetation[i, j, 1] = compute_veg_carbon_tendency(i, j, grid, fields, vegcarbon_dynamics, traits)
+    tend.carbon_vegetation[i, j, end] = compute_veg_carbon_tendency(i, j, grid, fields, vegcarbon_dynamics, traits)
     return nothing
 end
 
 # Kernels
 
-@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, vegcarbon_dynamics::AbstractVegetationCarbonDynamics, args...)
+@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, vegcarbon_dynamics::AbstractVegetationCarbonDynamics, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_veg_carbon_auxiliary!(out, i, j, grid, fields, vegcarbon_dynamics, args...)
 end
 
-@kernel inbounds = true function compute_tendencies_kernel!(tend, grid, fields, vegcarbon_dynamics::AbstractVegetationCarbonDynamics, args...)
+@kernel inbounds = true function compute_tendencies_kernel!(tend, grid, fields, vegcarbon_dynamics::AbstractVegetationCarbonDynamics, args::Vararg{Any, N}) where {N}
     i, j = @index(Global, NTuple)
     compute_veg_carbon_tendencies!(tend, i, j, grid, fields, vegcarbon_dynamics, args...)
 end

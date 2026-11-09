@@ -20,9 +20,19 @@ struct SoilEnergyTemperatureClosure <: AbstractEnergyClosure end
 Defines `temperature` as the closure variable for `SoilEnergyTemperatureClosure`.
 """
 variables(::SoilEnergyTemperatureClosure) = (
-    auxiliary(:temperature, XYZ(), units = u"°C", desc = "Temperature of the soil volume in °C"),
-    auxiliary(:liquid_water_fraction, XYZ(), bounds = UnitInterval, desc = "Fraction of unfrozen water in the pore space"),
+    auxiliary(:temperature, Ground(XYZ()), units = u"°C", desc = "Temperature of the soil volume in °C"),
+    auxiliary(:liquid_water_fraction, Ground(XYZ()), bounds = UnitInterval, desc = "Fraction of unfrozen water in the pore space"),
 )
+
+"""
+    $TYPEDSIGNATURES
+
+Name of the variable returned by the [`SoilEnergyTemperatureClosure`](@ref) ([`varname`](@ref) interface
+for closures): `temperature`. The closure also diagnoses `liquid_water_fraction`, but the temperature is
+its primary variable, in which the implicit heat operator of `internal_energy` is solved (see
+[`BackwardEuler`](@ref)).
+"""
+varname(::SoilEnergyTemperatureClosure) = :temperature
 
 function closure!(
         state, grid,
@@ -65,12 +75,12 @@ end
         out, i, j, k, grid, fields,
         ::SoilEnergyTemperatureClosure,
         ::FreeWater,
-        energy::SoilThermodynamics{NF, OP, SoilEnergyTemperatureClosure},
+        energy::SoilThermodynamics{NF, SoilEnergyTemperatureClosure},
         hydrology::AbstractSoilHydrology,
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry,
         constants::PhysicalConstants
-    ) where {NF, OP}
+    ) where {NF}
     T = fields.temperature[i, j, k] # assumed given
     ρw = constants.material.density_water
     Lsl = constants.thermodynamics.latent_heat_fusion
@@ -130,12 +140,12 @@ end
 
 # Kernels
 
-@kernel inbounds = true function temperature_to_energy_kernel!(out, grid, fields, args...)
+@kernel inbounds = true function temperature_to_energy_kernel!(out, grid, fields, args::Vararg{Any, N}) where {N}
     i, j, k = @index(Global, NTuple)
     temperature_to_energy!(out, i, j, k, grid, fields, args...)
 end
 
-@kernel inbounds = true function energy_to_temperature_kernel!(out, grid, fields, args...)
+@kernel inbounds = true function energy_to_temperature_kernel!(out, grid, fields, args::Vararg{Any, N}) where {N}
     i, j, k = @index(Global, NTuple)
     energy_to_temperature!(out, i, j, k, grid, fields, args...)
 end

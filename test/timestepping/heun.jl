@@ -3,7 +3,7 @@ using Test
 
 # mock a simple model with exponential dynamics (and a constant offset) to test time steppers
 
-@kwdef struct ExpModel{NF, Grid <: Terrarium.AbstractLandGrid{NF}, I, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
+@kwdef struct ExpModel{NF, Grid <: Terrarium.AbstractGrid{NF}, I, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
     grid::Grid
     initializer::I = DefaultInitializer(eltype(grid))
     timestepper::TS = ForwardEuler(eltype(grid))
@@ -50,19 +50,19 @@ end
     @test integrator_heun.state.u[2] == (0.1 * dt_heun + (0.1 * dt_heun + 0.1) * dt_heun) / 2
 end
 
-# Use timestep!(state, model, timestepper, Δt) to clip negative values in an super simple example sim
+# Use closure!(state, model) to clip negative values in a super simple example sim
 @testset "ExpModel: clip negative values" begin
     grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 1))
     model = ExpModel(grid)
 
-    Terrarium.timestep!(state, model::ExpModel, timestepper::ForwardEuler, Δt) = begin
+    Terrarium.closure!(state, model::ExpModel) = begin
         state.u[2] = max(state.u[2], 0.0)
     end
 
     initializers = (u = -20, v = -5.0)
     integrator = initialize(model; initializers)
 
-    # Test that timestep! clips negative values
+    # Test that the closure clips negative values after the step
     timestep!(integrator)
 
     @test integrator.state.u[2] >= 0.0
@@ -72,7 +72,7 @@ end
 # variable (and its auxiliary offset and an input) living inside a namespace `:inner`.
 # This exercises time stepping of prognostic and input variables defined in namespaces and
 # also tests that actually the correct timestepper is used in the namespace as well.
-@kwdef struct NamespacedExpModel{NF, Grid <: Terrarium.AbstractLandGrid{NF}, I, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
+@kwdef struct NamespacedExpModel{NF, Grid <: Terrarium.AbstractGrid{NF}, I, TS <: Terrarium.AbstractTimeStepper} <: Terrarium.AbstractModel{NF, Grid}
     grid::Grid
     initializer::I = DefaultInitializer(eltype(grid))
     timestepper::TS = ForwardEuler(eltype(grid))
@@ -145,4 +145,46 @@ end
     @test u_inner_euler[2] == 0.1 * dt_euler
     dt_heun = default_dt(integrator_heun)
     @test u_inner_heun[2] == (0.1 * dt_heun + (0.1 * dt_heun + 0.1) * dt_heun) / 2
+end
+
+# The cached fields must live on the state's grid object rather than on a copy of it: field operations
+# that combine state and cached fields compare grids, which is only cheap (and, under Reactant,
+# only traceable) when both refer to the identical grid.
+@testset "Heun cache shares the grid of the state" begin
+    grid = ColumnGrid(CPU(), Float64, UniformSpacing(Δz = 0.1, N = 1))
+    model = NamespacedExpModel(grid; timestepper = Heun())
+    integrator = initialize(model; initializers = (u = 0.0, v = 0.1))
+    state = integrator.state
+    cache = state.timestepper_cache
+    @test cache isa Terrarium.HeunCache
+
+    for (cached, current) in (
+            (cache.prognostic.u, state.prognostic.u),
+            (cache.tendencies.u, state.tendencies.u),
+            (cache.namespaces.inner.prognostic.u, state.namespaces.inner.prognostic.u),
+            (cache.namespaces.inner.tendencies.u, state.namespaces.inner.tendencies.u),
+        )
+        @test cached.grid === current.grid
+        @test parent(cached) !== parent(current)
+    end
+end
+
+# The corrector must evaluate time-dependent boundary conditions at the end of the step; otherwise Heun is
+# only first order for time-dependent forcing.
+@testset "Heun is second order with time-dependent forcing" begin
+    grid = ColumnGrid(CPU(), Float64, ExponentialSpacing(Δz_min = 0.05, N = 10))
+    period = 6 * 3600.0
+    surface_heat_flux(x, t, p) = p.amplitude * sin(2π * t / p.period)
+    boundary_conditions = SoilHeatFlux(surface_heat_flux; parameters = (amplitude = 100.0, period = period))
+    function simulate(Δt)
+        soil = SoilEnergyWaterCarbon(Float64; hydrology = SoilHydrology(Float64, NoFlow()))
+        model = SoilModel(grid; soil, timestepper = Heun(Float64))
+        integrator = initialize(model; boundary_conditions, initializers = (temperature = 10.0, saturation_water_ice = 0.5))
+        run!(integrator; steps = round(Int, period / Δt), Δt)
+        @test integrator.clock.time ≈ period
+        return interior(integrator.state.temperature)[1, 1, :]
+    end
+    reference = simulate(5.0)
+    errors = [maximum(abs, simulate(Δt) .- reference) for Δt in (60.0, 120.0)]
+    @test log2(errors[2] / errors[1]) > 1.8
 end

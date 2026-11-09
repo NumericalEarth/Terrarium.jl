@@ -48,6 +48,7 @@ end
 running_scripts = [
     "Soil column heat conduction" => "soil_heat_column.jl",
     "Global soil heat conduction" => "soil_heat_global.jl",
+    "Choosing a time stepper" => "soil_timestepping.jl",
 ]
 extending_scripts = [
     "Simple exponential growth model" => "linear_ode_exp_growth.jl",
@@ -237,6 +238,7 @@ makedocs(
                 "Radiative fluxes" => "processes/surface_energy/radiative_fluxes.md",
                 "Turbulent fluxes" => "processes/surface_energy/turbulent_fluxes.md",
                 "Skin temperature" => "processes/surface_energy/skin_temperature.md",
+                "Ground heat flux" => "processes/surface_energy/ground_heat_flux.md",
                 "Albedo and emissivity" => "processes/surface_energy/albedo.md",
             ],
             "Coupling to atmosphere" => [

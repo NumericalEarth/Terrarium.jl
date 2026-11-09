@@ -17,7 +17,7 @@ using Terrarium
 
 Because the model is standalone, the fluxes that a full land model would obtain from the surface energy
 balance and the snow→soil conduction are instead **prescribed input fields**: the net surface heat flux
-`surface_heat_flux`, the basal conductive heat flux `basal_heat_flux`, and the `sublimation` rate (see
+`snow_surface_heat_flux`, the basal conductive heat flux `snow_basal_heat_flux`, and the `sublimation` rate (see
 [Prescribed forcing](@ref snowmodel.forcing) below).
 
 ```@example snowmodel
@@ -72,15 +72,19 @@ supplied (they default to zero):
 
 | Field | Units | Meaning | Supplied in the coupled model by |
 |-------|-------|---------|----------------------------------|
-| `surface_heat_flux` | W/m² | Net heat flux at the snow surface (positive upward) | Surface energy balance closure |
-| `basal_heat_flux` | W/m² | Conductive heat flux at the snow base (positive upward, soil → snow) | Snow→soil conduction |
+| `snow_surface_heat_flux` | W/m² | Net heat flux at the snow surface (positive upward) | Surface energy balance closure |
+| `snow_basal_heat_flux` | W/m² | Conductive heat flux at the snow base (positive upward, soil → snow) | Snow→soil conduction |
 | `sublimation` | m/s | Sublimation/evaporation rate from the snow surface (SWE) | Surface energy balance latent flux |
 
-In the [Land model](@ref "Land models") these three inputs become diagnosed couplings: `surface_heat_flux`
+In the [Land model](@ref "Land models") these three inputs become diagnosed couplings: `snow_surface_heat_flux`
 and `sublimation` are set by the [surface energy balance](@ref surface_energy_balance_docs), and
-`basal_heat_flux` by the snow→soil conductive interface.
+`snow_basal_heat_flux` by the snow→soil conductive interface.
 
 ## Model interface
 
 `SnowModel` implements the standard model interface: `initialize!` runs the model/field initializers and
-then the snow process initializer (the inverse closure ``(T_\text{snow}, W_\text{snow}) \to \bar{U}_\text{snow}``), `compute_auxiliary!` diagnoses the geometric and thermal properties of the snowpack as well as the and energy-temperature closure, and `compute_tendencies!` accumulates the mass and energy tendencies from the prescribed fluxes and atmospheric forcing.
+then the snow process initializer (the inverse closure ``(T_\text{snow}, W_\text{snow}) \to \bar{U}_\text{snow}``), `compute_auxiliary!` diagnoses the geometric and thermal properties of the snowpack as well as the and energy-temperature closure, and `compute_tendencies!` accumulates the mass and energy tendencies from the prescribed fluxes and atmospheric forcing. `closure!` first enforces the constraints on the snow state (non-negative snow water equivalent, and no energy without snow) and then applies the energy-temperature closure:
+
+```@docs; canonical = false
+enforce_snow_constraints!
+```

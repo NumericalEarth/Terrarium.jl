@@ -20,9 +20,9 @@ $TYPEDFIELDS
 FieldCapacityLimitedPAW(::Type{NF} = Float32) where {NF} = FieldCapacityLimitedPAW{NF}()
 
 variables(paw::FieldCapacityLimitedPAW{NF}) where {NF} = (
-    auxiliary(:plant_available_water, XYZ(), desc = "Fraction of soil water available for plant root water uptake"),
-    auxiliary(:soil_moisture_limiting_factor, XY(), soil_moisture_limiting_factor, paw), # soil moisture limiting factor
-    input(:root_fraction, XYZ(), desc = "Fraction of roots in each soil layer"),
+    auxiliary(:plant_available_water, Ground(XYZ()), desc = "Fraction of soil water available for plant root water uptake"),
+    auxiliary(:soil_moisture_limiting_factor, Ground(XY()), soil_moisture_limiting_factor, paw), # soil moisture limiting factor
+    input(:root_fraction, Ground(XYZ()), desc = "Fraction of roots in each soil layer"),
 )
 
 """
@@ -115,7 +115,7 @@ end
 
 # Kernels
 
-@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, paw::AbstractPlantAvailableWater, args...)
+@kernel inbounds = true function compute_auxiliary_kernel!(out, grid, fields, paw::AbstractPlantAvailableWater, args::Vararg{Any, N}) where {N}
     i, j, k = @index(Global, NTuple)
     compute_plant_available_water!(out, i, j, k, grid, fields, paw, args...)
 end

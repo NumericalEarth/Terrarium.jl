@@ -118,6 +118,40 @@ Oceananigans.Grids.rname(grid::ColumnRingGrid) = Oceananigans.Grids.rname(getfie
 @inline Oceananigans.Grids.ηnode(i, j, k, grid::ColumnRingGrid, ℓx, ℓy, ℓz) = ηnode(i, j, k, getfield(grid, :grid), ℓx, ℓy, ℓz)
 @inline Oceananigans.Grids.rnode(i, j, k, grid::ColumnRingGrid, ℓx, ℓy, ℓz) = rnode(i, j, k, getfield(grid, :grid), ℓx, ℓy, ℓz)
 
+"""
+    $SIGNATURES
+
+Longitudes (degrees) of the active (masked) columns of `grid`, as a host `Vector` ordered like the
+horizontal index of the grid. This extends the Oceananigans accessor for curvilinear grids so that
+`λnodes`/`φnodes` give the geographic coordinates of a horizontal position on both a
+`LatitudeLongitudeGrid` and a `ColumnRingGrid`; on the latter, both are indexed by column.
+"""
+Oceananigans.Grids.λnodes(grid::ColumnRingGrid, ::CenterOrFace = Center(), args...; kwargs...) = first(active_column_lonlats(grid))
+
+"""
+    $SIGNATURES
+
+Latitudes (degrees) of the active (masked) columns of `grid`, as a host `Vector` ordered like the
+horizontal index of the grid. See [`λnodes`](@ref).
+"""
+Oceananigans.Grids.φnodes(grid::ColumnRingGrid, ::CenterOrFace = Center(), args...; kwargs...) = last(active_column_lonlats(grid))
+
+# Host-side gather of the (longitude, latitude) pairs of the active columns, in degrees.
+function active_column_lonlats(grid::ColumnRingGrid)
+    rings = on_architecture(CPU(), grid.rings)
+    mask = on_architecture(CPU(), grid.mask)
+    lond, latd = RingGrids.get_londlatds(rings)
+    return lond[mask], latd[mask]
+end
+
+# Horizontal grid metrics. Oceananigans defines these four spacings per concrete grid type and derives
+# all areas and volumes from them, e.g. the `Az / volume` scaling of flux boundary conditions in
+# `compute_z_bcs!`. The vertical spacings need no forwarding since they read `grid.z`, which is
+# covered by the `getproperty` forwarding below.
+for Δ in (:Δxᶠᵃᵃ, :Δxᶜᵃᵃ, :Δyᵃᶠᵃ, :Δyᵃᶜᵃ)
+    @eval @inline Oceananigans.Operators.$Δ(i, j, k, grid::ColumnRingGrid) = Oceananigans.Operators.$Δ(i, j, k, getfield(grid, :grid))
+end
+
 # See the corresponding note for land grids in `grids.jl`: Oceananigans accesses grid dimensions and
 # discretization data as struct fields, so forward anything that is not one of our own fields.
 @inline Base.getproperty(grid::ColumnRingGrid, name::Symbol) = hasfield(typeof(grid), name) ? getfield(grid, name) : getproperty(getfield(grid, :grid), name)
@@ -152,7 +186,7 @@ Converts a `RingGrids.Field` to an Oceananigans `Field`
 using the given `ColumnRingGrid`. Only masked grid points are copied to the Oceananigans field.
 For 2D RingGrids fields, returns a 2D Oceananigans field. For 3D fields, returns a 3D field.
 """
-function Oceananigans.Field(ring_field::RingGrids.AbstractField, grid::ColumnRingGrid; default_value = zero(eltype(ring_field)))
+function Oceananigans.Field(ring_field::RingGrids.AbstractField, grid::ColumnRingGrid; domain = nothing)
     if ndims(ring_field) == 1
         # 2D field (horizontal only): treat the data as a single-column matrix so one masked gather
         # (`data[mask, :]`) serves both the 1D and 2D cases. There's a related Reactant bug that makes this necessary: https://github.com/EnzymeAD/Reactant.jl/issues/3087
@@ -170,7 +204,8 @@ function Oceananigans.Field(ring_field::RingGrids.AbstractField, grid::ColumnRin
     mask = grid.mask.data   # host boolean mask (see note above)
     gathered = data[mask, :]
     values = reshape(gathered, size(gathered, 1), 1, size(gathered, 2))
-    oceananigans_field = Field(grid, dims)
+    loc = VarLocation(dims, domain)
+    oceananigans_field = Field(grid, loc)
     set!(oceananigans_field, values)
     return oceananigans_field
 end
@@ -183,7 +218,7 @@ Converts a `RingGrids.Field` whose last dimension is time to an Oceananigans `Fi
 (horizontal × time) yields a 2D series, a 3D field (horizontal × vertical × time) a 3D series. Additional
 keyword arguments (e.g. `time_indexing = Cyclical()`) are forwarded to the `FieldTimeSeries` constructor.
 """
-function Oceananigans.FieldTimeSeries(ring_field::RingGrids.AbstractField, grid::ColumnRingGrid, times::AbstractVector; kwargs...)
+function Oceananigans.FieldTimeSeries(ring_field::RingGrids.AbstractField, grid::ColumnRingGrid, times::AbstractVector; domain = nothing, kwargs...)
     @assert last(size(ring_field)) == length(times) "Last dimension of RingGrids Field must match the length of `times`"
     arch = architecture(grid)
 
@@ -205,7 +240,8 @@ function Oceananigans.FieldTimeSeries(ring_field::RingGrids.AbstractField, grid:
     mask = grid.mask.data   # host boolean mask (see note above)
     gathered = data[mask, :, :]
     values = reshape(gathered, size(gathered, 1), 1, size(gathered)[2:end]...)
-    oceananigans_fts = FieldTimeSeries(grid, dims, times; kwargs...)
+    loc = VarLocation(dims, domain)
+    oceananigans_fts = FieldTimeSeries(grid, loc, times; kwargs...)
     copyto!(interior(oceananigans_fts), values)
     return oceananigans_fts
 end

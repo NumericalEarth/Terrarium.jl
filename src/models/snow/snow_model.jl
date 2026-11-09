@@ -3,20 +3,21 @@
 
 Minimal standalone model of a single-layer snowpack, intended for unit and differentiability testing.
 Couples an [`AbstractSnow`](@ref) process with a prescribed atmosphere providing precipitation and air
-temperature. The surface and basal heat fluxes (`surface_heat_flux`, `basal_heat_flux`) and the
+temperature. The surface and basal heat fluxes (`snow_surface_heat_flux`, `snow_basal_heat_flux`) and the
 `sublimation` rate are prescribed input fields; in a coupled land model these are supplied by the
-surface energy balance and the snow→soil conduction.
+surface energy balance and the snow→soil conduction. Like the snow state, these fluxes are grid-cell means,
+i.e. already scaled by the snow cover fraction `f` (`f·S` at the top and `f·Q_base` at the base in the coupled model).
 
 Properties:
 $(TYPEDFIELDS)
 """
-@parameterized @kwdef struct SnowModel{
+@parameterized @kwdef mutable struct SnowModel{
         NF,
-        GridType <: AbstractLandGrid{NF},
-        Snow <: AbstractSnow{NF},
+        GridType <: AbstractGrid,
+        Snow <: AbstractSnow,
         Atmosphere <: AbstractAtmosphere,
         Initializer <: AbstractInitializer,
-        Timestepper <: AbstractTimeStepper{NF},
+        Timestepper <: AbstractTimeStepper,
     } <: AbstractSnowModel{NF, GridType}
     "Spatial grid type"
     grid::GridType
@@ -47,18 +48,19 @@ function initialize!(state, model::SnowModel)
 end
 
 function compute_auxiliary!(state, model::SnowModel)
-    compute_auxiliary!(state, model.grid, model.snow, model.constants)
+    compute_auxiliary!(state, model.grid, model.snow, model.constants, model.timestepper)
     return nothing
 end
 
 function compute_tendencies!(state, model::SnowModel)
-    compute_tendencies!(state, model.grid, model.snow, model.constants, model.atmosphere)
+    compute_tendencies!(state, model.grid, model.snow, model.constants, model.atmosphere, model.timestepper)
     return nothing
 end
 
 # Closures
 
 function closure!(state, model::SnowModel)
+    enforce_snow_constraints!(state, model.grid, model.snow)
     closure!(state, model.grid, get_closure(model.snow), model.snow, model.constants)
     return nothing
 end
@@ -70,25 +72,55 @@ end
 
 # Time stepping
 
-function Terrarium.timestep!(state::StateVariables, model::SnowModel, timestepper::Terrarium.AbstractTimeStepper, Δt)
-    return timestep!(state, model, model.snow, timestepper, Δt)
+# The snow meltwater drainage is implicit under an IMEX timestepper.
+timestepping(::AbstractVariable{:snow_water_equivalent}, ::SnowModel, ::AbstractIMEX) = Implicit()
+
+# Forward the implicit operator query and the solver hooks to the snow.
+
+function implicit_operator(model::SnowModel, state, names::Tuple{Vararg{Symbol}})
+    operators = NamedTuple{names}(map(name -> implicit_operator(model.snow, state, model.grid, Val(name)), names))
+    return SplitOperator(operators)
 end
 
-function Terrarium.timestep!(
-        state::StateVariables,
-        model::AbstractModel{NF},
-        snow::AbstractSnow,
-        args...
-    ) where {NF}
-    # Enforce SWE >= 0
-    # TODO: Rewrite to ensure mass conservation
-    out = (; snow_water_equivalent, snow_energy) = state
-    launch!(model.grid, XY, enforce_snow_constraints!, out, snow)
+function linearize!(operator::AbstractLinearOperator, rhs, state, model::SnowModel, explicit_stage, Δt, iteration::Iteration)
+    linearize!(operator, rhs, state, model.grid, model.snow, model.constants, explicit_stage, Δt, iteration)
     return nothing
 end
 
-@kernel inbounds = true function enforce_snow_constraints!(out, grid, snow::AbstractSnow{NF}) where {NF}
+function implicit_update!(state, model::SnowModel, operator::AbstractLinearOperator, explicit_stage, Δt, iteration::Iteration)
+    implicit_update!(state, model.grid, model.snow, model.constants, operator, explicit_stage, Δt, iteration)
+    return nothing
+end
+
+# the snow closure has no once-per-step effects, so every iteration applies the regular closure
+function implicit_closure!(state, model::SnowModel, iteration::Iteration)
+    closure!(state, model.grid, model.snow, model.constants)
+    return nothing
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Enforce the constraints on the snow state that are not part of its tendencies: clip negative snow water
+equivalent to zero and remove the energy of a pack without snow. Called by `closure!` of models with snow
+before the snow closure, so that the closure sees an admissible state.
+
+The clipping does not conserve mass; the water it adds to a pack that was overdrawn by an explicit step
+is not taken from anywhere.
+"""
+function enforce_snow_constraints!(state, grid, snow::AbstractSnow)
+    # TODO: Rewrite to ensure mass conservation
+    (; snow_water_equivalent, snow_energy) = state
+    out = (; snow_water_equivalent, snow_energy)
+    launch!(grid, XY, enforce_snow_constraints_kernel!, out, snow)
+    return nothing
+end
+
+# no constraints without snow
+enforce_snow_constraints!(state, grid, ::Nothing) = nothing
+
+@kernel inbounds = true function enforce_snow_constraints_kernel!(out, grid, snow::AbstractSnow{NF}) where {NF}
     i, j = @index(Global, NTuple)
-    out.snow_water_equivalent[i, j, 1] = max(out.snow_water_equivalent[i, j], zero(NF))
-    out.snow_energy[i, j, 1] = out.snow_energy[i, j] * (out.snow_water_equivalent[i, j] > zero(NF))
+    out.snow_water_equivalent[i, j, end] = max(out.snow_water_equivalent[i, j], zero(NF))
+    out.snow_energy[i, j, end] = out.snow_energy[i, j] * (out.snow_water_equivalent[i, j] > zero(NF))
 end
