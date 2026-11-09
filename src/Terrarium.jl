@@ -23,11 +23,12 @@ using Oceananigans.Fields: Field, FunctionField, AbstractField, Center, Face, se
 using Oceananigans.Forcings: Forcing, ContinuousForcing, DiscreteForcing
 using Oceananigans.Grids: AbstractGrid, RectilinearGrid, CallableDiscretization, ExponentialDiscretization,
     LatitudeLongitudeGrid, Periodic, Flat, Bounded, halo_size, isrectilinear, nodes, topology,
-    xnodes, ynodes, znodes, λnodes, φnodes, znode, zspacings, ξnode, ηnode, rnode
-using Oceananigans.Operators: ∂zᵃᵃᶜ, ∂zᵃᵃᶠ, ℑzᵃᵃᶠ, Δzᵃᵃᶜ
+    xnodes, ynodes, znodes, λnodes, φnodes, znode, zspacings, ξnode, ηnode, rnode, ZDirection
+using Oceananigans.Operators: ∂zᵃᵃᶜ, ∂zᵃᵃᶠ, ℑzᵃᵃᶠ, Δzᵃᵃᶜ, Δzᵃᵃᶠ
 using Oceananigans.OutputReaders: FieldTimeSeries
+using Oceananigans.Solvers: BatchedTridiagonalSolver
 using Oceananigans.Simulations: Simulation, run!, timestepper, TimeStepWizard, conjure_time_step_wizard!, Callback, add_callback!
-using Oceananigans.TimeSteppers: Clock, update_state!, time_step!, tick!, reset!
+using Oceananigans.TimeSteppers: Clock, update_state!, time_step!, tick!, tick_stage!, reset!
 using Oceananigans.Units: Time, seconds, hours, days
 using Oceananigans.Utils: launch!, IterationInterval, TimeInterval
 
@@ -155,7 +156,7 @@ export DefaultInitializer, LatitudinalClimatology
 include("initializers.jl")
 
 # boundary condition helper functions
-export FieldBC, FieldBCs, boundary_conditions
+export FieldBC, FieldBCs, boundary_conditions, merge_boundary_conditions
 include("boundary_conditions.jl")
 
 # forcing helper functions
@@ -163,13 +164,14 @@ export Forcings
 include("forcings.jl")
 
 # timestepping
-export timestep!, default_dt, is_adaptive, get_timestepper, timestepping, Timestepping, Explicit, Implicit
+export timestep!, default_dt, get_timestepper, timestepping, Timestepping, Explicit, Implicit
 include("timesteppers/abstract_timestepper.jl")
 
 # abstract model types
 include("models/abstract_types.jl")
 
-# numerical solvers
+# numerical solvers, including the implicit solvers and linear operators of implicit time steps
+export AbstractLinearOperator, DiagonalOperator, TridiagonalOperator, Picard
 include("solvers/solvers.jl")
 
 # physical processes
@@ -194,6 +196,9 @@ include("timesteppers/heun.jl")
 
 export IMEX, AbstractIMEX
 include("timesteppers/imex.jl")
+
+export BackwardEuler
+include("timesteppers/backward_euler.jl")
 
 # debugging utilities
 include("diagnostics/debugging.jl")

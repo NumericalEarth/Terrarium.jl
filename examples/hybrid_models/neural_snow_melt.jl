@@ -115,8 +115,8 @@ Terrarium.variables(model::SnowModel) = Terrarium.variables(model.snow_melt)
 Terrarium.compute_auxiliary!(state, ::SnowModel) = nothing
 Terrarium.compute_tendencies!(state, model::SnowModel) = compute_tendencies!(state, model.grid, model.snow_melt)
 
-# The snow storage is non-negative; clip it after each step (as in the snow example).
-function Terrarium.timestep!(state::StateVariables, ::SnowModel, ::Terrarium.AbstractTimeStepper, Δt)
+# The snow storage is non-negative; clip it in the closure after each step (as in the snow example).
+function Terrarium.closure!(state, ::SnowModel)
     interior(state.snow_storage) .= max.(interior(state.snow_storage), 0)
     return nothing
 end

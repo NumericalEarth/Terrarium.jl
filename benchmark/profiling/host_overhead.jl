@@ -44,7 +44,7 @@ function phases(integrator, Δt)
         compute_auxiliary = () -> Terrarium.compute_auxiliary!(state, model),
         compute_boundary_conditions = () -> Terrarium.compute_boundary_conditions!(state, model),
         compute_tendencies = () -> Terrarium.compute_tendencies!(state, model),
-        explicit_step = () -> Terrarium.explicit_step!(state, grid, ts, Δt, names),
+        explicit_stage = () -> Terrarium.explicit_stage!(state, grid, ts, Δt, names),
         model_timestep = () -> Terrarium.timestep!(state, model, ts, Δt),
         closure = () -> Terrarium.closure!(state, model),
     )

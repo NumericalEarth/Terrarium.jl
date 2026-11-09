@@ -33,7 +33,8 @@ grid = ColumnRingGrid(arch, ExponentialSpacing(N = Nz), land_mask)
 Tair_forcing = InputSource(grid, rebuild(Tair_raster, name = :Tair))
 Tsurf_0 = Tair_raster[Ti(1)][findall(land_mask)]
 
-model = SoilModel(grid, timestepper = ForwardEuler(eltype(grid)))
+soil = SoilEnergyWaterCarbon(eltype(grid); hydrology = SoilHydrology(eltype(grid), NoFlow()))
+model = SoilModel(grid; soil, timestepper = ForwardEuler(eltype(grid)))
 boundary_conditions = PrescribedSurfaceTemperature(:Tair)
 # Initial conditions
 initializers = (

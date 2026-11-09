@@ -23,9 +23,11 @@ initializer = SoilInitializer(
     hydrology = ConstantSaturation(eltype(grid), sat = 1.0)
 )
 
-# We're now ready to create our model.
+# We're now ready to create our model. Since we are only interested in heat conduction here,
+# we choose soil hydrology without water flow ([`NoFlow`](@ref)), i.e. the soil water content is held fixed.
 # We also choose the time stepper to be [`ForwardEuler`](@ref) for this example.
-model = SoilModel(grid; timestepper = ForwardEuler(eltype(grid)), initializer = initializer)
+soil = SoilEnergyWaterCarbon(eltype(grid); hydrology = SoilHydrology(eltype(grid), NoFlow()))
+model = SoilModel(grid; soil, timestepper = ForwardEuler(eltype(grid)), initializer = initializer)
 
 # Boundary conditions are imposed directly on the corresponding `Field`s during
 # initialization. We here set a constant surface temperature of 1°C, while the lower
@@ -138,8 +140,8 @@ thermal_properties = SoilThermalProperties(
 # Here we set up the "soil" processes according to our configuration.
 
 energy = SoilThermodynamics(eltype(grid); thermal_properties);
-soil = SoilEnergyWaterCarbon(eltype(grid); energy, strat, biogeochem);
-model = SoilModel(grid; soil);
+soil = SoilEnergyWaterCarbon(eltype(grid); energy, hydrology = SoilHydrology(eltype(grid), NoFlow()), strat, biogeochem);
+model = SoilModel(grid; soil, timestepper = ForwardEuler(eltype(grid)));
 
 # Here we prescribe a sinusoidal temperature at the surface, again leaving the bottom boundary condition
 # set to its default (zero flux). The initial condition is set to the analytical solution at `t = 0`.

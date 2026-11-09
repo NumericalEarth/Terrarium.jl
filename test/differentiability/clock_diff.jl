@@ -37,7 +37,8 @@ using Enzyme: Reverse, set_runtime_activity
     # Checkpointed reverse mode through `run!` must compile and give a nonzero, finite adjoint.
     NF = Float32
     grid = ColumnGrid(CPU(), NF, ExponentialSpacing())
-    model = SoilModel(grid; timestepper = ForwardEuler(NF), initializer = SoilInitializer(NF))
+    soil = SoilEnergyWaterCarbon(NF; hydrology = SoilHydrology(NF, NoFlow()))
+    model = SoilModel(grid; soil, timestepper = ForwardEuler(NF), initializer = SoilInitializer(NF))
     boundary_conditions = PrescribedSurfaceTemperature(:T_ub, NF(1))
     integrator = initialize(model; boundary_conditions)
     dintegrator = Enzyme.make_zero(integrator)

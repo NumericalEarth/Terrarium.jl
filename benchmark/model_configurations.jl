@@ -135,12 +135,13 @@ end
 # Mirrors `test/reactant/setup.jl`'s `:soil_heat_global`: the only configuration currently proven to
 # compile under Reactant. It is not part of the headline comparison — it exists so that an empty
 # Reactant column can be attributed to the land physics rather than to the benchmark harness, which
-# is also why it keeps the plain `SoilModel(grid)` defaults (including the default sandy texture)
+# is also why it keeps the default sandy texture, with immobile soil water (`NoFlow`),
 # rather than the loam of the land configurations.
 
 function build_model(::Val{:soil_heat}, arch, ::Type{NF}; nlat_half::Integer, nz::Integer, model_kwargs = (;)) where {NF}
     grid = benchmark_grid(arch, NF; nlat_half, nz)
-    model = SoilModel(grid; resolve_model_kwargs(model_kwargs, NF)...)
+    soil = SoilEnergyWaterCarbon(NF; hydrology = SoilHydrology(NF, NoFlow()))
+    model = SoilModel(grid; soil, resolve_model_kwargs(model_kwargs, NF)...)
 
     ## smooth surface forcing as a function of column index x and time t; the closure must capture
     ## only isbits values to be a valid kernel argument under Reactant
