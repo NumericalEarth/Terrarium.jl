@@ -1,12 +1,12 @@
 # Robust Richards flow in dry soil: consistent unsaturated conductivity and water conservation
 
-> Status: **planned**. Drafted as a follow-up to the implicit time stepping PR (#196); awaiting review.
+> Status: **in progress**. Fix for issue #240; Phase 1 is implemented and makes the dry-soil regression test pass for both ground resistance factors, pending the full test suite.
 
 Date of initial draft: 2026-11-06
 
 Author: Claude Opus 5.5, Claude Code (VS Code extension)
 
-Reviewer:
+Reviewer: Brian Groenke (brian.groenke@pik-potsdam.de)
 
 Base revision: 5b858a6909727b1b89cab09440c93f674d81f28d
 
@@ -18,14 +18,12 @@ Base revision: 5b858a6909727b1b89cab09440c93f674d81f28d
 
 > Yes and draft this as a separate plan, follow-up to the implicit timestepping PR.
 
-## Revision log
-
-> **Revision 1, 2026-11-06 (Claude Opus 5.5).** Initial draft.
+> Create a branch and worktree and draft an implementation plan to investigate and fix https://github.com/NumericalEarth/Terrarium.jl/issues/240
 
 ## Problem description
 
-A `LandModel` column with `RichardsEq` hydrology (the default since revision 33 of the implicit time stepping plan) breaks down within two time steps when it starts from dry soil under a realistic evaporation demand.
-The regression test `LandModel: dry soil under strong evaporation demand stays physical` in `test/coupled_models/land_model_tests.jl` reproduces it: a column with the SoilGrids texture of a Somali-coast grid point (38.6% sand, 31.5% silt, 29.9% clay), dry-season forcing taken from a coupled SpeedyWeather run, an initial saturation of 0.05, no rain, and `Δt = 450 s` with the default `IMEX` time stepper.
+A `LandModel` column with `RichardsEq` hydrology (the default since revision 33 of the implicit time stepping plan, `docs/dev/plans/2026-09-20-1-implicit_explicit_timestepping.md`) breaks down within two time steps when it starts from dry soil under a realistic evaporation demand.
+The regression test `LandModel: dry soil under strong evaporation demand stays physical` in `test/coupled_models/land_model_tests.jl` reproduces it (its water balance and temperature checks are currently marked `@test_broken`): a column with the SoilGrids texture of a Somali-coast grid point (38.6% sand, 31.5% silt, 29.9% clay), dry-season forcing taken from a coupled SpeedyWeather run, an initial saturation of 0.05, no rain, and `Δt = 450 s` with the default `IMEX` time stepper.
 
 A per-step trace of the same column (default hydraulics, `SoilPorositySURFEX`) shows, for both `ConstantEvaporationResistanceFactor` and `SoilMoistureResistanceFactor`:
 
@@ -88,6 +86,9 @@ The dry-soil failure is a separate, real defect of the land model that the coupl
 - Add `UnsatKBrooksCorey <: AbstractUnsatK`, with `hydraulic_conductivity` dispatching on `AbstractSoilHydraulics{NF, <:BrooksCorey, UnsatKBrooksCorey{NF}}`:
   `K = I_ice K_sat S^(3 + 2/λ)`, with `S = clamp(θ_w / θ_sat, 0, 1)` as in `UnsatKVanGenuchten` and the same ice impedance factor `I_ice = 10^(−Ω(1 − f))` (parameter `impedance`, default 7).
   `λ` is read from the retention curve (`hydraulics.swrc.λ`), so the two functions cannot be configured inconsistently.
+  Brooks and Corey define the power law on the effective saturation `Sₑ = (θ_w − θ_res)/(θ_sat − θ_res)`, whereas `UnsatKVanGenuchten` and the retention curves in Terrarium use `S = θ_w / θ_sat`.
+  With the default `residual_saturation = 0.01` the difference is negligible except at the dry end, where `Sₑ` drives `K` to exactly zero at residual saturation; the implementation uses `S` for consistency with the retention curve unless the regression test shows that the dry-end behavior of `Sₑ` is needed, and the choice is recorded in the revision log.
+  Note that with `S`, `K(θ_res) > 0`, so gravity drainage out of a cell at residual saturation does not vanish and `θ_res` is not an invariant of the continuous-time equations; with `Sₑ` it is, apart from the `FreeWater` freezing artifact described in Phase 3.
 - Make `UnsatKBrooksCorey` the default `unsat_hydraulic_cond` of `SoilHydraulicsSURFEX` and `ConstantSoilHydraulics` whenever the retention curve is `BrooksCorey` (the default), through a `default_unsat_hydraulic_cond(NF, swrc)` helper: `BrooksCorey → UnsatKBrooksCorey`, `VanGenuchten → UnsatKVanGenuchten`.
   `UnsatKLinear` remains available as an explicit option.
 - No change to the face conductivity is planned: `compute_hydraulics!` (`src/processes/soil/hydrology/soil_hydrology_rre.jl`) already takes the minimum of the two adjacent cells, the most restrictive choice, which with the steep power law shuts off the flux out of a dry cell.
@@ -99,20 +100,31 @@ The dry-soil failure is a separate, real defect of the land model that the coupl
 - Replace the bottom-cell deficit fill of `redistribute_saturation_profile!` with a conservative alternative, or, if a conservative fix is not possible without a lower boundary reservoir, account for the created water in a diagnostic and document it.
 - Add a check that the saturation closure conserves column water (soil water plus `surface_excess_water`) for oversaturated and undersaturated profiles.
 
-### Phase 3 (conditional): Evaporation that vanishes at residual saturation
+### Phase 3: Ground evaporation at and below residual saturation
 
-If Phases 1 and 2 do not make the regression test pass with `ConstantEvaporationResistanceFactor`, add a continuous-time limitation of ground evaporation that vanishes as the top cell approaches residual saturation, independently of the chosen resistance factor (for example a smooth factor of `(θ₁ − θ_res)/(θ_fc − θ_res)` applied to the evaporation sink in the soil water tendency).
-A per-step supply limit `E ≤ φ(s₁ − s_res)Δz₁/Δt` is not an option, since process equations must not depend on the time step.
+The limitation of ground evaporation by soil water supply is the job of the ground resistance factor; no additional, independent limitation is added.
+`SoilMoistureResistanceFactor` (Lee–Pielke, `β = (1 − cos(π x))²/4` with `x = (θ_w − θ_res)/(θ_fc − θ_res)` for `θ_w < θ_fc`) already vanishes at residual water content, but `x` is not bounded below: for `θ_w < θ_res`, `x < 0` and, since the cosine is even, `β` grows again.
+Physically, `θ_w` should never fall below `θ_res`: residual water is held by strong capillary forces at the grain surfaces, which also keep it from freezing.
+In the model it can, for two reasons.
+First, `FreeWater`, the only freeze curve that Terrarium currently supports, freezes all pore water at 0 °C, residual water included, so a frozen cell has `θ_w = 0 < θ_res`.
+Second, the liquid water content can fall below `θ_res` transiently within an implicit step, before the saturation closure is applied.
+
+- Clamp `x` to `[0, 1]` in `ground_evaporation_resistance_factor(::SoilMoistureResistanceFactor, θw, θfc, θres)`, so that `β = 0` for `θ_w ≤ θ_res` and `β = 1` for `θ_w ≥ θ_fc`, and replace the `if`/`else` there by the clamp (kernel functions must not branch).
+- The clamp is a safeguard against these model artifacts, not a representation of physical states below `θ_res`.
+- Document in the docstring of `ConstantEvaporationResistanceFactor` that it does not limit ground evaporation by soil water supply and is only suitable where soil water is not limiting.
+  The constant-factor case of the regression test remains as a robustness check of the solver under an unphysical sink (Phase 4), not as a reason to limit evaporation independently of the resistance factor.
 
 ### Phase 4 (conditional): Picard safeguard from revision 24
 
-If the regression test still fails, implement one of the safeguards that revision 24 of the implicit time stepping plan left open (a limiter on the net balance of each cell, or a saturation-based linearization where the pressure-head form leaves the bounds), with both the dry column and the revision 24 configuration as regression cases.
+If the regression test still fails (including its `ConstantEvaporationResistanceFactor` case), implement one of the safeguards that revision 24 of the implicit time stepping plan left open (a limiter on the net balance of each cell, or a saturation-based linearization where the pressure-head form leaves the bounds), with both the dry column and the revision 24 configuration as regression cases.
 This phase is expected to be unnecessary for the dry column once the conductivity is consistent.
 
 ## Testing and verification
 
-- The new regression test `LandModel: dry soil under strong evaporation demand stays physical` (both resistance factors) must pass: finite state, saturation in `[s_res, 1]`, column water balance (soil water plus surface pool, against evaporation and surface runoff) to a relative tolerance of 10⁻³, and soil and skin temperatures within 20 K of the air temperature over 16 steps of 450 s.
+- The water balance and temperature checks of the regression test go back from `@test_broken` to `@test`, and its comment, which still points to the old location of this plan, is updated or removed.
+- The regression test `LandModel: dry soil under strong evaporation demand stays physical` (both resistance factors) must pass: finite state, saturation in `[s_res, 1]`, column water balance (soil water plus surface pool, against evaporation and surface runoff) to a relative tolerance of 10⁻³, and soil and skin temperatures within 20 K of the air temperature over 16 steps of 450 s.
 - Unit tests for `UnsatKBrooksCorey`: `K(1) = K_sat`, monotonicity in `S`, the power law at small `S`, the ice impedance, `Float32` type stability, and the default selection by retention curve.
+- Unit tests for `SoilMoistureResistanceFactor`: `β = 0` at and below `θ_res`, `β = 1` at and above `θ_fc`, and monotonicity in between.
 - Existing Richards tests must keep passing, in particular the dry-column infiltration benchmark of Celia et al. (1990) and the mass conservation tests in `test/soil/soil_hydrology_implicit_tests.jl`; any change of their reference values caused by the new default conductivity is explained in the revision log.
 - Enzyme and Reactant: `UnsatKBrooksCorey` is a pure scalar kernel function without branches or throw paths; the hydrology differentiability test (`test/differentiability/soil_hydrology_diff.jl`) runs with the new default in CI.
 - A one-month run of `examples/simulations/speedy_wet_land.jl` is compared before and after the change for the global soil moisture distribution, as a plausibility check of the new default (not a pass/fail criterion).
@@ -126,10 +138,25 @@ This phase is expected to be unnecessary for the dry column once the conductivit
 ## Known limitations
 
 - The default soil water dynamics change for every `RichardsEq` simulation: drainage of moderately wet soil is slower with the Brooks–Corey conductivity than with the linear one, so existing example outputs and calibrated parameters may shift.
-- `ConstantEvaporationResistanceFactor` still allows potential-rate ground evaporation from soil near residual saturation unless Phase 3 is implemented; with a consistent conductivity, the top cell can then dry out quickly, but the solver should stay bounded.
+- `ConstantEvaporationResistanceFactor` allows potential-rate ground evaporation from soil at residual saturation by design; with a consistent conductivity the top cell can then dry out quickly, and only the saturation closure (and Phase 4, if needed) keeps the solver bounded.
 
 ## Future work
 
 - The atmospheric blow-up in the coupled SpeedyWeather simulation (near the Aral and Caspian Seas), to be investigated on the SpeedyWeather side.
 - Performance of the `soil_moisture_limiting_factor` reduction on CPU (an Oceananigans `Integral` over an `AbstractOperation`, about 60 ms per step for a single column), which may be resolved by Oceananigans 0.117 and otherwise by a dedicated column kernel.
+- Unfrozen residual water: `FreeWater` should freeze only the free water `θ − θ_res` and keep `θ_res` liquid below 0 °C, consistent with the capillary binding of residual water.
+  This changes the enthalpy–temperature closure, the latent heat budget, and the phase-change regularization of the implicit heat solver, and is to be bundled with the PR that adds proper soil freezing characteristic curves (SFCCs) rather than with this plan.
 - A finite-at-dry-end retention curve (Fayer and Simmons 1995; Webb 2000), which bounds the matric head at oven-dry conditions.
+
+## Revision log
+
+> **Revision 1, 2026-11-06 (Claude Opus 5.5).** Initial draft.
+
+> **Revision 2, 2026-11-10 (Claude Opus 5.5).** Rebased onto `main` after #196 was merged and moved to `docs/dev/plans` under the new naming scheme.
+> Linked issue #240, noted that the regression test is now marked `@test_broken`, and added the restoration of `@test` and the stale plan path in the test comment to the changes.
+> Added the choice between `S` and `Sₑ` in the Brooks–Corey conductivity to Phase 1.
+> Base revision left at the original draft; the relevant sources (`soil_hydraulic_properties.jl`, `soil_hydrology.jl`, `soil_hydrology_rre.jl`) were rechecked against `88896386e` and are unchanged in the respects described here.
+
+> **Revision 3, 2026-11-11 (Claude Opus 5.5).** Replaced the conditional, resistance-independent evaporation limit of Phase 3, which duplicated `SoilMoistureResistanceFactor`, with a clamp of the normalized water content in `SoilMoistureResistanceFactor` (whose factor grows again below `θ_res`) and documentation of `ConstantEvaporationResistanceFactor` as not supply-limited.
+> Noted in Phase 1 that conductivity on `S` rather than `Sₑ` leaves gravity drainage at `θ_res`, so `θ_res` is not an invariant of the continuous equations.
+> Corrected after review: residual water is capillary-bound and does not freeze, so liquid water below `θ_res` in frozen cells is an artifact of `FreeWater` rather than a physical state; added an unfrozen residual water freeze curve to future work.
