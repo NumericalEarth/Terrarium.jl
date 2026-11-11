@@ -253,6 +253,13 @@ function timestep!(integrator::ModelIntegrator, timestepper::AbstractTimeStepper
     return nothing
 end
 
+# A single explicit timestepper steps the variables in `names` with its explicit step, followed by the closure.
+function timestep!(integrator::ModelIntegrator, timestepper::AbstractTimeStepper, Δt, names::Tuple)
+    explicit_step!(integrator, timestepper, Δt, names)
+    closure!(integrator.state, integrator.model)
+    return nothing
+end
+
 """
     default_dt(integrator::ModelIntegrator)
 

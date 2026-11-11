@@ -63,7 +63,7 @@ stratigraphy = HomogeneousSoilStratigraphy(
     eltype(grid), texture = SoilTexture(eltype(grid); sand = 0.4f0, clay = 0.3f0, silt = 0.3f0)
 )
 model = SoilModel(
-    grid; soil = SoilEnergyWaterCarbon(eltype(grid); strat = stratigraphy),
+    grid; soil = SoilEnergyWaterCarbon(eltype(grid); hydrology = SoilHydrology(eltype(grid), NoFlow()), strat = stratigraphy),
     timestepper = ForwardEuler(eltype(grid))
 )
 boundary_conditions = PrescribedSurfaceTemperature(:Tair)
@@ -221,7 +221,7 @@ end
 soil_conductivity_model(conductivities) = SoilModel(
     grid; timestepper = ForwardEuler(eltype(grid)),
     soil = SoilEnergyWaterCarbon(
-        eltype(grid); strat = stratigraphy,
+        eltype(grid); hydrology = SoilHydrology(eltype(grid), NoFlow()), strat = stratigraphy,
         energy = SoilThermodynamics(
             eltype(grid); thermal_properties = SoilThermalProperties(eltype(grid); conductivities),
         ),

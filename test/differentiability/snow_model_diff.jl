@@ -69,7 +69,7 @@ end
     # dstate), mirroring the closure! pattern in soil_hydrology_diff.jl, rather than a standalone scalar
     # closure (which no longer exists — the real function reads composition-dependent conductivities).
     grid = ColumnGrid(CPU(), Float64, ExponentialSpacing(N = 5))
-    soil = SoilEnergyWaterCarbon(Float64)
+    soil = SoilEnergyWaterCarbon(Float64; hydrology = SoilHydrology(Float64, NoFlow()))
     snow = SingleLayerSnow(Float64)
     land = LandModel(grid; soil, snow, vegetation = nothing)
     integrator = initialize(

@@ -134,7 +134,7 @@ Additionally, models with [closure relations](@ref "Closure relations") should i
 
 | Method | Purpose |
 |--------|---------|
-| `closure!(state, model)` | Apply all forward closure relations |
+| `closure!(state, model)` | Apply all forward closure relations and any constraints on the prognostic state (e.g. clipping a quantity that must stay non-negative) |
 | `invclosure!(state, model)` | Apply all inverse closure relations |
 
 The typical pattern is to forward each of these model-level calls to the corresponding process-level call, passing the `grid` and `constants` explicitly.

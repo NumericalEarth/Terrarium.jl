@@ -26,36 +26,6 @@ Base revision: e015a29db9d97090edfd112a5eea165640134404
 > Also introduce a modifier to run the tests longer for a more robust test, or short for a quick
 > benchmark
 
-## Revision log
-
-- 2026-08-03: initial draft.
-- 2026-08-03: model configuration list narrowed (in review) to the coupled `LandModel` with Richards
-  hydrology and snow, plus a no-vegetation variant; `:soil_heat` retained only as a Reactant
-  reference configuration. Resolution sweep extended to `nlat_half = 144` (~166k columns) on a
-  synthetic all-land mask. The stale `test/benchmarks/gpu/` scripts are left untouched.
-- 2026-08-03: two pre-existing defects had to be worked around in the benchmark configurations
-  before the coupled land model could be benchmarked at all; both are described under
-  [Defects found while building this](#defects-found-while-building-this) and both are worked around
-  in `benchmark/model_configurations.jl` rather than fixed in `src/` (out of scope here).
-- 2026-08-03: `:bench500` benchmarks `ForwardEuler` against `Heun` only. `IMEX` needs an implicit
-  sub-stepper and Terrarium has no concrete one yet — nothing implements
-  `timestepping(…) == Implicit()`.
-- 2026-08-09: the shared `benchmark_texture`/`benchmark_soil`/`benchmark_vegetation` helpers were
-  dropped; each `build_model` method now spells out its own soil, texture and vegetation, and no
-  longer passes values that are already component defaults. Fixed the vegetation process name in
-  `:land` (`VegetationCarbon` → `VegetationCarbonCycle`), which had made every `:land` run fail with
-  an `UndefVarError` on all architectures.
-- 2026-08-09: dropped the yr⁻¹→s⁻¹ rescaling of the PALADYN rates from `:land` entirely.
-  `compute_Λ_loc` converts `γL`/`γR`/`γS` upstream since `903530eb`, so the benchmark was applying
-  that conversion a second time; `γv_min` is left at its default too. See defect 1 below.
-- 2026-10-07 (revision 6): Reactant CPU results are labelled by host CPU, `reactant-cpu-arm` or
-  `reactant-cpu-x86` (like `cpu-arm`/`cpu-x86`), so runs on different machines no longer overwrite each
-  other; the stored EPYC entry was renamed to `reactant-cpu-x86`. Under Reactant the land
-  configurations use the fixed-iteration `NewtonSolver` for the skin temperature, because the default
-  `RootSolver` cannot be raised to StableHLO; the other architectures keep the default solver. The
-  land configurations also needed the horizontal grid metrics of `ColumnRingGrid` to be forwarded to
-  its `RectilinearGrid` (fixed in `src/` on its own branch, `mg/fix-columnringgrid-metrics`).
-
 ## Problem description
 
 Terrarium has no reproducible performance benchmark. The only existing artefact,
@@ -323,3 +293,33 @@ is manual:
 - A thread-scaling suite for the CPU architectures.
 - Per-kernel benchmarks (analogous to SpeedyWeather's individual dynamics functions suite) once the
   full-model numbers are stable.
+
+## Revision log
+
+- 2026-08-03: initial draft.
+- 2026-08-03: model configuration list narrowed (in review) to the coupled `LandModel` with Richards
+  hydrology and snow, plus a no-vegetation variant; `:soil_heat` retained only as a Reactant
+  reference configuration. Resolution sweep extended to `nlat_half = 144` (~166k columns) on a
+  synthetic all-land mask. The stale `test/benchmarks/gpu/` scripts are left untouched.
+- 2026-08-03: two pre-existing defects had to be worked around in the benchmark configurations
+  before the coupled land model could be benchmarked at all; both are described under
+  [Defects found while building this](#defects-found-while-building-this) and both are worked around
+  in `benchmark/model_configurations.jl` rather than fixed in `src/` (out of scope here).
+- 2026-08-03: `:bench500` benchmarks `ForwardEuler` against `Heun` only. `IMEX` needs an implicit
+  sub-stepper and Terrarium has no concrete one yet — nothing implements
+  `timestepping(…) == Implicit()`.
+- 2026-08-09: the shared `benchmark_texture`/`benchmark_soil`/`benchmark_vegetation` helpers were
+  dropped; each `build_model` method now spells out its own soil, texture and vegetation, and no
+  longer passes values that are already component defaults. Fixed the vegetation process name in
+  `:land` (`VegetationCarbon` → `VegetationCarbonCycle`), which had made every `:land` run fail with
+  an `UndefVarError` on all architectures.
+- 2026-08-09: dropped the yr⁻¹→s⁻¹ rescaling of the PALADYN rates from `:land` entirely.
+  `compute_Λ_loc` converts `γL`/`γR`/`γS` upstream since `903530eb`, so the benchmark was applying
+  that conversion a second time; `γv_min` is left at its default too. See defect 1 below.
+- 2026-10-07 (revision 6): Reactant CPU results are labelled by host CPU, `reactant-cpu-arm` or
+  `reactant-cpu-x86` (like `cpu-arm`/`cpu-x86`), so runs on different machines no longer overwrite each
+  other; the stored EPYC entry was renamed to `reactant-cpu-x86`. Under Reactant the land
+  configurations use the fixed-iteration `NewtonSolver` for the skin temperature, because the default
+  `RootSolver` cannot be raised to StableHLO; the other architectures keep the default solver. The
+  land configurations also needed the horizontal grid metrics of `ColumnRingGrid` to be forwarded to
+  its `RectilinearGrid` (fixed in `src/` on its own branch, `mg/fix-columnringgrid-metrics`).

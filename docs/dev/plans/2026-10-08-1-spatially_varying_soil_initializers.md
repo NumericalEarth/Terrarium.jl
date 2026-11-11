@@ -10,46 +10,6 @@ Base revision: `ce9ae606ae39063f52bb0ef23a3328a8b1904055` (tip of `main`, branch
 
 > We need to generalize the existing soil initializer to allow for spatially varying inputs. The idea would be to declare corresponding input variables for T0 and Qgeo and then pass the struct values as default value initializers. These initializers could also be functions or callable structs that contain additional parameters, e.g. the periodic initialization used for soil temp and currently duplicated across many examples. Draft an implementation plan and summarize your findings. Ask questions if needed.
 
-## Revision log
-
-- **Rev 1 (2026-10-08):** Initial draft.
-- **Rev 2 (2026-10-08):** Open questions resolved by the author: variable names `initial_surface_temperature` and `geothermal_heat_flux` confirmed; hydrology initializers (change 5) are in scope; `LatitudinalClimatology(T_equator, ΔT)` is the only concrete field initializer and no generic function wrapper is added, since a plain function can be assigned directly to the initializer fields; `AbstractFieldInitializer` lives in core `src/initializers.jl`.
-- **Rev 3 (2026-10-08):** Dropped the `set_default!` hook from change 2.
-  An `AbstractFieldInitializer` default is instead handled by a dispatch of `initialize(var::InputVariable, grid, ...)` on the default's type at `Field` construction.
-- **Rev 4 (2026-10-08):** Settled the role of `AbstractFieldInitializer` after questioning whether it duplicates the `initializers` keyword of `initialize`.
-  It does not: as a field of the model's `initializer` component it can carry `@param` fields that become model parameters, which closures and precomputed `Field`s cannot.
-  To make those parameters live, the model initializer re-evaluates `AbstractFieldInitializer` values at every `initialize!`, while all other default forms are applied once at `Field` construction.
-  The construction-time dispatch from Rev 3 is dropped again.
-  *Approved by the author on 2026-10-08.*
-- **Rev 5 (2026-10-08):** Implementation notes, recorded during development on `bg/improved-init`.
-  Deviations from Rev 4, each requested or agreed by the author during implementation:
-  1. **No dedicated kernels.** The initializers fill their prognostic fields with `set!(field, kernel(compute_..., init), state)`, using the existing `kernel`/`KernelFunction` utility in `src/utils/kernel_utils.jl`, which gained a `set!` dispatch for `KernelFunction`.
-     The kernel functions read their inputs from `fields` (e.g. `fields.initial_surface_temperature[i, j, 1]`) following the usual `compute_something(i, j, k, grid, fields, process)` convention.
-  2. **Input variables live on `Ground(XY())`, not `Ground(Top())`/`Ground(Bottom())`.** A windowed declaration of `geothermal_heat_flux` conflicts with the plain surface `Field` that an `InputSource` infers, so all initializer inputs are declared as 2D surface variables.
-     Functions passed as defaults therefore take the horizontal coordinates only, e.g. `x -> ...` on a `ColumnGrid`.
-  3. **`LatitudinalClimatology` takes latitude in degrees and supports `LatitudeLongitudeGrid`.** Geographic coordinates come from a unified interface: Oceananigans already provides `λnodes`/`φnodes` for `LatitudeLongitudeGrid`, and `ColumnRingGrid` now extends them to return the longitudes/latitudes (degrees) of its active columns.
-     Both are re-exported.
-  4. **Parameters of initializers.** The concrete soil initializers are declared with `@parameterized`: `SoilInitializer` marks its sub-initializers as `@component`, and the energy and hydrology initializers mark their initial values as `@param` with bounds where applicable.
-     `Field`s used as initial values contribute no parameters, and the initializers define `ConstructionBase.constructorof` so that `reconstruct` preserves `NF`.
-     The typed-dispatch fix for process parameter collection (`117bf3ff4`, from `bg/differentiability-examples`) is cherry-picked, since without it no process parameters were collected through a model `@component`.
-  5. **Exports.** Abstract types (`AbstractInitializer`, `AbstractFieldInitializer`) are not exported; only `LatitudinalClimatology` is added to the exports.
-  6. **Enzyme and Reactant tests are left to CI.** A new Reactant configuration `:soil_heat_global_initializer` is registered in `test/reactant/`, and the existing Enzyme soil energy test already builds its model with `SoilInitializer`; neither suite is run locally.
-  7. **Hydrology inputs.** `ConstantSaturation` declares `initial_saturation`, and `SaturationWaterTable` declares `vadose_zone_saturation` and `water_table_depth`.
-- **Rev 6 (2026-10-08):** Spatial data in the examples is supplied through `InputSource`s named `initial_surface_temperature` instead of as a `Field` stored in the initializer.
-  A `Field` held by the initializer ties the (otherwise grid-agnostic, stateless) model to one grid and architecture.
-  `Field`s remain accepted as initial values, and the soil model docs recommend input sources for data.
-  The SpeedyWeather example now initializes from SpeedyWeather's monthly land surface temperature climatology, averaged over the year, with `LatitudinalClimatology` as a fallback for coastal columns without data.
-- **Rev 7 (2026-10-08):** Replaces the re-evaluation rule of Rev 4.
-  Instead of the model initializer re-evaluating field initializers (`reinitialize!`, now removed), `initialize!(::ModelIntegrator)` first resets every input field to the default declared by the current model's variables (`reset_inputs!`), then applies input sources, user initializers, and the model initializer.
-  Defaults of every form are therefore re-applied on each initialization, so all initializer parameters, including plain scalars, take effect through `initialize(integrator, params)`, and input sources always take precedence over defaults, including field initializers.
-  *Approved by the author on 2026-10-08.*
-- **Rev 8 (2026-10-09):** Requested directly by the author.
-  `SaturationWaterTable` accepts its vadose zone water content either as saturation or as volumetric water content, by wrapping the value of `vadose_zone_saturation` in a marker type, `Saturation` (the default for plain values) or `VolumetricWaterContent`.
-  The input variable is named after the marker (`vadose_zone_saturation` or `vadose_zone_water_content`), and volumetric water content is converted to saturation in the kernel by dividing by the soil porosity of the model's stratigraphy, capped at full saturation.
-  The markers are `@parameterized`, so a numeric value remains a model parameter.
-- **Rev 9 (2026-10-12):** Requested directly by the author.
-  Plain values are no longer wrapped in `Saturation` by the constructor; `SaturationWaterTable` stores the value as given, and the variable declaration and the kernel function dispatch directly on `Saturation`, `VolumetricWaterContent`, or a plain value (interpreted as saturation).
-
 ## Problem description
 
 The soil energy initializers in `src/models/soil/soil_model_init.jl` are column-uniform:
@@ -257,3 +217,43 @@ Export `AbstractFieldInitializer` and `LatitudinalClimatology` from `src/models/
 3. `LatitudinalClimatology(T_equator, ΔT)` with the fixed form `T_equator - |ΔT sin φ|`; no generic function wrapper.
    Users assign functions directly to initializer fields.
 4. `AbstractFieldInitializer` is defined in core `src/initializers.jl`.
+
+## Revision log
+
+- **Rev 1 (2026-10-08):** Initial draft.
+- **Rev 2 (2026-10-08):** Open questions resolved by the author: variable names `initial_surface_temperature` and `geothermal_heat_flux` confirmed; hydrology initializers (change 5) are in scope; `LatitudinalClimatology(T_equator, ΔT)` is the only concrete field initializer and no generic function wrapper is added, since a plain function can be assigned directly to the initializer fields; `AbstractFieldInitializer` lives in core `src/initializers.jl`.
+- **Rev 3 (2026-10-08):** Dropped the `set_default!` hook from change 2.
+  An `AbstractFieldInitializer` default is instead handled by a dispatch of `initialize(var::InputVariable, grid, ...)` on the default's type at `Field` construction.
+- **Rev 4 (2026-10-08):** Settled the role of `AbstractFieldInitializer` after questioning whether it duplicates the `initializers` keyword of `initialize`.
+  It does not: as a field of the model's `initializer` component it can carry `@param` fields that become model parameters, which closures and precomputed `Field`s cannot.
+  To make those parameters live, the model initializer re-evaluates `AbstractFieldInitializer` values at every `initialize!`, while all other default forms are applied once at `Field` construction.
+  The construction-time dispatch from Rev 3 is dropped again.
+  *Approved by the author on 2026-10-08.*
+- **Rev 5 (2026-10-08):** Implementation notes, recorded during development on `bg/improved-init`.
+  Deviations from Rev 4, each requested or agreed by the author during implementation:
+  1. **No dedicated kernels.** The initializers fill their prognostic fields with `set!(field, kernel(compute_..., init), state)`, using the existing `kernel`/`KernelFunction` utility in `src/utils/kernel_utils.jl`, which gained a `set!` dispatch for `KernelFunction`.
+     The kernel functions read their inputs from `fields` (e.g. `fields.initial_surface_temperature[i, j, 1]`) following the usual `compute_something(i, j, k, grid, fields, process)` convention.
+  2. **Input variables live on `Ground(XY())`, not `Ground(Top())`/`Ground(Bottom())`.** A windowed declaration of `geothermal_heat_flux` conflicts with the plain surface `Field` that an `InputSource` infers, so all initializer inputs are declared as 2D surface variables.
+     Functions passed as defaults therefore take the horizontal coordinates only, e.g. `x -> ...` on a `ColumnGrid`.
+  3. **`LatitudinalClimatology` takes latitude in degrees and supports `LatitudeLongitudeGrid`.** Geographic coordinates come from a unified interface: Oceananigans already provides `λnodes`/`φnodes` for `LatitudeLongitudeGrid`, and `ColumnRingGrid` now extends them to return the longitudes/latitudes (degrees) of its active columns.
+     Both are re-exported.
+  4. **Parameters of initializers.** The concrete soil initializers are declared with `@parameterized`: `SoilInitializer` marks its sub-initializers as `@component`, and the energy and hydrology initializers mark their initial values as `@param` with bounds where applicable.
+     `Field`s used as initial values contribute no parameters, and the initializers define `ConstructionBase.constructorof` so that `reconstruct` preserves `NF`.
+     The typed-dispatch fix for process parameter collection (`117bf3ff4`, from `bg/differentiability-examples`) is cherry-picked, since without it no process parameters were collected through a model `@component`.
+  5. **Exports.** Abstract types (`AbstractInitializer`, `AbstractFieldInitializer`) are not exported; only `LatitudinalClimatology` is added to the exports.
+  6. **Enzyme and Reactant tests are left to CI.** A new Reactant configuration `:soil_heat_global_initializer` is registered in `test/reactant/`, and the existing Enzyme soil energy test already builds its model with `SoilInitializer`; neither suite is run locally.
+  7. **Hydrology inputs.** `ConstantSaturation` declares `initial_saturation`, and `SaturationWaterTable` declares `vadose_zone_saturation` and `water_table_depth`.
+- **Rev 6 (2026-10-08):** Spatial data in the examples is supplied through `InputSource`s named `initial_surface_temperature` instead of as a `Field` stored in the initializer.
+  A `Field` held by the initializer ties the (otherwise grid-agnostic, stateless) model to one grid and architecture.
+  `Field`s remain accepted as initial values, and the soil model docs recommend input sources for data.
+  The SpeedyWeather example now initializes from SpeedyWeather's monthly land surface temperature climatology, averaged over the year, with `LatitudinalClimatology` as a fallback for coastal columns without data.
+- **Rev 7 (2026-10-08):** Replaces the re-evaluation rule of Rev 4.
+  Instead of the model initializer re-evaluating field initializers (`reinitialize!`, now removed), `initialize!(::ModelIntegrator)` first resets every input field to the default declared by the current model's variables (`reset_inputs!`), then applies input sources, user initializers, and the model initializer.
+  Defaults of every form are therefore re-applied on each initialization, so all initializer parameters, including plain scalars, take effect through `initialize(integrator, params)`, and input sources always take precedence over defaults, including field initializers.
+  *Approved by the author on 2026-10-08.*
+- **Rev 8 (2026-10-09):** Requested directly by the author.
+  `SaturationWaterTable` accepts its vadose zone water content either as saturation or as volumetric water content, by wrapping the value of `vadose_zone_saturation` in a marker type, `Saturation` (the default for plain values) or `VolumetricWaterContent`.
+  The input variable is named after the marker (`vadose_zone_saturation` or `vadose_zone_water_content`), and volumetric water content is converted to saturation in the kernel by dividing by the soil porosity of the model's stratigraphy, capped at full saturation.
+  The markers are `@parameterized`, so a numeric value remains a model parameter.
+- **Rev 9 (2026-10-12):** Requested directly by the author.
+  Plain values are no longer wrapped in `Saturation` by the constructor; `SaturationWaterTable` stores the value as given, and the variable declaration and the kernel function dispatch directly on `Saturation`, `VolumetricWaterContent`, or a plain value (interpreted as saturation).

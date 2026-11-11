@@ -63,8 +63,19 @@ end
     for key in keys
         push!(expr.args, :(f($(map(i -> :(nts[$i].$key), 1:length(nts))...))))
     end
+    push!(expr.args, :(return nothing))
     return expr
 end
+
+"""
+    $TYPEDSIGNATURES
+
+Return the entries of the `NamedTuple` `nt` with the keys of `like`, in the order of `like`. The keys are
+taken from the type of `like`, so the selection is resolved at compile time; together with
+`fastiterate(f, nts::NamedTuple...)` this iterates over a subset of `nt` type-stably, unlike indexing `nt`
+with a `Symbol` passed at run time.
+"""
+@inline select_keys(nt::NamedTuple, ::NamedTuple{names}) where {names} = NamedTuple{names}(nt)
 
 """
     $TYPEDSIGNATURES

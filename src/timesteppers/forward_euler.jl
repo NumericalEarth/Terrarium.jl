@@ -14,17 +14,17 @@ timestepping(::ForwardEuler) = Explicit()
 
 default_dt(euler::ForwardEuler) = euler.Δt
 
-is_adaptive(euler::ForwardEuler) = false
+"""
+    $TYPEDSIGNATURES
 
-# Step only the prognostic variables named in `names` with the forward Euler scheme.
-function timestep!(integrator::ModelIntegrator, timestepper::ForwardEuler, Δt, names::Tuple)
+Forward Euler step `u ← u + Δt ∂u∂t` for the prognostic variables in `names`: compute the auxiliary
+variables and tendencies at the current state, then apply a single [`explicit_stage!`](@ref). The
+closure is left to the caller (see [`explicit_step!`](@ref)).
+"""
+function explicit_step!(integrator::ModelIntegrator, timestepper::ForwardEuler, Δt, names::Tuple)
     # Compute auxiliaries and tendencies
     update_state!(integrator, compute_tendencies = true)
-    # Euler step for the assigned prognostic variables
-    explicit_step!(integrator.state, get_grid(integrator.model), timestepper, Δt, names)
-    # Call timestep! on model
-    timestep!(integrator.state, integrator.model, timestepper, Δt)
-    # Apply closure relations
-    closure!(integrator.state, integrator.model)
+    # Euler update of the assigned prognostic variables
+    explicit_stage!(integrator.state, get_grid(integrator.model), timestepper, Δt, names)
     return nothing
 end

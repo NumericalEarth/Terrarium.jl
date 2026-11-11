@@ -104,8 +104,10 @@ function create_field(
     field = if isa(boundary_conditions, FieldBoundaryConditions)
         FT(domain, args...; indices = field_indices, boundary_conditions, kwargs...)
     elseif isa(boundary_conditions, NamedTuple)
-        # assume that named tuple corresponds to FieldBoundaryConditions positions
-        field_bcs = FieldBoundaryConditions(domain, (Center(), Center(), nothing); boundary_conditions...)
+        # Assume that the named tuple corresponds to FieldBoundaryConditions positions. Sides that are not
+        # given take the Oceananigans default for the field's actual location and the grid topology (e.g.
+        # no flux on a vertically bounded center-located field) so that their halos are still filled.
+        field_bcs = FieldBoundaryConditions(domain, field_loc, field_indices; boundary_conditions...)
         FT(domain, args...; indices = field_indices, boundary_conditions = field_bcs, kwargs...)
     else
         FT(domain, args...; indices = field_indices, kwargs...)
