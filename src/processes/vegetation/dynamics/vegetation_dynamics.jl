@@ -18,7 +18,6 @@ $TYPEDFIELDS
     @param ν_seed::NF = 0.001 (bounds = UnitInterval,)
 
     "Minimum vegetation disturbance rate"
-    # TODO this parameter is yearly, should be changed to daily for now
     @param γv_min::NF = 0.002 (units = u"yr^-1", bounds = Positive)
 end
 
@@ -41,10 +40,11 @@ Computes the disturbance rate`γv`,
 
 * [willeitPALADYNV10Comprehensive2016](@cite) Willeit & Ganopolski, Geoscientific Model Development (2016)
 """
-@inline function compute_γv(veg_dynamics::PALADYNVegetationDynamics)
+@inline function compute_γv(veg_dynamics::PALADYNVegetationDynamics{NF}) where {NF}
     # TODO add PALADYN implemetation for the disturbance rate (depends on soil moisture)
     # Placeholder for now γv = min. disturbance rate
-    return veg_dynamics.γv_min / (365.25 * 24 * 3600) # convert to seconds
+    # convert from per year to per second
+    return veg_dynamics.γv_min / seconds_per_year(NF)
 end
 
 """

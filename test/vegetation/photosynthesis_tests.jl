@@ -2,6 +2,7 @@ using Terrarium
 using Terrarium: compute_kinetic_parameters, compute_Γ_star, compute_PAR, compute_APAR, compute_pres_i
 using Terrarium: compute_temperature_stress, compute_assimilation_factors, compute_Vc_max, compute_JE_JC
 using Terrarium: compute_Rd, compute_Ag, compute_GPP, compute_respiration_assimilation, compute_photosynthesis
+using Terrarium: compute_λc
 using Test
 
 @testset "Kinetic parameters" begin
@@ -155,7 +156,7 @@ end
 
 @testset "Vc_max" begin
     photo = LUEPhotosynthesis()
-    c_1 = 0.5
+    c_1 = 6.0e-4 # kgC/mol
     Kc = 20.0 # Value for T_air = 20.0 °C
     Ko = 3.0e4 # Value for T_air = 20.0 °C
     Γ_star = 3.0 # Value for T_air = 20.0 °C and pres_O2 = 20.9e3 Pa
@@ -168,9 +169,9 @@ end
     @test Vc_max == 0.0
 
     # Test Vc_max should be finite
-    APAR = 4.0 # Value for swdown = 50 W/m² and LAI = 5
+    APAR = 5.0e-4 # mol/m²/s, for swdown ≈ 400 W/m² and LAI = 4
     Vc_max = compute_Vc_max(photo, c_1, APAR, Kc, Ko, Γ_star, pres_i, pres_O2)
-    @test isfinite(Vc_max)
+    @test isfinite(Vc_max) && Vc_max > 0
 
     # TODO not clear for pres_i = Γ_star?
     # TODO Vc_max can be negative?
@@ -181,15 +182,15 @@ end
     # Test c1 = c2 = 0 (JE and JC should be 0)
     c_1 = 0.0
     c_2 = 0.0
-    APAR = 4.0 # Value for swdown = 50 W/m² and LAI = 5
+    APAR = 5.0e-4 # mol/m²/s
     Vc_max = 0.0 # since c_1 = 0
     JE, JC = compute_JE_JC(photo, c_1, c_2, APAR, Vc_max)
     @test JE == 0.0
     @test JC == 0.0
 
     # Test APAR = Vcmax = 0 (JE and JC should be 0)
-    c_1 = 0.5 # Mock value
-    c_2 = 0.5 # Mock value
+    c_1 = 6.0e-4 # kgC/mol
+    c_2 = 0.3
     APAR = 0.0
     Vc_max = 0.0
     JE, JC = compute_JE_JC(photo, c_1, c_2, APAR, Vc_max)
@@ -197,10 +198,10 @@ end
     @test JC == 0.0
 
     # Test JE, JC should be finite for the other cases
-    c_1 = 0.5 # Mock value
-    c_2 = 0.5 # Mock value
-    APAR = 4.0 # Value for swdown = 50 W/m² and LAI = 5
-    Vc_max = 5.0 # Mock value
+    c_1 = 6.0e-4 # kgC/mol
+    c_2 = 0.3
+    APAR = 5.0e-4 # mol/m²/s
+    Vc_max = 1.0e-6 # kgC/m²/s
     JE, JC = compute_JE_JC(photo, c_1, c_2, APAR, Vc_max)
     @test isfinite(JE)
     @test isfinite(JC)
@@ -212,31 +213,31 @@ end
     photo = LUEPhotosynthesis()
     # Test β=0 (Rd should be 0)
     β = 0.0
-    Vc_max = 5.0 # Mock value
+    Vc_max = 1.0e-6 # kgC/m²/s
     Rd = compute_Rd(photo, Vc_max, β)
     @test Rd == 0.0
 
-    # Test β=1 (Rd should be = α_C3*Vc_max)
+    # Test β=1 (Rd should be = leaf_respiration_fraction*Vc_max)
     β = 1.0
-    Vc_max = 5.0 # Mock value
+    Vc_max = 1.0e-6 # kgC/m²/s
     Rd = compute_Rd(photo, Vc_max, β)
-    @test Rd == photo.α_C3 * Vc_max
+    @test Rd == photo.leaf_respiration_fraction * Vc_max
 
-    # Test Rd should be between 0 and α_C3*Vc_max for 0<β<1 and Vc_max positive
+    # Test Rd should be between 0 and leaf_respiration_fraction*Vc_max for 0<β<1 and Vc_max positive
     β = 0.5
-    Vc_max = 5.0 # Mock value
+    Vc_max = 1.0e-6 # kgC/m²/s
     Rd = compute_Rd(photo, Vc_max, β)
-    @test 0.0 < Rd < photo.α_C3 * Vc_max
+    @test 0.0 < Rd < photo.leaf_respiration_fraction * Vc_max
 
     # TODO test for Vc_max<0, Rd can be negative?
 end
 
 @testset "Ag" begin
     photo = LUEPhotosynthesis()
-    c_1 = 0.5 # Mock value
-    c_2 = 0.5 # Mock value
-    APAR = 4.0 # Value for swdown = 50 W/m² and LAI = 5
-    Vc_max = 5.0 # Mock value
+    c_1 = 6.0e-4 # kgC/mol
+    c_2 = 0.3
+    APAR = 5.0e-4 # mol/m²/s
+    Vc_max = 1.0e-6 # kgC/m²/s
 
     # Test with β = 0 (Ag should be 0)
     β = 0.0
@@ -251,21 +252,6 @@ end
     # TODO Ag can be negative?
 end
 
-# Temporarily disabled since And is no longer computed
-# @testset "And test" begin
-#     photo = LUEPhotosynthesis()
-#     c_1 = 0.5 # Mock value
-#     c_2 = 0.5 # Mock value
-#     β = 0.5 # Mock value
-#     APAR = 4.0 # Value for swdown = 50 W/m² and LAI = 5
-#     Vc_max = 5.0 # Mock value
-#     Rd = 0.2 # Value for β = 0.5 and Vc_max = 5
-#     And = compute_And(photo, c_1, c_2, APAR, Vc_max, β, Rd)
-#     @test isfinite(And)
-
-#     # TODO And can be negative?
-# end
-
 @testset "Photosynthesis (An, Rd, and GPP)" begin
     photo = LUEPhotosynthesis()
     traits = PlantTraits()
@@ -273,12 +259,12 @@ end
     swdown = 50.0 # W/m²
     pres = 1.0e5 # Pa
     co2 = 400.0 # ppm
-    λc = 0.5 # Mock value
+    λc = 0.7 # typical C3 ratio of leaf-internal to ambient CO₂
     β = 1.0 # full soil moisture availability
 
     # Test T_air < -3 (An and Rd should be 0)
     T_air = -5.0 # °C
-    LAI = 5.0 # Mock value
+    LAI = 5.0 # m²/m²
     Rd, An = compute_respiration_assimilation(photo, traits, constants, T_air, swdown, pres, co2, LAI, λc, β)
     @test An == 0.0
     @test Rd == 0.0
@@ -292,13 +278,51 @@ end
 
     # Test T_air > -3 and LAI > 0 (An and Rd should be finite)
     T_air = 20.0 # °C
-    LAI = 5.0 # Mock value
+    LAI = 5.0 # m²/m²
     Rd, An = compute_respiration_assimilation(photo, traits, constants, T_air, swdown, pres, co2, LAI, λc, β)
     @test isfinite(An)
     @test isfinite(Rd)
     @test Rd > 0
     GPP = compute_GPP(photo, An, Rd)
-    @test GPP ≈ (An + Rd) * 1.0e-3
+    @test GPP ≈ An + Rd
 
     # TODO An, Rd can be negative?
+end
+
+@testset "Coordination hypothesis: JE == JC" begin
+    photo = LUEPhotosynthesis()
+    constants = MaterialConstants(Float64)
+    T_air = 20.0 # °C
+    τ, Kc, Ko = compute_kinetic_parameters(photo, T_air)
+    pres_O2 = 0.209 * 1.0e5 # Pa
+    Γ_star = compute_Γ_star(photo, τ, pres_O2)
+    pres_i = 28.0 # Pa
+    T_stress = compute_temperature_stress(photo, T_air)
+    APAR = 5.0e-4 # mol/m²/s
+    c_1, c_2 = compute_assimilation_factors(photo, constants, Γ_star, T_stress, Kc, Ko, pres_i, pres_O2)
+    # Vc_max is acclimated so that light- and Rubisco-limited rates coincide
+    Vc_max = compute_Vc_max(photo, c_1, APAR, Kc, Ko, Γ_star, pres_i, pres_O2)
+    JE, JC = compute_JE_JC(photo, c_1, c_2, APAR, Vc_max)
+    @test JE ≈ JC
+    # Vc_max and leaf respiration scale linearly with APAR
+    @test compute_Vc_max(photo, c_1, 2APAR, Kc, Ko, Γ_star, pres_i, pres_O2) ≈ 2Vc_max
+    @test compute_Rd(photo, Vc_max, 1.0) / Vc_max ≈ photo.leaf_respiration_fraction
+end
+
+@testset "Photosynthesis: plausible midday rates" begin
+    photo = LUEPhotosynthesis()
+    traits = PlantTraits()
+    constants = MaterialConstants(Float64)
+    stomcond = MedlynStomatalConductance()
+    μmol_CO2 = 0.012 * 1.0e-6 # kgC/m²/s per μmol CO₂/m²/s
+    # (air temperature °C, shortwave W/m², LAI, VPD Pa) for a cool cloudy to a warm clear midday
+    for (T_air, swdown, LAI, vpd) in ((15.0, 200.0, 3.0, 500.0), (20.0, 400.0, 4.0, 1000.0), (25.0, 800.0, 5.0, 1500.0))
+        λc = compute_λc(stomcond, vpd)
+        Rd, An = compute_respiration_assimilation(photo, traits, constants, T_air, swdown, 1.0e5, 400.0, LAI, λc, 1.0)
+        GPP = compute_GPP(photo, An, Rd)
+        # canopy GPP of a C3 forest at midday: roughly 5-30 μmol CO₂/m²/s
+        @test 5 * μmol_CO2 < GPP < 30 * μmol_CO2
+        # leaf (dark) respiration is a few percent of gross assimilation
+        @test 0.03 < Rd / GPP < 0.15
+    end
 end
