@@ -188,13 +188,15 @@ UnsatKLinear
 UnsatKVanGenuchten
 ```
 
-The formulation matching the Brooks–Corey retention curve [brooksHydraulicPropertiesPorous1964](@cite), called [`UnsatKBrooksCorey`](@ref), is the power law of [campbellSimpleMethodDetermining1974](@cite) and [clappEmpiricalEquationsSoil1978](@cite) that is also used in SURFEX/ISBA [booneInfluenceInclusionSoil2000](@cite), with the same ice impedance factor:
+The conductivity of the Brooks–Corey model, called [`UnsatKBrooksCorey`](@ref), is a power law of the liquid water saturation, with the same ice impedance factor:
 ```math
 \begin{equation}
 \kappa_{\text{w}} = I_\text{ice}\left(\frac{\theta_{\text{liq}}}{\phi}\right)^{3 + 2/\lambda} \kappa_{\text{w,sat}}\,,
 \end{equation}
 ```
 where $\lambda$ is the pore size distribution index of the retention curve.
+[brooksHydraulicPropertiesPorous1964](@cite) derived the exponent from their retention curve using the pore size distribution model of Burdine; [campbellSimpleMethodDetermining1974](@cite) obtained the same law, written with $b = 1/\lambda$ as $(\theta_{\text{liq}}/\phi)^{2b + 3}$, and [clappEmpiricalEquationsSoil1978](@cite) tabulated $b$ by soil texture.
+In this form, it is the conductivity used in SURFEX/ISBA [booneInfluenceInclusionSoil2000](@cite).
 
 ```@docs; canonical = false
 UnsatKBrooksCorey

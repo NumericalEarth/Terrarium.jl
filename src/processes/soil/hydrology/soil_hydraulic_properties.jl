@@ -279,17 +279,19 @@ end
 """
     $TYPEDEF
 
-Formulation of hydraulic conductivity that matches the Brooks–Corey soil water retention curve
-[brooksHydraulicPropertiesPorous1964](@cite), following the power law of
-[campbellSimpleMethodDetermining1974](@cite) and [clappEmpiricalEquationsSoil1978](@cite) used by SURFEX/ISBA
-[booneInfluenceInclusionSoil2000](@cite), extended with the ice impedance factor of
-[westermannCryoGridCommunityModel2023](@cite):
+Unsaturated hydraulic conductivity of the Brooks–Corey model, extended with an ice impedance factor:
 
     K = I_ice K_sat S^(3 + 2/λ)
 
 where `S = θw / θsat` is the liquid water saturation, `λ` is the pore size distribution index of the
-`BrooksCorey` retention curve, and `I_ice = 10^(-Ω (1 - f))` with `f` the unfrozen fraction of the pore
-water. The exponent `λ` is taken from the retention curve so that the two cannot be configured
+`BrooksCorey` retention curve, and `I_ice` is the [`Terrarium.ice_impedance_factor`](@ref) of
+[westermannCryoGridCommunityModel2023](@cite).
+
+The power law and its exponent `3 + 2/λ` were derived by [brooksHydraulicPropertiesPorous1964](@cite) from
+their retention curve, using the pore size distribution model of Burdine.
+[campbellSimpleMethodDetermining1974](@cite) obtained the same law, written as `S^(2b + 3)` with `b = 1/λ`, and
+[clappEmpiricalEquationsSoil1978](@cite) tabulated `b` by soil texture; in this form, it is the conductivity
+of SURFEX/ISBA [booneInfluenceInclusionSoil2000](@cite). The exponent `λ` is taken from the retention curve so that the two cannot be configured
 inconsistently; this formulation can therefore only be combined with a `BrooksCorey` retention curve.
 
 # References
