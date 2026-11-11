@@ -180,6 +180,23 @@ end
     @test all(state.saturation_water_ice .>= hydraulic_properties.residual_saturation)
     @test ∫sat₁ ≈ ∫sat₀
 
+    # Case 2b: Undersaturation at the bottom; the deficit is drawn from the wetter layers above, so that
+    # water is conserved
+    set!(state.saturation_water_ice, (x, z) -> z < -9.5 ? -0.05 : 0.5)
+    ∫sat₀ = compute!(∫sat)[1, 1, 1]
+    Terrarium.adjust_saturation_profile!(state, grid, hydrology)
+    ∫sat₁ = compute!(∫sat)[1, 1, 1]
+    @test all(state.saturation_water_ice .>= hydraulic_properties.residual_saturation)
+    @test ∫sat₁ ≈ ∫sat₀
+
+    # Case 2c: Undersaturation at both ends of the column
+    set!(state.saturation_water_ice, (x, z) -> z < -9.5 || z > -0.5 ? -0.05 : 0.5)
+    ∫sat₀ = compute!(∫sat)[1, 1, 1]
+    Terrarium.adjust_saturation_profile!(state, grid, hydrology)
+    ∫sat₁ = compute!(∫sat)[1, 1, 1]
+    @test all(state.saturation_water_ice .>= hydraulic_properties.residual_saturation)
+    @test ∫sat₁ ≈ ∫sat₀
+
     # Case 3: Completely dry with negative saturation near surface
     set!(state.saturation_water_ice, (x, z) -> min(-0.1 - z, 0.0))
     Terrarium.adjust_saturation_profile!(state, grid, hydrology)

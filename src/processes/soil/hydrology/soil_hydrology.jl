@@ -225,7 +225,10 @@ end
 
 Kernel function that adjusts saturation profiles to account for oversaturation and undersaturation
 arising due to numerical error. This implementation scans over the saturation profiles at each lateral
-grid cell and redistributes excess water upward layer-by-layer until reaching the topmost layer. The
+grid cell and redistributes excess water upward layer-by-layer until reaching the topmost layer, and
+saturation deficits below the residual saturation downward and then back upward, drawing on the water of
+the neighboring layers. Water is conserved unless the column as a whole holds less water than its residual
+saturation, in which case the topmost layer is filled up to the residual saturation. The
 remaining surface excess is returned as the excess saturation of the topmost layer times its thickness
 (m); the caller multiplies by the topmost porosity to get a water depth (m³/m²) to route into a surface
 water pool, or discards it. With an `energy` process, every saturation change also changes the internal
@@ -272,17 +275,31 @@ energy in `out` by the sensible heat of the water ([`compute_redistributed_heat!
         compute_redistributed_heat!(out, i, j, k - 1, grid, fields, energy, strat, bgc, k - 1, -Δs_below)
     end
 
+    # then from bottom to top again, extracting water for the bottom cell from the layers above; after
+    # the previous pass, only the bottom cell can still have a deficit, which is carried upward until
+    # a cell can supply it
+    for k in 1:(N - 1)
+        deficit_sat = max(-sat[i, j, k] + sat_min, zero(NF))
+        Δs_above = deficit_sat * Δzᵃᵃᶜ(i, j, k, ground_grid) / Δzᵃᵃᶜ(i, j, k + 1, ground_grid)
+        sat[i, j, k] += deficit_sat
+        sat[i, j, k + 1] -= Δs_above
+        # the water carries the temperature of cell k + 1
+        compute_redistributed_heat!(out, i, j, k, grid, fields, energy, strat, bgc, k + 1, deficit_sat)
+        compute_redistributed_heat!(out, i, j, k + 1, grid, fields, energy, strat, bgc, k + 1, -Δs_above)
+    end
+
     # If the uppermost (surface) layer is oversaturated, remove the excess and return it as a water depth
     excess_sat = max(sat[i, j, N] - one(NF), zero(NF))
     sat[i, j, N] -= excess_sat
     compute_redistributed_heat!(out, i, j, N, grid, fields, energy, strat, bgc, N, -excess_sat)
     surface_excess = excess_sat * Δzᵃᵃᶜ(i, j, N, ground_grid)
 
-    # If the lowermost (bottom) layer has a deficit, just set to the residual saturation level.
-    # This constitutes a mass balance violation but should not happen under realistic conditions.
-    deficit_bottom = max(sat_min - sat[i, j, 1], zero(NF))
-    sat[i, j, 1] += deficit_bottom
-    compute_redistributed_heat!(out, i, j, 1, grid, fields, energy, strat, bgc, 1, deficit_bottom)
+    # If the uppermost layer still has a deficit, the column as a whole holds less water than its residual
+    # saturation, and no cell can supply it. Only then is the top layer set to the residual saturation level,
+    # which constitutes a mass balance violation.
+    deficit_top = max(sat_min - sat[i, j, N], zero(NF))
+    sat[i, j, N] += deficit_top
+    compute_redistributed_heat!(out, i, j, N, grid, fields, energy, strat, bgc, N, deficit_top)
 
     return surface_excess
 end
