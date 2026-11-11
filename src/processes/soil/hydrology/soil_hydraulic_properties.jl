@@ -298,11 +298,11 @@ function hydraulic_conductivity(
         hydraulics::AbstractSoilHydraulics{NF, <:BrooksCorey, UnsatKBrooksCorey{NF}},
         soil::SoilComposition
     ) where {NF}
-    let λ = hydraulics.swrc.λ, # Brooks–Corey pore size distribution index
-            θw = water(soil), # volumetric content of unfrozen water
-            θsat = porosity(soil), # porosity
-            f = liquid_fraction(soil), # fraction of pore water that is unfrozen
-            Ω = hydraulics.unsat_hydraulic_cond.impedance # scaling parameter for ice impedance
+    let λ = hydraulics.swrc.λ # Brooks–Corey pore size distribution index
+        θw = water(soil) # volumetric content of unfrozen water
+        θsat = porosity(soil) # porosity
+        f = liquid_fraction(soil) # fraction of pore water that is unfrozen
+        Ω = hydraulics.unsat_hydraulic_cond.impedance # scaling parameter for ice impedance
         I_ice = 10^(-Ω * (1 - f)) # ice impedance factor
         K_sat = saturated_hydraulic_conductivity(hydraulics, soil.solid.texture)
         # Saturation clamped to the unit interval so that the fractional power is evaluated at a
