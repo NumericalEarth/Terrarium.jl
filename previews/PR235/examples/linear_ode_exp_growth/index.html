@@ -93,12 +93,12 @@ sim.output_writers[:snapshots] = JLD2Writer(
 run!(sim)
 @assert isfile(output_file) &quot;Output file does not exist!&quot;
 println(&quot;Simulation data saved to $(output_file)&quot;)</code></pre><pre><code class="nohighlight hljs">[ Info: Initializing simulation...
-[ Info:     ... simulation initialization complete (10.753 seconds)
+[ Info:     ... simulation initialization complete (9.520 seconds)
 [ Info: Executing initial time step...
-[ Info:     ... initial time step complete (2.498 seconds).
-[ Info: Simulation is stopping after running for 20.134 seconds.
+[ Info:     ... initial time step complete (2.536 seconds).
+[ Info: Simulation is stopping after running for 18.861 seconds.
 [ Info: Simulation time 5 minutes equals or exceeds stop time 5 minutes.
-Simulation data saved to /tmp/jl_FMDcxwRu1M/simulation.jld2
+Simulation data saved to /tmp/jl_aRKLsN21kz/simulation.jld2
 </code></pre><p>Then load the output data and plot the results:</p><pre><code class="language-julia hljs">using CairoMakie
 import DisplayAs
 

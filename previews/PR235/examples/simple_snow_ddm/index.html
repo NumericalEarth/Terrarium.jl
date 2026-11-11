@@ -91,18 +91,18 @@ snow_sim.output_writers[:snapshots] = JLD2Writer(
 run!(snow_sim)
 @assert isfile(output_file_snow) &quot;Output file does not exist!&quot;
 println(&quot;Simulation data saved to $(output_file_snow)&quot;)</code></pre><pre><code class="nohighlight hljs">[ Info: Initializing simulation...
-[ Info:     ... simulation initialization complete (2.144 seconds)
+[ Info:     ... simulation initialization complete (2.228 seconds)
 [ Info: Executing initial time step...
-[ Info:     ... initial time step complete (1.643 seconds).
-[ Info: Simulation is stopping after running for 16.041 seconds.
+[ Info:     ... initial time step complete (1.726 seconds).
+[ Info: Simulation is stopping after running for 15.946 seconds.
 [ Info: Simulation time 80 days equals or exceeds stop time 80 days.
-Simulation data saved to /tmp/jl_g9YtYZmrkZ/ddsnow-simulation.jld2
-</code></pre><p>And now, we plot that data. First we load the JLD2 file.</p><pre><code class="language-julia hljs">fts_result = FieldTimeSeries(output_file_snow, &quot;snow_storage&quot;)</code></pre><pre><code class="nohighlight hljs">1410×1×1×1921 FieldTimeSeries{InMemory} located at (Center, Center, ⋅) of snow_storage at /tmp/jl_g9YtYZmrkZ/ddsnow-simulation.jld2
+Simulation data saved to /tmp/jl_fYhyZGXSJU/ddsnow-simulation.jld2
+</code></pre><p>And now, we plot that data. First we load the JLD2 file.</p><pre><code class="language-julia hljs">fts_result = FieldTimeSeries(output_file_snow, &quot;snow_storage&quot;)</code></pre><pre><code class="nohighlight hljs">1410×1×1×1921 FieldTimeSeries{InMemory} located at (Center, Center, ⋅) of snow_storage at /tmp/jl_fYhyZGXSJU/ddsnow-simulation.jld2
 ├── grid: 1410×1×1 RectilinearGrid{Float32, Periodic, Flat, Bounded} on CPU with 3×0×1 halo
 ├── indices: (:, :, :)
 ├── time_indexing: Linear()
 ├── backend: InMemory()
-├── path: /tmp/jl_g9YtYZmrkZ/ddsnow-simulation.jld2
+├── path: /tmp/jl_fYhyZGXSJU/ddsnow-simulation.jld2
 ├── name: snow_storage
 └── data: 1416×1×1×1921 StaticStridesOffsetArray(::Array{Float32, 4}, -2:1413, 1:1, 1:1, 1:1921) with eltype Float32 with indices -2:1413×1:1×1:1×1:1921
     └── max=27.1672, min=0.0, mean=4.45305</code></pre><p>Then, we plot it using <code>CairoMakie</code>. For this purpose we first convert to a <code>RingGrids.Field</code> and then plot it via <code>heatmap</code> like so</p><pre><code class="language-julia hljs">tsteps = 1

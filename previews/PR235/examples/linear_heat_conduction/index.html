@@ -93,10 +93,10 @@ T_init = copy(vec(interior(integrator.state.temperature)))</code></pre><pre><cod
 
 sim = Simulation(integrator; stop_time = 2days, Δt = 600.0)
 run!(sim)</code></pre><pre><code class="nohighlight hljs">[ Info: Initializing simulation...
-[ Info:     ... simulation initialization complete (116.201 ms)
+[ Info:     ... simulation initialization complete (108.625 ms)
 [ Info: Executing initial time step...
-[ Info:     ... initial time step complete (381.449 ms).
-[ Info: Simulation is stopping after running for 498.854 ms.
+[ Info:     ... initial time step complete (373.798 ms).
+[ Info: Simulation is stopping after running for 483.661 ms.
 [ Info: Simulation time 2 days equals or exceeds stop time 2 days.
 </code></pre><p>Extract the temperature profile and compare with the initial condition:</p><pre><code class="language-julia hljs">using CairoMakie
 import DisplayAs
