@@ -80,7 +80,7 @@ terrarium_model = Terrarium.LandModel(land_grid; vegetation, soil, surface_energ
 
 # Prepare the input sources: first the SoilGrids data, then the LAI data for prescribed vegetation.
 initial_date = DateTime(2024)
-soilgrids_inputs = InputSources(SoilGrids2(), land_grid)
+soilgrids_inputs = InputSources(SoilGrids2(grid_type = SoilGrids.Clenshaw10km), land_grid)
 lai_highveg_fts = FieldTimeSeries(lai_highveg_daily, land_grid, 0.0:1day:365day)
 lai_inputs = InputSource(lai_highveg_fts, name = :leaf_area_index, reftime = Speedy.DEFAULT_DATE; domain = Terrarium.Canopy())
 inputs = InputSources(T₀_source, lai_inputs, soilgrids_inputs.sources...) # combine input sources
