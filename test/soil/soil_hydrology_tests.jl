@@ -97,34 +97,34 @@ end
         K_sat = hydraulics.saturated_conductivity
         b = 3 + 2 / hydraulics.swrc.λ
         solid = MineralOrganic(texture = SoilTexture(NF), organic = zero(NF))
-        composition(; saturation = 1, liquid = 1) = SoilComposition(porosity = NF(0.5), saturation = NF(saturation), liquid = NF(liquid), solid = solid)
+        soil_composition(; saturation = 1, liquid = 1) = SoilComposition(porosity = NF(0.5), saturation = NF(saturation), liquid = NF(liquid), solid = solid)
 
         # saturated case
-        soil = composition()
+        soil = soil_composition()
         K = @inferred hydraulic_conductivity(hydraulics, soil)
         @test K isa NF
         @test K ≈ K_sat
 
         # unsaturated: power law in the liquid saturation, monotonically increasing
         saturations = NF.(0.05:0.05:1.0)
-        Ks = [hydraulic_conductivity(hydraulics, composition(; saturation)) for saturation in saturations]
+        Ks = [hydraulic_conductivity(hydraulics, soil_composition(; saturation)) for saturation in saturations]
         @test all(diff(Ks) .> 0)
         @test Ks ≈ K_sat .* saturations .^ b
         # dry soil conducts many orders of magnitude less than with a linear conductivity
         @test first(Ks) < 1.0e-15 * K_sat
 
         # dry
-        soil = composition(; saturation = 0)
+        soil = soil_composition(; saturation = 0)
         K = hydraulic_conductivity(hydraulics, soil)
         @test iszero(K)
 
         # frozen
-        soil = composition(; liquid = 0)
+        soil = soil_composition(; liquid = 0)
         K = hydraulic_conductivity(hydraulics, soil)
         @test iszero(K)
 
         # ice impedance: partially frozen pore water reduces K beyond the loss of liquid water
-        soil = composition(; liquid = 0.5)
+        soil = soil_composition(; liquid = 0.5)
         K = hydraulic_conductivity(hydraulics, soil)
         θw = Terrarium.water(soil)
         θsat = Terrarium.porosity(soil)
