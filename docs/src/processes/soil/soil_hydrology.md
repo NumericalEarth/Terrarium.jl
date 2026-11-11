@@ -178,7 +178,7 @@ with $\kappa_{\text{w,sat}}$ the saturated hydraulic conductivity (m/s).  A more
 \kappa_{\text{w}} = I_\text{ice}\left(\frac{\theta_{\text{liq}}}{\phi}\right)^{0.5} \left[1 - \left(1 - \left(\frac{\theta_{\text{liq}}}{\phi}\right)^{n/(n+1)}\right)^{(n-1)/n}\right]^2 \kappa_{\text{w,sat}}\,,
 \end{equation}
 ```
-which adds an ice impedance factor $I_\text{ice} = 10^{\Omega\theta_{\text{ice}}/\theta}$ to the classic van Genuchten formulation to account for the blocking of water-filled pores by ice. 
+which adds an ice impedance factor $I_\text{ice} = 10^{-\Omega\theta_{\text{ice}}/\theta}$ to the classic van Genuchten formulation to account for the blocking of water-filled pores by ice. 
 
 ```@docs; canonical = false
 UnsatKLinear
@@ -271,6 +271,10 @@ saturation_water_ice
 
 ```@docs; canonical = false
 hydraulic_conductivity
+```
+
+```@docs; canonical = false
+Terrarium.ice_impedance_factor
 ```
 
 ```@docs; canonical = false

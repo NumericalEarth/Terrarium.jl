@@ -200,6 +200,19 @@ end
 # Unsaturated hydraulic conductivity schemes
 
 """
+    $SIGNATURES
+
+Ice impedance factor `I_ice = 10^(-Ω (1 - f))` [westermannCryoGridCommunityModel2023](@cite), which reduces the
+hydraulic conductivity of partially frozen soil to account for the blocking of water-filled pores by ice, given
+the scaling parameter `Ω` and the unfrozen fraction `f` of the pore water.
+
+# References
+
+* [westermannCryoGridCommunityModel2023](@cite) Westermann et al., Geoscientific Model Development (2023)
+"""
+@inline ice_impedance_factor(Ω, f) = 10^(-Ω * (1 - f))
+
+"""
     $TYPEDEF
 
 Simple formulation of hydraulic conductivity as a linear function of the liquid water saturated fraction,
@@ -252,7 +265,7 @@ function hydraulic_conductivity(
         θsat = porosity(soil) # porosity
         f = liquid_fraction(soil) # fraction of pore water that is unfrozen (equiv. θw / θwi)
         Ω = hydraulics.unsat_hydraulic_cond.impedance # scaling parameter for ice impedance
-        I_ice = 10^(-Ω * (1 - f)) # ice impedance factor
+        I_ice = ice_impedance_factor(Ω, f)
         K_sat = saturated_hydraulic_conductivity(hydraulics, soil.solid.texture)
         # Effective saturation, clamped to the unit interval so that every fractional power below is
         # evaluated at a non-negative base. Illegal state values (θw > θsat or θw < 0), which may occur
@@ -303,7 +316,7 @@ function hydraulic_conductivity(
         θsat = porosity(soil) # porosity
         f = liquid_fraction(soil) # fraction of pore water that is unfrozen
         Ω = hydraulics.unsat_hydraulic_cond.impedance # scaling parameter for ice impedance
-        I_ice = 10^(-Ω * (1 - f)) # ice impedance factor
+        I_ice = ice_impedance_factor(Ω, f)
         K_sat = saturated_hydraulic_conductivity(hydraulics, soil.solid.texture)
         # Saturation clamped to the unit interval so that the fractional power is evaluated at a
         # non-negative base, as in `UnsatKVanGenuchten`.
