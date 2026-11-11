@@ -126,9 +126,9 @@ end
 
 # For a simple process like this, this is of course quite a lot of overhead, but this structure allows us to very efficiently build up complex land models from relatively simple components.
 #
-# There's one additional thing we need to take care of: the snow storage is strictly non-negative, but our model as currently implemented would quickly reach negative values for ``S``. While the aforementioned paper of [kavetskiModelSmoothingStrategies2007](@citet) mitigates this issue by smoothing the model equation, we will in this example do the simplest possible strategy: we simply clip non-negative values during the time stepping of our model. To implement such a clipping we have to extend `timestep!(state::StateVaribales, model::ExpModel, timestepper, Δt)`. This method is applied after each explicit step the time stepper takes (but before any closure relations are applied if they exist). Let's implement the clipping:
+# There's one additional thing we need to take care of: the snow storage is strictly non-negative, but our model as currently implemented would quickly reach negative values for ``S``. While the aforementioned paper of [kavetskiModelSmoothingStrategies2007](@citet) mitigates this issue by smoothing the model equation, we will in this example do the simplest possible strategy: we simply clip non-negative values during the time stepping of our model. To implement such a clipping we extend `closure!(state, model::SnowModel)`. This method applies the closure relations of a model and any constraints on its prognostic state, and the time stepper calls it after each step. Let's implement the clipping:
 
-function Terrarium.timestep!(state::StateVariables, model::SnowModel, timestepper::Terrarium.AbstractTimeStepper, Δt)
+function Terrarium.closure!(state, model::SnowModel)
     interior(state.snow_storage) .= max.(interior(state.snow_storage), 0)
     return nothing
 end

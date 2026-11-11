@@ -1,8 +1,8 @@
 # Cell advection/diffusion timescale diagnostics for adaptive timestepping.
 #
-# These methods provide the `cell_diffusion_timescale` (and a trivial `cell_advection_timescale`)
-# consumed by the Oceananigans `TimeStepWizard` callback so that a `Simulation` wrapping a
-# `ModelIntegrator` can adapt its step size to the diffusive stability limit of the soil operators.
+# These methods provide the `cell_diffusion_timescale` and `cell_advection_timescale` consumed by the
+# Oceananigans `TimeStepWizard` callback so that a `Simulation` wrapping a `ModelIntegrator` can adapt its
+# step size to the stability limits of the explicitly integrated soil terms.
 
 """
     $TYPEDSIGNATURES
@@ -21,22 +21,35 @@ cell_diffusion_timescale(integrator::ModelIntegrator) =
 """
     $TYPEDSIGNATURES
 
-Return the advective stability timescale of the `integrator`. Land models currently transport no quantity
-advectively, so this is always `Inf` (no advective restriction); it exists only so that a plain
-`TimeStepWizard` (which always evaluates an advective timescale) can be applied to a Terrarium
-`Simulation` without providing a custom `cell_advection_timescale`.
+Return the advective stability timescale (seconds) of the `integrator`, used by the Oceananigans
+`TimeStepWizard` for an advective CFL constraint. For [`SoilModel`](@ref) and [`LandModel`](@ref) this is
+the minimum of the timescale of the explicit upwind advection of sensible heat by the soil water flux (see
+[`advective_heat_flux`](@ref)), `Inf` without water flow and when `internal_energy` is integrated
+implicitly, and of the explicit water outflow limit ([`water_outflow_timescale`](@ref)). Models that
+transport nothing advectively return `Inf`.
 """
-cell_advection_timescale(integrator::ModelIntegrator{NF}) where {NF} = convert(NF, Inf)
+cell_advection_timescale(integrator::ModelIntegrator) =
+    cell_advection_timescale(integrator.state, integrator.model)
+
+# Generic (no advective restriction) fallback.
+cell_advection_timescale(state, ::AbstractModel{NF}) where {NF} = convert(NF, Inf)
+
+cell_advection_timescale(state, model::SoilModel) =
+    cell_advection_timescale(state, model.grid, model.soil, model.constants, nothing, get_timestepper(model))
+
+cell_advection_timescale(state, model::LandModel) =
+    cell_advection_timescale(state, get_grid(model), model.soil, model.constants, model.surface_hydrology, get_timestepper(model))
 
 # Generic (no diffusive restriction) fallback.
 cell_diffusion_timescale(state, ::AbstractModel{NF}) where {NF} = convert(NF, Inf)
 
-# Soil and land models: the diffusive operators live in the soil component.
+# Soil and land models: the diffusive operators live in the soil component. Implicit conduction and
+# Richards flow impose no diffusive restriction.
 cell_diffusion_timescale(state, model::SoilModel) =
-    cell_diffusion_timescale(state, model.grid, model.soil, model.constants)
+    cell_diffusion_timescale(state, model.grid, model.soil, model.constants, get_timestepper(model))
 
 cell_diffusion_timescale(state, model::LandModel) =
     min(
-    cell_diffusion_timescale(state, model.grid, model.soil, model.constants),
+    cell_diffusion_timescale(state, model.grid, model.soil, model.constants, get_timestepper(model)),
     cell_diffusion_timescale(state, model.grid, model.snow, model.constants)
 )

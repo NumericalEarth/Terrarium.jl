@@ -11,7 +11,8 @@ that `ground_heat_flux` is an input field forming a clean boundary-condition sea
 function build_prescribed_seb_model(arch, ::Type{NF}) where {NF}
     grid = ColumnGrid(arch, NF, ExponentialSpacing(Δz_max = 1.0, N = 10))
     seb = PrescribedSurfaceEnergyBalance(eltype(grid))
-    return LandModel(grid; surface_energy_balance = seb, vegetation = nothing, snow = nothing)
+    soil = SoilEnergyWaterCarbon(eltype(grid); hydrology = SoilHydrology(eltype(grid), NoFlow()))
+    return LandModel(grid; soil, surface_energy_balance = seb, vegetation = nothing, snow = nothing)
 end
 
 function mean_soil_temperature_step!(integrator, Δt)

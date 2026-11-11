@@ -1,5 +1,5 @@
 using Terrarium
-using Terrarium: compute_f_temp, compute_Rm, compute_Rg, compute_Ra, compute_NPP
+using Terrarium: compute_f_temp, compute_resp10, compute_Rm, compute_Rg, compute_Ra, compute_NPP
 using Test
 
 # Realistic inputs for the default (needleleaf) parameters; all carbon fluxes in kgC/m²/s.
@@ -22,8 +22,8 @@ end
 
 @testset "resp10 test" begin
     autoresp = PALADYNAutotrophicRespiration()
-    # PALADYN tissue respiration rate at 10 °C (kgC/kgN/day)
-    @test autoresp.resp10 == 0.066
+    # For now, a placeholder returning the PALADYN tissue respiration rate at 10 °C (kgC/kgN/day)
+    @test compute_resp10(autoresp) == 0.066
 end
 
 @testset "Rm test" begin

@@ -4,8 +4,8 @@ Host cost of one native GPU kernel launch, split into its stages, and a host pro
 Usage: julia --project=. launch_overhead.jl [key=value ...]
 
 At small grid sizes the GPU is idle for most of a step and the step time is the host time spent between
-launches. This tool times, on the host, each stage of launching `explicit_step_xy_kernel!` on one
-single-variable XY prognostic field: Terrarium's `explicit_step!`, Oceananigans' `launch!`,
+launches. This tool times, on the host, each stage of launching `explicit_stage_xy_kernel!` on one
+single-variable XY prognostic field: Terrarium's `explicit_stage!`, Oceananigans' `launch!`,
 `configure_kernel`, `convert_to_device`, `cudaconvert`, the KernelAbstractions call, the CUDA.jl kernel
 lookup, and the launch itself; and, for reference, a trivial CUDA.jl kernel. It writes the table to
 `<out>_stages.md`, with the host and wall time of a whole step.
@@ -56,7 +56,7 @@ u, ∂u∂t = found
 dt = Terrarium.convert_dt(eltype(grid), Δt)
 
 ## replicate the stages of `Oceananigans.launch!` and of KernelAbstractions' CUDA launch
-kernel! = Terrarium.explicit_step_xy_kernel!
+kernel! = Terrarium.explicit_stage_xy_kernel!
 args = (u, grid, ∂u∂t, timestepper, dt)
 location = Oceananigans.instantiated_location(u)
 configure() = configure_kernel(ARCH, grid, Val(:xy), kernel!, nothing, Val(false); location, reduced_dimensions = ())
@@ -75,7 +75,7 @@ x = CUDA.zeros(Float32, 1)
 trivial = @cuda launch = false trivial_kernel(x)
 
 stages = [
-    "`Terrarium.explicit_step!` on one XY field (whole path)" => () -> Terrarium.explicit_step!(u, ∂u∂t, grid, timestepper, Δt),
+    "`Terrarium.explicit_stage!` on one XY field (whole path)" => () -> Terrarium.explicit_stage!(u, ∂u∂t, grid, timestepper, Δt),
     "`Oceananigans.launch!` with Terrarium's arguments" => () -> Oceananigans.launch!(ARCH, grid, Val(:xy), kernel!, args...),
     "`configure_kernel` (work layout and KernelAbstractions kernel object)" => configure,
     "`convert_to_device` of the arguments" => () -> convert_to_device(ARCH, args),
@@ -89,7 +89,7 @@ stages = [
 
 open(OUT * "_stages.md", "w") do io
     say(io, environment_summary())
-    say(io, "`$(OPTIONS.config)` at $(ncolumns(OPTIONS.nlat)) columns, kernel `explicit_step_xy_kernel!` on $(summary(u))")
+    say(io, "`$(OPTIONS.config)` at $(ncolumns(OPTIONS.nlat)) columns, kernel `explicit_stage_xy_kernel!` on $(summary(u))")
     say(io, "")
     say(io, "| Stage | Host time (µs) | Allocations |")
     say(io, "| --- | --- | --- |")

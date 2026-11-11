@@ -104,15 +104,19 @@ end
     @test all(state.saturation_water_ice .≈ 1)
 
     # Case 1b: With a runoff process passed as an optional dependency, the excess water removed from the
-    # oversaturated surface is routed into the runoff-owned `surface_excess_water` pool instead of discarded.
+    # oversaturated surface is routed into the runoff-owned `surface_excess_water` pool instead of discarded,
+    # as a water depth (excess saturation times porosity, integrated over depth).
     runoff = DirectSurfaceRunoff(Float64)
-    coupled_state = StateVariables(merge(Variables(hydrology), Variables(runoff)), grid)
+    mineral_porosity = 0.4
+    strat = HomogeneousSoilStratigraphy(Float64; porosity = ConstantSoilPorosity(Float64; mineral_porosity))
+    bgc = ConstantSoilCarbonDensity(Float64; ρ_soc = 0.0) # zero SOC -> pure mineral porosity
+    coupled_state = StateVariables(merge(Variables(hydrology), Variables(runoff), Variables(strat)), grid)
     set!(coupled_state.saturation_water_ice, (x, z) -> max(1.1 + z, 1.0))
     ∫sat_excess = Field(Integral(coupled_state.saturation_water_ice - 1, dims = 3))
     compute!(∫sat_excess)
-    Terrarium.adjust_saturation_profile!(coupled_state, grid, hydrology, runoff)
+    Terrarium.adjust_saturation_profile!(coupled_state, grid, hydrology, runoff, strat, bgc)
     @test all(coupled_state.saturation_water_ice .≈ 1)
-    @test all(coupled_state.surface_excess_water .≈ ∫sat_excess)
+    @test all(coupled_state.surface_excess_water .≈ mineral_porosity .* ∫sat_excess)
 
     # Case 2: Undersaturation at surface
     set!(state.saturation_water_ice, (x, z) -> min(-0.1 - z, 1.0))
@@ -226,12 +230,12 @@ end
         strat = HomogeneousSoilStratigraphy(eltype(grid); porosity = ConstantSoilPorosity(eltype(grid); mineral_porosity))
         bgc = ConstantSoilCarbonDensity(eltype(grid))
         hydrology = SoilHydrology(eltype(grid), RichardsEq())
-        infiltration_var = auxiliary(:infiltration, Terrarium.Ground(Terrarium.Top()), units = u"m/s", desc = "Infiltration flux")
-        # `strat`'s own variables (the per-horizon namespace `porosity_top` reaches into) must be part
-        # of the state too, not just `hydrology`'s.
-        vars = merge(Variables(hydrology), Variables(strat), Variables((infiltration_var,)))
-        state = StateVariables(vars, grid; boundary_conditions = InfiltrationFlux(strat, bgc))
         soil = SoilEnergyWaterCarbon(eltype(grid); strat, hydrology, biogeochem = bgc)
+        infiltration_var = auxiliary(:infiltration, Terrarium.Ground(Terrarium.Top()), units = u"m/s", desc = "Infiltration flux")
+        # state of the full soil (the hydrology closure moves the heat of redistributed water), plus the
+        # infiltration input of the boundary condition
+        vars = merge(Variables(soil), Variables((infiltration_var,)))
+        state = StateVariables(vars, grid; boundary_conditions = InfiltrationFlux(strat, bgc))
         set!(state.saturation_water_ice, (x, z) -> min(1, 0.8 - 0.05 * z))
         set!(state.infiltration, 2.0e-7)
         Terrarium.closure!(state, grid, get_closure(hydrology), hydrology, soil)
@@ -263,7 +267,8 @@ end
     end
     hydrology = SoilHydrology(eltype(grid), RichardsEq(); hydraulic_properties, vwc_forcing)
     soil = SoilEnergyWaterCarbon(eltype(grid); hydrology, strat)
-    model = SoilModel(grid; soil)
+    # explicit, so that one step removes exactly Δt times the forcing
+    model = SoilModel(grid; soil, timestepper = ForwardEuler(Float64))
     # Variably saturated with water table
     initializers = (
         temperature = 10.0, # positive soil temperature
