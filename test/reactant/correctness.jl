@@ -72,7 +72,7 @@ function _sync_group!(dst_nt::NamedTuple, src_nt::NamedTuple)
         dst = dst_nt[name]
         # Only mutable Fields are synced directly; views (e.g. ground_temperature) track their
         # parent field and update automatically once the parent is synced, and lazy
-        # `AbstractOperation`s (e.g. `kernel(...)`-backed auxiliaries such as `phenology_factor`)
+        # `AbstractOperation`s (e.g. operation-backed auxiliaries such as `root_fraction`)
         # recompute from their inputs, so they follow once those are synced.
         dst isa AbstractField && !(dst isa AbstractOperation) || continue
         # Move the source field onto the destination's architecture via `on_architecture`, then

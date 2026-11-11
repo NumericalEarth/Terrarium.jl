@@ -38,7 +38,7 @@ MedlynStomatalConductance(::Type{NF}; kwargs...) where {NF} = MedlynStomatalCond
 variables(::MedlynStomatalConductance) = (
     auxiliary(:canopy_water_conductance, Canopy(XY()), units = u"m/s"), # Canopy conducatance for water vapor
     input(:leaf_area_index, Canopy(XY()), units = u"m^2/m^2"),
-    input(:net_assimilation, Canopy(XY()), units = u"g/m^2/s"), # Net photosynthesis rate [gC/m²/s]
+    input(:net_assimilation, Canopy(XY()), units = u"kg/m^2/s"), # Net photosynthesis rate [kgC/m²/s]
     input(:soil_moisture_limiting_factor, Ground(XY())),
 )
 
@@ -80,16 +80,16 @@ minimum conductance and light extinction effects based on LAI, scaled by soil mo
         # Compute minimum conductance g₀ from g_min and LAI
         g₀ = g_min * (1 - exp(-k_ext * LAI)) * β # m/s
         # Collect constants for An conversion factor
-        M_C = constants.material.atomic_weight_carbon # atomic weight of carbon in gC/mol
-        M_air = constants.material.molecular_weight_dry_air / NF(1.0e3) # gC / mol -> kgC / mol
+        M_C = constants.material.atomic_weight_carbon # atomic weight of carbon in kgC/mol
+        M_air = constants.material.molecular_weight_dry_air / NF(1.0e3) # g/mol -> kg/mol
         R = constants.thermodynamics.gas_constant_dry_air * M_air # Universal gas constant in J/(mol·K)
         T_K = celsius_to_kelvin(constants.thermodynamics, T_air)
         # Compute ideal gas conversion factor in m³/mol
         F = R * T_K / pres
         # Dimensionless scaling coefficient (from Medlyn model)
         b = D * (1 + g₁ / sqrt(vpd))
-        # Stomatal conductance [m/s] as g₀ [m/s] + b * An / cₐ [gC/m²/s] / M_C [gC/mol] × F [m³/mol]
-        # An is converted from gC/m²/s → mol C/m²/s, then to m/s via ideal gas law
+        # Stomatal conductance [m/s] as g₀ [m/s] + b * An / cₐ [kgC/m²/s] / M_C [kgC/mol] × F [m³/mol]
+        # An is converted from kgC/m²/s → mol C/m²/s, then to m/s via ideal gas law
         g_stm = g₀ + b * An / cₐ / M_C * F
         return g_stm
     end

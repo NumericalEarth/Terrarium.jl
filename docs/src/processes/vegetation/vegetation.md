@@ -35,32 +35,32 @@ subtypes(Terrarium.AbstractVegetation)
 
 ## Vegetation carbon
 
-The primary implementation of [`AbstractVegetation`](@ref) is [`VegetationCarbonCycle`](@ref), which couples together all of the above processes governing the carbon cycle of natural vegetation. `VegetationCarbonCycle` also provides a coupling interface for interacting with [`AbstractAtmosphere`](@ref) and [`AbstractSoil`](@ref) components.
+The primary implementation of [`AbstractVegetation`](@ref) is [`PrognosticVegetation`](@ref), which couples together all of the above processes governing the carbon cycle of natural vegetation. `PrognosticVegetation` also provides a coupling interface for interacting with [`AbstractAtmosphere`](@ref) and [`AbstractSoil`](@ref) components.
 
 ```@docs; canonical = false
-VegetationCarbonCycle
+PrognosticVegetation
 ```
 
 ```@example vegetation
-variables(VegetationCarbonCycle(Float32))
+variables(PrognosticVegetation(Float32))
 ```
 
 ```@docs; canonical = false
 compute_auxiliary!(
         state, grid,
-        veg::VegetationCarbonCycle,
+        veg::PrognosticVegetation,
         constants::PhysicalConstants,
         atmos::AbstractAtmosphere,
         soil::Optional{AbstractSoil} = nothing,
         args...
     )
 
-compute_tendencies!(state, grid, veg::VegetationCarbonCycle, constants::PhysicalConstants, atmos::AbstractAtmosphere, args...)
+compute_tendencies!(state, grid, veg::PrognosticVegetation, constants::PhysicalConstants, atmos::AbstractAtmosphere, args...)
 ```
 
 ## Prescribed vegetation
 
-Terrarium also provides [`PrescribedVegetation`](@ref), a lighter-weight [`AbstractVegetation`](@ref) coupling for simulations in which the leaf area index is imposed externally (via [`PrescribedPhenology`](@ref)) rather than evolved from a prognostic carbon pool. It composes phenology, photosynthesis, stomatal conductance, root distribution, and plant-available water, together with a set of plant functional-type `traits`, but carries no prognostic vegetation carbon, vegetation-fraction dynamics, or autotrophic respiration. As such, the model defines no tendencies and is driven entirely by the prescribed LAI (`leaf_area_index` input variable) and atmospheric forcing.
+Terrarium also provides [`PrescribedVegetation`](@ref), a lighter-weight [`AbstractVegetation`](@ref) coupling for simulations in which the leaf area index is imposed externally (for example, from an observed or reanalysis climatology) rather than evolved from a prognostic carbon pool. It composes photosynthesis, stomatal conductance, root distribution, and plant-available water, together with a set of plant functional-type `traits`, but carries no phenology, prognostic vegetation carbon, vegetation-fraction dynamics, or autotrophic respiration. As such, the model defines no tendencies and is driven entirely by the prescribed LAI (`leaf_area_index` input variable) and atmospheric forcing.
 
 ```@docs; canonical = false
 PrescribedVegetation

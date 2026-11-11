@@ -146,7 +146,7 @@ These coupling types also have another key benefit: they can define their own cu
 
 Current examples of coupled process types include:
 - [`SoilEnergyWaterCarbon`](@ref) which couples soil energy, hydrology, and biogeochemistry processes,
-- [`VegetationCarbonCycle`](@ref) which couples vegetation biochemical processes,
+- [`PrognosticVegetation`](@ref) which couples vegetation biochemical processes,
 - [`SurfaceHydrology`](@ref) which couples surface hydrological processes like canopy interception, evapotranspiration, and runoff,
 - [`SurfaceEnergyBalance`](@ref) which couples the various flux terms of the surface energy balance.
 

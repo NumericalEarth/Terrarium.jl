@@ -1,9 +1,14 @@
 """
     $TYPEDEF
 
-Coupled process type representing the major carbon cycle processes for natural vegetation.
+Coupled process type representing natural vegetation with prognostic carbon cycle processes: the vegetation
+carbon pool, phenology, and (optionally) the vegetated area fraction evolve in time and drive the leaf area
+index, photosynthesis, stomatal conductance, and autotrophic respiration. See [`PrescribedVegetation`](@ref) for
+vegetation with a prescribed leaf area index instead.
+
+Formerly named `VegetationCarbonCycle`; that name remains available as a deprecated alias.
 """
-@kwdef struct VegetationCarbonCycle{
+@kwdef struct PrognosticVegetation{
         NF,
         Photosynthesis <: AbstractPhotosynthesis{NF},
         StomatalConductance <: AbstractStomatalConductance{NF},
@@ -42,7 +47,7 @@ Coupled process type representing the major carbon cycle processes for natural v
     traits::PlantTraits{NF}
 end
 
-function VegetationCarbonCycle(
+function PrognosticVegetation(
         ::Type{NF};
         photosynthesis = LUEPhotosynthesis(NF),
         stomatal_conductance = MedlynStomatalConductance(NF),
@@ -54,7 +59,7 @@ function VegetationCarbonCycle(
         plant_available_water = FieldCapacityLimitedPAW(NF),
         traits = PlantTraits(NF)
     ) where {NF}
-    return VegetationCarbonCycle(;
+    return PrognosticVegetation(;
         photosynthesis,
         stomatal_conductance,
         autotrophic_respiration,
@@ -67,7 +72,7 @@ function VegetationCarbonCycle(
     )
 end
 
-function initialize!(state, grid, veg::VegetationCarbonCycle)
+function initialize!(state, grid, veg::PrognosticVegetation)
     initialize!(state, grid, veg.plant_available_water)
     return nothing
 end
@@ -81,7 +86,7 @@ stress factors due to soil temperature and moisture availability will be ignored
 """
 function compute_auxiliary!(
         state, grid,
-        veg::VegetationCarbonCycle,
+        veg::PrognosticVegetation,
         constants::PhysicalConstants,
         atmos::AbstractAtmosphere,
         soil::Optional{AbstractSoil} = nothing,
@@ -123,7 +128,7 @@ pool), then phenology (which reads it to set `leaf_area_index` and `phenology_fa
 """
 @kernel inbounds = true function compute_auxiliary_kernel!(
         out, grid, fields,
-        veg::VegetationCarbonCycle,
+        veg::PrognosticVegetation,
         constants::PhysicalConstants,
         atmos::AbstractAtmosphere,
         args::Vararg{Any, N}
@@ -148,7 +153,7 @@ end
 
 Compute tendencies for carbon and vegetation dynamics.
 """
-function compute_tendencies!(state, grid, veg::VegetationCarbonCycle, constants::PhysicalConstants, atmos::AbstractAtmosphere, args...)
+function compute_tendencies!(state, grid, veg::PrognosticVegetation, constants::PhysicalConstants, atmos::AbstractAtmosphere, args...)
     # Needs NPP(t), C_veg(t), LAI_b(t) and computes tendency for C_veg
     compute_tendencies!(state, grid, veg.carbon_dynamics, veg.traits)
 
@@ -161,7 +166,7 @@ function compute_tendencies!(state, grid, veg::VegetationCarbonCycle, constants:
     return nothing
 end
 
-@propagate_inbounds vegetation_area_fraction(i, j, grid, fields, veg::VegetationCarbonCycle) =
+@propagate_inbounds vegetation_area_fraction(i, j, grid, fields, veg::PrognosticVegetation) =
     vegetation_area_fraction(i, j, grid, fields, veg.vegetation_dynamics, veg.traits)
 
 # With vegetation dynamics, the vegetated fraction is the prognostic coverage fraction

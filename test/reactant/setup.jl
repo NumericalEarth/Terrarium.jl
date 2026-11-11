@@ -241,7 +241,7 @@ function build_model(::Val{:vegetation_column_lai_cycle}, arch, NF)
 end
 
 # --- :land_default — the default coupled LandModel: soil + snow + vegetation ------------
-# `LandModel(grid)` with every component at its default (`VegetationCarbonCycle` with PALADYN
+# `LandModel(grid)` with every component at its default (`PrognosticVegetation` with PALADYN
 # phenology/carbon/dynamics, `SoilEnergyWaterCarbon` with Richards-equation hydrology and SURFEX
 # hydraulics, `SingleLayerSnow`, default surface energy balance and hydrology), except the
 # skin-temperature solver: the default `RootSolver` iterates to a tolerance, and that convergence-tested

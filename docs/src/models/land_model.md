@@ -64,7 +64,7 @@ The `surface_hydrology` component manages water exchange between the atmosphere 
 
 ### Vegetation
 
-The `vegetation` component represents vegetation carbon cycling, including photosynthesis, stomatal conductance, respiration, phenology, and carbon dynamics. The default implementation is [`VegetationCarbonCycle`](@ref). See [Vegetation](@ref vegetation_docs) for details.
+The `vegetation` component represents vegetation carbon cycling, including photosynthesis, stomatal conductance, respiration, phenology, and carbon dynamics. The default implementation is [`PrognosticVegetation`](@ref). See [Vegetation](@ref vegetation_docs) for details.
 
 ## Initializers
 
