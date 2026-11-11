@@ -161,6 +161,11 @@ compute_saturation_closure!
 
 ## Hydraulic properties
 
+!!! warning "Match the conductivity to the retention curve"
+    The unsaturated hydraulic conductivity and the soil water retention curve should come from the same family.
+    By default, [`ConstantSoilHydraulics`](@ref) and [`SoilHydraulicsSURFEX`](@ref) select the conductivity that matches the retention curve (see [`Terrarium.default_unsat_hydraulic_cond`](@ref)).
+    In particular, [`UnsatKLinear`](@ref) is not suitable for dry soil with a Brooks–Corey retention curve: the matric potential grows as a power law of the inverse saturation while the conductivity falls only linearly, so that the suction fluxes in dry soil become unphysically large.
+
 Besides the static soil characteristics mentioned in [Soil stratigraphy](@ref) such as porosity ($\phi$), a key time-varying hydraulic property is the (non-saturated) hydraulic conductivity $\kappa_{\text{w}}$. Different ways of modelling $\kappa_{\text{w}}$ are defined as subyptes of [`AbstractUnsatK`](@ref). The simplest formulation, called [`UnsatKLinear`](@ref), models $\kappa_{\text{w}}$ as:
 ```math
 \begin{equation}
@@ -194,10 +199,6 @@ where $\lambda$ is the pore size distribution index of the retention curve.
 ```@docs; canonical = false
 UnsatKBrooksCorey
 ```
-
-The retention curve and the conductivity function should come from the same family.
-By default, [`ConstantSoilHydraulics`](@ref) and [`SoilHydraulicsSURFEX`](@ref) select the conductivity matching the retention curve via [`Terrarium.default_unsat_hydraulic_cond`](@ref).
-In particular, [`UnsatKLinear`](@ref) is not suitable for dry soil with a Brooks–Corey retention curve: the matric potential grows as a power law of the inverse saturation while the conductivity falls only linearly, so that the suction fluxes in dry soil become unphysically large.
 
 ```@docs; canonical = false
 Terrarium.default_unsat_hydraulic_cond
