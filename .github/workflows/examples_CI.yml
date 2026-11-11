@@ -19,9 +19,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        version:
-          - '1.10' 
-          - '1.12'
+        # Julia 1.10 only runs on pushes to main, i.e. after a PR is merged (see CI.yml)
+        version: ${{ github.event_name == 'push' && fromJSON('["1.10", "1.12"]') || fromJSON('["1.12"]') }}
         os:
           - ubuntu-latest
         arch:
