@@ -114,7 +114,10 @@ Second, the liquid water content can fall below `θ_res` transiently within an i
 - Document in the docstring of `ConstantEvaporationResistanceFactor` that it does not limit ground evaporation by soil water supply and is only suitable where soil water is not limiting.
   The constant-factor case of the regression test remains as a robustness check of the solver under an unphysical sink (Phase 4), not as a reason to limit evaporation independently of the resistance factor.
 
-### Phase 4 (conditional): Picard safeguard from revision 24
+### Phase 4 (not needed): Picard safeguard from revision 24
+
+> Not implemented: with Phases 1–3, the dry-soil regression test passes for both ground resistance factors, including `ConstantEvaporationResistanceFactor`.
+> The safeguards of revision 24 remain open for the prescribed infiltration into freezing soil case of the implicit time stepping plan (see Future work).
 
 If the regression test still fails (including its `ConstantEvaporationResistanceFactor` case), implement one of the safeguards that revision 24 of the implicit time stepping plan left open (a limiter on the net balance of each cell, or a saturation-based linearization where the pressure-head form leaves the bounds), with both the dry column and the revision 24 configuration as regression cases.
 This phase is expected to be unnecessary for the dry column once the conductivity is consistent.
@@ -138,10 +141,11 @@ This phase is expected to be unnecessary for the dry column once the conductivit
 ## Known limitations
 
 - The default soil water dynamics change for every `RichardsEq` simulation: drainage of moderately wet soil is slower with the Brooks–Corey conductivity than with the linear one, so existing example outputs and calibrated parameters may shift.
-- `ConstantEvaporationResistanceFactor` allows potential-rate ground evaporation from soil at residual saturation by design; with a consistent conductivity the top cell can then dry out quickly, and only the saturation closure (and Phase 4, if needed) keeps the solver bounded.
+- `ConstantEvaporationResistanceFactor` allows potential-rate ground evaporation from soil at residual saturation by design; with a consistent conductivity the top cell can then dry out quickly, and only the saturation closure keeps the solver bounded; the regression test shows that this suffices for the dry column.
 
 ## Future work
 
+- The Picard safeguards left open by revision 24 of the implicit time stepping plan (Phase 4 of this plan), for prescribed infiltration into freezing soil, which this plan does not test.
 - The atmospheric blow-up in the coupled SpeedyWeather simulation (near the Aral and Caspian Seas), to be investigated on the SpeedyWeather side.
 - Performance of the `soil_moisture_limiting_factor` reduction on CPU (an Oceananigans `Integral` over an `AbstractOperation`, about 60 ms per step for a single column), which may be resolved by Oceananigans 0.117 and otherwise by a dedicated column kernel.
 - Unfrozen residual water: `FreeWater` should freeze only the free water `θ − θ_res` and keep `θ_res` liquid below 0 °C, consistent with the capillary binding of residual water.
@@ -160,3 +164,6 @@ This phase is expected to be unnecessary for the dry column once the conductivit
 > **Revision 3, 2026-11-11 (Claude Opus 5.5).** Replaced the conditional, resistance-independent evaporation limit of Phase 3, which duplicated `SoilMoistureResistanceFactor`, with a clamp of the normalized water content in `SoilMoistureResistanceFactor` (whose factor grows again below `θ_res`) and documentation of `ConstantEvaporationResistanceFactor` as not supply-limited.
 > Noted in Phase 1 that conductivity on `S` rather than `Sₑ` leaves gravity drainage at `θ_res`, so `θ_res` is not an invariant of the continuous equations.
 > Corrected after review: residual water is capillary-bound and does not freeze, so liquid water below `θ_res` in frozen cells is an artifact of `FreeWater` rather than a physical state; added an unfrozen residual water freeze curve to future work.
+
+> **Revision 4, 2026-11-11 (Claude Opus 5.5).** Marked Phase 4 as not needed, since the dry-soil regression test passes for both ground resistance factors after Phases 1–3, and moved the open Picard safeguards to Future work.
+> Kept `S = θ_w / θ_sat` rather than `Sₑ` in `UnsatKBrooksCorey`, since the regression test does not require the dry-end behavior of `Sₑ`.
