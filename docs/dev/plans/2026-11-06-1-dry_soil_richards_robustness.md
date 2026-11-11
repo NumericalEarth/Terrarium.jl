@@ -1,6 +1,6 @@
 # Robust Richards flow in dry soil: consistent unsaturated conductivity and water conservation
 
-> Status: **in progress**. Fix for issue #240; Phases 1 and 2 are implemented, Phase 3 is in progress.
+> Status: **in progress**. Fix for issue #240; Phases 1–3 are implemented and the dry-soil regression test passes, so Phase 4 is not expected to be needed; pending the full test suite.
 
 Date of initial draft: 2026-11-06
 
