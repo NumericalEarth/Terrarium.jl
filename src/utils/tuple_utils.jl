@@ -9,7 +9,7 @@ tuplejoin(x, y) = (x..., y...)
 tuplejoin(x, y, z...) = (x..., tuplejoin(y, z...)...)
 
 """
-    $TYPEDSIGNATURES
+    $SIGNATURES
 
 Filters out all entries from `nt` that exist in `other`; like `setdiff` but for `NamedTuple`.
 The retained keys are determined from the types alone, so no key filtering happens at run time.
