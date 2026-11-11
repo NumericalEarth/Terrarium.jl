@@ -26,7 +26,7 @@ function build_model(arch = CPU())
     hydraulic_properties = ConstantSoilHydraulics(eltype(grid); swrc, unsat_hydraulic_cond = UnsatKVanGenuchten(eltype(grid)))
     hydrology = SoilHydrology(eltype(grid), RichardsEq(); hydraulic_properties)
     soil = SoilEnergyWaterCarbon(eltype(grid); hydrology)
-    vegetation = VegetationCarbonCycle(eltype(grid))
+    vegetation = PrognosticVegetation(eltype(grid))
     # Construct coupled model
     land = LandModel(grid; soil, vegetation)
     return land

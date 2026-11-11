@@ -13,7 +13,7 @@ column_value(field) = Array(interior(field))[1]
 variable_names(vars::Variables) = union(keys(vars.prognostic), keys(vars.tendencies), keys(vars.auxiliary), keys(vars.inputs))
 
 @testset "VegetationCarbonCycle variables" begin
-    vegetation = VegetationCarbonCycle(Float64)
+    vegetation = PrognosticVegetation(Float64)
     vars = Variables(vegetation)
     components = (
         vegetation.photosynthesis,
@@ -38,7 +38,7 @@ end
 @testset "Vegetation carbon budget closure" begin
     NF = Float64
     grid = ColumnGrid(CPU(), NF, ExponentialSpacing(N = 5))
-    vegetation = VegetationCarbonCycle(NF)
+    vegetation = PrognosticVegetation(NF)
     model = VegetationModel(grid; vegetation)
     initializers = (carbon_vegetation = 5.0, vegetation_area_fraction = 0.5, growing_degree_days = 300.0)
     integrator = initialize(model; initializers, inputs = InputSources(NF))
@@ -66,7 +66,7 @@ end
 @testset "Leaf area index changes under time stepping" begin
     NF = Float64
     grid = ColumnGrid(CPU(), NF, ExponentialSpacing(N = 5))
-    model = VegetationModel(grid; vegetation = VegetationCarbonCycle(NF))
+    model = VegetationModel(grid; vegetation = PrognosticVegetation(NF))
     # spring green-up: warm air and no accumulated growing degree days yet
     initializers = (carbon_vegetation = 5.0, vegetation_area_fraction = 0.5, growing_degree_days = 0.0)
     integrator = initialize(model; initializers)

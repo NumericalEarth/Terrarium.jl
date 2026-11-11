@@ -326,3 +326,29 @@ end
         @test 0.03 < Rd / GPP < 0.15
     end
 end
+
+@testset "Photosynthesis: dependence on leaf area index" begin
+    photo = LUEPhotosynthesis()
+    traits = PlantTraits()
+    constants = MaterialConstants(Float64)
+    λc = compute_λc(MedlynStomatalConductance(), 1000.0)
+    function GPP(LAI)
+        # 20 °C, 400 W/m², 1000 hPa, 400 ppm, no soil moisture stress
+        Rd, An = compute_respiration_assimilation(photo, traits, constants, 20.0, 400.0, 1.0e5, 400.0, LAI, λc, 1.0)
+        return compute_GPP(photo, An, Rd)
+    end
+    LAIs = (0.0, 0.5, 1.0, 2.0, 4.0, 8.0)
+    GPPs = GPP.(LAIs)
+    # no leaves, no photosynthesis; GPP increases and saturates with LAI
+    @test GPPs[1] == 0
+    @test all(>(0), GPPs[2:end])
+    @test issorted(GPPs)
+    slopes = diff(collect(GPPs)) ./ diff(collect(LAIs))
+    @test issorted(slopes; rev = true)
+    # With the acclimated Vc_max, all rates scale linearly with APAR, so GPP follows the fraction of absorbed
+    # light, 1 - exp(-k LAI) (Beer's law)
+    k = traits.extinction_coefficient
+    for LAI in LAIs[2:end]
+        @test GPP(LAI) / GPP(4.0) ≈ (1 - exp(-k * LAI)) / (1 - exp(-k * 4.0))
+    end
+end

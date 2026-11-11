@@ -25,6 +25,10 @@ end
     include("phenology_tests.jl")
 end
 
+@testset "Prescribed vegetation" begin
+    include("prescribed_vegetation_tests.jl")
+end
+
 @testset "Root distribution" begin
     include("root_distribution_tests.jl")
 end
