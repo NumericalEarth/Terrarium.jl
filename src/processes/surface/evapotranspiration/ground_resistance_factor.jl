@@ -28,7 +28,8 @@ Implements the soil moisture limiting resistance factor of [leeEstimatingSoilSur
 
 where `θ₁` is the liquid water content of the uppermost soil layer, `θ_fc` the field capacity, and
 `θ_res` the residual water content. The factor vanishes at and below the residual water content and
-equals one at and above field capacity.
+equals one at and above field capacity. With `θ_res = 0`, this is the original formulation of Lee and Pielke,
+`x = θ₁ / θ_fc`.
 
 # References
 
