@@ -147,7 +147,7 @@ end
 
 # The resolution sweeps that make up the cross-architecture overview table and the documentation
 # figures. One row per (configuration, resolution).
-const OVERVIEW_SUITES = [:bench200, :bench201, :bench202]
+const OVERVIEW_SUITES = [:bench200, :bench201, :bench202, :bench203]
 
 function arch_markdown()
     io = IOBuffer()
@@ -269,6 +269,9 @@ function write_preamble(md)
 
     write(md, "The land configurations solve the skin temperature with the fixed-iteration Newton solver on every ")
     write(md, "architecture, so that all architectures integrate the same physics. ")
+    write(md, "The land configurations and the `soil` configuration solve the soil heat conduction and the Richards ")
+    write(md, "equation implicitly, with `IMEX(ForwardEuler, BackwardEuler)` and two Picard iterations per step; ")
+    write(md, "`soil_heat` (immobile soil water) is integrated explicitly with `ForwardEuler`. ")
     write(md, "Natively, the first model stepped in a Julia process can be several times slower than later models ")
     write(md, "with the same types; the compile-order check suites run first to absorb this, and are repeated at ")
     write(md, "the end of the run to report the size of the effect. They are not run under Reactant. ")
