@@ -34,7 +34,7 @@ struct ModelIntegrator{
     "Optional named tuple of user-specified field initializers"
     initializers::Inits
 
-    "Time to which `clock` is reset by `initialize!`, or `nothing` to reset it to zero"
+    "Time to which `clock` is reset by `initialize!`"
     initial_time::InitialTime
 end
 
@@ -55,20 +55,6 @@ function ModelIntegrator(
         typeof(model), typeof(state), typeof(clock), typeof(initializers), typeof(inputs), typeof(initial_time),
     }(clock, model, inputs, state, initializers, initial_time)
 end
-
-# The start time of a clock is kept only if it is an immutable value (e.g. a number or `DateTime`);
-# device clocks (e.g. a `ConcreteRNumber` under Reactant) are updated in place by compiled runs, so
-# storing a reference to their time would not preserve the start time; these are reset to zero.
-initial_clock_time(time) = isbits(time) ? time : nothing
-
-# reset the clock iteration and stage, and its time to `initial_time` (or to zero if `nothing`)
-function reset_clock!(clock::Clock, initial_time)
-    reset!(clock)
-    clock.time = initial_time
-    return clock
-end
-
-reset_clock!(clock::Clock, ::Nothing) = reset!(clock)
 
 # Oceananigans model interface
 
