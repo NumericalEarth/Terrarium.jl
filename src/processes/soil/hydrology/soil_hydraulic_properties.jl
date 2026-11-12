@@ -287,6 +287,12 @@ where `S = θw / θsat` is the liquid water saturation, `λ` is the pore size di
 `BrooksCorey` retention curve, and `I_ice` is the [`Terrarium.ice_impedance_factor`](@ref) of
 [westermannCryoGridCommunityModel2023](@cite).
 
+Brooks and Corey define the power law on the effective saturation `(θw − θres) / (θsat − θres)`. Terrarium
+evaluates the retention curve with the residual water content of the `BrooksCorey` curve itself, which is
+zero by default, and in that case the effective saturation reduces to `S`. A nonzero residual water content of
+the retention curve is not yet accounted for here; the `residual_saturation` of the hydraulic properties is
+only a numerical lower bound on the saturation.
+
 The power law and its exponent `3 + 2/λ` were derived by [brooksHydraulicPropertiesPorous1964](@cite) from
 their retention curve, using the pore size distribution model of Burdine.
 [campbellSimpleMethodDetermining1974](@cite) obtained the same law, written as `S^(2b + 3)` with `b = 1/λ`, and
