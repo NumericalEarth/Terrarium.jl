@@ -161,6 +161,11 @@ compute_saturation_closure!
 
 ## Hydraulic properties
 
+!!! warning "Match the conductivity to the retention curve"
+    The unsaturated hydraulic conductivity and the soil water retention curve should come from the same family.
+    By default, [`ConstantSoilHydraulics`](@ref) and [`SoilHydraulicsSURFEX`](@ref) select the conductivity that matches the retention curve (see [`Terrarium.default_unsat_hydraulic_cond`](@ref)).
+    In particular, [`UnsatKLinear`](@ref) is not suitable for dry soil with a Brooks–Corey retention curve: the matric potential grows as a power law of the inverse saturation while the conductivity falls only linearly, so that the suction fluxes in dry soil become unphysically large.
+
 Besides the static soil characteristics mentioned in [Soil stratigraphy](@ref) such as porosity ($\phi$), a key time-varying hydraulic property is the (non-saturated) hydraulic conductivity $\kappa_{\text{w}}$. Different ways of modelling $\kappa_{\text{w}}$ are defined as subyptes of [`AbstractUnsatK`](@ref). The simplest formulation, called [`UnsatKLinear`](@ref), models $\kappa_{\text{w}}$ as:
 ```math
 \begin{equation}
@@ -173,7 +178,7 @@ with $\kappa_{\text{w,sat}}$ the saturated hydraulic conductivity (m/s).  A more
 \kappa_{\text{w}} = I_\text{ice}\left(\frac{\theta_{\text{liq}}}{\phi}\right)^{0.5} \left[1 - \left(1 - \left(\frac{\theta_{\text{liq}}}{\phi}\right)^{n/(n+1)}\right)^{(n-1)/n}\right]^2 \kappa_{\text{w,sat}}\,,
 \end{equation}
 ```
-which adds an ice impedance factor $I_\text{ice} = 10^{\Omega\theta_{\text{ice}}/\theta}$ to the classic van Genuchten formulation to account for the blocking of water-filled pores by ice. 
+which adds an ice impedance factor $I_\text{ice} = 10^{-\Omega\theta_{\text{ice}}/\theta}$ to the classic van Genuchten formulation to account for the blocking of water-filled pores by ice. 
 
 ```@docs; canonical = false
 UnsatKLinear
@@ -181,6 +186,24 @@ UnsatKLinear
 
 ```@docs; canonical = false
 UnsatKVanGenuchten
+```
+
+The conductivity of the Brooks–Corey model, called [`UnsatKBrooksCorey`](@ref), is a power law of the liquid water saturation, with the same ice impedance factor:
+```math
+\begin{equation}
+\kappa_{\text{w}} = I_\text{ice}\left(\frac{\theta_{\text{liq}}}{\phi}\right)^{3 + 2/\lambda} \kappa_{\text{w,sat}}\,,
+\end{equation}
+```
+where $\lambda$ is the pore size distribution index of the retention curve.
+[brooksHydraulicPropertiesPorous1964](@cite) derived the exponent from their retention curve using the pore size distribution model of Burdine; [campbellSimpleMethodDetermining1974](@cite) obtained the same law, written with $b = 1/\lambda$ as $(\theta_{\text{liq}}/\phi)^{2b + 3}$, and [clappEmpiricalEquationsSoil1978](@cite) tabulated $b$ by soil texture.
+In this form, it is the conductivity used in SURFEX/ISBA [booneInfluenceInclusionSoil2000](@cite).
+
+```@docs; canonical = false
+UnsatKBrooksCorey
+```
+
+```@docs; canonical = false
+Terrarium.default_unsat_hydraulic_cond
 ```
 
 Values for $\kappa_{\text{w,sat}}$, wilting point ($\theta_{wp}$), and field capacity   ($\theta_{fc}$) can be set as constants (see [`ConstantSoilHydraulics`](@ref)) or can be calculated from soil texture using pedotransfer functions (PTFs). Currently, PTFs based on [noilhanISBA1996](@cite) for $\theta_{wp}$ and $\theta_{fc}$ are available in [`SoilHydraulicsSURFEX`](@ref).
@@ -250,6 +273,10 @@ saturation_water_ice
 
 ```@docs; canonical = false
 hydraulic_conductivity
+```
+
+```@docs; canonical = false
+Terrarium.ice_impedance_factor
 ```
 
 ```@docs; canonical = false

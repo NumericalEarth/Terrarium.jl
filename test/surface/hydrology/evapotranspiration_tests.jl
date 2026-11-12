@@ -150,8 +150,25 @@ end
     # Saturated soil gives β = 1
     @test ground_evaporation_resistance_factor(smrf, 0.5, θfc, θres) == 1.0
 
-    # Residual water content gives β ≈ 0
-    @test ground_evaporation_resistance_factor(smrf, θres, θfc, θres) ≈ 0.0
+    # Residual water content gives β = 0
+    @test ground_evaporation_resistance_factor(smrf, θres, θfc, θres) == 0.0
+
+    # Below residual water content (e.g. frozen top layer), β stays zero instead of growing again
+    @test ground_evaporation_resistance_factor(smrf, 0.0, θfc, θres) == 0.0
+    @test ground_evaporation_resistance_factor(smrf, θres / 2, θfc, θres) == 0.0
+
+    # β is monotonically nondecreasing in θw over the whole range
+    βs = [ground_evaporation_resistance_factor(smrf, θw, θfc, θres) for θw in 0.0:0.01:0.6]
+    @test all(diff(βs) .>= 0)
+    @test all(0 .<= βs .<= 1)
+
+    # Degenerate case θfc = θres: β switches from zero to one at θres
+    @test ground_evaporation_resistance_factor(smrf, 0.1, θres, θres) == 0.0
+    @test ground_evaporation_resistance_factor(smrf, 0.2, θres, θres) == 1.0
+
+    # Float32 type stability
+    β32 = @inferred ground_evaporation_resistance_factor(SoilMoistureResistanceFactor(Float32), 0.3f0, 0.4f0, 0.15f0)
+    @test β32 isa Float32
 end
 
 # ==============================================================================
