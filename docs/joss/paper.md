@@ -62,7 +62,7 @@ bibliography: paper.bib
 # Summary
 
 The land surface is a crucial component of Earth's climate system.
-Terrestrial ecosystems, as well as the solid earth that hosts them, exchange heat, water, and carbon with the atmosphere on timescales ranging from seconds to millenia, driving key feedbacks that significantly affect both local and global climate conditions.
+Terrestrial ecosystems exchange heat, water, and carbon with the atmosphere on timescales ranging from seconds to millenia, driving key feedbacks that significantly affect both local and global climate conditions.
 Land surface and terrestrial ecosystem models aim to simulate the physical processes governing the land and ecosystem response to changes in both weather and climate as well as interactions between the land surface and the atmosphere.
 They are therefore critically important components of *Earth System Models* (ESMs) which aim to simulate the natural variability of the Earth system, as well as its long-term response to changes in both natural and anthropogenic forcing.
 
@@ -76,11 +76,11 @@ Terrarium.jl is being developed as part of the NumericalEarth project, which is 
 # Statement of need
 
 Most existing ESM land components, including those involved in the international Coupled Model Intercomparison Project (CMIP), are implemented in statically compiled languages such as Fortran (and less commonly, C/C++); these languages, despite their advantages, incur a significant engineering burden and limit the accessibility of the model code for many scientists and researchers.
-The reliance on Fortran/C++ also inhibits the adoption of state-of-the-art tools for high-level GPU programming and AD which have served as the technological foundation on which of recent developments in machine learning and data-driven modeling are built [@gelbrechtDifferentiableProgrammingEarth2023]. As such, we believe that there is a general need for a new generation of ESM components that are built using modern numerical computing software written in higher level, dynamic languages such as Julia or Python that offer robust and easy-to-use tooling for GPU acceleration and AD. Such modernized ESMs have the potential to greatly improve productivity as well as accessibility for researchers who lack extensive programming experience.
+The reliance on Fortran/C++ also inhibits the adoption of state-of-the-art tools for high-level GPU programming and AD, which have served as the technological foundation on which recent developments in machine learning and data-driven modeling are built [@gelbrechtDifferentiableProgrammingEarth2023]. As such, there is a general need for a new generation of ESM components that are built using modern numerical computing software written in higher level, dynamic languages such as Julia or Python, and that offer robust and easy-to-use tooling for GPU acceleration and AD. Such modernized ESMs have the potential to greatly improve productivity as well as accessibility for researchers who lack extensive programming experience.
 
-Another limitation of many existing land models is that they tend to mix physics and numerics in an *ad hoc* and inconsistent manner [@clarkNumericalImplementationLand2021].
-This makes it difficult for land models to take advantage of state-of-the-art numerical tools since incorporating them would also require reformulating the simulated physics.
-Terrarium.jl strives to overcome this limitation by formulating all physical processes in terms of continuous-time dynamics and enforcing a clear separation between the instantaneous tendencies of the system and the numerical scheme used to discretize the corresponding governing equations in time.
+Another limitation of many existing land models is that they tend to mix process formulations and numerics in an *ad hoc* and inconsistent manner [@clarkNumericalImplementationLand2021].
+This makes it difficult for land models to take advantage of state-of-the-art numerical tools since incorporating them would also require reformulating the simulated processes.
+Terrarium.jl strives to overcome this limitation by formulating all processes in terms of continuous-time dynamics and enforcing a clear separation between the instantaneous tendencies of the system and the numerical scheme used to discretize the corresponding governing equations in time.
 In addition, state variables are classified as *prognostic* (evolved in time), *auxiliary* (instantaneously derived from the prognostic state), or *inputs* (externally prescribed).
 Constitutive relationships between prognostic and auxiliary variables are explicitly declared and evaluated separately from the tendency and timestepping scheme.
 This design facilitates the implementation and comparison of new solvers and time discretization schemes while also helping to maintain mathematical consistency between model components.
@@ -88,7 +88,7 @@ This design facilitates the implementation and comparison of new solvers and tim
 # State of the field
 
 There have been numerous recent efforts to reformulate land models in modern programming languages, such as DifferLand [@fangDifferentiableLandModel2026] and JAX-CanVeg [@jiangJAXCanVegDifferentiableLand2025], both of which enable GPU-accelerated and AD-compatible land modeling using Python/JAX.
-Similarly, recent work by the Climate Modeling Alliance (CliMA) on ClimaLand.jl [@deckClimaLandLandSurface2026] has demonstrated the promise of GPU-accelerated land modeling in Julia as part of the CliMA project, which aims to build a new, CMIP-class ESM capable of being automatically calibrated using global observational datasets [@schneiderEarthSystemModeling2017; @dunbarCalibrationUncertaintyQuantification2021].
+Similarly, recent work on ClimaLand.jl [@deckClimaLandLandSurface2026] has demonstrated the promise of GPU-accelerated land modeling in Julia as part of the Climate Modeling Alliance (CliMA) project, which aims to build a new, CMIP-class ESM capable of being automatically calibrated using global observational datasets [@schneiderEarthSystemModeling2017; @dunbarCalibrationUncertaintyQuantification2021].
 In contrast, Terrarium.jl enables not only GPU-accelerated land simulations but also full comaptibility with both forward- and reverse-mode AD via Enzyme.jl and Reactant.jl [@mosesInsteadRewritingForeign2020; @mosesDJ4EarthDifferentiablePerformancePortable2026].
 Moreover, Terrarium.jl is designed to allow for fast and efficient coupling with other global or regional, GPU-accelerated ESM components such as the SpeedyWeather.jl [@klowerSpeedyWeatherjlReinventingAtmospheric2024] and Breeze.jl [@wagnerBreezejl2026] atmospheric models. 
 As such, Terrarium.jl represents a significant step towards modernizing process-based land modeling.
@@ -104,7 +104,7 @@ Terrarium models are composed of four basic components: one or more `Process`es 
 Terrarium currently provides four primary model types that can be used to run simulations:
 
 - `SoilModel`: A standalone model of energy, water, and carbon transport within a finite soil volume.
-Currently, only vertical transport is considered; however, the `grid` abstraction is designed such that this assumption can be easily relaxed in the future.
+Currently, only vertical transport is considered (as in all state-of-the-art dynamic global vegetation models); however, the `grid` abstraction is designed such that this assumption can be easily relaxed in the future.
 
 - `VegetationModel`: A standalone model of the vegetation carbon cycle with atmosphere and soil state given as prescribed inputs.
 This model can be used to test and evaluate vegetation processes in idealized simulations or when appropriate forcing inputs are available.
@@ -145,14 +145,14 @@ This allows developers to balance modularity with GPU efficiency, at the cost of
 Terrarium.jl is expressly designed to accommodate multiple parallel formulations of physical processes and is thus not tied to any one set of governing equations.
 Currently, however, Terrarium.jl implements a soil energy-hydrology scheme that is loosely based on the equations and parameterizations of CryoGrid [@westermannCryoGridCommunityModel2023; @langerEvolutionArcticPermafrost2024; @groenkeCryoGridJL2024] with pedotransfer functions taken from SURFEX/ISBA [@massonSURFEXv72LandOcean2013; @noilhanISBALandSurface1996].
 The surface energy balance, evapotranpsiration schemes, and vegetation/canopy processes are based primarily on PALADYN [@willeitPALADYNV10Comprehensive2016] which presently serves as the land component of the CLIMBER-X intermediate-complexity land surface model [@willeitEarthSystemModel2022].
-Implementation of vegetation and soil carbon biogeochemistry is still underway but will be initially based on the approaches outlined by [@luoMatrixApproachLand2022] and [@ahrensCombinationEnergyLimitation2020] respectively.
+Implementation of vegetation and soil carbon biogeochemistry is still underway but will be initially based on the approaches outlined by @luoMatrixApproachLand2022 and @ahrensCombinationEnergyLimitation2020 respectively.
 Example outputs from a prototype Terrarium-SpeedyWeather coupled simulation are shown in \autoref{fig:coupled}.
 
 ![Land surface variables from a two-year simulation with Terrarium.jl coupled to the SpeedyWeather.jl atmosphere model with slab ocean at T64 spectral resolution (about 1.9°), starting on 1 October 2024. The simulation includes soil thermodynamics with static soil hydrology and prescribed vegetation based on a leaf area index climatology calculated from ERA5-Land (1980-2010). All panels show means over the simulation period, except for snow water equivalent, which shows the mean of the annual maxima over the two snow years (October to September); Antarctica is included in the simulation as snow-covered land but not shown.\label{fig:coupled}](assets/figure3.png)
 
 # Research impact statement
 
-Terrarium.jl's modular design, GPU-compatibility, and first-class support for AD make it an ideal testbed for cutting edge research on so-called "hybrid" land-atmosphere modeling, which aims to combine data-driven components, such as neural networks, with physics-based simulation [@shenDifferentiableModellingUnify2023; gelbrechtDifferentiableProgrammingEarth2023].
+Terrarium.jl's modular design, GPU-compatibility, and first-class support for AD make it an ideal testbed for cutting edge research on so-called "hybrid" land-atmosphere modeling, which aims to combine data-driven components, such as neural networks, with physics-based simulation [@shenDifferentiableModellingUnify2023; @gelbrechtDifferentiableProgrammingEarth2023].
 Terrarium is being actively used to develop and evaluate the capabilities of such methods to improve the fidelity of global land and climate simulations.
 This has the potential to help geoscientific researchers move beyond existing workflows where physics-based simulations are used only to generate training and validation data for machine learning models, towards a new generation of scientific models that are capable of learning from data while still respecting physical laws.
 
@@ -170,9 +170,10 @@ All pull requests are reviewed and signed off by human developers.
 
 # Acknowledgements
 
-BG acknowledges the support of the Past2Future (P2F) project; The Past to Future (P2F) project has received funding from the European Union’s Horizon Europe research and innovation programme under grant agreement No. 101184070.
-MG acknowledges funding from the Volkswagen Foundation and the European Union’s Horizon Europe research and innovation programme ClimTip (grant agreement no. 101137601), this is ClimTip contribution #XXX.
+BG and NB acknowledge the support of the Past2Future (P2F) project; The Past to Future (P2F) project has received funding from the European Union’s Horizon Europe research and innovation programme under grant agreement No. 101184070.
+MG and NB acknowledge funding from the Volkswagen Foundation and the European Union’s Horizon Europe research and innovation programme ClimTip (grant agreement no. 101137601), this is ClimTip contribution #XXX.
 PLV acknowledges funding from the National Centre for Atmospheric Science and from Schmidt Futures (LEMONTREE project, #XXX)
+OB acknowledges funding from Research Foundation - Flanders (V436726N) for the research stay at the Potsdam Institute for Climate Impact Research. 
 Funded by the European Union.
 Views and opinions expressed are however those of the author(s) only and do not necessarily reflect those of the European Union or the European Climate, Infrastructure and Environment Executive Agency (CINEA).
 Neither the European Union nor the granting authority can be held responsible for them.
