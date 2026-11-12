@@ -133,6 +133,8 @@ end
 end
 
 @testset "Default unsaturated hydraulic conductivity" begin
+    @test Terrarium.default_unsat_hydraulic_cond(Float64, BrooksCorey()) isa UnsatKBrooksCorey{Float64}
+    @test Terrarium.default_unsat_hydraulic_cond(Float32, VanGenuchten()) isa UnsatKVanGenuchten{Float32}
     @test ConstantSoilHydraulics(Float64).unsat_hydraulic_cond isa UnsatKBrooksCorey{Float64}
     @test SoilHydraulicsSURFEX(Float32).unsat_hydraulic_cond isa UnsatKBrooksCorey{Float32}
     @test ConstantSoilHydraulics(Float64; swrc = VanGenuchten()).unsat_hydraulic_cond isa UnsatKVanGenuchten{Float64}
