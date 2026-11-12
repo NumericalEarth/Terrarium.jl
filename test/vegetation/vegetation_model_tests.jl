@@ -25,6 +25,10 @@ end
     include("phenology_tests.jl")
 end
 
+@testset "Prescribed vegetation" begin
+    include("prescribed_vegetation_tests.jl")
+end
+
 @testset "Root distribution" begin
     include("root_distribution_tests.jl")
 end
@@ -35,4 +39,12 @@ end
 
 @testset "Vegetation carbon cycle integration" begin
     include("integration_tests.jl")
+end
+
+@testset "Float32 preservation" begin
+    include("float32_tests.jl")
+end
+
+@testset "Vegetation carbon cycle column" begin
+    include("carbon_cycle_column_tests.jl")
 end

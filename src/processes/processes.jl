@@ -50,7 +50,7 @@ include("soil/biogeochem/constant_soil_carbon.jl")
 export SinglePoolSoilCarbon
 include("soil/biogeochem/single_pool_soil_carbon.jl")
 
-export ConstantSoilHydraulics, SoilHydraulicsSURFEX, UnsatKLinear, UnsatKVanGenuchten
+export ConstantSoilHydraulics, SoilHydraulicsSURFEX, UnsatKLinear, UnsatKVanGenuchten, UnsatKBrooksCorey
 export saturated_hydraulic_conductivity, mineral_porosity, field_capacity, wilting_point
 include("soil/hydrology/soil_hydraulic_properties.jl")
 
@@ -62,6 +62,7 @@ include("soil/hydrology/soil_hydrology_rre.jl")
 
 export SoilSaturationPressureClosure
 include("soil/hydrology/soil_hydraulic_closures.jl")
+include("soil/hydrology/soil_hydrology_implicit.jl")
 
 export SoilThermalConductivities, SoilHeatCapacities, SoilThermalProperties, InverseQuadratic
 export compute_thermal_conductivity, heat_capacity
@@ -71,6 +72,7 @@ export SoilThermodynamics, SoilEnergyTemperatureClosure
 include("soil/energy/soil_energy.jl")
 
 include("soil/energy/soil_energy_closures.jl")
+include("soil/energy/soil_energy_implicit.jl")
 
 export SoilEnergyWaterCarbon
 include("soil/soil_coupled.jl")
@@ -101,6 +103,7 @@ export SnowEnergyTemperatureClosure
 include("snow/energy/snow_energy_closures.jl")
 include("snow/energy/snow_energy.jl")
 include("snow/snow_diffusion_timescales.jl")
+include("snow/snow_implicit.jl")
 
 # Vegetation
 
@@ -115,9 +118,8 @@ include("vegetation/dynamics/carbon_dynamics.jl")
 export PALADYNVegetationDynamics
 include("vegetation/dynamics/vegetation_dynamics.jl")
 
-export PALADYNPhenology, PrescribedPhenology
+export PALADYNPhenology
 include("vegetation/phenology/paladyn_phenology.jl")
-include("vegetation/phenology/prescribed_phenology.jl")
 
 export StaticExponentialRootDistribution
 include("vegetation/hydraulics/root_distribution.jl")
@@ -134,8 +136,8 @@ include("vegetation/stomatal_conductance/medlyn_stomatal_conductance.jl")
 export PALADYNAutotrophicRespiration
 include("vegetation/respiration/autotrophic_respiration.jl")
 
-export VegetationCarbonCycle
-include("vegetation/vegetation_carbon_cycle.jl")
+export PrognosticVegetation
+include("vegetation/prognostic_vegetation.jl")
 
 export PrescribedVegetation
 include("vegetation/prescribed_vegetation.jl")

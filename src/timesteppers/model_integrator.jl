@@ -267,6 +267,13 @@ function timestep!(integrator::ModelIntegrator, timestepper::AbstractTimeStepper
     return nothing
 end
 
+# A single explicit timestepper steps the variables in `names` with its explicit step, followed by the closure.
+function timestep!(integrator::ModelIntegrator, timestepper::AbstractTimeStepper, Δt, names::Tuple)
+    explicit_step!(integrator, timestepper, Δt, names)
+    closure!(integrator.state, integrator.model)
+    return nothing
+end
+
 """
     default_dt(integrator::ModelIntegrator)
 
@@ -329,11 +336,23 @@ function initialize(
     )
     inputs = InputSources(inputs)
     model = ParameterEditing.reconstruct(integrator.model, params)
-    # keep the start time of the original integrator, since its clock may have advanced since then
+    # keep the start time of the original integrator unless clock is user-specified
     initial_time = clock === integrator.clock ? integrator.initial_time : initial_clock_time(clock.time)
     integrator = ModelIntegrator(clock, model, inputs, integrator.state, integrator.initializers, initial_time)
     initialize!(integrator)
     return integrator
+end
+
+# Snapshot of the clock time stored as the integrator's initial time. Numbers and `DateTime`s are
+# immutable values, so the time itself is stored; clock times that are updated in place (e.g. the
+# `ConcreteRNumber` of a Reactant clock) must be copied to a plain value, see `TerrariumReactantExt`.
+initial_clock_time(time) = time
+
+# reset the clock iteration and stage, and its time to `initial_time`
+function reset_clock!(clock::Clock, initial_time)
+    reset!(clock)
+    clock.time = initial_time
+    return clock
 end
 
 get_steps(steps::Nothing, period::Period, Δt::Real) = div(convert_dt(Second, period).value, Δt)

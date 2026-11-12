@@ -1,12 +1,12 @@
+const ReactantIntegrator{NF} = ModelIntegrator{NF, <:RARCH} where {NF}
+
 # Compiled time stepping.
 #
 # `run!` on a device integrator compiles the whole stepping loop into a single StableHLO
 # program (via `@trace for`) and runs it. The compiled function can be reused across runs by
 # passing it back as the `compiled_run!` keyword. The traced loop body calls the timestepper-level
-# `timestep!` (`timestep!(integrator, timestepper, Δt)`), which is NOT overridden here — this is
-# what avoids recursively re-entering the compiling wrapper.
-
-const ReactantIntegrator{NF} = ModelIntegrator{NF, <:RARCH} where {NF}
+# `timestep!` (`timestep!(integrator, timestepper, Δt)`), which is not overridden here. This
+# avoids recursively re-entering the compiling wrapper.
 
 # Reactant specialization of `Terrarium.run_timesteps!` (generic host loop defined in src). Here
 # `Reactant.@trace` compiles the loop to a single `stablehlo.while` (rather than unrolling `Nt`
@@ -65,3 +65,12 @@ function Terrarium.timestep!(integrator::ReactantIntegrator, Δt; finalize = tru
     run!(integrator; steps = 1, Δt)
     return nothing
 end
+
+#
+# We here override `default_clock` for Reactant device models to get a Reactant-backed `Clock`
+Terrarium.default_clock(model::ReactantModel) = Oceananigans.TimeSteppers.Clock(ground_domain(get_grid(model)))
+
+# A compiled run updates the clock's `ConcreteRNumber` time in place, so the integrator's initial
+# time must be a copy of its current value rather than a reference to the same object. Assigning
+# the plain number back (in `reset_clock!`) converts it to the clock's `ConcreteRNumber` type again.
+Terrarium.initial_clock_time(time::Reactant.ConcreteRNumber) = Reactant.to_number(time)

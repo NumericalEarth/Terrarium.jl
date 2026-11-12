@@ -8,6 +8,8 @@ if FLAG_ENZYME_TESTS
     @testset "Enzyme" begin
         include("differentiability/clock_diff.jl")
         include("differentiability/soil_energy_diff.jl")
+        include("differentiability/implicit_heat_conduction_diff.jl")
+        include("differentiability/implicit_richards_diff.jl")
         include("differentiability/soil_hydrology_diff.jl")
         include("differentiability/vegetation_model_diff.jl")
         include("differentiability/snow_model_diff.jl")
@@ -49,7 +51,7 @@ if MAIN_TESTS
     end
 
     @testset "Timestepping" begin
-        include("timestepping/explicit_step.jl")
+        include("timestepping/explicit_stage.jl")
         include("timestepping/run_simulation.jl")
         include("timestepping/heun.jl")
         include("timestepping/vector_eltype.jl")

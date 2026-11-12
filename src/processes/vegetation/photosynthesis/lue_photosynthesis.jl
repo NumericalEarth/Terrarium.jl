@@ -43,6 +43,9 @@ $TYPEDFIELDS
     "Intrinsic quantum efficiency of CO2 uptake in C3 plants"
     @param α_C3::NF = 0.08 (bounds = UnitInterval,)
 
+    "Leaf (dark) respiration as a fraction of the maximum carboxylation capacity `Vc_max` for C3 plants, [haxeltineBIOME3EquilibriumTerrestrial1996; Eq. (10)](@cite)"
+    @param leaf_respiration_fraction::NF = 0.015 (bounds = UnitInterval,)
+
     "Conversion factor for solar radiation at 550 nm from J/m² to mol/m²"
     @param cq::NF = 4.6e-6 (units = u"mol/J", bounds = Positive, scale = 1.0e-6)
 
@@ -65,8 +68,8 @@ end
 LUEPhotosynthesis(::Type{NF}; kwargs...) where {NF} = LUEPhotosynthesis{NF}(; kwargs...)
 
 variables(::LUEPhotosynthesis{NF}) where {NF} = (
-    auxiliary(:net_assimilation, Canopy(XY()), units = u"g/m^2/s"), # Net photosynthesis rate [gC/m²/s]
-    auxiliary(:leaf_respiration, Canopy(XY()), units = u"g/m^2/s"), # Leaf respiration rate [gC/m²/s]
+    auxiliary(:net_assimilation, Canopy(XY()), units = u"kg/m^2/s"), # Net photosynthesis rate [kgC/m²/s]
+    auxiliary(:leaf_respiration, Canopy(XY()), units = u"kg/m^2/s"), # Leaf respiration rate [kgC/m²/s]
     auxiliary(:gross_primary_production, Canopy(XY()), units = u"kg/m^2/s"), # Gross primary production rate [kgC/m²/s]
     input(:soil_moisture_limiting_factor, Ground(XY()), default = NF(1)), # soil moisture limiting factor with default value of 1
     input(:leaf_area_index, Canopy(XY())), # Leaf Area Index [m²/m²]
@@ -184,7 +187,7 @@ end
 """
     $TYPEDSIGNATURES
 
-Computes factors for light-limited `c_1` [gC/mol] and RuBisCO-limited `c_2` [dimensionless] assimilation.
+Computes factors for light-limited `c_1` [kgC/mol] and RuBisCO-limited `c_2` [dimensionless] assimilation.
 Follows [willeitPALADYNV10Comprehensive2016; Eqs. (C4-C5)](@cite) and [haxeltineBIOME3EquilibriumTerrestrial1996](@cite).
 
 - c_1: quantum efficiency × temperature factor × carbon mass / denominator, used in JE = c_1 × APAR
@@ -209,9 +212,9 @@ end
 """
     $TYPEDSIGNATURES
     
-Computes the maximum rate of net photosynthesis `Vc_max` [gC/m²/s],
+Computes the maximum carboxylation capacity `Vc_max` [kgC/m²/s],
 following the coordination hypothesis (acclimation), see [harrisonEcoEvolutionaryOptimalityMeans2021](@cite) Box 2.
-Note: this is not the same formula as in the [willeitPALADYNV10Comprehensive2016](@cite) paper, this implementaion is taken from the code
+Note: this is not the same formula as in the [willeitPALADYNV10Comprehensive2016](@cite) paper, this implementation is taken from the PALADYN code
 
 # References
 
@@ -226,7 +229,7 @@ end
 """
     $TYPEDSIGNATURES
 
-Computes the PAR-limited and the rubisco-activity-limited photosynthesis rates `JE` and `JC` [gC/m²/s],
+Computes the PAR-limited and the rubisco-activity-limited photosynthesis rates `JE` and `JC` [kgC/m²/s],
 [haxeltineBIOME3EquilibriumTerrestrial1996; Eqs. (3, 5)](@cite).
 
 # References
@@ -242,7 +245,7 @@ end
 """
     $TYPEDSIGNATURES
 
-Computes the leaf respiration rate `Rd` [gC/m²/s],
+Computes the leaf respiration rate `Rd` [kgC/m²/s],
 [haxeltineBIOME3EquilibriumTerrestrial1996; Eq. (10)](@cite) and [willeitPALADYNV10Comprehensive2016; Eq. (10)](@cite).
 
 # References
@@ -251,14 +254,14 @@ Computes the leaf respiration rate `Rd` [gC/m²/s],
 * [willeitPALADYNV10Comprehensive2016](@cite) Willeit & Ganopolski, Geoscientific Model Development (2016)
 """
 @inline function compute_Rd(photo::LUEPhotosynthesis, Vc_max::NF, β::NF) where {NF}
-    Rd = photo.α_C3 * Vc_max * β
+    Rd = photo.leaf_respiration_fraction * Vc_max * β
     return Rd
 end
 
 """
     $TYPEDSIGNATURES
 
-Computes the gross photosynthesis rate `Ag` [gC/m²/s],
+Computes the gross photosynthesis rate `Ag` [kgC/m²/s],
 [haxeltineBIOME3EquilibriumTerrestrial1996; Eq. (2)](@cite).
 
 # References
@@ -277,7 +280,7 @@ end
 """
     $TYPEDSIGNATURES
 
-Compute and return leaf respiration [gC/m²/s] and net assimilation [gC/m²/s] rates.
+Compute and return leaf respiration [kgC/m²/s] and net assimilation [kgC/m²/s] rates.
 """
 function compute_respiration_assimilation(
         photo::LUEPhotosynthesis{NF},
@@ -314,16 +317,16 @@ function compute_respiration_assimilation(
             # Compute c1 and c2 parameters for C3 photosynthesis enzyme kinetics
             c_1, c_2 = compute_assimilation_factors(photo, constants, Γ_star, T_stress, Kc, Ko, pres_i, pres_O2)
 
-            # Compute Vc_max, maximum rate of carboxylation [gC/m²/s]
+            # Compute Vc_max, maximum rate of carboxylation [kgC/m²/s]
             Vc_max = compute_Vc_max(photo, c_1, APAR, Kc, Ko, Γ_star, pres_i, pres_O2)
 
-            # Compute leaf respiration rate [gC/m²/s]
+            # Compute leaf respiration rate [kgC/m²/s]
             Rd = compute_Rd(photo, Vc_max, β)
 
-            # Compute Ag, the gross photosynthesis rate [gC/m²/s]
+            # Compute Ag, the gross photosynthesis rate [kgC/m²/s]
             Ag = compute_Ag(photo, c_1, c_2, APAR, Vc_max, β)
 
-            # Compute An, the net photosynthesis rate [gC/m²/s]
+            # Compute An, the net photosynthesis rate [kgC/m²/s]
             An = Ag - Rd
         else
             # No leaves, no photosynthesis
@@ -349,8 +352,7 @@ end
 Compute Gross Primary Production from net assimilation `An` and leaf respiration `Rd` [kgC/m²/s].
 """
 @inline function compute_GPP(::LUEPhotosynthesis{NF}, An::NF, Rd::NF) where {NF}
-    # Convert from gC/m²/s to kgC/m²/s
-    GPP = (An + Rd) * NF(1.0e-3)
+    GPP = An + Rd
     return GPP
 end
 
@@ -379,7 +381,7 @@ end
     $TYPEDSIGNATURES
 
 Compute photosynthesis, leaf respiration, and gross primary production at a single grid point.
-Returns instantaneous rates in [gC/m²/s] and [kgC/m²/s] for integration by the timestepper.
+Returns instantaneous rates in (kgC/m²/s) for integration by the timestepper.
 """
 @propagate_inbounds function compute_photosynthesis(
         i, j, grid, fields,
@@ -403,8 +405,8 @@ Returns instantaneous rates in [gC/m²/s] and [kgC/m²/s] for integration by the
     vpd = compute_vapor_pressure_deficit(i, j, grid, fields, atmos, constants)
     λc = compute_λc(stomcond, vpd)
 
-    # Compute Rd, leaf respiration rate in [gC/m²/s],
-    # An, net photosynthesis rate in [gC/m²/s]
+    # Compute Rd, leaf respiration rate in [kgC/m²/s],
+    # An, net photosynthesis rate in [kgC/m²/s]
     Rd, An = compute_respiration_assimilation(photo, traits, constants.material, T_air, swdown, pres, co2, LAI, λc, β)
 
     # Compute GPP, Gross Primary Production in [kgC/m²/s]

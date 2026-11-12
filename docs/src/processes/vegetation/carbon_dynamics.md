@@ -112,6 +112,18 @@ compute_balanced_leaf_area_index
 ```
 
 ```@docs; canonical = false
+compute_leaf_carbon
+```
+
+```@docs; canonical = false
+compute_root_carbon
+```
+
+```@docs; canonical = false
+compute_stem_carbon
+```
+
+```@docs; canonical = false
 compute_λ_NPP
 ```
 

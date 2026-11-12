@@ -58,6 +58,17 @@ Compute the (numerical) residual saturation level of the soil.
 """
 function residual_saturation end
 
+"""
+    minimum_moisture_capacity(hydraulics::AbstractSoilHydraulics)
+
+Numerical lower bound (1/m) of the specific moisture capacity `∂θ/∂ψ` used on the diagonal of the
+implicit Richards solve (see [`compute_implicit_capacity!`](@ref)).
+It plays the role of a small specific storage: in saturated cells `∂θ/∂ψ = 0`, and a saturated cell
+whose faces have zero hydraulic conductivity (e.g. a frozen saturated cell) would otherwise give a
+singular row of the tridiagonal system.
+"""
+function minimum_moisture_capacity end
+
 # Hydraulics parameterizations
 
 """
@@ -74,7 +85,7 @@ $TYPEDFIELDS
     "Soil water retention curve"
     @component swrc::RC
 
-    "Unsaturated hydraulic conductivity formulation; defaults to `saturated_conductivity`"
+    "Unsaturated hydraulic conductivity formulation; defaults to the formulation matching `swrc` (see [`default_unsat_hydraulic_cond`](@ref))"
     @component unsat_hydraulic_cond::UnsatK
 
     "Hydraulic conductivity at saturation"
@@ -88,12 +99,15 @@ $TYPEDFIELDS
 
     "Residual (minimum) saturation level"
     @param residual_saturation::NF = 0.01 (bounds = UnitInterval,)
+
+    "Lower bound (1/m) of the specific moisture capacity ∂θ/∂ψ on the diagonal of the implicit Richards solve (implicit time stepping only)"
+    minimum_moisture_capacity::NF = 1.0e-5
 end
 
 function ConstantSoilHydraulics(
         ::Type{NF};
         swrc = BrooksCorey(),
-        unsat_hydraulic_cond = UnsatKLinear(NF),
+        unsat_hydraulic_cond = default_unsat_hydraulic_cond(NF, swrc),
         kwargs...
     ) where {NF}
     swrc = adapt(NumberFormatAdaptor{NF}(), ustrip(swrc))
@@ -107,6 +121,8 @@ end
 @inline field_capacity(hydraulics::ConstantSoilHydraulics, args...) = hydraulics.field_capacity
 
 @inline residual_saturation(hydraulics::ConstantSoilHydraulics, args...) = hydraulics.residual_saturation
+
+@inline minimum_moisture_capacity(hydraulics::ConstantSoilHydraulics) = hydraulics.minimum_moisture_capacity
 
 """
     $TYPEDEF
@@ -125,7 +141,7 @@ $TYPEDFIELDS
     "Soil water retention curve"
     @component swrc::RC
 
-    "Unsaturated hydraulic conductivity formulation; defaults to `saturated_conductivity`"
+    "Unsaturated hydraulic conductivity formulation; defaults to the formulation matching `swrc` (see [`default_unsat_hydraulic_cond`](@ref))"
     @component unsat_hydraulic_cond::UnsatK
 
     "Hydraulic conductivity at saturation"
@@ -145,12 +161,15 @@ $TYPEDFIELDS
 
     "Residual (minimum) saturation level"
     @param residual_saturation::NF = 0.01 (bounds = UnitInterval,)
+
+    "Lower bound (1/m) of the specific moisture capacity ∂θ/∂ψ on the diagonal of the implicit Richards solve (implicit time stepping only)"
+    minimum_moisture_capacity::NF = 1.0e-5
 end
 
 function SoilHydraulicsSURFEX(
         ::Type{NF};
         swrc = BrooksCorey(),
-        unsat_hydraulic_cond = UnsatKLinear(NF),
+        unsat_hydraulic_cond = default_unsat_hydraulic_cond(NF, swrc),
         kwargs...
     ) where {NF}
     swrc = adapt(NumberFormatAdaptor{NF}(), ustrip(swrc))
@@ -161,6 +180,8 @@ end
 @inline saturated_hydraulic_conductivity(hydraulics::SoilHydraulicsSURFEX, args...) = hydraulics.saturated_conductivity
 
 @inline residual_saturation(hydraulics::SoilHydraulicsSURFEX, args...) = hydraulics.residual_saturation
+
+@inline minimum_moisture_capacity(hydraulics::SoilHydraulicsSURFEX) = hydraulics.minimum_moisture_capacity
 
 @inline function wilting_point(hydraulics::SoilHydraulicsSURFEX, texture::SoilTexture)
     β_w = hydraulics.wilting_point_effect
@@ -177,6 +198,19 @@ end
 end
 
 # Unsaturated hydraulic conductivity schemes
+
+"""
+    $SIGNATURES
+
+Ice impedance factor `I_ice = 10^(-Ω (1 - f))` [westermannCryoGridCommunityModel2023](@cite), which reduces the
+hydraulic conductivity of partially frozen soil to account for the blocking of water-filled pores by ice, given
+the scaling parameter `Ω` and the unfrozen fraction `f` of the pore water.
+
+# References
+
+* [westermannCryoGridCommunityModel2023](@cite) Westermann et al., Geoscientific Model Development (2023)
+"""
+@inline ice_impedance_factor(Ω, f) = 10^(-Ω * (1 - f))
 
 """
     $TYPEDEF
@@ -231,7 +265,7 @@ function hydraulic_conductivity(
         θsat = porosity(soil) # porosity
         f = liquid_fraction(soil) # fraction of pore water that is unfrozen (equiv. θw / θwi)
         Ω = hydraulics.unsat_hydraulic_cond.impedance # scaling parameter for ice impedance
-        I_ice = 10^(-Ω * (1 - f)) # ice impedance factor
+        I_ice = ice_impedance_factor(Ω, f)
         K_sat = saturated_hydraulic_conductivity(hydraulics, soil.solid.texture)
         # Effective saturation, clamped to the unit interval so that every fractional power below is
         # evaluated at a non-negative base. Illegal state values (θw > θsat or θw < 0), which may occur
@@ -241,3 +275,80 @@ function hydraulic_conductivity(
         return K
     end
 end
+
+"""
+    $TYPEDEF
+
+Unsaturated hydraulic conductivity of the Brooks–Corey model, extended with an ice impedance factor:
+
+    K = I_ice K_sat S^(3 + 2/λ)
+
+where `S = θw / θsat` is the liquid water saturation, `λ` is the pore size distribution index of the
+`BrooksCorey` retention curve, and `I_ice` is the [`Terrarium.ice_impedance_factor`](@ref) of
+[westermannCryoGridCommunityModel2023](@cite).
+
+Brooks and Corey [brooksHydraulicPropertiesPorous1964](@cite) define the power law on the effective saturation `(θw − θres) / (θsat − θres)`. Terrarium
+evaluates the retention curve with the residual water content of the `BrooksCorey` curve itself, which is
+zero by default, and in that case the effective saturation reduces to `S`. A nonzero residual water content of
+the retention curve is not yet accounted for here; the `residual_saturation` of the hydraulic properties is
+only a numerical lower bound on the saturation.
+
+The power law and its exponent `3 + 2/λ` were derived by [brooksHydraulicPropertiesPorous1964](@cite) from
+their retention curve, using the pore size distribution model of Burdine.
+[campbellSimpleMethodDetermining1974](@cite) obtained the same law, written as `S^(2b + 3)` with `b = 1/λ`, and
+[clappEmpiricalEquationsSoil1978](@cite) tabulated `b` by soil texture; in this form, it is the conductivity
+of SURFEX/ISBA [booneInfluenceInclusionSoil2000](@cite). The exponent `λ` is taken from the retention curve so that the two cannot be configured
+inconsistently; this formulation can therefore only be combined with a `BrooksCorey` retention curve.
+
+# References
+
+* [brooksHydraulicPropertiesPorous1964](@cite) Brooks & Corey, Hydrology Papers, Colorado State University (1964)
+* [campbellSimpleMethodDetermining1974](@cite) Campbell, Soil Science (1974)
+* [clappEmpiricalEquationsSoil1978](@cite) Clapp & Hornberger, Water Resources Research (1978)
+* [booneInfluenceInclusionSoil2000](@cite) Boone et al., Journal of Applied Meteorology (2000)
+* [westermannCryoGridCommunityModel2023](@cite) Westermann et al., Geoscientific Model Development (2023)
+"""
+@parameterized @kwdef struct UnsatKBrooksCorey{NF} <: AbstractUnsatK{NF}
+    "Exponential scaling factor for ice impedance"
+    @param impedance::NF = 7 (bounds = Positive,)
+end
+
+UnsatKBrooksCorey(::Type{NF}; impedance::NF = NF(7)) where {NF} = UnsatKBrooksCorey(NF(impedance))
+
+function hydraulic_conductivity(
+        hydraulics::AbstractSoilHydraulics{NF, <:BrooksCorey, UnsatKBrooksCorey{NF}},
+        soil::SoilComposition
+    ) where {NF}
+    let λ = hydraulics.swrc.λ # Brooks–Corey pore size distribution index
+        θw = water(soil) # volumetric content of unfrozen water
+        θsat = porosity(soil) # porosity
+        f = liquid_fraction(soil) # fraction of pore water that is unfrozen
+        Ω = hydraulics.unsat_hydraulic_cond.impedance # scaling parameter for ice impedance
+        I_ice = ice_impedance_factor(Ω, f)
+        K_sat = saturated_hydraulic_conductivity(hydraulics, soil.solid.texture)
+        # Saturation clamped to the unit interval so that the fractional power is evaluated at a
+        # non-negative base, as in `UnsatKVanGenuchten`.
+        S = clamp(θw / θsat, zero(θw), one(θw))
+        K = K_sat * I_ice * S^(3 + 2 / λ)
+        return K
+    end
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Return the unsaturated hydraulic conductivity formulation that matches the soil water retention curve
+`swrc`: [`UnsatKBrooksCorey`](@ref) for `BrooksCorey`, [`UnsatKVanGenuchten`](@ref) for `VanGenuchten`,
+and [`UnsatKLinear`](@ref) otherwise.
+
+```jldoctest
+julia> Terrarium.default_unsat_hydraulic_cond(Float32, BrooksCorey())
+UnsatKBrooksCorey{Float32}(7.0f0)
+
+julia> Terrarium.default_unsat_hydraulic_cond(Float32, VanGenuchten())
+UnsatKVanGenuchten{Float32}(7.0f0)
+```
+"""
+default_unsat_hydraulic_cond(::Type{NF}, ::SWRC) where {NF} = UnsatKLinear(NF)
+default_unsat_hydraulic_cond(::Type{NF}, ::BrooksCorey) where {NF} = UnsatKBrooksCorey(NF)
+default_unsat_hydraulic_cond(::Type{NF}, ::VanGenuchten) where {NF} = UnsatKVanGenuchten(NF)

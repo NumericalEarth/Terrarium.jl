@@ -6,7 +6,8 @@ import Dates: Hour, DateTime
 
 @testset "run! SoilModel w/ ForwardEuler" begin
     grid = ColumnRingGrid(CPU(), Float64, ExponentialSpacing(N = 50), RingGrids.FullHEALPixGrid(16))
-    model = SoilModel(grid)
+    soil = SoilEnergyWaterCarbon(Float64; hydrology = SoilHydrology(Float64, NoFlow()))
+    model = SoilModel(grid; soil, timestepper = ForwardEuler(Float64))
     integrator = initialize(model)
 
     run!(integrator; steps = 2)
@@ -47,7 +48,8 @@ end
 
 @testset "run! SoilModel w/ Heun" begin
     grid = ColumnRingGrid(CPU(), Float64, ExponentialSpacing(N = 50), RingGrids.FullHEALPixGrid(16))
-    model = SoilModel(grid; timestepper = Heun())
+    soil = SoilEnergyWaterCarbon(Float64; hydrology = SoilHydrology(Float64, NoFlow()))
+    model = SoilModel(grid; soil, timestepper = Heun())
     integrator = initialize(model)
 
     run!(integrator; steps = 2)

@@ -43,33 +43,33 @@ Simulated years per wallclock day (SYPD) for each model configuration across hor
 
 | Configuration | Columns | cpu-arm | cpu-x86 | gpu-nvidia | reactant-cpu-arm | reactant-cpu-x86 | reactant-gpu |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| land | 128 | 334 | 257 | 1294 | 18311 | 16761 | 47766 |
-| land | 512 | 114 | 80 | 1263 | 5563 | 4272 | 8877 |
-| land | 2048 | 31 | 21 | 1389 | 1717 | 1833 | 8368 |
-| land | 4608 | 4.12 | 3.17 | 1387 | 852 | 822 | 7748 |
-| land | 8192 | 7.87 | 5.37 | 1357 | 390 | 422 | 7384 |
-| land | 18432 | 3.25 | 2.3 | 1310 | 208 | 194 | 5508 |
-| land | 41472 | 1.51 | 1.05 | 1348 | 87 | 84 | 3946 |
-| land | 73728 | 0.77 | 0.6 | 1276 | 36 | 52 | 2757 |
-| land | 165888 | 0.39 | 0.26 | 878 | 8.17 | 24 | 1450 |
-| land_no_vegetation | 128 | 428 | 312 | 2907 | 15876 | 13850 | 50896 |
-| land_no_vegetation | 512 | 136 | 89 | 2910 | 2342 | 4704 | 9771 |
-| land_no_vegetation | 2048 | 33 | 23 | 2861 | 1538 | 1637 | 9129 |
-| land_no_vegetation | 4608 | 16 | 10 | 2848 | 708 | 616 | 8330 |
-| land_no_vegetation | 8192 | 8.17 | 5.59 | 2884 | 337 | 475 | 7672 |
-| land_no_vegetation | 18432 | 3.75 | 2.44 | 2882 | 238 | 229 | 5727 |
-| land_no_vegetation | 41472 | 1.68 | 1.08 | 2381 | 101 | 85 | 4337 |
-| land_no_vegetation | 73728 | 0.92 | 0.63 | 3224 | 43 | 55 | 2888 |
-| land_no_vegetation | 165888 | 0.41 | 0.28 | 1868 | 19 | 27 | 1550 |
-| soil_heat | 128 | 1011 | 602 | 40374 | 170034 | 159726 | 155936 |
-| soil_heat | 512 | 265 | 156 | 38724 | 42299 | 14526 | 163367 |
-| soil_heat | 2048 | 65 | 39 | 41605 | 8078 | 10623 | 118920 |
-| soil_heat | 4608 | 27 | 17 | 41238 | 9025 | 3541 | 83290 |
-| soil_heat | 8192 | 14 | 9.69 | 40106 | 1978 | 1648 | 39899 |
-| soil_heat | 18432 | 6.75 | 4.34 | 28885 | 668 | 673 | 28231 |
-| soil_heat | 41472 | 3.17 | 1.92 | 15652 | 374 | 383 | 12236 |
-| soil_heat | 73728 | 1.86 | 1.08 | 9246 | 151 | 186 | 8601 |
-| soil_heat | 165888 | 0.74 | 0.49 | 4429 | 73 | 86 | 5386 |
+| land | 128 | 334 | 576 | 2778 | 18311 | 16761 | 47766 |
+| land | 512 | 114 | 156 | 2742 | 5563 | 4272 | 8877 |
+| land | 2048 | 31 | 39 | 2526 | 1717 | 1833 | 8368 |
+| land | 4608 | 4.12 | 18 | 2777 | 852 | 822 | 7748 |
+| land | 8192 | 7.87 | 10 | 2189 | 390 | 422 | 7384 |
+| land | 18432 | 3.25 | 4.46 | 1971 | 208 | 194 | 5508 |
+| land | 41472 | 1.51 | 1.98 | 3028 | 87 | 84 | 3946 |
+| land | 73728 | 0.77 | 1.11 | 2122 | 36 | 52 | 2757 |
+| land | 165888 | 0.39 | 0.49 | 1666 | 8.17 | 24 | 1450 |
+| land_no_vegetation | 128 | 428 | 669 | 4867 | 15876 | 13850 | 50896 |
+| land_no_vegetation | 512 | 136 | 173 | 4893 | 2342 | 4704 | 9771 |
+| land_no_vegetation | 2048 | 33 | 44 | 4825 | 1538 | 1637 | 9129 |
+| land_no_vegetation | 4608 | 16 | 19 | 4599 | 708 | 616 | 8330 |
+| land_no_vegetation | 8192 | 8.17 | 11 | 4602 | 337 | 475 | 7672 |
+| land_no_vegetation | 18432 | 3.75 | 4.88 | 5379 | 238 | 229 | 5727 |
+| land_no_vegetation | 41472 | 1.68 | 2.17 | 5303 | 101 | 85 | 4337 |
+| land_no_vegetation | 73728 | 0.92 | 1.22 | 3707 | 43 | 55 | 2888 |
+| land_no_vegetation | 165888 | 0.41 | 0.54 | 2043 | 19 | 27 | 1550 |
+| soil_heat | 128 | 1011 | 973 | 51385 | 170034 | 159726 | 155936 |
+| soil_heat | 512 | 265 | 243 | 51226 | 42299 | 14526 | 163367 |
+| soil_heat | 2048 | 65 | 61 | 51642 | 8078 | 10623 | 118920 |
+| soil_heat | 4608 | 27 | 27 | 52653 | 9025 | 3541 | 83290 |
+| soil_heat | 8192 | 14 | 15 | 54847 | 1978 | 1648 | 39899 |
+| soil_heat | 18432 | 6.75 | 6.81 | 34000 | 668 | 673 | 28231 |
+| soil_heat | 41472 | 3.17 | 3.01 | 18126 | 374 | 383 | 12236 |
+| soil_heat | 73728 | 1.86 | 1.7 | 10595 | 151 | 186 | 8601 |
+| soil_heat | 165888 | 0.74 | 0.75 | 5027 | 73 | 86 | 5386 |
 
 ## Architecture: `cpu-arm`
 
@@ -171,14 +171,14 @@ Environment:
 
 ## Architecture: `cpu-x86`
 
-Created for Terrarium.jl v0.1.9-DEV on Fri, 09 Oct 2026 12:09:48 in `default` mode (1x time steps, timed once, 1 Julia thread(s)).
+Created for Terrarium.jl v0.1.10 on Fri, 06 Nov 2026 12:58:40 in `default` mode (1.0x time steps, median of 5 repetitions, 1 Julia thread(s)).
 
 ### Machine details
 
 ```julia
 julia> versioninfo()
-Julia Version 1.12.2
-Commit ca9b6662be4 (2025-11-20 16:25 UTC)
+Julia Version 1.12.7
+Commit 6d172b025e4 (2026-08-15 08:05 UTC)
 Build Info:
   Official https://julialang.org release
 Platform Info:
@@ -187,89 +187,107 @@ Platform Info:
   WORD_SIZE: 64
   LLVM: libLLVM-18.1.7 (ORCJIT, znver4)
   GC: Built with stock GC
-Threads: 1 default, 1 interactive, 1 GC (on 128 virtual cores)
+Threads: 1 default, 0 interactive, 1 GC (on 128 virtual cores)
 Environment:
-  LD_LIBRARY_PATH = /usr/local/lib:/usr/local/lib:
+  LD_LIBRARY_PATH = /usr/local/lib:/p/system/packages_rhel9/tools/socat/1.8.1.1/lib64:/p/system/packages_rhel9/tools/socat/1.8.1.1/lib:/usr/local/lib::
 ```
 
+CPU affinity of the benchmark process: `0-127`; OS threads at the end of the run: 65.
+
+
+### Compile-order check: first models stepped in the process
+
+| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| land | 45.00° | 32 | 600 | 200 | 72 | 23 | 15% | 0.0418 | 58.19 KiB |
+| land_no_vegetation | 45.00° | 32 | 600 | 200 | 2343 | 0.701 | 11% | 1.37 | 48.84 KiB |
+| soil_heat | 45.00° | 32 | 600 | 200 | 3860 | 0.426 | 0% | 2.26 | 32.51 KiB |
 
 ### Model configurations, default resolution
 
-| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| land | 3.75° | 4608 | 600 | 217 | 3.25 | 505 | 0.274 | 6.86 MiB |
-| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 10 | 158 | 0.877 | 5.76 MiB |
-| soil_heat | 3.75° | 4608 | 600 | 217 | 18 | 91.1 | 1.52 | 3.85 MiB |
+| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| land | 3.75° | 4608 | 600 | 217 | 18 | 92.4 | 0% | 1.5 | 6.90 MiB |
+| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 19 | 84.8 | 0% | 1.63 | 5.79 MiB |
+| soil_heat | 3.75° | 4608 | 600 | 217 | 27 | 60.3 | 0% | 2.29 | 3.85 MiB |
 
 ### Land model, horizontal resolution
 
-| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| land | 22.50° | 128 | 600 | 2000 | 257 | 6.39 | 0.601 | 204.14 KiB |
-| land | 11.25° | 512 | 600 | 1953 | 80 | 20.5 | 0.751 | 789.14 KiB |
-| land | 5.62° | 2048 | 600 | 488 | 21 | 79.2 | 0.776 | 3.06 MiB |
-| land | 3.75° | 4608 | 600 | 217 | 3.17 | 518 | 0.267 | 6.86 MiB |
-| land | 2.81° | 8192 | 600 | 122 | 5.37 | 306 | 0.803 | 12.20 MiB |
-| land | 1.88° | 18432 | 600 | 54 | 2.3 | 713 | 0.775 | 27.43 MiB |
-| land | 1.25° | 41472 | 600 | 24 | 1.05 | 1570 | 0.794 | 61.71 MiB |
-| land | 0.94° | 73728 | 600 | 20 | 0.6 | 2760 | 0.803 | 109.70 MiB |
-| land | 0.62° | 165888 | 600 | 20 | 0.26 | 6220 | 0.8 | 246.81 MiB |
+| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| land | 22.50° | 128 | 600 | 2000 | 576 | 2.85 | 0% | 1.35 | 205.19 KiB |
+| land | 11.25° | 512 | 600 | 1953 | 156 | 10.5 | 0% | 1.46 | 793.19 KiB |
+| land | 5.62° | 2048 | 600 | 488 | 39 | 41.7 | 2% | 1.47 | 3.07 MiB |
+| land | 3.75° | 4608 | 600 | 217 | 18 | 92.4 | 0% | 1.5 | 6.90 MiB |
+| land | 2.81° | 8192 | 600 | 122 | 10 | 164 | 3% | 1.5 | 12.26 MiB |
+| land | 1.88° | 18432 | 600 | 54 | 4.46 | 368 | 2% | 1.5 | 27.57 MiB |
+| land | 1.25° | 41472 | 600 | 24 | 1.98 | 829 | 0% | 1.5 | 62.02 MiB |
+| land | 0.94° | 73728 | 600 | 20 | 1.11 | 1480 | 0% | 1.5 | 110.26 MiB |
+| land | 0.62° | 165888 | 600 | 20 | 0.49 | 3320 | 0% | 1.5 | 248.07 MiB |
 
 ### Land model without vegetation, horizontal resolution
 
-| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| land_no_vegetation | 22.50° | 128 | 600 | 2000 | 312 | 5.26 | 0.73 | 171.16 KiB |
-| land_no_vegetation | 11.25° | 512 | 600 | 1953 | 89 | 18.4 | 0.833 | 661.66 KiB |
-| land_no_vegetation | 5.62° | 2048 | 600 | 488 | 23 | 72.9 | 0.843 | 2.56 MiB |
-| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 10 | 161 | 0.86 | 5.76 MiB |
-| land_no_vegetation | 2.81° | 8192 | 600 | 122 | 5.59 | 294 | 0.837 | 10.23 MiB |
-| land_no_vegetation | 1.88° | 18432 | 600 | 54 | 2.44 | 674 | 0.82 | 23.00 MiB |
-| land_no_vegetation | 1.25° | 41472 | 600 | 24 | 1.08 | 1520 | 0.817 | 51.74 MiB |
-| land_no_vegetation | 0.94° | 73728 | 600 | 20 | 0.63 | 2590 | 0.854 | 91.98 MiB |
-| land_no_vegetation | 0.62° | 165888 | 600 | 20 | 0.28 | 5910 | 0.842 | 206.94 MiB |
+| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| land_no_vegetation | 22.50° | 128 | 600 | 2000 | 669 | 2.46 | 0% | 1.56 | 172.21 KiB |
+| land_no_vegetation | 11.25° | 512 | 600 | 1953 | 173 | 9.47 | 0% | 1.62 | 665.71 KiB |
+| land_no_vegetation | 5.62° | 2048 | 600 | 488 | 44 | 37.5 | 0% | 1.64 | 2.58 MiB |
+| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 19 | 85 | 0% | 1.63 | 5.79 MiB |
+| land_no_vegetation | 2.81° | 8192 | 600 | 122 | 11 | 150 | 0% | 1.64 | 10.29 MiB |
+| land_no_vegetation | 1.88° | 18432 | 600 | 54 | 4.88 | 337 | 3% | 1.64 | 23.14 MiB |
+| land_no_vegetation | 1.25° | 41472 | 600 | 24 | 2.17 | 758 | 0% | 1.64 | 52.06 MiB |
+| land_no_vegetation | 0.94° | 73728 | 600 | 20 | 1.22 | 1350 | 0% | 1.64 | 92.54 MiB |
+| land_no_vegetation | 0.62° | 165888 | 600 | 20 | 0.54 | 3030 | 0% | 1.64 | 208.20 MiB |
 
 ### Soil heat conduction, horizontal resolution
 
-| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| soil_heat | 22.50° | 128 | 600 | 2000 | 602 | 2.73 | 1.41 | 114.63 KiB |
-| soil_heat | 11.25° | 512 | 600 | 1953 | 156 | 10.5 | 1.46 | 443.13 KiB |
-| soil_heat | 5.62° | 2048 | 600 | 488 | 39 | 42.5 | 1.45 | 1.72 MiB |
-| soil_heat | 3.75° | 4608 | 600 | 217 | 17 | 94.4 | 1.46 | 3.85 MiB |
-| soil_heat | 2.81° | 8192 | 600 | 122 | 9.69 | 169 | 1.45 | 6.85 MiB |
-| soil_heat | 1.88° | 18432 | 600 | 54 | 4.34 | 378 | 1.46 | 15.40 MiB |
-| soil_heat | 1.25° | 41472 | 600 | 24 | 1.92 | 856 | 1.45 | 34.65 MiB |
-| soil_heat | 0.94° | 73728 | 600 | 20 | 1.08 | 1520 | 1.45 | 61.60 MiB |
-| soil_heat | 0.62° | 165888 | 600 | 20 | 0.49 | 3380 | 1.47 | 138.59 MiB |
+| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| soil_heat | 22.50° | 128 | 600 | 2000 | 973 | 1.69 | 0% | 2.27 | 114.63 KiB |
+| soil_heat | 11.25° | 512 | 600 | 1953 | 243 | 6.75 | 0% | 2.28 | 443.13 KiB |
+| soil_heat | 5.62° | 2048 | 600 | 488 | 61 | 27 | 0% | 2.28 | 1.72 MiB |
+| soil_heat | 3.75° | 4608 | 600 | 217 | 27 | 60.3 | 0% | 2.29 | 3.85 MiB |
+| soil_heat | 2.81° | 8192 | 600 | 122 | 15 | 108 | 0% | 2.28 | 6.85 MiB |
+| soil_heat | 1.88° | 18432 | 600 | 54 | 6.81 | 241 | 0% | 2.29 | 15.40 MiB |
+| soil_heat | 1.25° | 41472 | 600 | 24 | 3.01 | 546 | 0% | 2.28 | 34.65 MiB |
+| soil_heat | 0.94° | 73728 | 600 | 20 | 1.7 | 965 | 0% | 2.29 | 61.60 MiB |
+| soil_heat | 0.62° | 165888 | 600 | 20 | 0.75 | 2180 | 0% | 2.28 | 138.59 MiB |
 
 ### Number of soil layers
 
-| Configuration | Res | Columns | L | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| land | 3.75° | 4608 | 10 | 600 | 651 | 23 | 70.6 | 0.653 | 3.70 MiB |
-| land | 3.75° | 4608 | 20 | 600 | 326 | 13 | 124 | 0.743 | 5.28 MiB |
-| land | 3.75° | 4608 | 30 | 600 | 217 | 3.08 | 533 | 0.259 | 6.86 MiB |
-| land | 3.75° | 4608 | 60 | 600 | 109 | 4.8 | 342 | 0.809 | 11.62 MiB |
-| land | 3.75° | 4608 | 100 | 600 | 65 | 2.92 | 562 | 0.819 | 17.95 MiB |
+| Configuration | Res | Columns | L | Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| land | 3.75° | 4608 | 10 | 600 | 651 | 44 | 37.6 | 0% | 1.22 | 3.73 MiB |
+| land | 3.75° | 4608 | 20 | 600 | 326 | 25 | 64.9 | 0% | 1.42 | 5.32 MiB |
+| land | 3.75° | 4608 | 30 | 600 | 217 | 18 | 92.3 | 0% | 1.5 | 6.90 MiB |
+| land | 3.75° | 4608 | 60 | 600 | 109 | 9.46 | 174 | 0% | 1.59 | 11.65 MiB |
+| land | 3.75° | 4608 | 100 | 600 | 65 | 5.81 | 283 | 0% | 1.63 | 17.99 MiB |
 
 ### Number format, Float32 vs Float64
 
-| Configuration | NF | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| land | Float32 | 3.75° | 4608 | 600 | 217 | 3.02 | 543 | 0.254 | 6.86 MiB |
-| land | Float64 | 3.75° | 4608 | 600 | 217 | 7.45 | 220 | 0.627 | 13.73 MiB |
+| Configuration | NF | Res | Columns | Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| land | Float32 | 3.75° | 4608 | 600 | 217 | 18 | 92.2 | 0% | 1.5 | 6.90 MiB |
+| land | Float64 | 3.75° | 4608 | 600 | 217 | 16 | 104 | 3% | 1.33 | 13.80 MiB |
 
 ### Time stepper
 
-| Configuration | Variant | Res | Columns | Δt | Steps | SYPD | ms/step | Mcell-steps/s | Memory |
+| Configuration | Variant | Res | Columns | Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| land | ForwardEuler | 3.75° | 4608 | 600 | 217 | 18 | 92.3 | 0% | 1.5 | 6.90 MiB |
+| land | Heun | 3.75° | 4608 | 600 | 217 | 8.88 | 185 | 0% | 0.747 | 6.90 MiB |
+
+### Compile-order check: the same models at the end of the run
+
+| Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| land | ForwardEuler | 3.75° | 4608 | 600 | 217 | 3.04 | 540 | 0.256 | 6.86 MiB |
-| land | Heun | 3.75° | 4608 | 600 | 217 | 1.48 | 1110 | 0.124 | 6.86 MiB |
+| land | 45.00° | 32 | 600 | 200 | 69 | 23.6 | 0% | 0.0406 | 58.19 KiB |
+| land_no_vegetation | 45.00° | 32 | 600 | 200 | 2271 | 0.723 | 3% | 1.33 | 48.84 KiB |
+| soil_heat | 45.00° | 32 | 600 | 200 | 3861 | 0.425 | 1% | 2.26 | 32.51 KiB |
 
 ## Architecture: `gpu-nvidia`
 
-Created for Terrarium.jl v0.1.9-DEV on Sun, 18 Oct 2026 05:27:41 in `default` mode (1.0x time steps, median of 5 repetitions, 1 Julia thread(s)).
+Created for Terrarium.jl v0.1.10 on Fri, 06 Nov 2026 14:25:14 in `default` mode (1.0x time steps, median of 5 repetitions, 1 Julia thread(s)).
 
 ### Machine details
 
@@ -321,7 +339,7 @@ Toolchain:
 - LLVM: 18.1.7
 
 4 devices:
-  0: NVIDIA H100 80GB HBM3 (sm_90, 77.806 GiB / 79.647 GiB available)
+  0: NVIDIA H100 80GB HBM3 (sm_90, 77.932 GiB / 79.647 GiB available)
      compiles to sm_90a / PTX 9.3 (LLVM: sm_90a / PTX 9.0)
   1: NVIDIA H100 80GB HBM3 (sm_90, 79.175 GiB / 79.647 GiB available)
      compiles to sm_90a / PTX 9.3 (LLVM: sm_90a / PTX 9.0)
@@ -338,91 +356,91 @@ CPU affinity of the benchmark process: `0-127`; OS threads at the end of the run
 
 | Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| land | 45.00° | 32 | 600 | 200 | 527 | 3.12 | 75% | 0.308 | 57.89 KiB |
-| land_no_vegetation | 45.00° | 32 | 600 | 200 | 2910 | 0.565 | 16% | 1.7 | 48.54 KiB |
-| soil_heat | 45.00° | 32 | 600 | 200 | 38950 | 0.0422 | 2% | 22.8 | 32.51 KiB |
+| land | 45.00° | 32 | 600 | 200 | 348 | 4.72 | 1% | 0.203 | 58.19 KiB |
+| land_no_vegetation | 45.00° | 32 | 600 | 200 | 4927 | 0.333 | 41% | 2.88 | 48.84 KiB |
+| soil_heat | 45.00° | 32 | 600 | 200 | 56441 | 0.0291 | 1% | 33 | 32.51 KiB |
 
 ### Model configurations, default resolution
 
 | Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| land | 3.75° | 4608 | 600 | 217 | 1365 | 1.2 | 9% | 115 | 6.86 MiB |
-| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 2839 | 0.579 | 6% | 239 | 5.76 MiB |
-| soil_heat | 3.75° | 4608 | 600 | 217 | 34663 | 0.0474 | 7% | 2920 | 3.85 MiB |
+| land | 3.75° | 4608 | 600 | 217 | 2772 | 0.593 | 28% | 233 | 6.90 MiB |
+| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 4817 | 0.341 | 53% | 405 | 5.79 MiB |
+| soil_heat | 3.75° | 4608 | 600 | 217 | 56484 | 0.0291 | 1% | 4750 | 3.85 MiB |
 
 ### Land model, horizontal resolution
 
 | Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| land | 22.50° | 128 | 600 | 2000 | 1294 | 1.27 | 2% | 3.02 | 204.14 KiB |
-| land | 11.25° | 512 | 600 | 1953 | 1263 | 1.3 | 2% | 11.8 | 789.14 KiB |
-| land | 5.62° | 2048 | 600 | 488 | 1389 | 1.18 | 5% | 51.9 | 3.06 MiB |
-| land | 3.75° | 4608 | 600 | 217 | 1387 | 1.18 | 6% | 117 | 6.86 MiB |
-| land | 2.81° | 8192 | 600 | 122 | 1357 | 1.21 | 30% | 203 | 12.20 MiB |
-| land | 1.88° | 18432 | 600 | 54 | 1310 | 1.25 | 50% | 441 | 27.43 MiB |
-| land | 1.25° | 41472 | 600 | 24 | 1348 | 1.22 | 2605% | 1020 | 61.71 MiB |
-| land | 0.94° | 73728 | 600 | 20 | 1276 | 1.29 | 72% | 1720 | 109.70 MiB |
-| land | 0.62° | 165888 | 600 | 20 | 878 | 1.87 | 153% | 2660 | 246.81 MiB |
+| land | 22.50° | 128 | 600 | 2000 | 2778 | 0.591 | 2% | 6.49 | 205.19 KiB |
+| land | 11.25° | 512 | 600 | 1953 | 2742 | 0.599 | 2% | 25.6 | 793.19 KiB |
+| land | 5.62° | 2048 | 600 | 488 | 2526 | 0.65 | 14% | 94.5 | 3.07 MiB |
+| land | 3.75° | 4608 | 600 | 217 | 2777 | 0.591 | 4% | 234 | 6.90 MiB |
+| land | 2.81° | 8192 | 600 | 122 | 2189 | 0.751 | 13% | 327 | 12.26 MiB |
+| land | 1.88° | 18432 | 600 | 54 | 1971 | 0.833 | 64% | 664 | 27.57 MiB |
+| land | 1.25° | 41472 | 600 | 24 | 3028 | 0.543 | 30% | 2290 | 62.02 MiB |
+| land | 0.94° | 73728 | 600 | 20 | 2122 | 0.774 | 332% | 2860 | 110.26 MiB |
+| land | 0.62° | 165888 | 600 | 20 | 1666 | 0.986 | 0% | 5050 | 248.07 MiB |
 
 ### Land model without vegetation, horizontal resolution
 
 | Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| land_no_vegetation | 22.50° | 128 | 600 | 2000 | 2907 | 0.565 | 5% | 6.8 | 171.16 KiB |
-| land_no_vegetation | 11.25° | 512 | 600 | 1953 | 2910 | 0.565 | 15% | 27.2 | 661.66 KiB |
-| land_no_vegetation | 5.62° | 2048 | 600 | 488 | 2861 | 0.574 | 17% | 107 | 2.56 MiB |
-| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 2848 | 0.577 | 18% | 240 | 5.76 MiB |
-| land_no_vegetation | 2.81° | 8192 | 600 | 122 | 2884 | 0.57 | 131% | 431 | 10.23 MiB |
-| land_no_vegetation | 1.88° | 18432 | 600 | 54 | 2882 | 0.57 | 120% | 970 | 23.00 MiB |
-| land_no_vegetation | 1.25° | 41472 | 600 | 24 | 2381 | 0.69 | 238% | 1800 | 51.74 MiB |
-| land_no_vegetation | 0.94° | 73728 | 600 | 20 | 3224 | 0.51 | 262% | 4340 | 91.98 MiB |
-| land_no_vegetation | 0.62° | 165888 | 600 | 20 | 1868 | 0.879 | 0% | 5660 | 206.94 MiB |
+| land_no_vegetation | 22.50° | 128 | 600 | 2000 | 4867 | 0.337 | 4% | 11.4 | 172.21 KiB |
+| land_no_vegetation | 11.25° | 512 | 600 | 1953 | 4893 | 0.336 | 114% | 45.8 | 665.71 KiB |
+| land_no_vegetation | 5.62° | 2048 | 600 | 488 | 4825 | 0.34 | 17% | 180 | 2.58 MiB |
+| land_no_vegetation | 3.75° | 4608 | 600 | 217 | 4599 | 0.357 | 16% | 387 | 5.79 MiB |
+| land_no_vegetation | 2.81° | 8192 | 600 | 122 | 4602 | 0.357 | 62% | 689 | 10.29 MiB |
+| land_no_vegetation | 1.88° | 18432 | 600 | 54 | 5379 | 0.305 | 128% | 1810 | 23.14 MiB |
+| land_no_vegetation | 1.25° | 41472 | 600 | 24 | 5303 | 0.31 | 341% | 4020 | 52.06 MiB |
+| land_no_vegetation | 0.94° | 73728 | 600 | 20 | 3707 | 0.443 | 44% | 4990 | 92.54 MiB |
+| land_no_vegetation | 0.62° | 165888 | 600 | 20 | 2043 | 0.804 | 0% | 6190 | 208.20 MiB |
 
 ### Soil heat conduction, horizontal resolution
 
 | Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| soil_heat | 22.50° | 128 | 600 | 2000 | 40374 | 0.0407 | 48% | 94.4 | 114.63 KiB |
-| soil_heat | 11.25° | 512 | 600 | 1953 | 38724 | 0.0424 | 89% | 362 | 443.13 KiB |
-| soil_heat | 5.62° | 2048 | 600 | 488 | 41605 | 0.0395 | 1% | 1560 | 1.72 MiB |
-| soil_heat | 3.75° | 4608 | 600 | 217 | 41238 | 0.0398 | 479% | 3470 | 3.85 MiB |
-| soil_heat | 2.81° | 8192 | 600 | 122 | 40106 | 0.041 | 1% | 6000 | 6.85 MiB |
-| soil_heat | 1.88° | 18432 | 600 | 54 | 28885 | 0.0569 | 0% | 9720 | 15.40 MiB |
-| soil_heat | 1.25° | 41472 | 600 | 24 | 15652 | 0.105 | 36% | 11900 | 34.65 MiB |
-| soil_heat | 0.94° | 73728 | 600 | 20 | 9246 | 0.178 | 26% | 12500 | 61.60 MiB |
-| soil_heat | 0.62° | 165888 | 600 | 20 | 4429 | 0.371 | 1% | 13400 | 138.59 MiB |
+| soil_heat | 22.50° | 128 | 600 | 2000 | 51385 | 0.032 | 87% | 120 | 114.63 KiB |
+| soil_heat | 11.25° | 512 | 600 | 1953 | 51226 | 0.0321 | 76% | 479 | 443.13 KiB |
+| soil_heat | 5.62° | 2048 | 600 | 488 | 51642 | 0.0318 | 20% | 1930 | 1.72 MiB |
+| soil_heat | 3.75° | 4608 | 600 | 217 | 52653 | 0.0312 | 11% | 4430 | 3.85 MiB |
+| soil_heat | 2.81° | 8192 | 600 | 122 | 54847 | 0.03 | 1545% | 8210 | 6.85 MiB |
+| soil_heat | 1.88° | 18432 | 600 | 54 | 34000 | 0.0483 | 1% | 11400 | 15.40 MiB |
+| soil_heat | 1.25° | 41472 | 600 | 24 | 18126 | 0.0906 | 1% | 13700 | 34.65 MiB |
+| soil_heat | 0.94° | 73728 | 600 | 20 | 10595 | 0.155 | 1% | 14300 | 61.60 MiB |
+| soil_heat | 0.62° | 165888 | 600 | 20 | 5027 | 0.327 | 0% | 15200 | 138.59 MiB |
 
 ### Number of soil layers
 
 | Configuration | Res | Columns | L | Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| land | 3.75° | 4608 | 10 | 600 | 651 | 1386 | 1.19 | 6% | 38.9 | 3.70 MiB |
-| land | 3.75° | 4608 | 20 | 600 | 326 | 1396 | 1.18 | 50% | 78.3 | 5.28 MiB |
-| land | 3.75° | 4608 | 30 | 600 | 217 | 1408 | 1.17 | 10% | 118 | 6.86 MiB |
-| land | 3.75° | 4608 | 60 | 600 | 109 | 1348 | 1.22 | 844% | 227 | 11.62 MiB |
-| land | 3.75° | 4608 | 100 | 600 | 65 | 1320 | 1.24 | 281% | 370 | 17.95 MiB |
+| land | 3.75° | 4608 | 10 | 600 | 651 | 2789 | 0.589 | 7% | 78.2 | 3.73 MiB |
+| land | 3.75° | 4608 | 20 | 600 | 326 | 2778 | 0.591 | 18% | 156 | 5.32 MiB |
+| land | 3.75° | 4608 | 30 | 600 | 217 | 2803 | 0.586 | 9% | 236 | 6.90 MiB |
+| land | 3.75° | 4608 | 60 | 600 | 109 | 2827 | 0.581 | 81% | 476 | 11.65 MiB |
+| land | 3.75° | 4608 | 100 | 600 | 65 | 3014 | 0.545 | 372% | 845 | 17.99 MiB |
 
 ### Number format, Float32 vs Float64
 
 | Configuration | NF | Res | Columns | Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| land | Float32 | 3.75° | 4608 | 600 | 217 | 1408 | 1.17 | 12% | 118 | 6.86 MiB |
-| land | Float64 | 3.75° | 4608 | 600 | 217 | 1244 | 1.32 | 400% | 105 | 13.73 MiB |
+| land | Float32 | 3.75° | 4608 | 600 | 217 | 2751 | 0.597 | 12% | 231 | 6.90 MiB |
+| land | Float64 | 3.75° | 4608 | 600 | 217 | 2447 | 0.671 | 37% | 206 | 13.80 MiB |
 
 ### Time stepper
 
 | Configuration | Variant | Res | Columns | Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| land | ForwardEuler | 3.75° | 4608 | 600 | 217 | 1350 | 1.22 | 7% | 114 | 6.86 MiB |
-| land | Heun | 3.75° | 4608 | 600 | 217 | 547 | 3 | 30% | 46 | 6.86 MiB |
+| land | ForwardEuler | 3.75° | 4608 | 600 | 217 | 2845 | 0.577 | 25% | 239 | 6.90 MiB |
+| land | Heun | 3.75° | 4608 | 600 | 217 | 1011 | 1.62 | 15% | 85.1 | 6.90 MiB |
 
 ### Compile-order check: the same models at the end of the run
 
 | Configuration | Res | Columns | Δt | Steps | SYPD | ms/step | Spread | Mcell-steps/s | Memory |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| land | 45.00° | 32 | 600 | 200 | 511 | 3.22 | 12% | 0.298 | 57.89 KiB |
-| land_no_vegetation | 45.00° | 32 | 600 | 200 | 2889 | 0.569 | 2% | 1.69 | 48.54 KiB |
-| soil_heat | 45.00° | 32 | 600 | 200 | 41530 | 0.0396 | 2% | 24.3 | 32.51 KiB |
+| land | 45.00° | 32 | 600 | 200 | 325 | 5.06 | 2% | 0.19 | 58.19 KiB |
+| land_no_vegetation | 45.00° | 32 | 600 | 200 | 4760 | 0.345 | 5% | 2.78 | 48.84 KiB |
+| soil_heat | 45.00° | 32 | 600 | 200 | 55337 | 0.0297 | 3% | 32.3 | 32.51 KiB |
 
 ## Architecture: `reactant-cpu-arm`
 

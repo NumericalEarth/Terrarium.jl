@@ -37,7 +37,7 @@ Calling `variables(model)` will give us a more detailed look at the state variab
 variables(model)
 ```
 
-By default `SoilModel` uses a [`NoFlow`](@ref) soil hydrology scheme that treats soil water/ice as constant in time. Let's try changing that. The (hopefully) easiest way to learn how to do this would be to go look at the documentation page for [soil hydrology](@ref "Soil hydrology"). But let's be lazy and try to figure it ourselves.
+By default `SoilModel` uses a soil hydrology scheme in which water flows vertically following the Richards equation. Suppose we want to turn that off and treat the soil water/ice as constant in time instead. The (hopefully) easiest way to learn how to do this would be to go look at the documentation page for [soil hydrology](@ref "Soil hydrology"). But let's be lazy and try to figure it ourselves.
 
 We can see above that `model` has a property `soil` (see also the page for [`SoilModel`](@ref "Soil models")). Let's inspect that:
 
@@ -62,10 +62,10 @@ suptype = supertype(vftype)
 subtypes(suptype)
 ```
 
-Aha! We see here a second implementation [`RichardsEq`](@ref). This happens to correspond to the configuration option for [`SoilHydrology`](@ref) that enables vertical water flow governed by the Richardson-Richards equation. We can enable this by changing `vertical_flow` when constructing the process and then building back up the `SoilModel` from there.
+Aha! We see here a second implementation [`NoFlow`](@ref). This happens to correspond to the configuration option for [`SoilHydrology`](@ref) that keeps the soil water immobile. We can select it by changing `vertical_flow` when constructing the process and then building back up the `SoilModel` from there.
 
 ```@example configuring
-hydrology = SoilHydrology(eltype(grid), vertical_flow = RichardsEq())
+hydrology = SoilHydrology(eltype(grid), vertical_flow = NoFlow())
 soil = SoilEnergyWaterCarbon(eltype(grid); hydrology)
 model = SoilModel(grid; soil)
 variables(model)
@@ -76,7 +76,7 @@ We could also do something similar for the soil thermal properties:
 ```@example configuring
 thermal_properties = SoilThermalProperties(eltype(grid))
 energy = SoilThermodynamics(eltype(grid); thermal_properties)
-hydrology = SoilHydrology(eltype(grid), RichardsEq()) # also a valid constructor, same as above
+hydrology = SoilHydrology(eltype(grid), NoFlow()) # also a valid constructor, same as above
 biogeochem = ConstantSoilCarbonDensity(eltype(grid))
 soil = SoilEnergyWaterCarbon(eltype(grid); energy, hydrology, biogeochem)
 model = SoilModel(grid; soil)
@@ -108,13 +108,13 @@ model = LandModel(grid; vegetation=nothing, soil)
 
 ### Customized vegetation processes
 
-You can customize individual vegetation processes by passing them to [`VegetationCarbonCycle`](@ref):
+You can customize individual vegetation processes by passing them to [`PrognosticVegetation`](@ref):
 
 ```@example configuring
 photosynthesis = LUEPhotosynthesis(eltype(grid))
 stomatal_conductance = MedlynStomatalConductance(eltype(grid))
 carbon_dynamics = PALADYNCarbonDynamics(eltype(grid))
-vegetation = VegetationCarbonCycle(eltype(grid);
+vegetation = PrognosticVegetation(eltype(grid);
     photosynthesis,
     stomatal_conductance,
     carbon_dynamics
@@ -131,7 +131,7 @@ seb = SurfaceEnergyBalance(eltype(grid);
     radiative_fluxes,
     turbulent_fluxes
 )
-vegetation = VegetationCarbonCycle(eltype(grid))
+vegetation = PrognosticVegetation(eltype(grid))
 model = LandModel(grid; vegetation, surface_energy_balance = seb)
 ```
 

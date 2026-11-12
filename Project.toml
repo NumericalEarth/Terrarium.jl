@@ -1,7 +1,7 @@
 name = "Terrarium"
 uuid = "80418d68-07fa-499d-ae2b-c12e531f5cd8"
 authors = ["Brian Groenke <brian.groenke@pik-potsdam.de>", "Maximillian Gelbrecht <gelbrecht@pik-potsdam.de>", "Maha Badri <maha.badri@pik-potsdam.de>", "Terrarium Contributors"]
-version = "0.1.10"
+version = "0.1.11-DEV"
 
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
@@ -49,12 +49,12 @@ DomainSets = "0.7, 0.8"
 Downloads = "1"
 EnzymeCore = "0.8"
 Flatten = "0.4"
-FreezeCurves = "0.9"
+FreezeCurves = "0.9.9"
 Interpolations = "0.16"
 IntervalSets = "0.7"
 KernelAbstractions = "0.9"
 ModelParameters = "0.4"
-Oceananigans = "0.113.5, 0.114, 0.115, 0.116"
+Oceananigans = "0.113.5, 0.114, 0.115, 0.116, 0.117"
 Pkg = "1"
 ProgressMeter = "1.11"
 Reactant = "0.2"

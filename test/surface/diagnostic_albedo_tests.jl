@@ -58,18 +58,18 @@ using Test
         @test all(state.albedo .≈ albedo.background_albedo)
     end
 
-    @testset "vegetated area fraction of VegetationCarbonCycle" begin
+    @testset "vegetated area fraction of PrognosticVegetation" begin
         traits = PlantTraits(NF)
         LAI_max = traits.maximum_leaf_area_index
         field(value) = set!(Field(grid, Terrarium.Canopy(XY())), value)
 
         # without vegetation dynamics, diagnosed from the relative leaf area and clamped to the unit interval
-        vegetation = VegetationCarbonCycle(NF; vegetation_dynamics = nothing)
+        vegetation = PrognosticVegetation(NF; vegetation_dynamics = nothing)
         @test Terrarium.vegetation_area_fraction(1, 1, grid, (; leaf_area_index = field(LAI_max / 4)), vegetation) ≈ 0.25
         @test Terrarium.vegetation_area_fraction(1, 1, grid, (; leaf_area_index = field(2 * LAI_max)), vegetation) ≈ 1
 
         # with vegetation dynamics, given by the prognostic coverage fraction
-        vegetation = VegetationCarbonCycle(NF)
+        vegetation = PrognosticVegetation(NF)
         fields = (; leaf_area_index = field(LAI_max), vegetation_area_fraction = field(0.3))
         @test Terrarium.vegetation_area_fraction(1, 1, grid, fields, vegetation) ≈ 0.3
     end

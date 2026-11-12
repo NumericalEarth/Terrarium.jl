@@ -36,6 +36,9 @@ include("setup.jl")
 @testset "Terrarium CPU vs Reactant" begin
     test_model(:soil_heat_column)
     test_model(:soil_heat_column_stretched)   # array-valued (ExponentialSpacing) vertical coordinates
+    test_model(:soil_heat_column_implicit)    # IMEX with implicit (tridiagonal) heat conduction and a flux top boundary
+    test_model(:soil_heat_column_implicit_freezing)  # …crossing the freezing point (regularized FreeWater apparent heat capacity)
+    test_model(:soil_richards_column_implicit)  # IMEX with implicit Richards flow and heat conduction, infiltration and heat advection
     test_model(:soil_heat_global)
     test_model(:soil_heat_global_initializer) # model initializer with input variables and a LatitudinalClimatology
     test_model(:snow_column)                  # standalone single-layer snow (closure + tendencies)
@@ -43,6 +46,27 @@ include("setup.jl")
     test_model(:vegetation_column)            # standalone PrescribedVegetation, constant LAI
     test_model(:vegetation_column_lai_cycle)  # …with a cyclical FieldTimeSeries LAI input interpolated in the traced loop
     test_model(:land_default)                 # default LandModel: soil + snow + vegetation (NewtonSolver skin temperature)
+end
+
+# A compiled run updates the Reactant clock's `ConcreteRNumber` time in place; `initialize!` must
+# still restore the start time rather than the time the clock has advanced to.
+@testset "Reactant: initialize! restores the initial clock time" begin
+    NF = DEFAULT_NF
+    cfg = build_model(Val(:soil_heat_column), ReactantState(), NF)
+    clock = Terrarium.default_clock(cfg.model)
+    clock.time = 3600.0
+    integrator = Terrarium.initialize(
+        cfg.model;
+        clock,
+        boundary_conditions = cfg.boundary_conditions,
+        initializers = cfg.initializers
+    )
+    @test Reactant.to_number(integrator.clock.time) == 3600
+    run!(integrator; steps = 3, Δt = cfg.Δt)
+    @test Reactant.to_number(integrator.clock.time) == 3600 + 3 * cfg.Δt
+    Terrarium.initialize!(integrator)
+    @test Reactant.to_number(integrator.clock.time) == 3600
+    @test Reactant.to_number(integrator.clock.iteration) == 0
 end
 
 include("autodiff.jl")

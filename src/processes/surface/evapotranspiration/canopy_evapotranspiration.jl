@@ -32,7 +32,7 @@ end
 function PALADYNCanopyEvapotranspiration(
         ::Type{NF};
         C_can = NF(0.006),
-        ground_resistance = ConstantEvaporationResistanceFactor(typeof(C_can))
+        ground_resistance = SoilMoistureResistanceFactor(NF)
     ) where {NF}
     return PALADYNCanopyEvapotranspiration{NF, typeof(ground_resistance)}(C_can, ground_resistance)
 end

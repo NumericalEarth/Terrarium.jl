@@ -128,7 +128,7 @@ lai_highveg = Terrarium.load_asset(lai_asset, "lai_hv"; NF, fill_value = zero(NF
 
 # ## Coupled land model
 # We assemble the [`LandModel`](@ref) from its process components. The soil simulates transient heat conduction
-# with static soil hydrology (for now); the vegetation is prescribed (LAI imposed, no prognostic carbon pool);
+# and variably saturated water flow (Richards equation); the vegetation is prescribed (LAI imposed, no prognostic carbon pool);
 # a single-layer snowpack accumulates snowfall and couples to the surface energy balance. The `PrescribedAtmosphere`
 # uses the [`WindVelocity`](@ref) parameterization so that the ERA5 `u`/`v` wind components can be mapped directly to
 # the `windspeed` input required for the surface energy balance.

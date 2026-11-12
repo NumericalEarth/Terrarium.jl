@@ -26,6 +26,8 @@ integrator = initialize(model)
 LandModel
 ```
 
+By default, `LandModel` is integrated with `IMEX(ForwardEuler(NF; Δt = 900), BackwardEuler(NF))`: soil heat conduction, Richards-equation water flow, and the snow meltwater drainage are implicit, while the snow heat conduction, vegetation, surface hydrology, and the surface energy balance are explicit, with a 15-minute time step, which is limited by the stability of the explicit snow heat conduction. See [Time stepping](@ref) for details.
+
 ```@example landmodel
 variables(model)
 ```
@@ -62,7 +64,7 @@ The `surface_hydrology` component manages water exchange between the atmosphere 
 
 ### Vegetation
 
-The `vegetation` component represents vegetation carbon cycling, including photosynthesis, stomatal conductance, respiration, phenology, and carbon dynamics. The default implementation is [`VegetationCarbonCycle`](@ref). See [Vegetation](@ref vegetation_docs) for details.
+The `vegetation` component represents vegetation carbon cycling, including photosynthesis, stomatal conductance, respiration, phenology, and carbon dynamics. The default implementation is [`PrognosticVegetation`](@ref). See [Vegetation](@ref vegetation_docs) for details.
 
 ## Initializers
 

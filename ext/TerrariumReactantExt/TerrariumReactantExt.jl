@@ -37,7 +37,6 @@ Terrarium.convert_dt(::Type{NF}, Δt::TracedRNumber) where {NF <: Number} = Trac
 @inline Terrarium.number_format(typ::Type{<:Reactant.RNumber}) = Reactant.unwrapped_eltype(typ)
 
 include("grids.jl")
-include("transfer.jl")
 include("integrator.jl")
 
 end # module

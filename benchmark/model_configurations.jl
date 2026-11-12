@@ -61,7 +61,7 @@ skin temperature is solved with the fixed-iteration `NewtonSolver` on every arch
 Reactant needs it, because the default solver (`RootSolver`) iterates to a tolerance, and that
 convergence-tested loop cannot be raised to StableHLO (`test/reactant/setup.jl` does the same). Native
 runs use it too, so that all architectures integrate the same physics; on native architectures the two
-solvers cost the same (see `docs/dev/2026-10/2026-10-17_PLAN_native_vs_reactant_performance_gap.md`).
+solvers cost the same (see `docs/dev/plans/2026-10-17-1-native_vs_reactant_performance_gap.md`).
 """
 function land_solver_kwargs(::Type{NF}) where {NF}
     skin_temperature = ImplicitSkinTemperature(NF; solver = Terrarium.NewtonSolver(NF; iterations = 5))
@@ -104,7 +104,7 @@ function build_model(::Val{:land}, arch, ::Type{NF}; nlat_half::Integer, nz::Int
     soil = SoilEnergyWaterCarbon(NF; strat, hydrology = SoilHydrology(NF, RichardsEq()))
 
     vegetation_dynamics = PALADYNVegetationDynamics(NF)
-    vegetation = VegetationCarbonCycle(NF; vegetation_dynamics)
+    vegetation = PrognosticVegetation(NF; vegetation_dynamics)
 
     snow = SingleLayerSnow(NF)
     kwargs = merge(land_solver_kwargs(NF), resolve_model_kwargs(model_kwargs, NF))
@@ -135,12 +135,13 @@ end
 # Mirrors `test/reactant/setup.jl`'s `:soil_heat_global`: the only configuration currently proven to
 # compile under Reactant. It is not part of the headline comparison — it exists so that an empty
 # Reactant column can be attributed to the land physics rather than to the benchmark harness, which
-# is also why it keeps the plain `SoilModel(grid)` defaults (including the default sandy texture)
+# is also why it keeps the default sandy texture, with immobile soil water (`NoFlow`),
 # rather than the loam of the land configurations.
 
 function build_model(::Val{:soil_heat}, arch, ::Type{NF}; nlat_half::Integer, nz::Integer, model_kwargs = (;)) where {NF}
     grid = benchmark_grid(arch, NF; nlat_half, nz)
-    model = SoilModel(grid; resolve_model_kwargs(model_kwargs, NF)...)
+    soil = SoilEnergyWaterCarbon(NF; hydrology = SoilHydrology(NF, NoFlow()))
+    model = SoilModel(grid; soil, resolve_model_kwargs(model_kwargs, NF)...)
 
     ## smooth surface forcing as a function of column index x and time t; the closure must capture
     ## only isbits values to be a valid kernel argument under Reactant

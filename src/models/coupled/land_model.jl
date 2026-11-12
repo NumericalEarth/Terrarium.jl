@@ -23,7 +23,7 @@ $(TYPEDFIELDS)
     grid::GridType
 
     "Vegetation processes"
-    @component vegetation::Vegetation = VegetationCarbonCycle(eltype(grid))
+    @component vegetation::Vegetation = PrognosticVegetation(eltype(grid))
 
     "Soil processes"
     @component soil::Soil = default_soil(grid, vegetation)
@@ -46,8 +46,8 @@ $(TYPEDFIELDS)
     "State variable initializer"
     @component initializer::Initializer = DefaultInitializer(eltype(grid))
 
-    "Time stepper: a single `AbstractTimeStepper` (e.g. `ForwardEuler`, `Heun`) or an `IMEX`"
-    @component timestepper::Timestepper = default_timestepper(eltype(grid))
+    "Time stepper: a single `AbstractTimeStepper` (e.g. `ForwardEuler`, `Heun`) or an `IMEX` (default)"
+    @component timestepper::Timestepper = default_timestepper(LandModel, eltype(grid))
 end
 
 """
@@ -118,7 +118,7 @@ function compute_auxiliary!(state, model::LandModel)
     grid = get_grid(model)
     compute_auxiliary!(state, grid, model.atmosphere)
     compute_auxiliary!(state, grid, model.soil, model.constants)
-    compute_auxiliary!(state, grid, model.snow, model.constants)
+    compute_auxiliary!(state, grid, model.snow, model.constants, model.timestepper)
     compute_auxiliary!(state, grid, model.vegetation, model.constants, model.atmosphere, model.soil)
     compute_auxiliary!(state, grid, model.surface_hydrology, model.constants, model.atmosphere, model.soil, model.vegetation, model.snow)
     compute_auxiliary!(state, grid, model.surface_energy_balance, model.vegetation, model.snow)
@@ -139,16 +139,18 @@ end
 function compute_tendencies!(state, model::LandModel)
     grid = get_grid(model)
     compute_tendencies!(state, grid, model.surface_hydrology)
-    # Pass the surface hydrology so that evapotranspiration is applied as a sink in the soil water tendency
-    compute_tendencies!(state, grid, model.soil, model.constants, model.surface_hydrology)
+    # Pass the surface hydrology (evapotranspiration sink in the soil water tendency) and the timestepper
+    # (resolves which soil variables are integrated implicitly)
+    compute_tendencies!(state, grid, model.soil, model.constants, model.surface_hydrology, model.timestepper)
     # Snow tendencies after surface hydrology; no-op without snow (`nothing`)
-    compute_tendencies!(state, grid, model.snow, model.constants, model.atmosphere)
+    compute_tendencies!(state, grid, model.snow, model.constants, model.atmosphere, model.timestepper)
     compute_tendencies!(state, grid, model.vegetation, model.constants, model.atmosphere)
     return nothing
 end
 
 function closure!(state, model::LandModel)
     grid = get_grid(model)
+    enforce_snow_constraints!(state, grid, model.snow)
     closure!(state, grid, model.soil, model.constants, model.surface_hydrology)
     closure!(state, grid, model.snow, model.constants)
     return nothing
@@ -163,17 +165,63 @@ end
 
 # Time stepping
 
-function Terrarium.timestep!(state::StateVariables, model::LandModel, timestepper::Terrarium.AbstractTimeStepper, Δt)
-    if !isnothing(model.snow)
-        timestep!(state, model, model.snow, timestepper, Δt)
-    end
+# IMEX by default: implicit soil heat conduction, Richards flow, and snow meltwater drainage, explicit everything
+# else, Δt = 15 min (limited by the explicit snow heat conduction).
+default_timestepper(::Type{<:LandModel}, ::Type{NF}) where {NF} = IMEX(ForwardEuler(NF; Δt = 900), BackwardEuler(NF))
+
+# Under an IMEX timestepper, soil heat conduction is implicit by default, and so is soil water flow if it
+# follows the Richards equation (see `default_timestepping`).
+timestepping(::AbstractVariable{:internal_energy}, ::LandModel, ::AbstractIMEX) = Implicit()
+timestepping(::AbstractVariable{:saturation_water_ice}, model::LandModel, ::AbstractIMEX) = default_timestepping(get_hydrology(model.soil))
+# The snow meltwater drainage is implicit under an IMEX timestepper.
+timestepping(::AbstractVariable{:snow_water_equivalent}, ::LandModel, ::AbstractIMEX) = Implicit()
+
+# Forward the implicit operator query and the solver hooks to the coupled soil, which maps each variable to
+# the process that owns it, and to the snow for its variables.
+
+function implicit_operator(model::LandModel, state, names::Tuple{Vararg{Symbol}})
+    grid = get_grid(model)
+    owned_by_snow = isnothing(model.snow) ? () : map(varname, prognostic_variables(variables(model.snow)))
+    snow_names = filter(in(owned_by_snow), names)
+    soil_names = filter(!in(owned_by_snow), names)
+    soil_operators = implicit_operator(model.soil, state, grid, soil_names).operators
+    snow_operators = NamedTuple{snow_names}(map(name -> implicit_operator(model.snow, state, grid, Val(name)), snow_names))
+    return SplitOperator(merge(soil_operators, snow_operators))
+end
+
+function linearize!(operator::AbstractLinearOperator, rhs, state, model::LandModel, explicit_stage, Δt, iteration::Iteration)
+    linearize!(operator, rhs, state, get_grid(model), model.soil, model.constants, explicit_stage, Δt, iteration)
+    return nothing
+end
+
+function implicit_update!(state, model::LandModel, operator::AbstractLinearOperator, explicit_stage, Δt, iteration::Iteration)
+    implicit_update!(state, get_grid(model), model.soil, operator, explicit_stage, Δt, iteration)
+    return nothing
+end
+
+function implicit_closure!(state, model::LandModel, iteration::Iteration)
+    implicit_closure!(state, get_grid(model), model.soil, model.constants, model.surface_hydrology, iteration)
+    return nothing
+end
+
+function linearize!(operator::AbstractLinearOperator, rhs, state, model::LandModel, explicit_stage, Δt, iteration::Iteration{:snow_water_equivalent})
+    linearize!(operator, rhs, state, get_grid(model), model.snow, model.constants, explicit_stage, Δt, iteration)
+    return nothing
+end
+
+function implicit_update!(state, model::LandModel, operator::AbstractLinearOperator, explicit_stage, Δt, iteration::Iteration{:snow_water_equivalent})
+    implicit_update!(state, get_grid(model), model.snow, model.constants, operator, explicit_stage, Δt, iteration)
+    return nothing
+end
+
+function implicit_closure!(state, model::LandModel, iteration::Iteration{:snow_water_equivalent})
+    closure!(state, get_grid(model), model.snow, model.constants)
     return nothing
 end
 
 
 # Default soil types
-default_soil(grid::AbstractLandGrid, ::Nothing) = SoilEnergyWaterCarbon(eltype(grid))
-default_soil(grid::AbstractLandGrid, ::AbstractVegetation) = SoilEnergyWaterCarbon(eltype(grid), hydrology = SoilHydrology(eltype(grid), RichardsEq()))
+default_soil(grid::AbstractLandGrid, vegetation) = SoilEnergyWaterCarbon(eltype(grid))
 
 # Default SEB
 default_surface_energy_balance(grid::AbstractLandGrid, vegetation, soil) = SurfaceEnergyBalance(eltype(grid))

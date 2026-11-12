@@ -367,7 +367,7 @@ end
     # snow and canopy domains remain unresolved.
     soil = SoilEnergyWaterCarbon(Float32)
     snow = SingleLayerSnow(Float32)
-    vegetation = VegetationCarbonCycle(Float32)
+    vegetation = PrognosticVegetation(Float32)
     with_components = create_land_grid(column_grid, soil, snow, vegetation)
     @test with_components isa LandGrid
     @test ground_domain(with_components) === column_grid
