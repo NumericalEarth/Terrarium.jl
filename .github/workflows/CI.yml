@@ -19,8 +19,8 @@ jobs:
     strategy:
       matrix:
         # Julia 1.10 compiles the fused surface kernels much more slowly (about 2 h for the suite versus
-        # 25 min on 1.12), so it only runs on pushes to main, i.e. after a PR is merged
-        version: ${{ github.event_name == 'push' && fromJSON('["1.10", "1.12"]') || fromJSON('["1.12"]') }}
+        # 25 min on 1.13), so it only runs on pushes to main, i.e. after a PR is merged
+        version: ${{ github.event_name == 'push' && fromJSON('["1.10", "1.13"]') || fromJSON('["1.13"]') }}
         os:
           - ubuntu-latest
         arch:
