@@ -171,16 +171,34 @@ end
 const BENCHMARK_RESULTS_JSON = normpath(joinpath(@__DIR__, "..", "..", "benchmark", "assets", "benchmark_results.json"))
 const BENCHMARK_SOIL_SUITE = "bench202" # the :soil_heat SoilModel resolution sweep
 
-# Store label => (legend name, color, annotation offset). The CPU and the Reactant (CPU)
+# Horizontal resolutions (degrees) marked by dashed vertical reference lines
+const BENCHMARK_REFERENCE_RESOLUTIONS = (10, 5, 2, 1, 0.5)
+
+"""
+Number of land columns at the horizontal `resolution` (degrees), interpolated linearly in log-log
+space between the grids of the benchmark sweep (`sweep_resolutions`, `sweep_columns`), and
+extrapolated with the slope of the outermost segment outside of it.
+"""
+function columns_at_resolution(resolution, sweep_resolutions, sweep_columns)
+    order = sortperm(sweep_resolutions)
+    log_resolutions = log.(sweep_resolutions[order])
+    log_columns = log.(sweep_columns[order])
+    x = log(resolution)
+    k = clamp(searchsortedlast(log_resolutions, x), 1, length(log_resolutions) - 1)
+    slope = (log_columns[k + 1] - log_columns[k]) / (log_resolutions[k + 1] - log_resolutions[k])
+    return exp(log_columns[k] + slope * (x - log_resolutions[k]))
+end
+
+# Store label => (legend name, color). The CPU and the Reactant (CPU)
 # labels each share one curve; the first present wins (see the `plotted_names` guard below).
 const BENCHMARK_ARCH_STYLES = (
-    "cpu-x86" => ("CPU", :navy, (6, 6)),
-    "cpu-arm" => ("CPU", :navy, (6, 6)),
-    "gpu-nvidia" => ("GPU", :forestgreen, (6, -16)),
-    "reactant-cpu-x86" => ("Reactant (CPU)", :darkorange, (-38, 8)),
-    "reactant-cpu-arm" => ("Reactant (CPU)", :darkorange, (-38, 8)),
-    "reactant-cpu" => ("Reactant (CPU)", :darkorange, (-38, 8)),
-    "reactant-gpu" => ("Reactant (GPU)", :crimson, (6, 20)),
+    "cpu-x86" => ("CPU", :navy),
+    "cpu-arm" => ("CPU", :navy),
+    "gpu-nvidia" => ("GPU", :forestgreen),
+    "reactant-cpu-x86" => ("Reactant (CPU)", :darkorange),
+    "reactant-cpu-arm" => ("Reactant (CPU)", :darkorange),
+    "reactant-cpu" => ("Reactant (CPU)", :darkorange),
+    "reactant-gpu" => ("Reactant (GPU)", :crimson),
 )
 
 fig2 = Figure(size = (640, 460))
@@ -195,9 +213,12 @@ ax2 = Axis(
 )
 
 plotted_names = String[]
+max_sypd = 1.0
+sweep_resolutions = Float64[]
+sweep_columns = Int[]
 if isfile(BENCHMARK_RESULTS_JSON)
     results = JSON3.read(read(BENCHMARK_RESULTS_JSON, String), Dict{String, Any})
-    for (label, (name, color, offset)) in BENCHMARK_ARCH_STYLES
+    for (label, (name, color)) in BENCHMARK_ARCH_STYLES
         haskey(results, label) || continue
         name in plotted_names && continue
         overview = get(get(results[label], "overview", Dict()), BENCHMARK_SOIL_SUITE, nothing)
@@ -208,20 +229,13 @@ if isfile(BENCHMARK_RESULTS_JSON)
         resolution = [180 / (2 * Int(n)) for n in overview["nlat_half"]]
         ok = isfinite.(sypd)
         any(ok) || continue
+        global max_sypd = max(max_sypd, maximum(sypd[ok]))
 
         lines!(ax2, ncolumns[ok], sypd[ok]; color, linewidth = 1.5, label = name)
         scatter!(ax2, ncolumns[ok], sypd[ok]; markersize = 9, color)
-
-        # Annotate each point with its approximate horizontal resolution, offset
-        # per architecture so overlapping points stay readable. (`annotate!` needs
-        # Makie >= 0.25; this environment has 0.24, where text plots take a single
-        # `align` attribute rather than halign/valign.)
-        for (nc, sy, res) in zip(ncolumns[ok], sypd[ok], resolution[ok])
-            text!(
-                ax2, nc, sy; text = string(round(Int, res), "°"),
-                align = (:left, :bottom), offset, fontsize = 9, color
-            )
-        end
+        # all architectures share the grids of the sweep; keep one set for the reference lines
+        isempty(sweep_resolutions) && append!(sweep_resolutions, resolution)
+        isempty(sweep_columns) && append!(sweep_columns, ncolumns)
         push!(plotted_names, name)
     end
 end
@@ -229,7 +243,16 @@ end
 if isempty(plotted_names)
     Label(fig2[1, 1], "No benchmark data — run benchmark/manual_benchmarking.jl", tellwidth = false)
 else
+    # dashed vertical lines at reference horizontal resolutions, labeled at the top of the axes
+    for degrees in BENCHMARK_REFERENCE_RESOLUTIONS
+        ncolumns_ref = columns_at_resolution(degrees, sweep_resolutions, sweep_columns)
+        vlines!(ax2, ncolumns_ref; color = :gray50, linestyle = :dash, linewidth = 1)
+        # shifted about half a centimeter (19 units at 96 units per inch) to the left of the line
+        text!(ax2, ncolumns_ref, 3 * max_sypd; text = "$(degrees)°", align = (:center, :bottom), offset = (-19, 0), fontsize = 10, color = :gray30)
+    end
     axislegend(ax2; position = :lb)
+    # headroom above the fastest curve for the reference line labels
+    ylims!(ax2, nothing, 8 * max_sypd)
 end
 save(joinpath(assets_dir, "figure2.png"), fig2)
 @info "Saved figure2.png"
