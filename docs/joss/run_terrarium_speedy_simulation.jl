@@ -13,55 +13,6 @@ using Statistics
 import RingGrids
 import SpeedyWeather as Speedy
 
-# TEMPORARY WORKAROUND: the SoilGrids2 data file (soilgrids2_clenshaw989_10km.nc) has no data at all in its
-# first longitude column (lon = 0°). Every ring of the octahedral model grid starts at lon = 0°, so with
-# `InputSources(SoilGrids2(), grid)` from the NumericalEarth Terrarium extension these points get NaN texture
-# and bulk density from the interpolation, which `normalize_texture!` turns into pure sand, causing an artifact
-# along the prime meridian. Until the data file is fixed, this local version of that method fills the missing
-# column from its two neighbors (lon = 0.09° and lon = 359.91°) before interpolating. It also interpolates all
-# horizons of a variable in a single batched call by passing them as layers of one field.
-function fill_missing_first_longitude!(data::AbstractArray)
-    west = data[end:end, :, :]
-    east = data[2:2, :, :]
-    data[1:1, :, :] .= ifelse.(isnan.(west), east, ifelse.(isnan.(east), west, (west .+ east) ./ 2))
-    return data
-end
-
-function soilgrids_input_sources(
-        dataset::SoilGrids2,
-        grid::Terrarium.ColumnRingGrid;
-        horizons = Tuple(Symbol(:horizon, i) for i in 1:6),
-        name = nameof(typeof(dataset)),
-        verbose = true
-    )
-    soilgrids_vars = (:sand_fraction, :silt_fraction, :clay_fraction, :bulk_density)
-    metadataset = NumericalEarth.DataWrangling.MetadataSet(soilgrids_vars...; dataset)
-    arch = RingGrids.architecture(grid.rings)
-    nhorizons = length(horizons)
-    layer_inputs = [Dict() for _ in 1:nhorizons]
-    for var in soilgrids_vars
-        verbose && @info "Loading input data for $var"
-        var_field = Field(getproperty(metadataset, var))
-        # (lon, lat, horizon) with latitudes north to south without the poles and horizons from the top down
-        data = Array(interior(var_field)[:, (end - 1):-1:2, end:-1:(end - nhorizons + 1)])
-        fill_missing_first_longitude!(data)
-        ring_field = RingGrids.on_architecture(arch, RingGrids.FullClenshawField(data, input_as = Matrix))
-        # batched interpolation of all horizons onto the model grid
-        target_field = RingGrids.interpolate(grid.rings, ring_field)
-        for (k, horizon) in enumerate(horizons)
-            horizon_field = RingGrids.Field(target_field.data[:, k], grid.rings)
-            layer_inputs[k][var] = Terrarium.InputSource(grid, Field(horizon_field, grid); name = horizon => var)
-        end
-    end
-    soilgrids_inputs = []
-    for inputs in layer_inputs
-        # Ensure that mineral texture components with each horizon sum to unity
-        Terrarium.normalize_texture!(inputs[:sand_fraction].field, inputs[:silt_fraction].field, inputs[:clay_fraction].field)
-        append!(soilgrids_inputs, values(inputs))
-    end
-    return Terrarium.InputSources(name, soilgrids_inputs...)
-end
-
 # Make output directory for simulation results
 output_dir = joinpath(@__DIR__, "outputs")
 mkpath(output_dir)
@@ -161,7 +112,7 @@ terrarium_model = Terrarium.LandModel(land_grid; vegetation, soil, surface_energ
 # start before the Northern Hemisphere snow season (and towards the end of the Southern Hemisphere one) to limit
 # the spin-up of the seasonal snow cover, which starts from zero outside the ice sheets
 initial_date = DateTime(2024, 10, 1)
-soilgrids_inputs = soilgrids_input_sources(SoilGrids2(), land_grid)
+soilgrids_inputs = InputSources(SoilGrids2(grid_type = SoilGrids.Clenshaw10km), land_grid)
 # the LAI is a day-of-year climatology: repeat it cyclically, with times counted from January 1st of the start year
 lai_fts = FieldTimeSeries(lai_daily, land_grid, 0.0:1day:365day; time_indexing = Cyclical())
 lai_inputs = InputSource(lai_fts, name = :leaf_area_index, reftime = DateTime(year(initial_date)); domain = Terrarium.Canopy())
