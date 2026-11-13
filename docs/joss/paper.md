@@ -167,6 +167,7 @@ These coupling interfaces will allow Terrarium.jl to directly contribute to ongo
 All text in this manuscript was drafted and reviewed by the authors.
 Generative AI was used to assist with developing the scripts that run the example simulation and produce the figures.
 Some parts of the software, including tests, benchmarks, and documentation, are developed with AI assistance under careful human oversight.
+AI-guided development is transparently documented in markdown-based implementation plans that are tracked in the `docs/dev/plans` directory of the repository.
 All pull requests are reviewed and signed off by human developers.
 
 # Acknowledgements
