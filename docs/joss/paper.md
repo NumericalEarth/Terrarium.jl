@@ -25,6 +25,7 @@ authors:
     affiliation: 3
   - name: Mohammed Ayoub Chettouh
     affiliation: 4
+    orcid: 0009-0005-7158-8547
   - name: Yunan Lin
     orcid: 0009-0008-5464-7447
     affiliation: "1, 2"
@@ -62,7 +63,7 @@ bibliography: paper.bib
 # Summary
 
 The land surface is a crucial component of Earth's climate system.
-Terrestrial ecosystems exchange heat, water, and carbon with the atmosphere on timescales ranging from seconds to millenia, driving key feedbacks that significantly affect both local and global climate conditions.
+Terrestrial ecosystems exchange energy, momentum, water, and carbon with the atmosphere on timescales ranging from seconds to millenia, driving key feedbacks that significantly affect both local and global climate.
 Land surface and terrestrial ecosystem models aim to simulate the physical processes governing the land and ecosystem response to changes in both weather and climate as well as interactions between the land surface and the atmosphere.
 They are therefore critically important components of *Earth System Models* (ESMs) which aim to simulate the natural variability of the Earth system, as well as its long-term response to changes in both natural and anthropogenic forcing.
 
