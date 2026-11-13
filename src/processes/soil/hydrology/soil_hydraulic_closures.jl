@@ -172,7 +172,7 @@ end
     por = porosity(i, j, k, grid, fields, strat, bgc)
     sat_res = residual_saturation(get_hydraulic_properties(hydrology))
     # compute matric pressure head
-    ψm = inv_swrc(clamp(sat * por, sat_res, por); θsat = por)
+    ψm = inv_swrc(clamp(sat * por, sat_res * por, por); θsat = por)
     @assert_kernel isfinite(ψm) "NaN/infinite matric potential"
     # compute elevation pressure head
     ψz = z - z_ref

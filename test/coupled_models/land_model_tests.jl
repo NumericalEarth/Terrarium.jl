@@ -67,7 +67,7 @@ end
     hydraulic_properties = ConstantSoilHydraulics(eltype(grid); swrc, unsat_hydraulic_cond = UnsatKVanGenuchten(eltype(grid)))
     hydrology = SoilHydrology(eltype(grid), RichardsEq(); hydraulic_properties)
     soil = SoilEnergyWaterCarbon(eltype(grid); hydrology)
-    vegetation = VegetationCarbonCycle(eltype(grid))
+    vegetation = PrognosticVegetation(eltype(grid))
     land = LandModel(grid; soil, vegetation)
     @test land.surface_hydrology.evapotranspiration isa Terrarium.PALADYNCanopyEvapotranspiration
     @test land.surface_hydrology.canopy_interception isa Terrarium.PALADYNCanopyInterception
@@ -479,12 +479,9 @@ end
     @test all(isfinite, sat)
     @test all(isfinite, interior(state.internal_energy))
     @test all(s_res - 1.0e-6 .<= sat .<= 1)
-    # Broken: with the default Brooks–Corey retention curve and linear unsaturated conductivity, the suction
-    # fluxes in dry soil are unbounded, so the second step saturates the top cells, loses water, and the
-    # temperatures run away (see docs/dev/2026-11/2026-11-06_PLAN_dry_soil_richards_robustness.md).
     # no water is created or lost other than by evaporation and surface runoff
-    @test_broken column_water(state) ≈ W₀ - removed rtol = 1.0e-3
+    @test column_water(state) ≈ W₀ - removed rtol = 1.0e-3
     # temperatures stays close to air temperature
-    @test_broken abs(only(interior(state.skin_temperature)) - T_air) < 20
-    @test_broken all(abs.(interior(state.temperature)[1, 1, :] .- T_air) .< 20)
+    @test abs(only(interior(state.skin_temperature)) - T_air) < 20
+    @test all(abs.(interior(state.temperature)[1, 1, :] .- T_air) .< 20)
 end

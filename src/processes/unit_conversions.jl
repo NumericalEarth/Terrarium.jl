@@ -15,6 +15,13 @@ seconds_per_hour(::Type{NF}) where {NF} = ustrip(u"s", NF(1)u"hr")
 """
     $SIGNATURES
 
+Return the number of seconds per (Julian) year of 365.25 days in the given number format.
+"""
+seconds_per_year(::Type{NF}) where {NF} = ustrip(u"s", NF(1)u"yr")
+
+"""
+    $SIGNATURES
+
 Convert a concentration `c` in parts-per-million (PPM) to mole fraction.
 """
 ppm_to_mole_fraction(c::NF) where {NF} = c * NF(1.0e-6)

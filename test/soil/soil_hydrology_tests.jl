@@ -90,6 +90,59 @@ end
     @test iszero(K)
 end
 
+@testset "Unsaturated hydraulic conductivity (Brooks-Corey)" begin
+    for NF in (Float32, Float64)
+        swrc = BrooksCorey(λ = 0.2)
+        hydraulics = ConstantSoilHydraulics(NF; swrc, unsat_hydraulic_cond = UnsatKBrooksCorey(NF))
+        K_sat = hydraulics.saturated_conductivity
+        b = 3 + 2 / hydraulics.swrc.λ
+        solid = MineralOrganic(texture = SoilTexture(NF), organic = zero(NF))
+        soil_composition(; saturation = 1, liquid = 1) = SoilComposition(porosity = NF(0.5), saturation = NF(saturation), liquid = NF(liquid), solid = solid)
+
+        # saturated case
+        soil = soil_composition()
+        K = @inferred hydraulic_conductivity(hydraulics, soil)
+        @test K isa NF
+        @test K ≈ K_sat
+
+        # unsaturated: power law in the liquid saturation, monotonically increasing
+        saturations = NF.(0.05:0.05:1.0)
+        Ks = [hydraulic_conductivity(hydraulics, soil_composition(; saturation)) for saturation in saturations]
+        @test all(diff(Ks) .> 0)
+        @test Ks ≈ K_sat .* saturations .^ b
+        # dry soil conducts many orders of magnitude less than with a linear conductivity
+        @test first(Ks) < 1.0e-15 * K_sat
+
+        # dry
+        soil = soil_composition(; saturation = 0)
+        K = hydraulic_conductivity(hydraulics, soil)
+        @test iszero(K)
+
+        # frozen
+        soil = soil_composition(; liquid = 0)
+        K = hydraulic_conductivity(hydraulics, soil)
+        @test iszero(K)
+
+        # ice impedance: partially frozen pore water reduces K beyond the loss of liquid water
+        soil = soil_composition(; liquid = 0.5)
+        K = hydraulic_conductivity(hydraulics, soil)
+        θw = Terrarium.water(soil)
+        θsat = Terrarium.porosity(soil)
+        @test K ≈ 10^(-hydraulics.unsat_hydraulic_cond.impedance / 2) * K_sat * (θw / θsat)^b
+    end
+end
+
+@testset "Default unsaturated hydraulic conductivity" begin
+    @test Terrarium.default_unsat_hydraulic_cond(Float64, BrooksCorey()) isa UnsatKBrooksCorey{Float64}
+    @test Terrarium.default_unsat_hydraulic_cond(Float32, VanGenuchten()) isa UnsatKVanGenuchten{Float32}
+    @test ConstantSoilHydraulics(Float64).unsat_hydraulic_cond isa UnsatKBrooksCorey{Float64}
+    @test SoilHydraulicsSURFEX(Float32).unsat_hydraulic_cond isa UnsatKBrooksCorey{Float32}
+    @test ConstantSoilHydraulics(Float64; swrc = VanGenuchten()).unsat_hydraulic_cond isa UnsatKVanGenuchten{Float64}
+    @test SoilHydraulicsSURFEX(Float32; swrc = VanGenuchten()).unsat_hydraulic_cond isa UnsatKVanGenuchten{Float32}
+    # an explicit choice overrides the default
+    @test SoilHydraulicsSURFEX(Float64; unsat_hydraulic_cond = UnsatKLinear(Float64)).unsat_hydraulic_cond isa UnsatKLinear{Float64}
+end
+
 @testset "SoilHydrology: adjust_saturation_profile" begin
     grid = ColumnGrid(UniformSpacing(Δz = 0.1, N = 100))
     swrc = VanGenuchten(α = 2.0, n = 2.0)
@@ -124,6 +177,23 @@ end
     ∫sat_deficit = Field(Integral(state.saturation_water_ice, dims = 3, condition = state.saturation_water_ice .< 0))
     ∫sat₀ = compute!(∫sat)[1, 1, 1]
     compute!(∫sat_deficit)
+    Terrarium.adjust_saturation_profile!(state, grid, hydrology)
+    ∫sat₁ = compute!(∫sat)[1, 1, 1]
+    @test all(state.saturation_water_ice .>= hydraulic_properties.residual_saturation)
+    @test ∫sat₁ ≈ ∫sat₀
+
+    # Case 2b: Undersaturation at the bottom; the deficit is drawn from the wetter layers above, so that
+    # water is conserved
+    set!(state.saturation_water_ice, (x, z) -> z < -9.5 ? -0.05 : 0.5)
+    ∫sat₀ = compute!(∫sat)[1, 1, 1]
+    Terrarium.adjust_saturation_profile!(state, grid, hydrology)
+    ∫sat₁ = compute!(∫sat)[1, 1, 1]
+    @test all(state.saturation_water_ice .>= hydraulic_properties.residual_saturation)
+    @test ∫sat₁ ≈ ∫sat₀
+
+    # Case 2c: Undersaturation at both ends of the column
+    set!(state.saturation_water_ice, (x, z) -> z < -9.5 || z > -0.5 ? -0.05 : 0.5)
+    ∫sat₀ = compute!(∫sat)[1, 1, 1]
     Terrarium.adjust_saturation_profile!(state, grid, hydrology)
     ∫sat₁ = compute!(∫sat)[1, 1, 1]
     @test all(state.saturation_water_ice .>= hydraulic_properties.residual_saturation)

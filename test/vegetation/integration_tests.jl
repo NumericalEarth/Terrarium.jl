@@ -1,7 +1,7 @@
 using Terrarium
 using Test
 
-# The coupled `VegetationCarbonCycle.compute_auxiliary!` fuses the carbon-dynamics, phenology,
+# The coupled `PrognosticVegetation.compute_auxiliary!` fuses the carbon-dynamics, phenology,
 # photosynthesis, stomatal-conductance, and autotrophic-respiration auxiliaries into a single launch.
 # These tests check that the fused kernel reproduces the per-process fan-out (the pre-fusion path) to
 # machine precision.
@@ -22,7 +22,7 @@ function vegetated_land(NF)
     hydraulic_properties = ConstantSoilHydraulics(NF; swrc, unsat_hydraulic_cond = UnsatKVanGenuchten(NF))
     hydrology = SoilHydrology(NF, RichardsEq(); hydraulic_properties)
     soil = SoilEnergyWaterCarbon(NF; hydrology)
-    vegetation = VegetationCarbonCycle(NF)
+    vegetation = PrognosticVegetation(NF)
     land = LandModel(grid; soil, vegetation)
     initializers = (
         temperature = (x, z) -> 15.0 - 0.02 * z,

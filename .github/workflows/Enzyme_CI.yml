@@ -6,6 +6,8 @@ on:
   push:
     branches:
       - main
+permissions:
+  contents: read
 jobs:
   test:
     # don't run if any of these labels are present
