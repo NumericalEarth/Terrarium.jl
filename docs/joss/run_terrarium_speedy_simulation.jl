@@ -193,7 +193,7 @@ Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Terrarium(terra
 @info "Initializing coupled simulation"
 sim_coupled = @time Speedy.initialize!(primitive_wet_coupled; time = initial_date)
 
-land_state = sim_coupled.variables.prognostic.land.terrarium
+land_state = sim_coupled.variables.prognostic.land.terrarium.state
 Terrarium.checkfinite!(land_state.prognostic)
 
 period = Year(2)
