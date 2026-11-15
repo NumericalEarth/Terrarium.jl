@@ -338,7 +338,7 @@ fig3 = Figure(size = (1400, 400), padding = (5, 5, 5, 5), colgap = 4, rowgap = 8
 map_panel!(
     fig3, (1, 1), (1, 2), skin_temperature;
     title = "Mean skin temperature", units = "°C",
-    colormap = :balance, colorrange = (-30, 30), width = 10
+    colormap = :balance, colorrange = (-40, 40), width = 10
 )
 map_panel!(
     fig3, (1, 3), (1, 4), gpp;
