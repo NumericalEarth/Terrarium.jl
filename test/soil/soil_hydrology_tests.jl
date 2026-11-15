@@ -320,6 +320,51 @@ end
     @test tendency_lo_porosity ≈ 2 * tendency_hi_porosity
 end
 
+@testset "SoilHydrology: infiltration capacity" begin
+    # The infiltration capacity is the saturated conductivity of the top cell, reduced by the ice impedance in frozen
+    # soil. It is a lazily evaluated auxiliary variable, so it follows the state without any `compute_auxiliary!` call.
+    grid = ColumnGrid(UniformSpacing(Δz = 0.1, N = 10))
+    K_sat = 1.0e-5
+    hydraulic_properties = SoilHydraulicsSURFEX(Float64; saturated_conductivity = K_sat)
+    hydrology = SoilHydrology(eltype(grid), RichardsEq(); hydraulic_properties)
+    state = StateVariables(hydrology, grid)
+    @test state.infiltration_capacity isa KernelFunctionOperation
+    fields = (; infiltration_capacity = state.infiltration_capacity)
+    capacity() = Terrarium.infiltration_capacity(1, 1, grid, fields, hydrology)
+
+    # independent of the saturation of unfrozen soil
+    for sat in (0.1, 0.5, 1.0)
+        set!(state.saturation_water_ice, sat)
+        @test capacity() ≈ K_sat
+    end
+    # reduced by the ice impedance 10^(-Ω (1 - f)) of the Brooks–Corey conductivity, evaluated in the top cell only
+    Ω = hydraulic_properties.unsat_hydraulic_cond.impedance
+    set!(state.liquid_water_fraction, (x, z) -> z > -0.1 ? 0.5 : 1.0)
+    @test capacity() ≈ K_sat * 10^(-Ω * 0.5)
+    set!(state.liquid_water_fraction, (x, z) -> z > -0.1 ? 1.0 : 0.0)
+    @test capacity() ≈ K_sat
+    @test (@inferred capacity()) isa Float64
+
+    # the linear conductivity has no impedance parameter; its conductivity at full saturation is K_sat f
+    linear_properties = SoilHydraulicsSURFEX(Float64; saturated_conductivity = K_sat, unsat_hydraulic_cond = UnsatKLinear(Float64))
+    linear_hydrology = SoilHydrology(eltype(grid), RichardsEq(); hydraulic_properties = linear_properties)
+    linear_state = StateVariables(linear_hydrology, grid)
+    set!(linear_state.liquid_water_fraction, 0.25)
+    @test Terrarium.infiltration_capacity(1, 1, grid, (; infiltration_capacity = linear_state.infiltration_capacity), linear_hydrology) ≈ K_sat / 4
+
+    # immobile soil water takes up no water at the surface
+    noflow_hydrology = SoilHydrology(eltype(grid), NoFlow())
+    @test Terrarium.infiltration_capacity(1, 1, grid, (;), noflow_hydrology) == 0
+
+    # state-wide `fill!` and `copyto!` leave the lazily evaluated variable untouched
+    other = StateVariables(hydrology, grid)
+    fill!(other, 0.5)
+    @test all(interior(other.saturation_water_ice) .== 0.5)
+    copyto!(state, other)
+    @test all(interior(state.saturation_water_ice) .== 0.5)
+    @test state.infiltration_capacity isa KernelFunctionOperation
+end
+
 @testset "Soil moisture forcing (source/sink)" begin
     mutable struct ForcingValue{NF}
         value::NF

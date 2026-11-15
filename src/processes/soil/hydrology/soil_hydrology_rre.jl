@@ -27,8 +27,24 @@ variables(hydrology::SoilHydrology{NF, RichardsEq}) where {NF} = (
     auxiliary(:hydraulic_conductivity, Ground(XYZ(z = Face())), units = u"m/s", desc = "Hydraulic conductivity of soil volumes in m/s"),
     auxiliary(:water_table, Ground(XY()), units = u"m", desc = "Elevation of the water table in meters"),
     auxiliary(:water_flux, Ground(XYZ(z = Face())), units = u"m/s", desc = "Darcy flux through the cell faces in m/s, positive upward"),
+    auxiliary(:infiltration_capacity, Ground(XY()), infiltration_capacity, hydrology, units = u"m/s", desc = "Infiltration capacity of the soil surface in m/s (lazily evaluated)"),
     input(:liquid_water_fraction, Ground(XYZ()), default = NF(1), bounds = UnitInterval, desc = "Fraction of unfrozen water in the pore space"),
 )
+
+"""
+    $TYPEDSIGNATURES
+
+Construct the lazily evaluated `infiltration_capacity` of `hydrology` as a `KernelFunctionOperation` of
+[`compute_infiltration_capacity`](@ref) on the ground domain of `grid`, which is evaluated on the fly wherever it
+is read, so that it needs no storage and no update in `compute_auxiliary!`. The operation captures only the
+`liquid_water_fraction` field, which exists before any auxiliary variable is constructed: it is either an input
+variable or a closure variable of the soil energy, both of which are initialized first.
+"""
+function infiltration_capacity(grid, clock, fields, hydrology::SoilHydrology)
+    ground_grid = ground_domain(grid)
+    operation_fields = (; liquid_water_fraction = fields.liquid_water_fraction)
+    return KernelFunctionOperation{Center, Center, Nothing}(compute_infiltration_capacity, ground_grid, operation_fields, hydrology)
+end
 
 default_timestepping(::SoilHydrology{NF, RichardsEq}) where {NF} = Implicit()
 
@@ -315,6 +331,40 @@ Compute the hydraulic conductivity at the center of the grid cell `i, j, k`.
     soil = soil_composition(i, j, k, grid, fields, strat, hydrology, bgc)
     return hydraulic_conductivity(hydrology.hydraulic_properties, soil)
 end
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the infiltration capacity (m/s) of the soil surface in grid column `i, j` as
+
+    I_max = K_sat I_ice(f)
+
+where `K_sat` is the saturated hydraulic conductivity and `I_ice` is the ice impedance factor of the unsaturated
+conductivity formulation (see [`Terrarium.ice_impedance_factor`](@ref)) for the unfrozen water fraction `f` of
+the topmost soil layer, as in CLM5 [lawrenceTechnicalDescriptionVersion2018; Eq. (2.7.34)](@cite).
+
+The infiltration capacity of a soil is at least its saturated conductivity: the matric suction gradient at a
+wetting front raises it above `K_sat` in dry soil, and it decays toward `K_sat` as the soil wets
+[greenStudiesSoilPhysics1911, philipTheoryInfiltration1957](@cite).
+
+# References
+
+* [lawrenceTechnicalDescriptionVersion2018](@cite) Lawrence et al., Technical Description of Version 5.0 of the Community Land Model (CLM), NCAR (2018)
+* [greenStudiesSoilPhysics1911](@cite) Green and Ampt, The Journal of Agricultural Science (1911)
+* [philipTheoryInfiltration1957](@cite) Philip, Soil Science (1957)
+"""
+@propagate_inbounds function compute_infiltration_capacity(
+        i, j, grid, fields,
+        hydrology::SoilHydrology{NF, RichardsEq}
+    ) where {NF}
+    props = get_hydraulic_properties(hydrology)
+    f = liquid_water_fraction(i, j, grid.Nz, grid, fields, hydrology)
+    K_sat = saturated_hydraulic_conductivity(props)
+    I_ice = ice_impedance_factor(props.unsat_hydraulic_cond, f)
+    return K_sat * I_ice
+end
+
+@propagate_inbounds infiltration_capacity(i, j, grid, fields, ::SoilHydrology{NF, RichardsEq}) where {NF} = fields.infiltration_capacity[i, j, 1]
 
 """
     $TYPEDSIGNATURES

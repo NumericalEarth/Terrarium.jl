@@ -185,6 +185,9 @@ end
 
 @propagate_inbounds surface_excess_water(i, j, grid, fields, ::SoilHydrology{NF}) where {NF} = zero(NF)
 
+# Immobile soil water (`NoFlow`) does not take up water at the surface
+@propagate_inbounds infiltration_capacity(i, j, grid, fields, ::SoilHydrology{NF}) where {NF} = zero(NF)
+
 """
     $TYPEDSIGNATURES
 
@@ -218,6 +221,28 @@ Kernel function that diagnoses the water table at grid cell `i, j` given the cur
     # scan z axis starting from the bottom (index 1) to find first non-saturated grid cell
     water_table[i, j, end] = findfirst_z(i, j, <(one(NF)), zs, sat)
     return nothing
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the total water (m of water equivalent) stored in the ground column `i, j`: the liquid water and ice in
+the soil pore space, `∑ₖ ϕₖ Sₖ Δzₖ`, plus the `surface_excess_water` pool of the surface `runoff` scheme, if any.
+"""
+@propagate_inbounds function compute_total_ground_water(
+        i, j, grid, fields,
+        hydrology::AbstractSoilHydrology{NF},
+        strat::AbstractStratigraphy,
+        bgc::AbstractSoilBiogeochemistry,
+        runoff::Optional{AbstractSurfaceRunoff}
+    ) where {NF}
+    W = zero(NF)
+    for k in 1:grid.Nz
+        por = porosity(i, j, k, grid, fields, strat, bgc)
+        sat = saturation_water_ice(i, j, k, grid, fields, hydrology)
+        W += por * sat * Δzᵃᵃᶜ(i, j, k, grid)
+    end
+    return W + surface_excess_water(i, j, grid, fields, runoff)
 end
 
 """

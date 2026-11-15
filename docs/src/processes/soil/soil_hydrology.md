@@ -292,6 +292,10 @@ surface_excess_water
 ```
 
 ```@docs; canonical = false
+infiltration_capacity
+```
+
+```@docs; canonical = false
 compute_volumetric_water_content_tendency
 compute_darcy_flux_divergence
 compute_boundary_darcy_flux_divergence
@@ -305,6 +309,8 @@ compute_specific_moisture_capacity
 specific_moisture_capacity
 compute_water_outflow_timescale
 compute_saturation_boundary_flux
+compute_infiltration_capacity
+compute_total_ground_water
 ```
 
 The following kernel functions implement the implicit Richards step (see [Implicit Richards equation](@ref soil-hydrology-implicit-richards)):

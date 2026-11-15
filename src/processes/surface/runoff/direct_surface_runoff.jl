@@ -134,21 +134,21 @@ end
     # (the snow-covered fraction of rain is intercepted by the snowpack); without snow it is the ground rainfall.
     influx = soil_surface_water_flux(i, j, grid, fields, canopy_interception, snow)
     excess_water = surface_excess_water(i, j, grid, fields, runoff)
-    k_unsat = hydraulic_conductivity(i, j, ground_grid.Nz, grid, fields, soil_hydrology)
+    infil_max = infiltration_capacity(i, j, grid, fields, soil_hydrology)
     sat_top = saturation_water_ice(i, j, ground_grid.Nz, grid, fields, soil_hydrology)
 
     # A decaying pool can stay positive at roundoff scale and block fresh rain indefinitely.
     if excess_water > eps(NF)
         # Case 1: Excess water present at the surface -> precipitation adds to excess water
-        # and we set the infiltration rate to the min of hydraulic conductivity and surface_excess_water
+        # and we set the infiltration rate to the min of the infiltration capacity and the surface drainage
         # First, compute rate of excess water removal (surface drainage)
         surface_drainage = compute_surface_drainage(runoff, excess_water)
         # Calculate infiltration
-        infil = out.infiltration[i, j, end] = compute_infiltration(runoff, surface_drainage, sat_top, k_unsat)
+        infil = out.infiltration[i, j, end] = compute_infiltration(runoff, surface_drainage, sat_top, infil_max)
     else
         # Case 2: No appreciable excess water -> rainfall is routed directly to infiltration
         surface_drainage = compute_surface_drainage(runoff, excess_water)
-        infil = out.infiltration[i, j, end] = compute_infiltration(runoff, influx, sat_top, k_unsat)
+        infil = out.infiltration[i, j, end] = compute_infiltration(runoff, influx, sat_top, infil_max)
     end
 
     # Compute surface runoff

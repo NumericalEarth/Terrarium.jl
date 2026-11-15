@@ -461,9 +461,8 @@ end
     set!(state.leaf_area_index, 0.0)
     compute_auxiliary!(state, land)
 
-    Δz = Array(interior(zspacings(Terrarium.ground_domain(grid), Center(), Center(), Center())))[:]
     # soil water plus the surface pool that receives excess water from the top soil cell (m)
-    column_water(state) = φ * sum(interior(state.saturation_water_ice)[1, 1, :] .* Δz) + only(interior(state.surface_excess_water))
+    column_water(state) = Terrarium.diagnose_total_ground_water(state, land)[1, 1, 1]
     s_res = Terrarium.residual_saturation(Terrarium.get_hydraulic_properties(Terrarium.get_hydrology(soil)))
     W₀ = column_water(state)
     Δt = 450.0
@@ -484,4 +483,97 @@ end
     # temperatures stays close to air temperature
     @test abs(only(interior(state.skin_temperature)) - T_air) < 20
     @test all(abs.(interior(state.temperature)[1, 1, :] .- T_air) .< 20)
+end
+
+@testset "LandModel: rain infiltrates into unsaturated soil (rainfall $(rainfall_mm_per_hour) mm/hour, initial saturation $(s₀))" for (rainfall_mm_per_hour, duration, s₀) in (
+        (10 / 24, 24 * 3600.0, 0.1), # steady rain of 10 mm/day, well below the saturated conductivity, on dry soil
+        (10 / 24, 24 * 3600.0, 0.3), # the same on dryish soil
+        (100.0, 3600.0, 0.3),        # intense burst of 100 mm/hour, above the saturated conductivity
+    )
+    # Regression test for the infiltration capacity: infiltration was capped at the unsaturated conductivity of the
+    # top soil layer, which with the Brooks–Corey conductivity K = K_sat S¹³ shuts off infiltration into any soil that
+    # is not nearly saturated, the more so the drier it is (about 0.4 mm/day at S = 0.55 and 10⁻¹¹ mm/day at S = 0.1),
+    # so that almost all rain ran off and the soil dried out in coupled simulations.
+    # The infiltration capacity of the soil is the saturated conductivity, reduced by the ice impedance in frozen
+    # soil, so that steady rain below it infiltrates, and only rain above it produces infiltration-excess runoff.
+    NF = Float64
+    grid = ColumnGrid(CPU(), NF, ExponentialSpacing(; N = 30))
+    φ = 0.45
+    strat = HomogeneousSoilStratigraphy(NF; porosity = ConstantSoilPorosity(NF; mineral_porosity = φ))
+    biogeochem = ConstantSoilCarbonDensity(NF; ρ_soc = 0.0) # zero SOC -> pure mineral porosity
+    soil = SoilEnergyWaterCarbon(NF; strat, biogeochem)
+    land = LandModel(grid; soil, vegetation = PrescribedVegetation(NF))
+    T_air = 20.0
+    integrator = initialize(land; initializers = (temperature = T_air, saturation_water_ice = s₀))
+    state = integrator.state
+    rainfall = rainfall_mm_per_hour / 1000 / 3600 # m/s
+    # overcast, rainy day: daily mean shortwave under thick cloud, downwelling longwave close to σT⁴ of the air,
+    # and near-saturated air (about 95% relative humidity)
+    set!(state.air_temperature, T_air)
+    set!(state.specific_humidity, 0.014)
+    set!(state.windspeed, 3.0)
+    set!(state.rainfall, rainfall)
+    set!(state.surface_shortwave_down, 100.0)
+    set!(state.surface_longwave_down, 410.0)
+    set!(state.leaf_area_index, 0.0)
+    compute_auxiliary!(state, land)
+
+    # soil water plus the surface pool that receives excess water from the top soil cell (m)
+    column_water(state) = Terrarium.diagnose_total_ground_water(state, land)[1, 1, 1]
+    K_sat = Terrarium.saturated_hydraulic_conductivity(Terrarium.get_hydraulic_properties(Terrarium.get_hydrology(soil)))
+    W₀ = column_water(state)
+    Δt = 450.0
+    infiltrated = 0.0
+    net_input = 0.0
+    infiltration_rates = Float64[]
+    for _ in 1:round(Int, duration / Δt)
+        # recompute the fluxes from the current prognostic state, so that they are the ones the step applies
+        update_state!(integrator)
+        I = only(interior(state.infiltration))
+        push!(infiltration_rates, I)
+        infiltrated += Δt * I
+        evaporation = only(interior(state.evaporation_ground)) + only(interior(state.evaporation_canopy)) + only(interior(state.transpiration))
+        net_input += Δt * (rainfall - only(interior(state.surface_runoff)) - evaporation)
+        Terrarium.timestep!(integrator, Δt)
+    end
+    sat = interior(state.saturation_water_ice)[1, 1, :]
+    @test all(isfinite, sat)
+    @test all(sat .<= 1)
+    # no water is created or lost other than by rain, evaporation, and surface runoff
+    @test column_water(state) ≈ W₀ + net_input rtol = 1.0e-3
+    # infiltration never exceeds the saturated conductivity
+    @test all(infiltration_rates .<= K_sat * (1 + 1.0e-6))
+    if rainfall < K_sat
+        # nearly all of the rain infiltrates, and the soil absorbs it: the top cell stays unsaturated and no water ponds
+        @test infiltrated >= 0.95 * rainfall * duration
+        @test sat[end] < 1
+        @test only(interior(state.surface_excess_water)) == 0
+    else
+        # the top cell is unsaturated at first, so infiltration starts at capacity, and the excess runs off
+        @test infiltration_rates[1] ≈ K_sat rtol = 1.0e-6
+        @test infiltrated < rainfall * duration
+    end
+end
+
+@testset "diagnose_total_ground_water" begin
+    # The diagnostic sums the water and ice in the soil pore space and the surface pool of the runoff scheme
+    NF = Float64
+    grid = ColumnGrid(CPU(), NF, ExponentialSpacing(; N = 30))
+    φ = 0.45
+    strat = HomogeneousSoilStratigraphy(NF; porosity = ConstantSoilPorosity(NF; mineral_porosity = φ))
+    biogeochem = ConstantSoilCarbonDensity(NF; ρ_soc = 0.0) # zero SOC -> pure mineral porosity
+    soil = SoilEnergyWaterCarbon(NF; strat, biogeochem)
+    initializers = (temperature = 5.0, saturation_water_ice = (x, z) -> min(0.3 - 0.05 * z, 1.0))
+    Δz = Array(interior(zspacings(Terrarium.ground_domain(grid), Center(), Center(), Center())))[:]
+    soil_water(state) = φ * sum(interior(state.saturation_water_ice)[1, 1, :] .* Δz)
+
+    land = LandModel(grid; soil, vegetation = nothing)
+    state = initialize(land; initializers).state
+    set!(state.surface_excess_water, 0.01)
+    @test Terrarium.diagnose_total_ground_water(state, land)[1, 1, 1] ≈ soil_water(state) + 0.01
+
+    # a standalone soil model has no surface pool
+    soil_model = SoilModel(grid; soil)
+    soil_state = initialize(soil_model; initializers).state
+    @test Terrarium.diagnose_total_ground_water(soil_state, soil_model)[1, 1, 1] ≈ soil_water(soil_state)
 end

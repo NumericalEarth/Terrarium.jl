@@ -337,6 +337,17 @@ end
 """
     $TYPEDSIGNATURES
 
+Ice impedance factor of the unsaturated conductivity formulation `unsat_k` for the unfrozen fraction `f` of the
+pore water, i.e. the ratio of the hydraulic conductivity at full saturation to the saturated conductivity `K_sat`.
+For [`UnsatKBrooksCorey`](@ref) and [`UnsatKVanGenuchten`](@ref), this is `10^(-Ω (1 - f))` with the `impedance` `Ω`
+of `unsat_k`; for [`UnsatKLinear`](@ref), whose conductivity at full saturation is `K_sat f`, it is `f`.
+"""
+@inline ice_impedance_factor(unsat_k::Union{UnsatKBrooksCorey, UnsatKVanGenuchten}, f) = ice_impedance_factor(unsat_k.impedance, f)
+@inline ice_impedance_factor(::UnsatKLinear, f) = f
+
+"""
+    $TYPEDSIGNATURES
+
 Return the unsaturated hydraulic conductivity formulation that matches the soil water retention curve
 `swrc`: [`UnsatKBrooksCorey`](@ref) for `BrooksCorey`, [`UnsatKVanGenuchten`](@ref) for `VanGenuchten`,
 and [`UnsatKLinear`](@ref) otherwise.
