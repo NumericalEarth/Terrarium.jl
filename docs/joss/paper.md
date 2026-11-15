@@ -76,16 +76,17 @@ Terrarium.jl is being developed as part of the NumericalEarth project, which is 
 
 # Statement of need
 
-Most existing ESM land components, including those involved in the international Coupled Model Intercomparison Project (CMIP), are implemented in statically compiled languages such as Fortran (and less commonly, C/C++); while these languages are advantageous in terms of computational efficiency, they incur a significant software engineering burden and limit the accessibility of the model code for many scientists and researchers.
+Most existing ESM land components, including those involved in the international Coupled Model Intercomparison Project (CMIP), are implemented in statically compiled languages such as Fortran (and less commonly, C/C++).
+Although these languages are advantageous in terms of computational efficiency, they incur a significant software engineering burden and limit the accessibility of the model code for many scientists and researchers.
 Furthermore, reliance on Fortran/C++ inhibits the adoption of state-of-the-art tools for high-level GPU and differentiable programming (via AD), which have served as the technological foundation for recent developments in machine learning and data-driven modeling [@gelbrechtDifferentiableProgrammingEarth2023].
-As such, there is a general need for a new generation of ESM components built using modern numerical computing software written in higher level, dynamic languages such as Julia or Python, and that offer robust and easy-to-use tooling for GPU acceleration and AD.
+There is thus a general need for a new generation of ESM components built using modern numerical computing software written in higher level, dynamic languages such as Julia or Python, and that offer robust and easy-to-use tooling for GPU acceleration and AD.
 This would enable systematic, gradient-based parameter estimation, uncertainty quantification, and tighter integration of physics-based and data-driven modeling workflows.
-These modernized, user-friendly ESMs would also have the potential to greatly improve productivity and accessibility for researchers who lack extensive programming experience, while also serving as valuable educational tools for students of Earth system science.
+Such modernized, user-friendly ESMs also have the potential to greatly improve productivity and accessibility for students and researchers who lack extensive numerical programming experience.
 
 Another key limitation of many existing land models is their tendency to mix process formulations and numerics in an *ad hoc* and inconsistent manner [@clarkNumericalImplementationLand2021].
 This makes it difficult for these models to incorporate state-of-the-art numerical methods since this means also needing to reformulate the processes themselves.
 Terrarium.jl addresses this limitation by formulating all processes in terms of continuous-time dynamics and enforcing a clear separation between the instantaneous tendencies of the system and the numerical scheme used to discretize the corresponding governing equations in time.
-In addition, state variables are classified as *prognostic* (evolved in time), *auxiliary* (instantaneously derived from the prognostic state), or *inputs* (externally prescribed).
+All state variables are classified as *prognostic* (evolved in time), *auxiliary* (instantaneously derived from the prognostic state), or *inputs* (externally prescribed).
 Constitutive relationships between prognostic and auxiliary variables are explicitly declared and evaluated separately from the tendency and timestepping scheme.
 This design facilitates the implementation and comparison of new solvers and time discretization schemes while also helping to maintain mathematical consistency between model components.
 
@@ -102,7 +103,7 @@ Moreover, Terrarium.jl is designed to allow for fast and efficient coupling with
 ![Overview of the Terrarium.jl software design. Models (blue) are built from one or more `Process`es (purple) which may contain additional parameterization types that determine which equations and parameters are used. Models and any required external inputs (green) are passed to `initialize` which allocates the model state and configures the time stepper. Each `Process` defines device-agnostic compute kernels that are "launched" over the underlying spatial grid within each time step. \label{fig:design}](assets/figure1.png)
 
 Terrarium.jl is designed to be highly modular, acting as a framework for constructing a multitude of different land model configurations rather than implementing a single, monolithic model.
-This allows Terrarium.jl to serve as the basis for a wide range of dwonstream land and ecosystem modeling use cases, spanning both highly detailed local-scale simulations with prescribed boundary conditions and intermediate-complexity global-scale simulations within a larger, coupled Earth system model.
+This allows Terrarium.jl to serve as the basis for a wide range of downstream land and ecosystem modeling use cases, spanning both highly detailed local-scale simulations with prescribed boundary conditions and intermediate-complexity global-scale simulations within a larger, coupled Earth system model.
 
 Terrarium.jl models are composed of four basic components: one or more `Process`es (subtyping `AbstractProcess`) implementing specific physical relationships and governing equations, a `grid` that describes the discretization of the underlying spatial domain, a `timestepper` that determines how the prognostic variables of the model are advanced in time, and an `initializer` that specifies how the initial state of the prognostic variables is determined \autoref{fig:design}.
 Terrarium.jl currently provides four primary model types that can be used to run simulations: `SoilModel`, `VegetationModel`, `SnowModel`, and `LandModel`. The first three represent standalone models of soil, snow, and vegetation processes while the `LandModel` couples together all three of these components to enable realistic, multi-physics simulations of the land surface.
