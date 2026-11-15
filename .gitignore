@@ -38,6 +38,8 @@ JuliaLocalPreferences.toml
 data/
 outputs/
 plots/
+*.out
+*.log
 
 # Scratchspace
 scratch/
