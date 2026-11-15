@@ -149,7 +149,7 @@ All pull requests are reviewed and signed off by human developers.
 # Acknowledgements
 
 BG and NB acknowledge the support of the Past2Future (P2F) project; The Past to Future (P2F) project has received funding from the European Union’s Horizon Europe research and innovation programme under grant agreement No. 101184070.
-MG and NB acknowledge funding from the Volkswagen Foundation and the European Union’s Horizon Europe research and innovation programme ClimTip (grant agreement no. 101137601), this is ClimTip contribution #XXX.
+MG and NB acknowledge funding from the Volkswagen Foundation and the European Union’s Horizon Europe research and innovation programme ClimTip (grant agreement no. 101137601), this is ClimTip contribution #215.
 PLV acknowledges funding from the National Centre for Atmospheric Science and from Schmidt Futures (LEMONTREE project, #XXX)
 OB acknowledges funding from Research Foundation - Flanders (V436726N) for the research stay at the Potsdam Institute for Climate Impact Research. 
 Funded by the European Union.
