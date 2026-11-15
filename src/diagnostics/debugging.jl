@@ -7,6 +7,8 @@
 Check whether the given `field` has any `NaN` or `Inf` values and raise an error if `NaN`s are detected.
 """
 checkfinite!(field::AbstractField, name = nothing) = any(!isfinite, parent(field)) && error("Found NaN/Inf values in Field $name: $field")
+# Lazily evaluated auxiliary variables hold no data of their own; the fields they read are checked separately
+checkfinite!(::KernelFunctionOperation, name = nothing) = nothing
 function checkfinite!(nt::NamedTuple)
     for key in keys(nt)
         checkfinite!(nt[key], key)
