@@ -86,9 +86,6 @@ Such modernized, user-friendly ESMs also have the potential to greatly improve p
 Another key limitation of many existing land models is their tendency to mix process formulations and numerics in an *ad hoc* and inconsistent manner [@clarkNumericalImplementationLand2021].
 This makes it difficult for these models to incorporate state-of-the-art numerical methods since this means also needing to reformulate the processes themselves.
 Terrarium.jl addresses this limitation by formulating all processes in terms of continuous-time dynamics and enforcing a clear separation between the instantaneous tendencies of the system and the numerical scheme used to discretize the corresponding governing equations in time.
-All state variables are classified as *prognostic* (evolved in time), *auxiliary* (instantaneously derived from the prognostic state), or *inputs* (externally prescribed).
-Constitutive relationships between prognostic and auxiliary variables are explicitly declared and evaluated separately from the tendency and timestepping scheme.
-This design facilitates the implementation and comparison of new solvers and time discretization schemes while also helping to maintain mathematical consistency between model components.
 
 # State of the field
 
@@ -106,6 +103,10 @@ Terrarium.jl is designed to be highly modular, acting as a framework for constru
 This allows Terrarium.jl to serve as the basis for a wide range of downstream land and ecosystem modeling use cases, spanning both highly detailed local-scale simulations with prescribed boundary conditions and intermediate-complexity global-scale simulations within a larger, coupled Earth system model.
 
 Terrarium.jl models are composed of four basic components: one or more `Process`es (subtyping `AbstractProcess`) implementing specific physical relationships and governing equations, a `grid` that describes the discretization of the underlying spatial domain, a `timestepper` that determines how the prognostic variables of the model are advanced in time, and an `initializer` that specifies how the initial state of the prognostic variables is determined \autoref{fig:design}.
+All state variables are classified as *prognostic* (evolved in time), *auxiliary* (derived from the prognostic state), or *inputs* (externally prescribed).
+Constitutive relationships between prognostic and auxiliary variables are explicitly declared and evaluated separately from the tendency and timestepping scheme.
+This design facilitates the implementation and comparison of new solvers and time discretization schemes while also helping to maintain mathematical consistency between model components.
+
 Terrarium.jl currently provides four primary model types that can be used to run simulations: `SoilModel`, `VegetationModel`, `SnowModel`, and `LandModel`. The first three represent standalone models of soil, snow, and vegetation processes while the `LandModel` couples together all three of these components to enable realistic, multi-physics simulations of the land surface.
 Each model type combines two or more `Process`es by defining the orchestration logic needed to wire together the various components.
 Users can implement their models by defining subtypes of `AbstractModel` that satisfy its documented *method interface* ("method" here refers to an instance of a Julia function defined for a particular set of input argument types).
@@ -133,6 +134,7 @@ Example outputs from a prototype Terrarium-SpeedyWeather coupled simulation are 
 # Research impact statement
 
 Terrarium.jl's modular design, device-agnostic parallelization architecture, and first-class support for AD make it an ideal testbed for cutting edge research on so-called "hybrid" land-atmosphere modeling, which aims to combine data-driven components, such as neural networks, with physics-based simulation [@shenDifferentiableModellingUnify2023; @gelbrechtDifferentiableProgrammingEarth2023].
+
 Terrarium is being actively used to develop and evaluate the capabilities of such methods to improve global land and climate simulations.
 This has the potential to help geoscientific researchers move beyond existing workflows where physics-based simulations are used only to generate training and validation data for machine learning models, towards a new generation of scientific models that are capable of learning from data while still respecting physical laws.
 
