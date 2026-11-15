@@ -64,6 +64,14 @@ Compute or retrieve the current water table level relative to the surface.
 function water_table end
 
 """
+    infiltration_capacity(i, j, grid, fields, ::AbstractSoilHydrology)
+
+Compute or retrieve the infiltration capacity (m/s), i.e. the maximum rate at which water can infiltrate into
+the soil surface in grid column `i, j`.
+"""
+function infiltration_capacity end
+
+"""
     surface_excess_water(i, j, k, grid, fields, ::AbstractSoilHydrology)
 
 Retrieve the current saturation level of water + ice in the pore space.
