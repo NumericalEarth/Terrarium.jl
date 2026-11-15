@@ -61,10 +61,11 @@ output_dir = mkpath(joinpath(@__DIR__, "outputs", "run_coupled_sensitivity"))
 #
 # The land configuration needs no input data: homogeneous soil with the default soil hydrology
 # (Richards' equation), no vegetation, and no snow, so the latent heat flux is the evaporation from
-# the ground. Vegetation and snow are left out because they are among the most expensive land
-# components for Enzyme to compile (the target is a mid-latitude cell in July), and the land is
-# stepped explicitly with `ForwardEuler` rather than with the default implicit-explicit scheme for
-# the same reason.
+# the ground. Vegetation is left out because the adjoint of a `LandModel` with vegetation does not
+# compile yet (see `docs/dev/plans/2026-11-15-1-landmodel_vegetation_differentiability.md` on the
+# `bg/landmodel-vegetation-ad` branch), snow because the target is a mid-latitude cell in July, and
+# the land is stepped explicitly with `ForwardEuler` rather than with the default implicit-explicit
+# scheme to keep the adjoint cheaper to compile.
 
 speedy_arch = RingGrids.Architectures.architecture(arch)
 spectral_grid = Speedy.SpectralGrid(; truncation, nlayers = nlayers_atmos, architecture = speedy_arch)
