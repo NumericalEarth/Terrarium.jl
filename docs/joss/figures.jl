@@ -1,11 +1,12 @@
 # Paper figures for the coupled SpeedyWeather-Terrarium simulation.
 #
 # Figure 1: architecture diagram, created externally (not by this script).
-# Figure 2: SoilModel performance — SYPD vs grid resolution for CPU, GPU and
+# Figure 2: LandModel performance — SYPD vs grid resolution for CPU, GPU and
 #           Reactant, plotted from `benchmark/assets/benchmark_results.json`
-#           (suite `bench202`, the `:soil_heat` SoilModel sweep) produced by
-#           `benchmark/manual_benchmarking.jl`. The benchmarked SoilModel solves
-#           heat conduction only (immobile soil water, i.e. no hydrology).
+#           (suite `bench200`, the `:land` LandModel sweep) produced by
+#           `benchmark/manual_benchmarking.jl`. The benchmarked LandModel is the
+#           full land model: soil heat and water (Richards' equation), snow, and
+#           prognostic vegetation.
 # Figure 3: land-surface climatology, 2x3 panels.
 #           top:    skin temperature, GPP, max annual snow depth
 #           bottom: evapotranspiration, evaporative fraction, albedo
@@ -169,18 +170,18 @@ function map_panel!(
 end
 
 # ---------------------------------------------------------------------------
-# Figure 2: SoilModel performance (SYPD vs grid resolution, all architectures)
+# Figure 2: LandModel performance (SYPD vs grid resolution, all architectures)
 # ---------------------------------------------------------------------------
 
-# Plots simulated years per wallclock day (SYPD) for `SoilModel` across grid
-# resolutions, one curve per architecture. The data is the `bench202` suite (the
-# `:soil_heat` configuration, i.e. soil heat conduction without hydrology) in the
+# Plots simulated years per wallclock day (SYPD) for `LandModel` across grid
+# resolutions, one curve per architecture. The data is the `bench200` suite (the
+# `:land` configuration, see `benchmark/model_configurations.jl`) in the
 # benchmark JSON store, written by
 # `benchmark/manual_benchmarking.jl` (see `docs/joss/joss_benchmark.slurm` for a
 # single-node run of all four architectures). Architectures absent from the store
 # — or resolutions skipped/failed there — are simply not drawn.
 const BENCHMARK_RESULTS_JSON = normpath(joinpath(@__DIR__, "..", "..", "benchmark", "assets", "benchmark_results.json"))
-const BENCHMARK_SOIL_SUITE = "bench202" # the :soil_heat SoilModel resolution sweep
+const BENCHMARK_SUITE = "bench200" # the :land LandModel resolution sweep
 
 # Horizontal resolutions (degrees) marked by dashed vertical reference lines
 const BENCHMARK_REFERENCE_RESOLUTIONS = (10, 5, 2, 1, 0.5)
@@ -220,7 +221,7 @@ ax2 = Axis(
     xscale = log10, yscale = log10,
     # label every decade of SYPD (e.g. 10¹ and 10³) for easier comparison with other models
     yticks = LogTicks(-3:9),
-    title = "Terrarium SoilModel performance (heat conduction only)"
+    title = "Terrarium LandModel performance"
 )
 
 plotted_names = String[]
@@ -232,7 +233,7 @@ if isfile(BENCHMARK_RESULTS_JSON)
     for (label, (name, color)) in BENCHMARK_ARCH_STYLES
         haskey(results, label) || continue
         name in plotted_names && continue
-        overview = get(get(results[label], "overview", Dict()), BENCHMARK_SOIL_SUITE, nothing)
+        overview = get(get(results[label], "overview", Dict()), BENCHMARK_SUITE, nothing)
         overview === nothing && continue
         # JSON has no NaN literal: skipped/failed resolutions are stored as null.
         sypd = [something(x, NaN) for x in overview["sypd"]]
