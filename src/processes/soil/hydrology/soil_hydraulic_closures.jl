@@ -40,7 +40,7 @@ this one in [`closure!`](@ref) of [`SoilEnergyWaterCarbon`](@ref), then recomput
 function closure!(
         state, grid,
         closure::SoilSaturationPressureClosure,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         soil::AbstractSoil,
         runoff::Optional{AbstractSurfaceRunoff} = nothing,
         args...
@@ -63,7 +63,7 @@ heat transfer.
 function compute_saturation_closure!(
         state, grid,
         closure::SoilSaturationPressureClosure,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         soil::AbstractSoil,
         runoff::Optional{AbstractSurfaceRunoff},
         energy::Optional{AbstractSoilThermodynamics}
@@ -82,7 +82,7 @@ end
 function compute_pressure_head!(
         state, grid,
         closure::SoilSaturationPressureClosure,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         soil::AbstractSoil
     ) where {NF}
     strat = get_stratigraphy(soil)
@@ -106,7 +106,7 @@ See [`closure!`](@ref) for the role of the optional `runoff` process.
 function invclosure!(
         state, grid,
         closure::SoilSaturationPressureClosure,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         soil::AbstractSoil,
         runoff::Optional{AbstractSurfaceRunoff} = nothing,
         args...

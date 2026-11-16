@@ -485,28 +485,24 @@ end
     @test all(abs.(interior(state.temperature)[1, 1, :] .- T_air) .< 20)
 end
 
-@testset "LandModel: rain infiltrates into unsaturated soil (rainfall $(rainfall_mm_per_hour) mm/hour, initial saturation $(s₀))" for (rainfall_mm_per_hour, duration, s₀) in (
-        (10 / 24, 24 * 3600.0, 0.1), # steady rain of 10 mm/day, well below the saturated conductivity, on dry soil
-        (10 / 24, 24 * 3600.0, 0.3), # the same on dryish soil
-        (100.0, 3600.0, 0.3),        # intense burst of 100 mm/hour, above the saturated conductivity
-    )
-    # Regression test for the infiltration capacity: infiltration was capped at the unsaturated conductivity of the
-    # top soil layer, which with the Brooks–Corey conductivity K = K_sat S¹³ shuts off infiltration into any soil that
-    # is not nearly saturated, the more so the drier it is (about 0.4 mm/day at S = 0.55 and 10⁻¹¹ mm/day at S = 0.1),
-    # so that almost all rain ran off and the soil dried out in coupled simulations.
-    # The infiltration capacity of the soil is the saturated conductivity, reduced by the ice impedance in frozen
-    # soil, so that steady rain below it infiltrates, and only rain above it produces infiltration-excess runoff.
+"""
+Run a `LandModel` column of homogeneous mineral soil (porosity 0.45) from a uniform initial saturation
+`s₀` under steady `rainfall` (m/s) for `duration` (s) on an overcast, rainy day, with the given `face_conductivity`
+scheme of the Richards equation, and return the final state, the column water balance terms, and the infiltration
+rates of every step.
+"""
+function run_rain_column(; s₀, rainfall, duration, Δt = 450.0, face_conductivity = WeightedAverageConductivity())
     NF = Float64
     grid = ColumnGrid(CPU(), NF, ExponentialSpacing(; N = 30))
     φ = 0.45
     strat = HomogeneousSoilStratigraphy(NF; porosity = ConstantSoilPorosity(NF; mineral_porosity = φ))
     biogeochem = ConstantSoilCarbonDensity(NF; ρ_soc = 0.0) # zero SOC -> pure mineral porosity
-    soil = SoilEnergyWaterCarbon(NF; strat, biogeochem)
+    hydrology = SoilHydrology(NF, RichardsEq(; face_conductivity))
+    soil = SoilEnergyWaterCarbon(NF; strat, biogeochem, hydrology)
     land = LandModel(grid; soil, vegetation = PrescribedVegetation(NF))
     T_air = 20.0
     integrator = initialize(land; initializers = (temperature = T_air, saturation_water_ice = s₀))
     state = integrator.state
-    rainfall = rainfall_mm_per_hour / 1000 / 3600 # m/s
     # overcast, rainy day: daily mean shortwave under thick cloud, downwelling longwave close to σT⁴ of the air,
     # and near-saturated air (about 95% relative humidity)
     set!(state.air_temperature, T_air)
@@ -520,9 +516,7 @@ end
 
     # soil water plus the surface pool that receives excess water from the top soil cell (m)
     column_water(state) = Terrarium.diagnose_total_ground_water(state, land)[1, 1, 1]
-    K_sat = Terrarium.saturated_hydraulic_conductivity(Terrarium.get_hydraulic_properties(Terrarium.get_hydrology(soil)))
     W₀ = column_water(state)
-    Δt = 450.0
     infiltrated = 0.0
     net_input = 0.0
     infiltration_rates = Float64[]
@@ -536,23 +530,61 @@ end
         net_input += Δt * (rainfall - only(interior(state.surface_runoff)) - evaporation)
         Terrarium.timestep!(integrator, Δt)
     end
-    sat = interior(state.saturation_water_ice)[1, 1, :]
+    K_sat = Terrarium.saturated_hydraulic_conductivity(Terrarium.get_hydraulic_properties(Terrarium.get_hydrology(soil)))
+    return (; state, K_sat, W₀, W = column_water(state), infiltrated, net_input, infiltration_rates)
+end
+
+@testset "LandModel: rain infiltrates into unsaturated soil (rainfall $(rainfall_mm_per_hour) mm/hour, initial saturation $(s₀))" for (rainfall_mm_per_hour, duration, s₀) in (
+        (10 / 24, 24 * 3600.0, 0.1), # steady rain of 10 mm/day, well below the saturated conductivity, on dry soil
+        (10 / 24, 24 * 3600.0, 0.3), # the same on dryish soil
+        (100.0, 3600.0, 0.3),        # intense burst of 100 mm/hour, above the saturated conductivity
+    )
+    # Regression test for the infiltration capacity: infiltration was capped at the unsaturated conductivity of the
+    # top soil layer, which with the Brooks–Corey conductivity K = K_sat S¹³ shuts off infiltration into any soil that
+    # is not nearly saturated, the more so the drier it is (about 0.4 mm/day at S = 0.55 and 10⁻¹¹ mm/day at S = 0.1),
+    # so that almost all rain ran off and the soil dried out in coupled simulations.
+    # The infiltration capacity of the soil is the saturated conductivity, reduced by the ice impedance in frozen
+    # soil, so that steady rain below it infiltrates, and only rain above it produces infiltration-excess runoff.
+    rainfall = rainfall_mm_per_hour / 1000 / 3600 # m/s
+    result = run_rain_column(; s₀, rainfall, duration)
+    sat = interior(result.state.saturation_water_ice)[1, 1, :]
     @test all(isfinite, sat)
     @test all(sat .<= 1)
     # no water is created or lost other than by rain, evaporation, and surface runoff
-    @test column_water(state) ≈ W₀ + net_input rtol = 1.0e-3
+    @test result.W ≈ result.W₀ + result.net_input rtol = 1.0e-3
     # infiltration never exceeds the saturated conductivity
-    @test all(infiltration_rates .<= K_sat * (1 + 1.0e-6))
-    if rainfall < K_sat
+    @test all(result.infiltration_rates .<= result.K_sat * (1 + 1.0e-6))
+    if rainfall < result.K_sat
         # nearly all of the rain infiltrates, and the soil absorbs it: the top cell stays unsaturated and no water ponds
-        @test infiltrated >= 0.95 * rainfall * duration
+        @test result.infiltrated >= 0.95 * rainfall * duration
         @test sat[end] < 1
-        @test only(interior(state.surface_excess_water)) == 0
+        @test only(interior(result.state.surface_excess_water)) == 0
     else
         # the top cell is unsaturated at first, so infiltration starts at capacity, and the excess runs off
-        @test infiltration_rates[1] ≈ K_sat rtol = 1.0e-6
-        @test infiltrated < rainfall * duration
+        @test result.infiltration_rates[1] ≈ result.K_sat rtol = 1.0e-6
+        @test result.infiltrated < rainfall * duration
     end
+end
+
+@testset "LandModel: sustained rain drains into a wet column ($(nameof(typeof(face_conductivity))))" for face_conductivity in (
+        WeightedAverageConductivity(),
+        UpwindConductivity(),
+    )
+    # Regression test for the face conductivity of the Richards equation: the Darcy flux used the minimum of the
+    # conductivities of the cells around each face (in effect, of three cells), so that with the Brooks–Corey
+    # conductivity K = K_sat S¹³, water could only drain out of a wet top cell at the rate set by the drier cell below
+    # (about 1 mm/day at S = 0.6). Under sustained rain the top cell then saturated and most of the rain ran off.
+    # With the conductivity at the mean water content of the two cells (CLM5) or of the upstream cell, the rain drains
+    # into the column.
+    rainfall = 20 / 1000 / 86400 # 20 mm/day, well below the saturated conductivity of 864 mm/day
+    duration = 3 * 86400.0
+    result = run_rain_column(; s₀ = 0.6, rainfall, duration, face_conductivity)
+    sat = interior(result.state.saturation_water_ice)[1, 1, :]
+    @test all(isfinite, sat)
+    @test all(sat .<= 1)
+    @test result.W ≈ result.W₀ + result.net_input rtol = 1.0e-3
+    # nearly all of the rain infiltrates
+    @test result.infiltrated >= 0.9 * rainfall * duration
 end
 
 @testset "diagnose_total_ground_water" begin

@@ -107,7 +107,7 @@ near saturation, which is precisely the regime motivating implicit timestepping.
 """
 function cell_diffusion_timescale(
         state, grid,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         soil::AbstractSoil,
         args...
     ) where {NF}
@@ -133,7 +133,7 @@ conductivity (fully dry or frozen) impose no restriction and return `Inf`.
 """
 @inline @propagate_inbounds function compute_hydraulic_diffusion_timescale(
         i, j, k, grid, fields,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry
     ) where {NF}
@@ -197,7 +197,7 @@ through the faces of the cell.
 function cell_advection_timescale(
         state, grid,
         energy::SoilThermodynamics,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry
     ) where {NF}
@@ -223,7 +223,7 @@ without flow return `Inf`.
 @inline @propagate_inbounds function compute_heat_advection_timescale(
         i, j, k, grid, fields,
         energy::SoilThermodynamics,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry
     ) where {NF}
@@ -255,7 +255,7 @@ residual saturation. `timestepping` is the resolved [`Timestepping`](@ref) class
 """
 function water_outflow_timescale(
         state, grid,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         soil::AbstractSoil,
         constants::PhysicalConstants,
         evtr::Optional{AbstractEvapotranspiration},
@@ -288,7 +288,7 @@ explicit outflow return `Inf`.
 """
 @inline @propagate_inbounds function compute_water_outflow_timescale(
         i, j, k, grid, clock, fields,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry,
         constants::PhysicalConstants,

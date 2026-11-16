@@ -86,7 +86,7 @@ variables(hydrology::SoilHydrology{NF}) where {NF} = (
     default_timestepping(hydrology::AbstractSoilHydrology)
 
 Default [`Timestepping`](@ref) class of `saturation_water_ice` under an [`AbstractIMEX`](@ref)
-timestepper: [`Implicit`](@ref) for the Richards equation (`SoilHydrology{NF, RichardsEq}`) and
+timestepper: [`Implicit`](@ref) for the Richards equation (`SoilHydrology{NF, <:RichardsEq}`) and
 [`Explicit`](@ref) otherwise.
 
 ```jldoctest
@@ -236,13 +236,17 @@ the soil pore space, `∑ₖ ϕₖ Sₖ Δzₖ`, plus the `surface_excess_water`
         bgc::AbstractSoilBiogeochemistry,
         runoff::Optional{AbstractSurfaceRunoff}
     ) where {NF}
-    W = zero(NF)
+    # water and ice in the soil column, ∑ₖ ϕₖ Sₖ Δzₖ
+    W_soil = zero(NF)
     for k in 1:grid.Nz
-        por = porosity(i, j, k, grid, fields, strat, bgc)
-        sat = saturation_water_ice(i, j, k, grid, fields, hydrology)
-        W += por * sat * Δzᵃᵃᶜ(i, j, k, grid)
+        ϕ = porosity(i, j, k, grid, fields, strat, bgc)
+        S = saturation_water_ice(i, j, k, grid, fields, hydrology)
+        Δz = Δzᵃᵃᶜ(i, j, k, grid)
+        W_soil += ϕ * S * Δz
     end
-    return W + surface_excess_water(i, j, grid, fields, runoff)
+    # water in the surface pool of the runoff scheme
+    W_surface = surface_excess_water(i, j, grid, fields, runoff)
+    return W_soil + W_surface
 end
 
 """

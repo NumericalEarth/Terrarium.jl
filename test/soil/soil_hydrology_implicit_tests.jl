@@ -12,9 +12,9 @@ using Terrarium: merge_boundary_conditions, update_state!, cell_diffusion_timesc
 const POROSITY = 0.4
 
 # Richards-equation soil with a van Genuchten retention curve and a homogeneous mineral porosity
-function richards_soil(NF; saturated_conductivity = 1.0e-5, swrc = VanGenuchten(α = 2.0, n = 2.0))
+function richards_soil(NF; saturated_conductivity = 1.0e-5, swrc = VanGenuchten(α = 2.0, n = 2.0), face_conductivity = WeightedAverageConductivity())
     hydraulic_properties = ConstantSoilHydraulics(NF; swrc, saturated_conductivity, unsat_hydraulic_cond = UnsatKVanGenuchten(NF))
-    hydrology = SoilHydrology(NF, RichardsEq(); hydraulic_properties)
+    hydrology = SoilHydrology(NF, RichardsEq(; face_conductivity); hydraulic_properties)
     strat = HomogeneousSoilStratigraphy(NF; porosity = ConstantSoilPorosity(NF; mineral_porosity = POROSITY))
     biogeochem = ConstantSoilCarbonDensity(NF; ρ_soc = 0.0)
     return SoilEnergyWaterCarbon(NF; hydrology, strat, biogeochem)
@@ -250,18 +250,23 @@ end
     end
 end
 
-@testset "Implicit Richards: infiltration into a dry column (Celia et al., 1990)" begin
+@testset "Implicit Richards: infiltration into a dry column (Celia et al., 1990) ($(nameof(typeof(face_conductivity))))" for face_conductivity in (
+        WeightedAverageConductivity(),
+        UpwindConductivity(),
+    )
     NF = Float64
     grid = ColumnGrid(CPU(), NF, UniformSpacing(Δz = 0.02, N = 50))
     duration = 86400.0
-    kwargs = (saturation = 0.3, infiltration = 3.0e-6)
+    soil_kwargs = (; face_conductivity)
+    kwargs = (saturation = 0.3, infiltration = 3.0e-6, soil_kwargs)
     s⁰ = fill(0.3, 50)
-    # explicit reference with a step well below the diffusive limit of the wetted column
-    wet = build_water_column(grid, ForwardEuler(NF); saturation = 0.9)
-    τ_wet = cell_diffusion_timescale(wet)
+    τ_wet = cell_diffusion_timescale(build_water_column(grid, ForwardEuler(NF); saturation = 0.9, soil_kwargs))
     τ_dry = cell_diffusion_timescale(build_water_column(grid, ForwardEuler(NF); kwargs...))
-    reference = build_water_column(grid, ForwardEuler(NF); kwargs...)
-    run_for!(reference, dividing_dt(duration, τ_wet / 4), duration)
+    # Well-resolved implicit reference. An explicit reference is not usable here: the infiltration nearly saturates
+    # the column, and close to saturation the stable explicit step vanishes, so that an explicit reference oscillates
+    # from cell to cell.
+    reference = build_water_column(grid, implicit_timestepper(NF; iterations = 3); kwargs...)
+    run_for!(reference, 60.0, duration)
     d_reference = infiltrated_water_depth(reference, s⁰)
     s_reference = saturation_profile(reference)
     Δt = 3600.0
@@ -272,8 +277,8 @@ end
         saturation_error = maximum(abs, saturation_profile(integrator) .- s_reference)
         @info "Implicit Richards infiltration (M = $iterations)" Δt τ_dry τ_wet Δt / τ_wet d d_reference relative_error saturation_error
         @test Δt > 50 * τ_wet
-        @test relative_error < 0.05
-        @test saturation_error < 0.1
+        @test relative_error < 0.01
+        @test saturation_error < 0.05
     end
 end
 

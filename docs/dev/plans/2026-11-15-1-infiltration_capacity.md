@@ -180,6 +180,9 @@ Its verification (single-step Enzyme adjoint and a Reactant run) is part of the 
   The operation could then capture `get_fields(state, strat, bgc)` and evaluate the same texture-dependent `K_sat` as the Darcy flux.
   This needs the context dictionary of `initialize`, currently an `OrderedDict{Symbol, AbstractField}`, to accept namespaces, and it lifts the ordering restriction for all lazily evaluated auxiliary variables.
   Until then, an implementation that defines only the texture-dependent `saturated_hydraulic_conductivity(props, texture)` fails with a `MethodError` when the kernel is compiled, so the missing texture cannot be ignored silently.
+- Texture-dependent hydraulic parameters at the cell faces: `face_soil_composition` currently takes the solid matrix of the upper cell, which matters only once `K_sat` (or the retention parameters) depend on texture.
+  Then the face solid matrix should be built from the mean texture and organic content of the two cells, while the face saturation stays the mean water content over the mean porosity, so that it remains consistent with the water and pore volumes of the cells.
+  The choice of mean for `K_sat` (an arithmetic mean of texture with a log-linear pedotransfer function is effectively a geometric mean, versus the harmonic mean of layers in series) should be decided together with the texture-dependent `K_sat`.
 
 ## References
 
@@ -212,3 +215,18 @@ All entries were checked against the publisher or the official documentation on 
 > **Revision 6, 2026-11-16 (Claude Opus 5.5).** At the reviewer's request, added the diagnostic `diagnose_total_ground_water(state, model)` in `src/diagnostics/ground_state.jl` (total water and ice in the soil column plus the surface pool), which replaces the column water balance helper duplicated across the `LandModel` regression tests.
 > Changed `compute_infiltration_capacity` to the `(i, j, grid, fields, ...)` signature of 2D kernel functions, which Oceananigans supports for operations at reduced locations.
 > Replaced the arbitrary nighttime forcing of the infiltration regression test with a physically consistent overcast, rainy day.
+
+> **Revision 7, 2026-11-16 (Claude Opus 5.5).** Approved by the reviewer after the Reactant correctness job of PR #257 failed: Reactant cannot trace a `KernelFunctionOperation` stored among the state fields (tracing replaces its grid with a traced grid, and rebuilding the field NamedTuple fails with a `MethodError` in `convert`), which breaks every hydrology kernel under Reactant.
+> The infiltration capacity is therefore no longer a lazily evaluated state variable: the `infiltration_capacity` accessor evaluates `compute_infiltration_capacity` inline from `liquid_water_fraction`, which is equally lazy and adds nothing to the traced kernel arguments.
+> The limitations about texture and output of the lazy variable no longer apply; the texture limitation remains for the inline capacity, which reads only `liquid_water_fraction`.
+> Phase 2 makes the face conductivity a choice of the `face_conductivity` property of `RichardsEq` (`AbstractFaceConductivity`): `WeightedAverageConductivity()` (default; conductivity at the mean liquid water content over the mean porosity of the two cells, CLM5 Eq. 2.7.47) or `UpwindConductivity()` (conductivity of the upstream cell, from the sign of the total head gradient; Forsyth et al. 1995).
+> Both are computed in `compute_hydraulics!`, so `darcy_conductivity` reads the stored face conductivity for both, without the second minimum in the direction of flow.
+> The weighted average follows CLM5 (mean water content over mean porosity) rather than the thickness-weighted mean stated in the original Phase 2, and the face-`Nz` indexing error of the previous face conductivity (which used only the top cell) is removed.
+
+> **Revision 8, 2026-11-16 (Claude Opus 5.5).** Approved by the reviewer.
+> With either new face conductivity, the profile check of the Celia et al. (1990) benchmark failed (maximum saturation error 0.14 and 0.25 against a tolerance of 0.1).
+> The cause was the explicit forward Euler reference, not the implicit solution: the infiltration nearly saturates the column, and close to saturation the explicit step `τ_wet / 4` is unstable, so the reference oscillated from cell to cell between saturation 1.0 and about 0.90 (the previous three-cell minimum happened to damp this).
+> The benchmark now uses a well-resolved implicit reference (backward Euler, `Δt = 60 s`, three Picard iterations), against which the one-hour implicit step has an infiltrated depth error of 0.05% and a maximum saturation error below 0.01 for both schemes.
+> The tolerances are tightened to 1% and 0.05, the benchmark runs for both face conductivity schemes, and the `Δt > 50 τ_wet` assertion is kept.
+
+> **Revision 9, 2026-11-16 (Claude Opus 5.5).** Deferred, at the reviewer's request, building the face solid matrix from the mean texture of the two cells to future work, together with texture-dependent `K_sat`.

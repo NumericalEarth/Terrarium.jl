@@ -46,7 +46,7 @@ end
 
 # Whether the soil water flows, so that it advects heat.
 has_water_flow(::AbstractSoilHydrology) = false
-has_water_flow(::SoilHydrology{NF, RichardsEq}) where {NF} = true
+has_water_flow(::SoilHydrology{NF, <:RichardsEq}) where {NF} = true
 
 """
     $TYPEDSIGNATURES
@@ -194,7 +194,7 @@ operator uses only the outflow (see [`TridiagonalOperator`](@ref)). A no-op with
 @propagate_inbounds function compute_implicit_advective_velocity!(
         face_velocity, i, j, k, grid, fields,
         energy::SoilThermodynamics,
-        hydrology::SoilHydrology{NF, RichardsEq}
+        hydrology::SoilHydrology{NF, <:RichardsEq}
     ) where {NF}
     Nz = size(ground_domain(grid), 3)
     Cw = energy.thermal_properties.heat_capacities.water
