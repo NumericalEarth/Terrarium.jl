@@ -1,6 +1,6 @@
 # Infiltration capacity and wetting-front conductivity for Richards soil hydrology
 
-> Status: **in progress**. Plan approved; Phase 1 (infiltration capacity) is being implemented.
+> Status: **in progress**. Phases 1 and 2 are implemented and the full test suite passes; Phase 3 (the JOSS simulation) is pending.
 
 Date of initial draft: 2026-11-15
 
