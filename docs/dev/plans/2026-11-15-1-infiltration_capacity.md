@@ -176,6 +176,7 @@ Its verification (single-step Enzyme adjoint and a Reactant run) is part of the 
   At coarse resolution, this would need a sub-grid distribution of rainfall intensity to have a meaningful effect.
 - A sub-grid saturated fraction for saturation-excess runoff.
 - Depth-dependent `K_sat` in `SoilHydraulicsSURFEX`.
+- Picard convergence of the implicit Richards step at large time steps: the default of two iterations is not converged at steps of a few hours when water moves through partially frozen soil or into oversaturated cells (see revisions 10 and 11). The reviewer suggests a Newton solver for larger steps: unlike Picard, which lags the conductivity and converges linearly, Newton includes its derivative with respect to the pressure head in the Jacobian and converges quadratically. Since each face conductivity depends only on the two adjacent cells, the Jacobian remains tridiagonal, so the `TridiagonalOperator` can be reused, and a small fixed number of (damped) Newton steps keeps the iteration traceable by Reactant and differentiable by Enzyme. Simpler alternatives are a larger default number of Picard iterations, or a convergence criterion on the pressure head increment with a fixed maximum; the cost of each should be measured with the benchmarks.
 - Texture-dependent `K_sat` (as in ISBA, Noilhan and Lacarrère 1995) for the lazy `infiltration_capacity`, by initializing the variable namespaces before the auxiliary variables in `StateVariables` (`src/state_variables.jl`) and passing their fields to auxiliary constructors as nested NamedTuples.
   The operation could then capture `get_fields(state, strat, bgc)` and evaluate the same texture-dependent `K_sat` as the Darcy flux.
   This needs the context dictionary of `initialize`, currently an `OrderedDict{Symbol, AbstractField}`, to accept namespaces, and it lifts the ordering restriction for all lazily evaluated auxiliary variables.
@@ -230,3 +231,15 @@ All entries were checked against the publisher or the official documentation on 
 > The tolerances are tightened to 1% and 0.05, the benchmark runs for both face conductivity schemes, and the `Δt > 50 τ_wet` assertion is kept.
 
 > **Revision 9, 2026-11-16 (Claude Opus 5.5).** Deferred, at the reviewer's request, building the face solid matrix from the mean texture of the two cells to future work, together with texture-dependent `K_sat`.
+
+> **Revision 10, 2026-11-16 (Claude Opus 5.5).** Approved by the reviewer.
+> With the new face conductivities, the full suite showed two regressions at a 3-hour implicit step, both absent with the previous three-cell minimum.
+> `Energy advection: uniform temperature with moving water (sandy_drainage)` deviated by 23 K with two Picard iterations: an unconverged iterate leaves a cell heavily oversaturated, and the closure moves the heat of the excess water before the energy step advects the heat that arrived with it.
+> This latent flaw of the water–energy coupling is addressed by the separate plan `docs/dev/plans/2026-11-16-1-separate_closure_constraints.md`; until then, the test uses three Picard iterations at the 3-hour step as a stopgap.
+> `Stefan problem: unsaturated column with slow drainage` exceeds its profile tolerance at the 3-hour step (0.81 K against 0.28 K) with either face conductivity; the difference lies in the cell at the freezing front, where water can now move toward the front, and it is not monotone in the number of Picard iterations (0.81, 0.89, and 0.21 K with two, three, and four iterations), so it has a different cause and is still open.
+
+> **Revision 11, 2026-11-17 (Claude Opus 5.5).** Approved by the reviewer.
+> A convergence study resolved the Stefan failure: the explicit reference agrees with a fine implicit solution (`Δt = 60 s`) to within 0.001 K, and with four or more Picard iterations the temperature error converges to the time discretization error (0.004, 0.013, 0.12, and 0.21 K at steps of 10 minutes, 30 minutes, 1 hour, and 3 hours, within the tolerance of 0.28 K), for both face conductivities.
+> With two or three iterations at the 3-hour step, the Picard iteration has not converged (0.81 and 0.89 K): at the freezing front, the liquid fraction and with it the ice impedance of the conductivity change strongly within the step, and the new face conductivities, unlike the previous three-cell minimum, let water move toward the front.
+> The test uses four Picard iterations at the 3-hour step.
+> Raising the default number of Picard iterations, or stopping the iteration on convergence with a fixed maximum (compatible with Reactant and Enzyme), is left to future work.

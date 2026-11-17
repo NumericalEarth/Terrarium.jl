@@ -163,7 +163,13 @@ end
     reference = freeze_column(ForwardEuler(NF), nothing; kwargs...)
     @info "Stefan problem (unsaturated): explicit reference" reference.Δt reference.X reference.X_neumann
     for Δt in (3600.0, 10800.0)
-        result = freeze_column(IMEX(ForwardEuler(NF), BackwardEuler(NF)), Δt; kwargs...)
+        # At the largest step, the water moving toward the freezing front makes the coupled step nonlinear enough
+        # that the default two Picard iterations do not converge (temperature differences of up to 0.9 K at the
+        # front); four iterations converge, and the remaining difference (about 0.2 K) is the time discretization
+        # error, which shrinks steadily with the step. See revision 11 of
+        # docs/dev/plans/2026-11-15-1-infiltration_capacity.md.
+        iterations = Δt > 3600 ? 4 : 2
+        result = freeze_column(IMEX(ForwardEuler(NF), BackwardEuler(NF; solver = Picard(NF; iterations))), Δt; kwargs...)
         front_difference = abs(result.X - reference.X)
         profile_difference = maximum(abs, result.T .- reference.T)
         @info "Stefan problem (unsaturated): IMEX" Δt result.X front_difference profile_difference
