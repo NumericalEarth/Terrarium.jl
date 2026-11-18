@@ -1,6 +1,6 @@
 # Infiltration capacity and wetting-front conductivity for Richards soil hydrology
 
-> Status: **in progress**. Phases 1 and 2 are implemented and the full test suite passes; Phase 3 (the JOSS simulation) is pending.
+> Status: **completed**. Phases 1 and 2 are implemented and the full test suite passes; the rerun of the JOSS simulation (Phase 3) is tracked separately on `joss-paper`.
 
 Date of initial draft: 2026-11-15
 
@@ -117,12 +117,9 @@ Its verification (single-step Enzyme adjoint and a Reactant run) is part of the 
 - Fallback, if the dry-soil or Celia et al. (1990) tests fail with the mean saturation: upstream weighting (conductivity of the cell the water flows out of), the standard choice for infiltration into dry soil (Forsyth et al. 1995).
   Switching to the fallback is a revision of this plan and needs approval before implementation.
 
-### Phase 3: Rerun the JOSS simulation
+### Phase 3: Rerun the JOSS simulation (outside the scope of this plan)
 
-- After merging into `main`, merge `main` into `joss-paper` and rerun `docs/joss/run_terrarium_speedy_simulation.jl` as a Slurm job (submitted by the user) and regenerate Figure 3.
-- Plausibility checks (not pass/fail): Amazon ET of about 3 mm/day, surface runoff well below rainfall, and GPP closer to the `NoFlow` run.
-- Separately, check on `joss-paper` whether the script's `vwc_source` climatology actually reaches `SaturationWaterTable`, which currently receives a constant `VolumetricWaterContent(0.25f0)`.
-  This is a script issue, not part of the source change.
+The rerun of the JOSS simulation changes no source and is tracked on the `joss-paper` branch (see revision 12): rerun `docs/joss/run_terrarium_speedy_simulation.jl` as a Slurm job, compare the Amazon water budget with the previous runs (ET of about 3 mm/day, surface runoff well below rainfall, GPP closer to the `NoFlow` run), and regenerate Figure 3.
 
 ## Testing and verification
 
@@ -243,3 +240,8 @@ All entries were checked against the publisher or the official documentation on 
 > With two or three iterations at the 3-hour step, the Picard iteration has not converged (0.81 and 0.89 K): at the freezing front, the liquid fraction and with it the ice impedance of the conductivity change strongly within the step, and the new face conductivities, unlike the previous three-cell minimum, let water move toward the front.
 > The test uses four Picard iterations at the 3-hour step.
 > Raising the default number of Picard iterations, or stopping the iteration on convergence with a fixed maximum (compatible with Reactant and Enzyme), is left to future work.
+
+> **Revision 12, 2026-11-18 (Claude Opus 5.5).** Approved by the reviewer.
+> Moved Phase 3 (the rerun of the JOSS simulation) out of the scope of this plan, since it validates the fix in the paper but changes no source; it is tracked on the `joss-paper` branch, which already contains this branch, and the regression tests of Phases 1 and 2 cover the fix itself.
+> The suspected script issue of Phase 3 was not one: the soil moisture climatology does reach `SaturationWaterTable`, since `vadose_zone_saturation` is an input variable whose constant value is only the default that the script's `vwc_source` overrides.
+> Marked the plan as completed.
