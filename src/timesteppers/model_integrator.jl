@@ -334,9 +334,16 @@ end
 # `ConcreteRNumber` of a Reactant clock) must be copied to a plain value, see `TerrariumReactantExt`.
 initial_clock_time(time) = time
 
-# reset the clock iteration and stage, and its time to `initial_time`
-function reset_clock!(clock::Clock, initial_time)
-    reset!(clock, initial_time)
+# Reset `clock` to `initial_time` at iteration 0 and stage 1, with no previous time step.
+# The fields are set directly instead of calling `Oceananigans.TimeSteppers.reset!`: its one-argument
+# method throws for `DateTime` clocks since Oceananigans 0.118, and the two-argument method
+# `reset!(clock, t_init)` does not exist before 0.118.
+function reset_clock!(clock::Clock{TT, KT, DT, IT}, initial_time) where {TT, KT, DT, IT}
+    clock.time = initial_time
+    clock.iteration = zero(IT)
+    clock.stage = 1
+    clock.last_Δt = Inf
+    clock.last_stage_Δt = Inf
     return clock
 end
 
