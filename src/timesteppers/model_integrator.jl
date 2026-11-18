@@ -336,8 +336,7 @@ initial_clock_time(time) = time
 
 # reset the clock iteration and stage, and its time to `initial_time`
 function reset_clock!(clock::Clock, initial_time)
-    reset!(clock)
-    clock.time = initial_time
+    reset!(clock, initial_time)
     return clock
 end
 
