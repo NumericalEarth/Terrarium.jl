@@ -227,7 +227,7 @@ end
     $TYPEDSIGNATURES
 
 Compute the total water (m of water equivalent) stored in the ground column `i, j`: the liquid water and ice in
-the soil pore space, `∑ₖ ϕₖ Sₖ Δzₖ`, plus the `surface_excess_water` pool of the surface `runoff` scheme, if any.
+the soil pore space, `∑ₖ ϕₖ ξₖ Δzₖ`, plus the `surface_excess_water` pool of the surface `runoff` scheme, if any.
 """
 @propagate_inbounds function compute_total_ground_water(
         i, j, grid, fields,

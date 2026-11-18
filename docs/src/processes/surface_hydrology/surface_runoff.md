@@ -50,12 +50,12 @@ Infiltration is limited by the infiltration capacity of the soil and by the satu
 ```math
 \begin{equation}
 I = \begin{cases}
-\min(P_{\text{ground}}, I_{\max}) & \text{if } S_{\text{top}} < 1, \\
+\min(P_{\text{ground}}, I_{\max}) & \text{if } \xi_{\text{top}} < 1, \\
 0 & \text{otherwise,}
 \end{cases}
 \end{equation}
 ```
-where $P_{\text{ground}}$ is the water reaching the ground (m/s), $S_{\text{top}}$ is the saturation of the uppermost soil layer (-), and $I_{\max}$ is the infiltration capacity (m/s) provided by the soil hydrology (see [`Terrarium.infiltration_capacity`](@ref)).
+where $P_{\text{ground}}$ is the water reaching the ground (m/s), $\xi_{\text{top}}$ is the saturation of the uppermost soil layer (-), and $I_{\max}$ is the infiltration capacity (m/s) provided by the soil hydrology (see [`Terrarium.infiltration_capacity`](@ref)).
 
 For the Richards equation, the infiltration capacity is the saturated hydraulic conductivity of the uppermost soil layer, reduced by the ice impedance factor of frozen soil,
 ```math

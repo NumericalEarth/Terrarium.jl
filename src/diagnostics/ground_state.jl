@@ -2,7 +2,7 @@
     $TYPEDSIGNATURES
 
 Return a `KernelFunctionOperation` that computes the total water stored in each ground column (m of water
-equivalent): the liquid water and ice in the soil pore space, `∫ ϕ S dz` with porosity `ϕ` and saturation `S`,
+equivalent): the liquid water and ice in the soil pore space, `∫ ϕ ξ dz` with porosity `ϕ` and saturation `ξ`,
 plus the `surface_excess_water` pool of the surface runoff scheme, if there is one. This is the quantity whose
 change over time a column water balance compares against the boundary fluxes (rain, evaporation, and runoff).
 
