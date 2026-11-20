@@ -189,10 +189,10 @@ Besides the static soil characteristics mentioned in [Soil stratigraphy](@ref) s
 \kappa_{\text{w}} = \frac{\theta_{\text{liq}}}{\theta + \theta_{\text{air}}} \kappa_{\text{w,sat}}\,
 \end{equation}
 ```
-with $\kappa_{\text{w,sat}}$ the saturated hydraulic conductivity (m/s).  A more complex formulation taking ice into account, called [`UnsatKVanGenuchten`](@ref),follows [vangenuchtenHydraulicConductivity1980](@cite), here presented in the form of [westermannCryoGridCommunityModel2023; Eq. (26)](@cite):
+with $\kappa_{\text{w,sat}}$ the saturated hydraulic conductivity (m/s).  A more complex formulation taking ice into account, called [`UnsatKVanGenuchten`](@ref),follows [vangenuchtenHydraulicConductivity1980](@cite) with an ice impedance factor as in [westermannCryoGridCommunityModel2023](@cite):
 ```math
 \begin{equation}
-\kappa_{\text{w}} = I_\text{ice}\left(\frac{\theta_{\text{liq}}}{\phi}\right)^{0.5} \left[1 - \left(1 - \left(\frac{\theta_{\text{liq}}}{\phi}\right)^{n/(n+1)}\right)^{(n-1)/n}\right]^2 \kappa_{\text{w,sat}}\,,
+\kappa_{\text{w}} = I_\text{ice}\left(\frac{\theta_{\text{liq}}}{\phi}\right)^{0.5} \left[1 - \left(1 - \left(\frac{\theta_{\text{liq}}}{\phi}\right)^{1/m}\right)^{m}\right]^2 \kappa_{\text{w,sat}}\,, \qquad m = 1 - 1/n\,,
 \end{equation}
 ```
 which adds an ice impedance factor $I_\text{ice} = 10^{-\Omega\theta_{\text{ice}}/\theta}$ to the classic van Genuchten formulation to account for the blocking of water-filled pores by ice. 

@@ -238,10 +238,15 @@ end
 """
     $TYPEDEF
 
-Formulation of hydraulic conductivity as a function of saturated hydraulic conductivity `K_sat` and
-volumetric fractions, assumed to include those of water, ice, and air, following the van Genuchten 
-formulation [vangenuchtenHydraulicConductivity1980](@cite) extended with an ice impedance factor 
-[westermannCryoGridCommunityModel2023](@cite).
+Unsaturated hydraulic conductivity of [vangenuchtenHydraulicConductivity1980](@cite), extended with an ice impedance
+factor:
+
+    K = I_ice K_sat S^(1/2) (1 - (1 - S^(1/m))^m)²,    m = 1 - 1/n
+
+where `S = θw / θsat` is the liquid water saturation, `n` is the shape parameter of the `VanGenuchten` retention
+curve, and `I_ice` is the [`Terrarium.ice_impedance_factor`](@ref) [westermannCryoGridCommunityModel2023](@cite).
+Since `n` is taken from the retention curve, this formulation can only be combined with a `VanGenuchten` retention
+curve. A nonzero residual water content is not accounted for.
 
 # References
 
@@ -271,7 +276,7 @@ function hydraulic_conductivity(
         # evaluated at a non-negative base. Illegal state values (θw > θsat or θw < 0), which may occur
         # when using adaptive time steppers.
         S = clamp(θw / θsat, zero(θw), one(θw))
-        K = K_sat * I_ice * sqrt(S) * (one(S) - (one(S) - S^(n / (n + 1)))^((n - 1) / n))^2
+        K = K_sat * I_ice * sqrt(S) * (one(S) - (one(S) - S^(n / (n - 1)))^((n - 1) / n))^2
         return K
     end
 end
