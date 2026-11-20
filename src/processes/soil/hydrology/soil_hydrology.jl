@@ -236,13 +236,13 @@ the soil pore space, `∑ₖ ϕₖ ξₖ Δzₖ`, plus the `surface_excess_water
         bgc::AbstractSoilBiogeochemistry,
         runoff::Optional{AbstractSurfaceRunoff}
     ) where {NF}
-    # water and ice in the soil column, ∑ₖ ϕₖ Sₖ Δzₖ
+    # water and ice in the soil column, ∑ₖ ϕₖ ξₖ Δzₖ
     W_soil = zero(NF)
     for k in 1:grid.Nz
         ϕ = porosity(i, j, k, grid, fields, strat, bgc)
-        S = saturation_water_ice(i, j, k, grid, fields, hydrology)
+        ξ = saturation_water_ice(i, j, k, grid, fields, hydrology)
         Δz = Δzᵃᵃᶜ(i, j, k, grid)
-        W_soil += ϕ * S * Δz
+        W_soil += ϕ * ξ * Δz
     end
     # water in the surface pool of the runoff scheme
     W_surface = surface_excess_water(i, j, grid, fields, runoff)

@@ -36,7 +36,15 @@ end
     $TYPEDSIGNATURES
 
 Compute infiltration from the given `influx` (water available for infiltration), saturation of the uppermost
-soil layer `sat_top`, and the maximum allowed infiltration `max_infil`.
+soil layer `sat_top`, and the maximum allowed infiltration `max_infil`: `min(influx, max_infil)` if the uppermost
+layer is unsaturated, and zero otherwise.
+
+The switch on `sat_top` treats the transition between the flux-limited and the saturated regime explicitly, i.e.
+with the saturation at the beginning of the time step, which is first order in the time step: infiltration into a
+saturated layer resumes once the layer has drained in the previous step. The switch does not prevent the layer from
+overfilling within a step; the soil hydrology closure returns any excess to the `surface_excess_water` pool (see
+[`adjust_saturation_profile!`](@ref)). It does ensure that a saturated column does not take up the drainage of that
+pool, which would otherwise cycle between the pool and the uppermost layer instead of leaving as runoff.
 """
 @inline function compute_infiltration(runoff::DirectSurfaceRunoff{NF}, influx, sat_top, max_infil) where {NF}
     let is_unsaturated = sat_top < one(NF)

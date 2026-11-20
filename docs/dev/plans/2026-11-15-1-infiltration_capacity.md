@@ -51,7 +51,7 @@ This produces a runaway feedback: drier soil has a lower conductivity, so it tak
 
 The cap is also physically inverted.
 The infiltration capacity of a soil is at least `K_sat`: the matric suction gradient at a wetting front raises it above `K_sat` in dry soil, and it decays toward `K_sat` as the soil wets up (Green and Ampt 1911; Philip 1957).
-Land surface models therefore bound infiltration by the saturated conductivity of the surface layer, reduced by an ice impedance factor for frozen soil; CLM5, for example, uses `q_infl,max = (1 − f_sat) Θ_ice k_sat` (Lawrence et al. 2018, Section 2.7.2.3, Eq. 2.7.34), with the ice impedance `Θ_ice = 10^(−Ω F_ice)` (Eq. 2.7.48).
+Land surface models therefore bound infiltration by the saturated conductivity of the surface layer, reduced by an ice impedance factor for frozen soil; CLM5, for example, uses `q_infl,max = (1 − f_sat) Θ_ice k_sat` (Lawrence et al. 2018, Section 7.2.3, Eq. 7.34), with the ice impedance `Θ_ice = 10^(−Ω F_ice)` (Eq. 7.48).
 The unsaturated conductivity of the current state is not the relevant bound.
 
 ### Face conductivity blocks wetting fronts
@@ -110,7 +110,7 @@ Its verification (single-step Enzyme adjoint and a Reactant run) is part of the 
 
 ### Phase 2: Face conductivity at the mean saturation
 
-- Replace the nested minima by a single face conductivity, evaluated at the thickness-weighted mean saturation and liquid fraction of the two adjacent cells, as in CLM5 (Lawrence et al. 2018, Section 2.7.3.1, Eq. 2.7.47: `k = Θ_ice k_sat [0.5(θ_i + θ_i+1) / 0.5(θ_sat,i + θ_sat,i+1)]^(2B + 3)`).
+- Replace the nested minima by a single face conductivity, evaluated at the thickness-weighted mean saturation and liquid fraction of the two adjacent cells, as in CLM5 (Lawrence et al. 2018, Section 7.3.1, Eq. 7.47: `k = Θ_ice k_sat [0.5(θ_i + θ_i+1) / 0.5(θ_sat,i + θ_sat,i+1)]^(2B + 3)`).
   `compute_hydraulics!` computes it once per face; `darcy_conductivity` uses the face value directly and drops the second minimum.
 - For two dry cells the mean saturation is still small, so `K(S̄)` stays negligible (about 10⁻²² m/s at `S̄ = 0.05`), which should keep the dry-soil behavior of issue #240.
   For a wet cell over a dry one, `K(S̄)` lets the wetting front advance.
@@ -169,6 +169,9 @@ The rerun of the JOSS simulation changes no source and is tracked on the `joss-p
 ## Future work
 
 - A Green–Ampt or Philip infiltration capacity, or a ponded pressure-head top boundary condition for the Richards equation.
+  The latter would solve the infiltration together with the Richards step: a flux condition (the water input) while the surface is unsaturated, and a head condition `Ψ = z_surface + h_pond` once it saturates, so that infiltration into a saturated layer over draining soil follows from Darcy's law instead of the explicit switch on the saturation of the top cell at the beginning of the step.
+  It must keep two properties of the current scheme: a saturated column that cannot take up water must not take up the drainage of the surface pool either (removing the switch alone would let that water cycle between the pool and the top cell instead of draining as runoff), and the pool must keep draining to runoff in that case.
+  It would also remove the overfilling of the top cell within a step, which the switch does not prevent and the closure currently corrects.
 - An explicit parameterization of soil water repellency and surface crusting, for example a factor that reduces the surface `K_sat` below a critical water content, or a crust layer with its own conductivity, grounded in the literature and kept separate from the unsaturated conductivity function.
   At coarse resolution, this would need a sub-grid distribution of rainfall intensity to have a meaningful effect.
 - A sub-grid saturated fraction for saturation-excess runoff.
@@ -190,7 +193,7 @@ All entries were checked against the publisher or the official documentation on 
 - Doerr, S. H., Shakesby, R. A., and Walsh, R. P. D. (2000). Soil water repellency: its causes, characteristics and hydro-geomorphological significance. *Earth-Science Reviews* 51, 33–65. https://doi.org/10.1016/S0012-8252(00)00011-8
 - Forsyth, P. A., Wu, Y. S., and Pruess, K. (1995). Robust numerical methods for saturated-unsaturated flow with dry initial conditions in heterogeneous media. *Advances in Water Resources* 18, 25–38.
 - Green, W. H., and Ampt, G. A. (1911). Studies on soil physics. *The Journal of Agricultural Science* 4, 1–24. https://doi.org/10.1017/S0021859600001441
-- Lawrence, D., Fisher, R., Koven, C., Oleson, K., Swenson, S., and Vertenstein, M. (2018). *Technical Description of Version 5.0 of the Community Land Model (CLM)*. NCAR. Chapter 2.7, Hydrology: https://escomp.github.io/CTSM/release-clm5.0/tech_note/Hydrology/CLM50_Tech_Note_Hydrology.html (infiltration capacity: Section 2.7.2.3, Eq. 2.7.34; Hortonian runoff: Eq. 2.7.35; interface conductivity: Section 2.7.3.1, Eq. 2.7.47; ice impedance: Eq. 2.7.48).
+- Lawrence, D., Fisher, R., Koven, C., Oleson, K., Swenson, S., and Vertenstein, M. (2018). *Technical Description of Version 5.0 of the Community Land Model (CLM)*. NCAR. https://www2.cesm.ucar.edu/models/cesm2/land/CLM50_Tech_Note.pdf, Chapter 7, Hydrology; equation numbers as in the PDF, which the web version (https://escomp.github.io/CTSM/release-clm5.0/tech_note/Hydrology/CLM50_Tech_Note_Hydrology.html) numbers 2.7.x instead of 7.x (infiltration capacity: Section 7.2.3, Eq. 7.34; Hortonian runoff: Eq. 7.35; interface conductivity: Section 7.3.1, Eq. 7.47; ice impedance: Eq. 7.48).
 - Lawrence, D. M., et al. (2019). The Community Land Model Version 5: Description of new features, benchmarking, and impact of forcing uncertainty. *Journal of Advances in Modeling Earth Systems* 11, 4245–4287. https://doi.org/10.1029/2018MS001583 (journal overview of CLM5; the equations above are in the technical note).
 - Noilhan, J., and Lacarrère, P. (1995). GCM grid-scale evaporation from mesoscale modeling. *Journal of Climate* 8, 206–223.
 - Philip, J. R. (1957). The theory of infiltration: 4. Sorptivity and algebraic infiltration equations. *Soil Science* 84, 257–264.
@@ -217,7 +220,7 @@ All entries were checked against the publisher or the official documentation on 
 > **Revision 7, 2026-11-16 (Claude Opus 5.5).** Approved by the reviewer after the Reactant correctness job of PR #257 failed: Reactant cannot trace a `KernelFunctionOperation` stored among the state fields (tracing replaces its grid with a traced grid, and rebuilding the field NamedTuple fails with a `MethodError` in `convert`), which breaks every hydrology kernel under Reactant.
 > The infiltration capacity is therefore no longer a lazily evaluated state variable: the `infiltration_capacity` accessor evaluates `compute_infiltration_capacity` inline from `liquid_water_fraction`, which is equally lazy and adds nothing to the traced kernel arguments.
 > The limitations about texture and output of the lazy variable no longer apply; the texture limitation remains for the inline capacity, which reads only `liquid_water_fraction`.
-> Phase 2 makes the face conductivity a choice of the `face_conductivity` property of `RichardsEq` (`AbstractFaceConductivity`): `WeightedAverageConductivity()` (default; conductivity at the mean liquid water content over the mean porosity of the two cells, CLM5 Eq. 2.7.47) or `UpwindConductivity()` (conductivity of the upstream cell, from the sign of the total head gradient; Forsyth et al. 1995).
+> Phase 2 makes the face conductivity a choice of the `face_conductivity` property of `RichardsEq` (`AbstractFaceConductivity`): `WeightedAverageConductivity()` (default; conductivity at the mean liquid water content over the mean porosity of the two cells, CLM5 Eq. 7.47) or `UpwindConductivity()` (conductivity of the upstream cell, from the sign of the total head gradient; Forsyth et al. 1995).
 > Both are computed in `compute_hydraulics!`, so `darcy_conductivity` reads the stored face conductivity for both, without the second minimum in the direction of flow.
 > The weighted average follows CLM5 (mean water content over mean porosity) rather than the thickness-weighted mean stated in the original Phase 2, and the face-`Nz` indexing error of the previous face conductivity (which used only the top cell) is removed.
 
@@ -245,3 +248,9 @@ All entries were checked against the publisher or the official documentation on 
 > Moved Phase 3 (the rerun of the JOSS simulation) out of the scope of this plan, since it validates the fix in the paper but changes no source; it is tracked on the `joss-paper` branch, which already contains this branch, and the regression tests of Phases 1 and 2 cover the fix itself.
 > The suspected script issue of Phase 3 was not one: the soil moisture climatology does reach `SaturationWaterTable`, since `vadose_zone_saturation` is an input variable whose constant value is only the default that the script's `vwc_source` overrides.
 > Marked the plan as completed.
+
+> **Revision 13, 2026-11-20 (Claude Opus 5.5).** Approved by the reviewer, following the review of PR #257.
+> Kept the switch that blocks infiltration into a top cell that is saturated at the beginning of the step: it is a first-order explicit treatment of the transition to the saturated regime, and removing it would let the drainage of the surface pool cycle between the pool and a saturated column instead of draining as runoff.
+> Documented the switch, and that it does not prevent the top cell from overfilling within a step, in the docstring of `compute_infiltration` and on the surface runoff doc page.
+> Renamed the saturation to `ξ` in the remaining docs and kernel functions, and changed the CLM5 equation numbers to those of the PDF technical note (Eqs. 7.34, 7.47, and 7.48, checked against the PDF).
+> Extended the future work item on a ponded pressure-head boundary condition with the requirements found in the review.

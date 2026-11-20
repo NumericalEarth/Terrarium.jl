@@ -11,7 +11,7 @@ abstract type AbstractFaceConductivity end
 
 Face conductivity at the mean liquid water content over the mean porosity of the two adjacent cells, i.e. a
 porosity-weighted average of their liquid water saturation, as in the interface conductivity of CLM5
-[lawrenceTechnicalDescriptionVersion2018; Eq. (2.7.47)](@cite). It lets water drain from a wet cell into a drier one at
+[lawrenceTechnicalDescriptionVersion2018; Eq. (7.47)](@cite). It lets water drain from a wet cell into a drier one at
 a rate set by both cells, while it remains negligible between two dry cells.
 
 # References
@@ -361,7 +361,7 @@ Compute the infiltration capacity (m/s) of the soil surface in grid column `i, j
 
 where `K_sat` is the saturated hydraulic conductivity and `I_ice` is the ice impedance factor of the unsaturated
 conductivity formulation (see [`Terrarium.ice_impedance_factor`](@ref)) for the unfrozen water fraction `f` of
-the topmost soil layer, as in CLM5 [lawrenceTechnicalDescriptionVersion2018; Eq. (2.7.34)](@cite).
+the topmost soil layer, as in CLM5 [lawrenceTechnicalDescriptionVersion2018; Eq. (7.34)](@cite).
 
 The infiltration capacity of a soil is at least its saturated conductivity: the matric suction gradient at a
 wetting front raises it above `K_sat` in dry soil, and it decays toward `K_sat` as the soil wets
@@ -394,7 +394,7 @@ end
 Return the [`SoilComposition`](@ref) at the face between the soil volumes `soil_below` and `soil_above`, with the
 mean porosity, the mean water and ice content, and the mean liquid water content of the two volumes, and the solid
 matrix of `soil_above`. Its liquid water saturation `θw / θsat` is thus the mean liquid water content over the mean
-porosity, as in the interface conductivity of CLM5 [lawrenceTechnicalDescriptionVersion2018; Eq. (2.7.47)](@cite).
+porosity, as in the interface conductivity of CLM5 [lawrenceTechnicalDescriptionVersion2018; Eq. (7.47)](@cite).
 
 # References
 
@@ -412,11 +412,11 @@ porosity, as in the interface conductivity of CLM5 [lawrenceTechnicalDescription
     ϕ = (ϕ₁ + ϕ₂) / 2
     θwi = (θwi₁ + θwi₂) / 2
     θw = (θw₁ + θw₂) / 2
-    # saturation S and liquid fraction f at the face; the guard covers a column without any water or ice,
+    # saturation ξ and liquid fraction f at the face; the guard covers a column without any water or ice,
     # where the liquid fraction is undefined
-    S = θwi / ϕ
+    ξ = θwi / ϕ
     f = θw / max(θwi, eps(NF))
-    return SoilComposition(ϕ, S, f, soil_above.solid)
+    return SoilComposition(ϕ, ξ, f, soil_above.solid)
 end
 
 """
@@ -434,7 +434,7 @@ At the bottom (`k = 1`) and top (`k = Nz + 1`) boundary faces, it is the conduct
 
 Compute the hydraulic conductivity at face `k` as the conductivity of the mean composition of the two adjacent cells
 (see [`face_soil_composition`](@ref)), following the interface conductivity of CLM5
-[lawrenceTechnicalDescriptionVersion2018; Eq. (2.7.47)](@cite).
+[lawrenceTechnicalDescriptionVersion2018; Eq. (7.47)](@cite).
 
 # References
 
