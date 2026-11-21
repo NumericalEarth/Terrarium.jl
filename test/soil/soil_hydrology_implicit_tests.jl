@@ -105,7 +105,7 @@ end
     # draining sandy column: gravity drainage (unit head gradient) at the bottom, infiltration at the top
     drainage = (pressure_head = (bottom = GradientBoundaryCondition(NF(1)),),)
     soil_kwargs = (saturated_conductivity = 1.0e-4, swrc = VanGenuchten(α = 3.5, n = 3.0))
-    infiltration = 2.0e-5
+    infiltration = 5.0e-6
     s = 0.6
     s_res = Terrarium.residual_saturation(ConstantSoilHydraulics(NF))
     function outflow_timescale(integrator)

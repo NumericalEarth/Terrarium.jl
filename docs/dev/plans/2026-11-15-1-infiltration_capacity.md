@@ -137,6 +137,12 @@ Implemented during the review of PR #257 (see revision 14).
   Clay loam is omitted until its values are checked against Clapp and Hornberger (1978).
 - `examples/simulations/land_column.jl` uses `VanGenuchten(:siltloam)` instead of `VanGenuchten(α = 2.0, n = 2.0)`.
 - Tests, benchmarks, and the `specific_moisture_capacity` doctest keep their explicit parameters, so that they remain regression checks of the numerics.
+- The corrected van Genuchten conductivity is several times smaller at the saturations of the van Genuchten test columns, so seven tests tuned to the previous values were retuned:
+  - the outflow timescale test infiltrates 5 × 10⁻⁶ m/s instead of 2 × 10⁻⁵ m/s, which now exceeded the conductivity of the column;
+  - the unsaturated Stefan test runs only the 1-hour step, with four Picard iterations (0.18 K against a tolerance of 0.28 K; two and three iterations do not converge);
+  - the uniform-temperature advection tests use three Picard iterations from the 1-hour step on (previously above it);
+  - the bounded sandy column test runs steps of 30 and 45 minutes instead of 30 and 60 minutes, at which the maximum principle is violated for any number of iterations;
+  - the implicit steady-flow test steps at half the advective timescale (20 times the diffusion timescale) instead of twice that timescale, beyond which the explicit drainage flux overdraws the bottom cell.
 
 ## Testing and verification
 
@@ -330,6 +336,6 @@ Clapp and Hornberger (1978), Cosby et al. (1984), Lawrence and Slater (2008), an
 > Extended the future work item on a ponded pressure-head boundary condition with the requirements found in the review.
 
 > **Revision 14, 2026-11-21 (Claude Opus 5.5).** Approved by the reviewer.
-> Recorded the corrections to the hydraulic parameters made at the reviewer's direction during the review of PR #257 as Phase 4: the Brooks–Corey docstring and reference (Eq. 13), the corrected exponent of the van Genuchten–Mualem conductivity, the sandy loam preset of Clapp and Hornberger (1978) as the default retention curve, and the FreezeCurves 0.9.10 compat bound.
+> Recorded the corrections to the hydraulic parameters made at the reviewer's direction during the review of PR #257 as Phase 4: the Brooks–Corey docstring and reference (Eq. 13), the corrected exponent of the van Genuchten–Mualem conductivity, the sandy loam preset of Clapp and Hornberger (1978) as the default retention curve, and the FreezeCurves 0.9.10 compat bound, and the tests retuned to the corrected van Genuchten conductivity.
 > Added pedotransfer functions for the retention parameters and `K_sat` to future work (SURFEX, after Noilhan and Lacarrère 1995, and CLM5), with suggested references.
 > Marked the plan as completed.

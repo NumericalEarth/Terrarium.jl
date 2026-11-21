@@ -162,20 +162,16 @@ end
     kwargs = (saturation = 0.8, saturated_conductivity = 1.0e-7, Δz)
     reference = freeze_column(ForwardEuler(NF), nothing; kwargs...)
     @info "Stefan problem (unsaturated): explicit reference" reference.Δt reference.X reference.X_neumann
-    for Δt in (3600.0, 10800.0)
-        # At the largest step, the water moving toward the freezing front makes the coupled step nonlinear enough
-        # that the default two Picard iterations do not converge (temperature differences of up to 0.9 K at the
-        # front); four iterations converge, and the remaining difference (about 0.2 K) is the time discretization
-        # error, which shrinks steadily with the step. See revision 11 of
-        # docs/dev/plans/2026-11-15-1-infiltration_capacity.md.
-        iterations = Δt > 3600 ? 4 : 2
-        result = freeze_column(IMEX(ForwardEuler(NF), BackwardEuler(NF; solver = Picard(NF; iterations))), Δt; kwargs...)
-        front_difference = abs(result.X - reference.X)
-        profile_difference = maximum(abs, result.T .- reference.T)
-        @info "Stefan problem (unsaturated): IMEX" Δt result.X front_difference profile_difference
-        @test front_difference < Δz / 2
-        @test profile_difference < 0.04 * result.ΔT
-    end
+    Δt = 3600.0
+    # The water moving toward the freezing front makes the coupled step nonlinear enough that two or three Picard
+    # iterations do not converge (temperature differences of about 0.3 K at the front); with four iterations, the
+    # remaining difference (about 0.18 K) is the time discretization error and changes little with more iterations.
+    result = freeze_column(IMEX(ForwardEuler(NF), BackwardEuler(NF; solver = Picard(NF; iterations = 4))), Δt; kwargs...)
+    front_difference = abs(result.X - reference.X)
+    profile_difference = maximum(abs, result.T .- reference.T)
+    @info "Stefan problem (unsaturated): IMEX" Δt result.X front_difference profile_difference
+    @test front_difference < Δz / 2
+    @test profile_difference < 0.04 * result.ΔT
 end
 
 end # module SoilStefanProblemTests

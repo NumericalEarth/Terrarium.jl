@@ -637,11 +637,12 @@ module SoilEnergyAdvectionTests
         integrator, K = build_steady_flow_column(grid, timestepper; temperature = T₀)
         @test K > 0
         s₀ = copy(interior(integrator.state.saturation_water_ice))
-        # explicit advection of heat is subject to the advective CFL limit, implicit advection is not; larger implicit
-        # steps are limited by the explicit drainage flux at tⁿ, which then overdraws the bottom cell
+        # explicit advection of heat is subject to the advective CFL limit, implicit advection is not; implicit steps
+        # beyond about the advective timescale are limited by the explicit drainage flux at tⁿ, which then overdraws
+        # the bottom cell
         probe = build_steady_flow_column(grid, ForwardEuler(NF); temperature = T₀)[1]
         τ_advection = Terrarium.cell_advection_timescale(probe)
-        Δt = name == "explicit" ? min(Terrarium.cell_diffusion_timescale(integrator), τ_advection) / 2 : 2 * τ_advection
+        Δt = name == "explicit" ? min(Terrarium.cell_diffusion_timescale(integrator), τ_advection) / 2 : τ_advection / 2
         @test name == "explicit" || Δt > 10 * Terrarium.cell_diffusion_timescale(probe)
         for _ in 1:48
             timestep!(integrator, Δt)
@@ -765,12 +766,12 @@ module SoilEnergyAdvectionTests
         T₀ = 5.0
         # with the heat capacity of air set to zero, heat moves exactly with the water: infiltration, wetting
         # fronts, drainage, and the redistribution and removal of excess water leave a uniform temperature unchanged
-        # Stopgap: at the largest step, two Picard iterations can leave a cell heavily oversaturated, and the closure
+        # Stopgap: at steps of an hour or more, two Picard iterations can leave a cell heavily oversaturated, and the closure
         # then moves the heat of the excess water before the energy step advects the heat that arrived with it,
         # see docs/dev/plans/2026-11-16-1-separate_closure_constraints.md; three iterations avoid this.
         runs = (
             (ForwardEuler(NF), 1.0, 3 * 3600.0),
-            ((implicit_timestepper(NF; iterations = Δt > 3600 ? 3 : 2), Δt, 86400.0) for Δt in (300.0, 1800.0, 3600.0, 10800.0))...,
+            ((implicit_timestepper(NF; iterations = Δt >= 3600 ? 3 : 2), Δt, 86400.0) for Δt in (300.0, 1800.0, 3600.0, 10800.0))...,
         )
         for (timestepper, Δt, duration) in runs
             integrator = build_advection_column(column, timestepper; temperature = T₀, air = false)
@@ -829,7 +830,7 @@ module SoilEnergyAdvectionTests
         temperature = (x, z) -> 5.0 + 3.0 * cos(8z)
         # at much larger steps, the explicit drainage flux at tⁿ empties the column in a single step (see the known
         # limitations of the implicit Richards step), and the maximum principle is no longer guaranteed
-        for Δt in (1800.0, 3600.0)
+        for Δt in (1800.0, 2700.0)
             integrator = build_advection_column(ADVECTION_COLUMNS.sandy_drainage, implicit_timestepper(NF); temperature)
             T_min, T_max = extrema(column_temperature(integrator))
             bounded = true
