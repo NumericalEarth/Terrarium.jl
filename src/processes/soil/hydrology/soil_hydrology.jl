@@ -86,7 +86,7 @@ variables(hydrology::SoilHydrology{NF}) where {NF} = (
     default_timestepping(hydrology::AbstractSoilHydrology)
 
 Default [`Timestepping`](@ref) class of `saturation_water_ice` under an [`AbstractIMEX`](@ref)
-timestepper: [`Implicit`](@ref) for the Richards equation (`SoilHydrology{NF, RichardsEq}`) and
+timestepper: [`Implicit`](@ref) for the Richards equation (`SoilHydrology{NF, <:RichardsEq}`) and
 [`Explicit`](@ref) otherwise.
 
 ```jldoctest
@@ -185,6 +185,9 @@ end
 
 @propagate_inbounds surface_excess_water(i, j, grid, fields, ::SoilHydrology{NF}) where {NF} = zero(NF)
 
+# Immobile soil water (`NoFlow`) does not take up water at the surface
+@propagate_inbounds infiltration_capacity(i, j, grid, fields, ::SoilHydrology{NF}) where {NF} = zero(NF)
+
 """
     $TYPEDSIGNATURES
 
@@ -218,6 +221,32 @@ Kernel function that diagnoses the water table at grid cell `i, j` given the cur
     # scan z axis starting from the bottom (index 1) to find first non-saturated grid cell
     water_table[i, j, end] = findfirst_z(i, j, <(one(NF)), zs, sat)
     return nothing
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the total water (m of water equivalent) stored in the ground column `i, j`: the liquid water and ice in
+the soil pore space, `∑ₖ ϕₖ ξₖ Δzₖ`, plus the `surface_excess_water` pool of the surface `runoff` scheme, if any.
+"""
+@propagate_inbounds function compute_total_ground_water(
+        i, j, grid, fields,
+        hydrology::AbstractSoilHydrology{NF},
+        strat::AbstractStratigraphy,
+        bgc::AbstractSoilBiogeochemistry,
+        runoff::Optional{AbstractSurfaceRunoff}
+    ) where {NF}
+    # water and ice in the soil column, ∑ₖ ϕₖ ξₖ Δzₖ
+    W_soil = zero(NF)
+    for k in 1:grid.Nz
+        ϕ = porosity(i, j, k, grid, fields, strat, bgc)
+        ξ = saturation_water_ice(i, j, k, grid, fields, hydrology)
+        Δz = Δzᵃᵃᶜ(i, j, k, grid)
+        W_soil += ϕ * ξ * Δz
+    end
+    # water in the surface pool of the runoff scheme
+    W_surface = surface_excess_water(i, j, grid, fields, runoff)
+    return W_soil + W_surface
 end
 
 """

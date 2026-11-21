@@ -16,3 +16,6 @@ based on the ground-reaching precipitation rate provided by `canopy_interception
 state provided by `soil_hydrology`.
 """
 function compute_surface_runoff! end
+
+# Without a surface runoff scheme, there is no surface water pool
+@propagate_inbounds surface_excess_water(i, j, grid, fields, ::Nothing) = zero(eltype(grid))

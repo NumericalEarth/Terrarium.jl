@@ -46,15 +46,33 @@ variables(DirectSurfaceRunoff(Float32))
 
 ### Infiltration capacity and soil saturation
 
-Infiltration is limited by both the type and hydrological state of the soil. The effective infiltration can be calculated as
+Infiltration is limited by the infiltration capacity of the soil and by the saturation of the uppermost soil layer,
 ```math
 \begin{equation}
-I = \min(P_{\text{ground}}, I_{\max}) \times (1 - f_{\text{sat}})
+I = \begin{cases}
+\min(P_{\text{ground}}, I_{\max}) & \text{if } \xi_{\text{top}} < 1, \\
+0 & \text{otherwise,}
+\end{cases}
 \end{equation}
 ```
-where $I_{\max}$ is the maximum infiltration capacity determined by soil hydraulic conductivity (m/s) and $f_{\text{sat}}$ is the saturation fraction of the upper soil layer (0 = dry, 1 = saturated) (-).
+where $P_{\text{ground}}$ is the water reaching the ground (m/s), $\xi_{\text{top}}$ is the saturation of the uppermost soil layer (-), and $I_{\max}$ is the infiltration capacity (m/s) provided by the soil hydrology (see [`Terrarium.infiltration_capacity`](@ref)).
 
-When soil becomes saturated ($f_{\text{sat}} = 1$), infiltration drops to zero and all precipitation is routed to either surface runoff or surface water storage.
+For the Richards equation, the infiltration capacity is the saturated hydraulic conductivity of the uppermost soil layer, reduced by the ice impedance factor of frozen soil,
+```math
+\begin{equation}
+I_{\max} = I_{\text{ice}}(f) \, K_{\text{sat}},
+\end{equation}
+```
+where $f$ is the unfrozen fraction of the pore water, as in CLM5 [lawrenceTechnicalDescriptionVersion2018; Eq. (7.34)](@cite).
+The infiltration capacity of a soil is at least its saturated conductivity: the matric suction gradient at a wetting front raises it above $K_{\text{sat}}$ in dry soil, and it decays toward $K_{\text{sat}}$ as the soil wets up [greenStudiesSoilPhysics1911, philipTheoryInfiltration1957](@cite).
+$K_{\text{sat}}$ is thus a conservative bound, and rain only runs off as infiltration excess (Hortonian runoff) when its rate exceeds $K_{\text{sat}}$.
+Immobile soil water ([`NoFlow`](@ref)) has an infiltration capacity of zero.
+
+When the uppermost soil layer is saturated ($\xi_{\text{top}} = 1$) at the beginning of a time step, infiltration is zero for that step and all precipitation is routed to either surface runoff or surface water storage.
+This switch between the flux-limited and the saturated regime is treated explicitly: the saturation is evaluated at the beginning of the step and held for the whole step, which is a first-order (in $\Delta t$) discretization of the infiltration into a draining saturated layer.
+As the layer drains during the step, infiltration resumes in the next one, so that over many steps it approaches the rate at which the column below takes up water.
+The switch does not prevent the uppermost layer from overfilling within a step, e.g. when it is nearly saturated at the beginning of the step; the excess is then returned to the surface water storage by the soil hydrology closure (see [`adjust_saturation_profile!`](@ref)), which conserves water.
+Without the switch, water that a saturated column cannot take up would cycle between the surface water storage and the uppermost layer instead of draining as runoff; a pressure-head boundary condition for a ponded surface, solved together with the Richards equation, would avoid both the switch and this cycling.
 
 ### Excess water at the surface
 
@@ -88,6 +106,10 @@ compute_surface_drainage
 
 ```@docs; canonical = false
 compute_infiltration
+```
+
+```@docs; canonical = false
+compute_infiltration_capacity
 ```
 
 ```@docs; canonical = false

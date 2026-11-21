@@ -204,6 +204,7 @@ include("timesteppers/backward_euler.jl")
 include("diagnostics/debugging.jl")
 include("diagnostics/progress.jl")
 include("diagnostics/surface_fluxes.jl")
+include("diagnostics/ground_state.jl")
 
 include("deprecated.jl")
 

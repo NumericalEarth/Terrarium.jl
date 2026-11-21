@@ -158,7 +158,7 @@ conditions on `saturation_water_ice` (e.g. [`InfiltrationFlux`](@ref)) is added 
 @propagate_inbounds function advective_heat_flux(
         i, j, k, grid, fields,
         energy::SoilThermodynamics,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         args...
     ) where {NF}
     ground_grid = ground_domain(grid)
@@ -191,7 +191,7 @@ remove more heat than a cell holds.
 @propagate_inbounds function compute_boundary_advective_energy_tendency(
         i, j, k, grid, fields,
         energy::SoilThermodynamics,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         args...
     ) where {NF}
     ground_grid = ground_domain(grid)
@@ -220,7 +220,7 @@ conditions, while the saturation tendency holds only their contributions. No-op 
 function compute_boundary_advected_heat!(
         state, grid,
         energy::SoilThermodynamics,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry
     ) where {NF}
@@ -245,7 +245,7 @@ at the temperature of the top cell.
 @propagate_inbounds function compute_boundary_advected_energy_tendency(
         i, j, k, grid, fields, saturation_tendency,
         energy::SoilThermodynamics,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry
     ) where {NF}
