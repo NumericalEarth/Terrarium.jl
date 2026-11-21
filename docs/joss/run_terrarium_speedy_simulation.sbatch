@@ -17,4 +17,4 @@
 set -euo pipefail
 
 # the docs/joss environment is resolved and precompiled with Julia 1.10 (+lts)
-julia +lts --project=docs/joss docs/joss/run_terrarium_speedy_simulation.jl
+julia --project=docs/joss docs/joss/run_terrarium_speedy_simulation.jl
