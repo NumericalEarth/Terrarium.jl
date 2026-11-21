@@ -154,19 +154,6 @@ land = Speedy.LandModel(
 surface_heat_flux = Speedy.SurfaceHeatFlux(land.spectral_grid, land = Speedy.PrescribedLandHeatFlux())
 surface_humidity_flux = Speedy.SurfaceHumidityFlux(land.spectral_grid, land = Speedy.PrescribedLandHumidityFlux())
 albedo = Speedy.OceanLandAlbedo(land.spectral_grid, land = Speedy.PrescribedAlbedo(land.spectral_grid))
-# Pragmatic retuning of SpeedyWeather's default one-band radiation, whose clouds reflect too much sunlight
-# (planetary albedo ≈ 0.43) so that the default atmosphere drifts far too cold: less reflective clouds
-# (defaults 0.6 and 0.5), more shortwave absorption by water vapor (default 75), and a larger longwave optical
-# depth (defaults 6 at the equator and 1.5 at the poles). This is not a calibration, only enough to give a
-# reasonable near-surface climate for demonstrating the coupling.
-clouds = Speedy.DiagnosticClouds(land.spectral_grid, cloud_albedo = 0.4, stratocumulus_albedo = 0.3)
-shortwave_transmissivity = Speedy.BackgroundShortwaveTransmissivity(land.spectral_grid, absorptivity_water_vapor = 150)
-longwave_transmissivity = Speedy.FriersonLongwaveTransmissivity(land.spectral_grid, τ₀_equator = 8, τ₀_pole = 2)
-radiation = Speedy.Radiation(
-    land.spectral_grid;
-    shortwave = Speedy.OneBandShortwave(land.spectral_grid; clouds, transmissivity = shortwave_transmissivity),
-    longwave = Speedy.OneBandLongwave(land.spectral_grid; transmissivity = longwave_transmissivity),
-)
 output = Speedy.NetCDFOutput(land.spectral_grid, Speedy.PrimitiveDryModel; interval = Hour(4), nlayers_soil = land.geometry.nlayers, path = output_dir)
 time_stepping = Speedy.Leapfrog(land.spectral_grid, Δt_at_T32 = Minute(15))
 primitive_wet_coupled = Speedy.PrimitiveWetModel(
@@ -175,7 +162,6 @@ primitive_wet_coupled = Speedy.PrimitiveWetModel(
     surface_heat_flux,
     surface_humidity_flux,
     albedo,
-    radiation,
     land_sea_mask,
     time_stepping,
     output,

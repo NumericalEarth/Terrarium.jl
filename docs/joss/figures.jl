@@ -24,11 +24,12 @@
 using Terrarium: ThermodynamicConstants
 using Rasters, NCDatasets
 using CSV
-import RingGrids
 using CairoMakie, GeoMakie
 using JSON3
 using Statistics
 using Dates
+
+import RingGrids
 
 # Output of the coupled run produced by `run_terrarium_speedy_simulation.jl`,
 # which also writes Terrarium's `skin_temperature`. Defaults to the latest run in
