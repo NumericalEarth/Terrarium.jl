@@ -57,7 +57,12 @@ Speedy.load_mask!(land_sea_mask)
 land_grid = ColumnRingGrid(arch, Float32, ExponentialSpacing(; N = Nz), land_sea_mask.land_fraction .> 0)
 porosity = SoilPorositySURFEX(eltype(land_grid))
 strat = SoilGridsStratigraphy(eltype(land_grid); porosity)
-soil = SoilEnergyWaterCarbon(eltype(land_grid); strat)
+# Brooks–Corey retention curve with the previous default parameters (λ = 0.2, air-entry suction 1 cm): with the newer
+# sandy loam default (air-entry suction 21.8 cm), the very dry cells of the soil moisture climatology reach matric
+# potentials that make the first implicit steps of the Richards equation diverge
+hydraulic_properties = SoilHydraulicsSURFEX(eltype(land_grid); swrc = BrooksCorey(λ = 0.2, ψₛ = 0.01u"m"))
+hydrology = SoilHydrology(eltype(land_grid), RichardsEq(); hydraulic_properties)
+soil = SoilEnergyWaterCarbon(eltype(land_grid); strat, hydrology)
 vegetation = PrescribedVegetation(eltype(land_grid))
 surface_energy_balance = SurfaceEnergyBalance(eltype(land_grid); albedo = DiagnosticAlbedo(eltype(land_grid)))
 # limit bare-ground evaporation by the moisture of the top soil layer relative to field capacity
