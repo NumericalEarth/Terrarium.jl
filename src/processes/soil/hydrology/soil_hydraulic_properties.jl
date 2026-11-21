@@ -106,7 +106,7 @@ end
 
 function ConstantSoilHydraulics(
         ::Type{NF};
-        swrc = BrooksCorey(λ = 0.2),
+        swrc = BrooksCorey(:sandyloam),
         unsat_hydraulic_cond = default_unsat_hydraulic_cond(NF, swrc),
         kwargs...
     ) where {NF}
@@ -168,7 +168,7 @@ end
 
 function SoilHydraulicsSURFEX(
         ::Type{NF};
-        swrc = BrooksCorey(λ = 0.2),
+        swrc = BrooksCorey(:sandyloam),
         unsat_hydraulic_cond = default_unsat_hydraulic_cond(NF, swrc),
         kwargs...
     ) where {NF}
