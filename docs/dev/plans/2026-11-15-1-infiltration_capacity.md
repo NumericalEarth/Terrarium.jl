@@ -1,6 +1,6 @@
 # Infiltration capacity and wetting-front conductivity for Richards soil hydrology
 
-> Status: **completed**. Phases 1 and 2 are implemented and the full test suite passes; the rerun of the JOSS simulation (Phase 3) is tracked separately on `joss-paper`.
+> Status: **completed**. Phases 1, 2, and 4 are implemented, the rerun of the JOSS simulation (Phase 3) is tracked separately on `joss-paper`, and pedotransfer functions are left to future work.
 
 Date of initial draft: 2026-11-15
 
@@ -121,6 +121,23 @@ Its verification (single-step Enzyme adjoint and a Reactant run) is part of the 
 
 The rerun of the JOSS simulation changes no source and is tracked on the `joss-paper` branch (see revision 12): rerun `docs/joss/run_terrarium_speedy_simulation.jl` as a Slurm job, compare the Amazon water budget with the previous runs (ET of about 3 mm/day, surface runoff well below rainfall, GPP closer to the `NoFlow` run), and regenerate Figure 3.
 
+### Phase 4: Corrections and texture presets of the hydraulic parameters
+
+Implemented during the review of PR #257 (see revision 14).
+
+- `UnsatKBrooksCorey`: the docstring is shortened and cites the conductivity as Eq. (13) of Brooks and Corey (1964), who give it as the relative permeability `S^((2 + 3λ)/λ)` of the wetting phase, which equals the relative conductivity `K / K_sat`.
+- `UnsatKVanGenuchten`: the inner exponent of the van Genuchten–Mualem conductivity is corrected from `n / (n + 1)` to `1/m = n / (n − 1)`, with `m = 1 − 1/n` as in the retention curve.
+  The previous form overestimated the conductivity, by factors of about 2.5 to 30 for `n = 2` at saturations from 0.8 to 0.3, and by up to several orders of magnitude for `n < 1.5`.
+  The docstring and the equation on the soil hydrology doc page now state the corrected form.
+  The error was inherited from CryoGrid.jl (fixed there in cf68f80a), the CryoGrid community model (`WATER_FLUXES.m`), and Eq. (26) of Westermann et al. (2023), which should be reported upstream.
+- Default retention curve: `ConstantSoilHydraulics` and `SoilHydraulicsSURFEX` default to `BrooksCorey(:sandyloam)`, the sandy loam parameters of Clapp and Hornberger (1978, Table 2): `λ = 1/4.90 ≈ 0.204` and an air-entry suction `ψₛ = 0.218 m`.
+  The previous default (`λ = 0.2`, `ψₛ = 0.01 m`, the FreezeCurves defaults) had a realistic `λ`, but an air-entry suction below the range of CLM5 (0.037 m for pure sand to 0.76 m without sand, Eq. 7.55), so the soil drained at very small suction.
+  The porosity of the preset is not used; it is overridden by the porosity of the stratigraphy, as before.
+- The texture presets `BrooksCorey(:sand)`, ..., `BrooksCorey(:clay)` are added to FreezeCurves.jl 0.9.10, and the FreezeCurves compat bound of Terrarium is raised to 0.9.10.
+  Clay loam is omitted until its values are checked against Clapp and Hornberger (1978).
+- `examples/simulations/land_column.jl` uses `VanGenuchten(:siltloam)` instead of `VanGenuchten(α = 2.0, n = 2.0)`.
+- Tests, benchmarks, and the `specific_moisture_capacity` doctest keep their explicit parameters, so that they remain regression checks of the numerics.
+
 ## Testing and verification
 
 - New `LandModel` column regression test `LandModel: rain infiltrates into unsaturated soil` (written first, and checked to fail on the base revision): SURFEX hydraulics, steady rain of 10 mm/day for one day, `Δt = 450 s`, default `IMEX` time stepper, from a dry (initial saturation 0.1) and a dryish (0.3) column.
@@ -141,6 +158,8 @@ The rerun of the JOSS simulation changes no source and is tracked on the `joss-p
   - `LandModel: dry soil under strong evaporation demand stays physical` (issue #240);
   - `Implicit Richards: infiltration into a dry column (Celia et al., 1990)` and the mass conservation tests in `test/soil/soil_hydrology_implicit_tests.jl`;
   - `test/surface/hydrology/surface_runoff_tests.jl` and the snowmelt and surface pool tests in `test/coupled_models/land_model_tests.jl`.
+- Phase 4: the FreezeCurves.jl test suite covers the new presets (construction from strings and symbols, `0 < λ < 1`, saturation above the air-entry suction).
+  The Terrarium full test suite and draft doc build were not rerun locally after Phase 4 and are left to CI on PR #257.
 - Full test suite, then a draft doc build.
 - Enzyme and Reactant: both new kernel functions are branch-free scalar functions without throw paths; the hydrology and land model differentiability tests run in CI in addition to the pilot checks above.
   Replacing the nested `min` by a smooth function of the mean saturation removes a nondifferentiable point.
@@ -153,6 +172,7 @@ The rerun of the JOSS simulation changes no source and is tracked on the `joss-p
 - `docs/src/processes/soil/soil_hydrology.md`: document the face conductivity at the mean saturation.
 - Docstrings for the new kernel function and the changed `darcy_conductivity` and `compute_hydraulics!`.
 - Add Green and Ampt (1911), Philip (1957), and Lawrence et al. (2018) to `docs/src/references.bib`.
+- Phase 4: docstrings of `UnsatKBrooksCorey` and `UnsatKVanGenuchten`, and the van Genuchten equation and the face conductivity paragraph on the soil hydrology doc page.
 
 ## Known limitations
 
@@ -165,6 +185,9 @@ The rerun of the JOSS simulation changes no source and is tracked on the `joss-p
 - The lazy `infiltration_capacity` cannot see the stratigraphy namespaces, which are initialized after auxiliary variables, so a texture-dependent `K_sat` would need either a change of the initialization order or a stored `Field`.
 - Being a `KernelFunctionOperation`, `infiltration_capacity` cannot be written to output, read with `interior`, or checked with `checkfinite!`; the stored `infiltration` flux remains available for diagnostics.
 - All `RichardsEq` simulations with a `LandModel` change: more water enters the soil and the wetting fronts are faster.
+- The new default air-entry suction (0.218 m instead of 0.01 m) changes the retention of every simulation with the default hydraulics: the soil holds considerably more water at a given suction.
+- The van Genuchten presets of FreezeCurves set a residual water content of 0.03 to 0.05, which the retention curve uses, while `UnsatKVanGenuchten` evaluates the conductivity at `θw / θsat` without it.
+- The retention parameters and `K_sat` are the same in every cell, regardless of texture (see pedotransfer functions under Future work).
 
 ## Future work
 
@@ -175,7 +198,37 @@ The rerun of the JOSS simulation changes no source and is tracked on the `joss-p
 - An explicit parameterization of soil water repellency and surface crusting, for example a factor that reduces the surface `K_sat` below a critical water content, or a crust layer with its own conductivity, grounded in the literature and kept separate from the unsaturated conductivity function.
   At coarse resolution, this would need a sub-grid distribution of rainfall intensity to have a meaningful effect.
 - A sub-grid saturated fraction for saturation-excess runoff.
-- Depth-dependent `K_sat` in `SoilHydraulicsSURFEX`.
+- SURFEX pedotransfer functions for `SoilHydraulicsSURFEX`, so that the retention parameters and `K_sat` vary with the soil texture of each cell.
+  `SoilHydraulicsSURFEX` already follows ISBA for the field capacity and wilting point (Noilhan and Mahfouf 1996, Eqs. 28–29), and `SoilPorositySURFEX` for the porosity (Eq. 27), but it holds the retention parameters of its SWRC and `K_sat` constant.
+  ISBA derives its soil parameters from the sand and clay percentages `SAND` and `CLAY` (Noilhan and Lacarrère 1995, Fig. 1), listed in Appendix A of the SURFEX scientific documentation (Le Moigne 2012, Section 4.1.8):
+
+  ```
+  w_sat  = (−1.08 SAND + 494.305) × 10⁻³        (Eq. 4.180)
+  w_wilt = 37.1342 × 10⁻³ CLAY^0.5               (Eq. 4.181)
+  w_fc   = 89.0467 × 10⁻³ CLAY^0.3496            (Eq. 4.182)
+  b      = 0.137 CLAY + 3.501                    (Eq. 4.183)
+  ```
+
+  Terrarium already follows Eqs. 4.180–4.182 with rounded coefficients; Eq. 4.183 is the missing exponent, with `λ = 1/b`.
+  In ISBA-DF, `k = k_sat Θ^(2b+3)` and `ψ = ψ_sat Θ^(−b)` (Eqs. 4.78 and 4.79) are the Brooks–Corey forms of Terrarium.
+  Neither the scientific documentation nor Noilhan and Lacarrère (1995) give regressions for `ψ_sat` and `k_sat`; the latter refer to Cosby et al. (1984), whose regressions CLM5 uses (Eqs. 7.55 and 7.58, below), and the coefficients should be checked against Cosby et al. (1984).
+  Implementation sketch: `@param` coefficients for `b`, `ψ_sat`, and `K_sat` in `SoilHydraulicsSURFEX`; a texture-dependent `saturated_hydraulic_conductivity`; and the retention parameters `(ψₛ, λ)` passed to the SWRC as call-time keywords, as is already done for `θsat`.
+  It requires the texture-dependent `K_sat` of the infiltration capacity and the texture at cell faces (both below).
+  The retention part (texture to `ψₛ` and `λ`) could instead live in FreezeCurves.jl next to the texture presets, as kernel-safe functions, while `K_sat`, porosity, wilting point, and field capacity stay in Terrarium.
+  Open questions: the source of `ψ_sat` and `k_sat`, whether `SoilHydraulicsSURFEX` should reject retention curves other than Brooks–Corey, the mean used for the parameters at cell faces, and whether the pedotransfer functions should be a separate component.
+- CLM5 pedotransfer functions as an alternative to those of SURFEX (Lawrence et al. 2018, Section 7.3.1, after Clapp and Hornberger 1978 and Cosby et al. 1984).
+  For the mineral soil, with the sand and clay percentages of the cell, the technical note gives (checked against the PDF):
+
+  ```
+  θsat,min = 0.489 − 0.00126 (%sand)                           (Eq. 7.50)
+  B_min    = 2.91 + 0.159 (%clay)                              (Eq. 7.52)
+  ψsat,min = −10.0 × 10^(1.88 − 0.0131 (%sand))  (mm)          (Eq. 7.55)
+  ksat,min = 0.0070556 × 10^(−0.884 + 0.0153 (%sand))  (mm/s)  (Eq. 7.58)
+  ```
+
+  Organic soil (Eqs. 7.49, 7.51, 7.54, and 7.56–7.63, after Lawrence and Slater 2008 and Letts et al. 2000) mixes mineral and organic properties by the organic fraction and computes `K_sat` with a percolation-theory weighting, which is considerably more involved.
+- The exponential decrease of `K_sat` with depth of ISBA.
+- Pedotransfer functions for the van Genuchten retention curve, for example Wösten et al. (1999) or the Rosetta model of Schaap et al. (2001).
 - Picard convergence of the implicit Richards step at large time steps: the default of two iterations is not converged at steps of a few hours when water moves through partially frozen soil or into oversaturated cells (see revisions 10 and 11). The reviewer suggests a Newton solver for larger steps: unlike Picard, which lags the conductivity and converges linearly, Newton includes its derivative with respect to the pressure head in the Jacobian and converges quadratically. Since each face conductivity depends only on the two adjacent cells, the Jacobian remains tridiagonal, so the `TridiagonalOperator` can be reused, and a small fixed number of (damped) Newton steps keeps the iteration traceable by Reactant and differentiable by Enzyme. Simpler alternatives are a larger default number of Picard iterations, or a convergence criterion on the pressure head increment with a fixed maximum; the cost of each should be measured with the benchmarks.
 - Texture-dependent `K_sat` (as in ISBA, Noilhan and Lacarrère 1995) for the lazy `infiltration_capacity`, by initializing the variable namespaces before the auxiliary variables in `StateVariables` (`src/state_variables.jl`) and passing their fields to auxiliary constructors as nested NamedTuples.
   The operation could then capture `get_fields(state, strat, bgc)` and evaluate the same texture-dependent `K_sat` as the Darcy flux.
@@ -187,7 +240,7 @@ The rerun of the JOSS simulation changes no source and is tracked on the `joss-p
 
 ## References
 
-All entries were checked against the publisher or the official documentation on 2026-11-15.
+The entries in this list were checked against the publisher or the official documentation on 2026-11-15, except where noted.
 
 - Assouline, S. (2004). Rainfall-induced soil surface sealing: a critical review of observations, conceptual models, and solutions. *Vadose Zone Journal* 3, 570–591. https://doi.org/10.2136/vzj2004.0570
 - Doerr, S. H., Shakesby, R. A., and Walsh, R. P. D. (2000). Soil water repellency: its causes, characteristics and hydro-geomorphological significance. *Earth-Science Reviews* 51, 33–65. https://doi.org/10.1016/S0012-8252(00)00011-8
@@ -195,8 +248,29 @@ All entries were checked against the publisher or the official documentation on 
 - Green, W. H., and Ampt, G. A. (1911). Studies on soil physics. *The Journal of Agricultural Science* 4, 1–24. https://doi.org/10.1017/S0021859600001441
 - Lawrence, D., Fisher, R., Koven, C., Oleson, K., Swenson, S., and Vertenstein, M. (2018). *Technical Description of Version 5.0 of the Community Land Model (CLM)*. NCAR. https://www2.cesm.ucar.edu/models/cesm2/land/CLM50_Tech_Note.pdf, Chapter 7, Hydrology; equation numbers as in the PDF, which the web version (https://escomp.github.io/CTSM/release-clm5.0/tech_note/Hydrology/CLM50_Tech_Note_Hydrology.html) numbers 2.7.x instead of 7.x (infiltration capacity: Section 7.2.3, Eq. 7.34; Hortonian runoff: Eq. 7.35; interface conductivity: Section 7.3.1, Eq. 7.47; ice impedance: Eq. 7.48).
 - Lawrence, D. M., et al. (2019). The Community Land Model Version 5: Description of new features, benchmarking, and impact of forcing uncertainty. *Journal of Advances in Modeling Earth Systems* 11, 4245–4287. https://doi.org/10.1029/2018MS001583 (journal overview of CLM5; the equations above are in the technical note).
-- Noilhan, J., and Lacarrère, P. (1995). GCM grid-scale evaporation from mesoscale modeling. *Journal of Climate* 8, 206–223.
+- Noilhan, J., and Lacarrère, P. (1995). GCM grid-scale evaporation from mesoscale modeling. *Journal of Climate* 8, 206–223 (provided by the reviewer; Fig. 1: regressions of `w_sat` and `b` on texture; Table 2: Clapp and Hornberger class values).
 - Philip, J. R. (1957). The theory of infiltration: 4. Sorptivity and algebraic infiltration equations. *Soil Science* 84, 257–264.
+- Brooks, R. H., and Corey, A. T. (1964). *Hydraulic Properties of Porous Media*. Hydrology Papers 3, Colorado State University. https://mountainscholar.org/handle/10217/61288 (Eq. 13 confirmed by the reviewer).
+- Westermann, S., et al. (2023). The CryoGrid community model (version 1.0) – a multi-physics toolbox for climate-driven simulations in the terrestrial cryosphere. *Geoscientific Model Development* 16, 2607–2647 (as in `docs/src/references.bib`; Eq. 26 contains the van Genuchten exponent `n / (n + 1)`, confirmed by the reviewer).
+
+### Pedotransfer functions (future work)
+
+Clapp and Hornberger (1978), Cosby et al. (1984), Lawrence and Slater (2008), and Letts et al. (2000) are cited in the CLM5 technical note and were checked against its bibliography; the others are suggested further reading and have not yet been checked.
+
+- Noilhan, J., and Mahfouf, J.-F. (1996). The ISBA land surface parameterisation scheme. *Global and Planetary Change* 13, 145–159 (as in `docs/src/references.bib`; porosity, field capacity, and wilting point of `SoilPorositySURFEX` and `SoilHydraulicsSURFEX`).
+- Le Moigne, P. (ed.) (2012). *SURFEX Scientific Documentation*, SURFEX v7.2, issue 2. CNRM/GAME, Météo-France/CNRS (provided by the reviewer; Section 4.1.8, Eqs. 4.180–4.191: continuous soil parameters of ISBA; Eqs. 4.78–4.80: ISBA-DF conductivity, matric potential, and ice impedance; Eq. 4.90: infiltration capacity `k_sat`).
+- Decharme, B., Douville, H., Boone, A., Habets, F., and Noilhan, J. (2006). Impact of an exponential profile of saturated hydraulic conductivity within the ISBA LSM. *Journal of Hydrometeorology* 7, 61–80 (depth profile of `K_sat`).
+- Clapp, R. B., and Hornberger, G. M. (1978). Empirical equations for some soil hydraulic properties. *Water Resources Research* 14, 601–604. https://doi.org/10.1029/WR014i004p00601 (Table 2: Brooks–Corey parameters by USDA texture class; the source of the FreezeCurves presets).
+  The `w_sat` and `b` values of all eleven classes, including clay loam (`w_sat = 0.476`, `b = 8.52`), were checked against their reproduction in Table 2 of Noilhan and Lacarrère (1995); the `ψ_sat` values are not reproduced there and remain unchecked.
+- Cosby, B. J., Hornberger, G. M., Clapp, R. B., and Ginn, T. R. (1984). A statistical exploration of the relationships of soil moisture characteristics to the physical properties of soils. *Water Resources Research* 20, 682–690 (the regressions on sand and clay content behind CLM5 Eqs. 7.50–7.58).
+- Lawrence, D. M., and Slater, A. G. (2008). Incorporating organic soil into a global climate model. *Climate Dynamics* 30. https://doi.org/10.1007/s00382-007-0278-1 (organic soil properties of CLM5).
+- Letts, M. G., Roulet, N. T., Comer, N. T., Skarupa, M. R., and Verseghy, D. L. (2000). Parametrization of peatland hydraulic properties for the Canadian Land Surface Scheme. *Atmosphere-Ocean* 38, 141–160.
+- Rawls, W. J., Brakensiek, D. L., and Saxton, K. E. (1982). Estimation of soil water properties. *Transactions of the ASAE* 25, 1316–1320 (Brooks–Corey parameters and residual water content by texture class).
+- Carsel, R. F., and Parrish, R. S. (1988). Developing joint probability distributions of soil water retention characteristics. *Water Resources Research* 24, 755–769 (van Genuchten parameters by texture class; the source of the FreezeCurves van Genuchten presets).
+- Saxton, K. E., and Rawls, W. J. (2006). Soil water characteristic estimates by texture and organic matter for hydrologic solutions. *Soil Science Society of America Journal* 70, 1569–1578 (continuous functions of sand, clay, and organic matter).
+- Wösten, J. H. M., Lilly, A., Nemes, A., and Le Bas, C. (1999). Development and use of a database of hydraulic properties of European soils. *Geoderma* 90, 169–185 (HYPRES; van Genuchten parameters).
+- Schaap, M. G., Leij, F. J., and van Genuchten, M. Th. (2001). Rosetta: a computer program for estimating soil hydraulic parameters with hierarchical pedotransfer functions. *Journal of Hydrology* 251, 163–176.
+- Van Looy, K., et al. (2017). Pedotransfer functions in Earth system science: challenges and perspectives. *Reviews of Geophysics* 55, 1199–1256 (review of pedotransfer functions used in land surface models).
 
 ## Revision log
 
@@ -254,3 +328,8 @@ All entries were checked against the publisher or the official documentation on 
 > Documented the switch, and that it does not prevent the top cell from overfilling within a step, in the docstring of `compute_infiltration` and on the surface runoff doc page.
 > Renamed the saturation to `ξ` in the remaining docs and kernel functions, and changed the CLM5 equation numbers to those of the PDF technical note (Eqs. 7.34, 7.47, and 7.48, checked against the PDF).
 > Extended the future work item on a ponded pressure-head boundary condition with the requirements found in the review.
+
+> **Revision 14, 2026-11-21 (Claude Opus 5.5).** Approved by the reviewer.
+> Recorded the corrections to the hydraulic parameters made at the reviewer's direction during the review of PR #257 as Phase 4: the Brooks–Corey docstring and reference (Eq. 13), the corrected exponent of the van Genuchten–Mualem conductivity, the sandy loam preset of Clapp and Hornberger (1978) as the default retention curve, and the FreezeCurves 0.9.10 compat bound.
+> Added pedotransfer functions for the retention parameters and `K_sat` to future work (SURFEX, after Noilhan and Lacarrère 1995, and CLM5), with suggested references.
+> Marked the plan as completed.
