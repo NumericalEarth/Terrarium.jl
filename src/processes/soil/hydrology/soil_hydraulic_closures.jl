@@ -170,9 +170,11 @@ end
     # get inverse of SWRC
     inv_swrc = inv(get_swrc(hydrology))
     por = porosity(i, j, k, grid, fields, strat, bgc)
-    sat_res = residual_saturation(get_hydraulic_properties(hydrology))
-    # compute matric pressure head
-    ψm = inv_swrc(clamp(sat * por, sat_res * por, por); θsat = por)
+    hydraulics = get_hydraulic_properties(hydrology)
+    sat_res = residual_saturation(hydraulics)
+    ψm_min = minimum_matric_potential(hydraulics)
+    # compute matric pressure head, bounded from below near the residual saturation
+    ψm = max(inv_swrc(clamp(sat * por, sat_res * por, por); θsat = por), ψm_min)
     @assert_kernel isfinite(ψm) "NaN/infinite matric potential"
     # compute elevation pressure head
     ψz = z - z_ref

@@ -243,6 +243,8 @@ Critical to the modelling of water transport in the soil, is the relationship be
 ```
 with $\Psi_z$ the elevation head and $\Psi_h$ the hydrostatic head contributed by free water above the water table. Currently, two implementations of the SWRC are available in Terrarium via [FreezeCurves.jl](https://github.com/CryoGrid/FreezeCurves.jl): the Brooks-Corey ([`BrooksCorey`](@extref FreezeCurves.BrooksCorey)) and van Genuchten ([`VanGenuchten`](@extref FreezeCurves.VanGenuchten)) formulations. 
 
+Near the residual saturation, the retention curve gives very large suctions (about ``-10^9`` m for the default Brooks–Corey curve of sandy loam), and the resulting head differences between very dry and wet neighboring cells make the implicit Richards step diverge. The closure therefore bounds the matric potential from below by the `minimum_matric_potential` of the hydraulic properties (default ``-10^5`` m, roughly the matric potential of oven-dry soil), as CLM5 does [lawrenceTechnicalDescriptionVersion2018; Eq. (7.53)](@cite) (see [`minimum_matric_potential`](@ref)). Below the bound, the specific moisture capacity is zero, so that the implicit solve falls back to the `minimum_moisture_capacity`.
+
 ```@docs; canonical = false
 SoilSaturationPressureClosure
 varname(::SoilSaturationPressureClosure)
@@ -276,6 +278,10 @@ compute_hydraulics!
 
 ```@docs; canonical = false
 minimum_moisture_capacity
+```
+
+```@docs; canonical = false
+minimum_matric_potential
 ```
 
 ```@docs; canonical = false

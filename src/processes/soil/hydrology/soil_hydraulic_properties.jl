@@ -69,6 +69,21 @@ singular row of the tridiagonal system.
 """
 function minimum_moisture_capacity end
 
+"""
+    minimum_matric_potential(hydraulics::AbstractSoilHydraulics)
+
+Lower bound (m) of the matric potential computed from the saturation by the saturation–pressure closure.
+Near the residual saturation, the retention curve produces matric potentials with very large magnitudes,
+and the resulting suction gradients between very dry and wet neighboring cells make the implicit Richards
+step diverge. The default of −10⁵ m, roughly the matric potential of oven-dry soil, is the lower bound
+used in the retention curve of CLM5 [lawrenceTechnicalDescriptionVersion2018; Eq. (7.53)](@cite).
+
+# References
+
+* [lawrenceTechnicalDescriptionVersion2018](@cite) Lawrence et al., Technical Description of version 5.0 of the Community Land Model (2018)
+"""
+function minimum_matric_potential end
+
 # Hydraulics parameterizations
 
 """
@@ -102,6 +117,9 @@ $TYPEDFIELDS
 
     "Lower bound (1/m) of the specific moisture capacity ∂θ/∂ψ on the diagonal of the implicit Richards solve (implicit time stepping only)"
     minimum_moisture_capacity::NF = 1.0e-5
+
+    "Lower bound (m) of the matric potential computed from the saturation (see [`minimum_matric_potential`](@ref))"
+    minimum_matric_potential::NF = -1.0e5
 end
 
 function ConstantSoilHydraulics(
@@ -123,6 +141,8 @@ end
 @inline residual_saturation(hydraulics::ConstantSoilHydraulics, args...) = hydraulics.residual_saturation
 
 @inline minimum_moisture_capacity(hydraulics::ConstantSoilHydraulics) = hydraulics.minimum_moisture_capacity
+
+@inline minimum_matric_potential(hydraulics::ConstantSoilHydraulics) = hydraulics.minimum_matric_potential
 
 """
     $TYPEDEF
@@ -164,6 +184,9 @@ $TYPEDFIELDS
 
     "Lower bound (1/m) of the specific moisture capacity ∂θ/∂ψ on the diagonal of the implicit Richards solve (implicit time stepping only)"
     minimum_moisture_capacity::NF = 1.0e-5
+
+    "Lower bound (m) of the matric potential computed from the saturation (see [`minimum_matric_potential`](@ref))"
+    minimum_matric_potential::NF = -1.0e5
 end
 
 function SoilHydraulicsSURFEX(
@@ -182,6 +205,8 @@ end
 @inline residual_saturation(hydraulics::SoilHydraulicsSURFEX, args...) = hydraulics.residual_saturation
 
 @inline minimum_moisture_capacity(hydraulics::SoilHydraulicsSURFEX) = hydraulics.minimum_moisture_capacity
+
+@inline minimum_matric_potential(hydraulics::SoilHydraulicsSURFEX) = hydraulics.minimum_matric_potential
 
 @inline function wilting_point(hydraulics::SoilHydraulicsSURFEX, texture::SoilTexture)
     β_w = hydraulics.wilting_point_effect

@@ -304,7 +304,8 @@ end
 
 Specific moisture capacity `∂θ/∂ψ` (1/m) at cell `i, j, k`: the derivative of the soil water retention
 curve ([`specific_moisture_capacity`](@ref)) at the matric potential ([`compute_matric_potential`](@ref))
-reconstructed from the total `pressure_head`. It vanishes in saturated cells.
+reconstructed from the total `pressure_head`. It vanishes in saturated cells, and at the
+[`minimum_matric_potential`](@ref), below which the closure holds the matric potential constant.
 """
 @propagate_inbounds function compute_specific_moisture_capacity(
         i, j, k, grid, fields,
@@ -313,9 +314,11 @@ reconstructed from the total `pressure_head`. It vanishes in saturated cells.
         bgc::AbstractSoilBiogeochemistry
     ) where {NF}
     ψm = compute_matric_potential(i, j, k, grid, fields)
+    ψm_min = minimum_matric_potential(get_hydraulic_properties(hydrology))
     swrc = get_swrc(hydrology)
     por = porosity(i, j, k, grid, fields, strat, bgc)
-    return convert(NF, specific_moisture_capacity(swrc, ψm, por))
+    dθdψ = convert(NF, specific_moisture_capacity(swrc, ψm, por))
+    return ifelse(ψm > ψm_min, dθdψ, zero(dθdψ))
 end
 
 """
