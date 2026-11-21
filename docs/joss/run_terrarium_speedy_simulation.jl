@@ -193,6 +193,13 @@ Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Terrarium(terra
 Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Terrarium(terrarium_model, :gross_primary_production))
 Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Terrarium(terrarium_model, :surface_runoff))
 Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Terrarium(terrarium_model, :skin_temperature))
+# surface radiation and ground heat flux of the land energy balance, R_net = SW↓ - SW↑ + LW↓ - LW↑ = H + LE + G
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Terrarium(terrarium_model, :surface_shortwave_down))
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Terrarium(terrarium_model, :surface_shortwave_up))
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Terrarium(terrarium_model, :surface_longwave_down))
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Terrarium(terrarium_model, :surface_longwave_up))
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Terrarium(terrarium_model, :surface_net_radiation))
+Speedy.add!(primitive_wet_coupled.output, Speedy.OutputVariables.Terrarium(terrarium_model, :ground_heat_flux))
 
 # Initialize the coupled simulation
 @info "Initializing coupled simulation"
