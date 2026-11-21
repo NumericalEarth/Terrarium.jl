@@ -13,7 +13,7 @@ import RingGrids
 """
 All configuration names known to the benchmark suite, in the order they appear in tables.
 """
-const CONFIGURATIONS = (:land, :land_no_vegetation, :soil_heat)
+const CONFIGURATIONS = (:land, :land_no_vegetation, :soil, :soil_heat)
 
 """
 Horizontal grid for a given `nlat_half`: a full Gaussian grid with `2 * nlat_half` latitude rings.
@@ -69,6 +69,15 @@ function land_solver_kwargs(::Type{NF}) where {NF}
 end
 
 """
+Implicit-explicit timestepper of the land and soil configurations: `ForwardEuler` for the explicit terms
+and `BackwardEuler` with two `Picard` iterations for the stiff vertical operators (soil heat conduction,
+Richards flow, and, in the land model, snow meltwater drainage). Spelled out rather than taken from the
+model defaults, so that a change of default does not silently change what is benchmarked. The fixed
+iteration count also keeps the implicit step free of convergence-tested loops, as Reactant requires.
+"""
+imex_timestepper(::Type{NF}) where {NF} = IMEX(ForwardEuler(NF), BackwardEuler(NF; solver = Picard(NF; iterations = 2)))
+
+"""
 Initial state shared by the coupled land configurations: a warm, variably saturated soil column
 under a thin cold snowpack. `carbon_vegetation` is only meaningful with vegetation enabled.
 """
@@ -90,11 +99,13 @@ end
 
 # --- :land — fully coupled land model ---------------------------------------------------
 # Vegetation carbon cycle + soil energy/water/carbon with Richards equation + single-layer snow, on
-# top of the default surface energy balance, surface hydrology and prescribed atmosphere. This is the
-# headline configuration: the cross-architecture overview table is its resolution sweep.
+# top of the default surface energy balance, surface hydrology and prescribed atmosphere, integrated
+# with `imex_timestepper` (implicit soil heat conduction, Richards flow, and snow meltwater drainage).
+# This is the headline configuration: the cross-architecture overview table is its resolution sweep.
 #
-# Δt = 600 s: the coupled model raises a DomainError in the turbulent-flux thermodynamics
-# (log of a negative saturation) for time steps of roughly half an hour and larger.
+# Δt = 900 s, the `LandModel` default: with the soil integrated implicitly, the step is limited by the
+# explicit snow heat conduction, and the coupled model raises a DomainError in the turbulent-flux
+# thermodynamics (log of a negative saturation) for time steps of roughly half an hour and larger.
 
 function build_model(::Val{:land}, arch, ::Type{NF}; nlat_half::Integer, nz::Integer, model_kwargs = (;)) where {NF}
     grid = benchmark_grid(arch, NF; nlat_half, nz)
@@ -107,10 +118,11 @@ function build_model(::Val{:land}, arch, ::Type{NF}; nlat_half::Integer, nz::Int
     vegetation = PrognosticVegetation(NF; vegetation_dynamics)
 
     snow = SingleLayerSnow(NF)
-    kwargs = merge(land_solver_kwargs(NF), resolve_model_kwargs(model_kwargs, NF))
+    defaults = merge(land_solver_kwargs(NF), (timestepper = imex_timestepper(NF),))
+    kwargs = merge(defaults, resolve_model_kwargs(model_kwargs, NF))
     model = LandModel(grid; soil, snow, vegetation, kwargs...)
     initializers = land_initializers(NF; vegetation = true)
-    return (; model, boundary_conditions = (;), initializers, Δt = NF(600))
+    return (; model, boundary_conditions = (;), initializers, Δt = NF(900))
 end
 
 # --- :land_no_vegetation — same, without the canopy ---------------------------------------
@@ -125,10 +137,45 @@ function build_model(::Val{:land_no_vegetation}, arch, ::Type{NF}; nlat_half::In
     soil = SoilEnergyWaterCarbon(NF; strat, hydrology = SoilHydrology(NF, RichardsEq()))
 
     snow = SingleLayerSnow(NF)
-    kwargs = merge(land_solver_kwargs(NF), resolve_model_kwargs(model_kwargs, NF))
+    defaults = merge(land_solver_kwargs(NF), (timestepper = imex_timestepper(NF),))
+    kwargs = merge(defaults, resolve_model_kwargs(model_kwargs, NF))
     model = LandModel(grid; soil, snow, vegetation = nothing, kwargs...)
     initializers = land_initializers(NF; vegetation = false)
-    return (; model, boundary_conditions = (;), initializers, Δt = NF(600))
+    return (; model, boundary_conditions = (;), initializers, Δt = NF(900))
+end
+
+# --- :soil — stand-alone soil with Richards flow --------------------------------------------
+# The soil column of the land configurations (same texture, stratigraphy, and Richards-equation
+# hydrology) as a `SoilModel` without surface processes, integrated with `imex_timestepper`. Isolates
+# the cost of the implicit soil heat and water solve from that of the surface and snow physics.
+#
+# Driven by a smooth, time-varying surface heat flux and no infiltration, so that the soil water only
+# redistributes from its initial profile (impermeable bottom). Value boundary conditions on temperature
+# are not supported by the implicit heat conduction operator, hence a flux rather than a prescribed
+# surface temperature as in :soil_heat.
+#
+# Δt = 3600 s, the `SoilModel` default under IMEX: the implicit soil solve is not bound by the explicit
+# diffusive limit, and the longer step it allows is part of what this configuration measures.
+
+function build_model(::Val{:soil}, arch, ::Type{NF}; nlat_half::Integer, nz::Integer, model_kwargs = (;)) where {NF}
+    grid = benchmark_grid(arch, NF; nlat_half, nz)
+
+    texture = SoilTexture(NF; sand = NF(0.4), clay = NF(0.2))
+    strat = HomogeneousSoilStratigraphy(NF; texture)
+    soil = SoilEnergyWaterCarbon(NF; strat, hydrology = SoilHydrology(NF, RichardsEq()))
+    kwargs = merge((timestepper = imex_timestepper(NF),), resolve_model_kwargs(model_kwargs, NF))
+    model = SoilModel(grid; soil, kwargs...)
+
+    ## smooth diurnal surface heat flux (W/m², positive upward) as a function of column index x and
+    ## time t; the closure must capture only isbits values to be a valid kernel argument under Reactant
+    amplitude = NF(50)
+    ω = NF(2π) / NF(24 * 3600)
+    surface_heat_flux(x, t) = amplitude * sin(ω * t) * cos(x)
+    boundary_conditions = SoilHeatFlux(surface_heat_flux)
+
+    initializers = land_initializers(NF; vegetation = false)
+    initializers = (; initializers.temperature, initializers.saturation_water_ice)
+    return (; model, boundary_conditions, initializers, Δt = NF(3600))
 end
 
 # --- :soil_heat — minimal soil heat conduction (Reactant reference) ------------------------
@@ -136,12 +183,15 @@ end
 # compile under Reactant. It is not part of the headline comparison — it exists so that an empty
 # Reactant column can be attributed to the land physics rather than to the benchmark harness, which
 # is also why it keeps the default sandy texture, with immobile soil water (`NoFlow`),
-# rather than the loam of the land configurations.
+# rather than the loam of the land configurations. It is integrated explicitly with `ForwardEuler`
+# (spelled out, as for the IMEX configurations), so that it also serves as the explicit reference
+# for the cost of the soil energy tendencies.
 
 function build_model(::Val{:soil_heat}, arch, ::Type{NF}; nlat_half::Integer, nz::Integer, model_kwargs = (;)) where {NF}
     grid = benchmark_grid(arch, NF; nlat_half, nz)
     soil = SoilEnergyWaterCarbon(NF; hydrology = SoilHydrology(NF, NoFlow()))
-    model = SoilModel(grid; soil, resolve_model_kwargs(model_kwargs, NF)...)
+    kwargs = merge((timestepper = ForwardEuler(NF),), resolve_model_kwargs(model_kwargs, NF))
+    model = SoilModel(grid; soil, kwargs...)
 
     ## smooth surface forcing as a function of column index x and time t; the closure must capture
     ## only isbits values to be a valid kernel argument under Reactant
@@ -153,6 +203,8 @@ function build_model(::Val{:soil_heat}, arch, ::Type{NF}; nlat_half::Integer, nz
     T₀ = NF(2)
     lapse_rate = NF(0.05)
     initializers = (temperature = (x, z) -> T₀ * cos(NF(x)) - lapse_rate * z,)
+    ## Δt = 600 s: the explicit diffusive limit of the thinnest (5 cm) layer of this dry sandy soil;
+    ## the cell diffusion timescale is about 1150 s, and ForwardEuler goes unstable at Δt = 900 s
     return (; model, boundary_conditions, initializers, Δt = NF(600))
 end
 

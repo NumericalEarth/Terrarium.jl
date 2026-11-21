@@ -320,6 +320,102 @@ end
     @test tendency_lo_porosity ≈ 2 * tendency_hi_porosity
 end
 
+@testset "SoilHydrology: face hydraulic conductivity" begin
+    # The face conductivity is the conductivity at the mean water content over the mean porosity of the two cells
+    # (CLM5), rather than the minimum of the two cell conductivities
+    props = SoilHydraulicsSURFEX(Float64)
+    wet = SoilComposition(porosity = 0.45, saturation = 0.9)
+    dry = SoilComposition(porosity = 0.4, saturation = 0.2)
+    face = Terrarium.face_soil_composition(dry, wet)
+    θw_mean = (0.45 * 0.9 + 0.4 * 0.2) / 2
+    @test Terrarium.water(face) ≈ θw_mean
+    @test Terrarium.porosity(face) ≈ 0.425
+    K_face = hydraulic_conductivity(props, face)
+    @test K_face ≈ hydraulic_conductivity(props, SoilComposition(porosity = 0.425, saturation = θw_mean / 0.425))
+    # symmetric in the two cells, and between the conductivities of the two cells, far above that of the drier one
+    @test K_face ≈ hydraulic_conductivity(props, Terrarium.face_soil_composition(wet, dry))
+    K_dry = hydraulic_conductivity(props, dry)
+    K_wet = hydraulic_conductivity(props, wet)
+    @test K_dry < K_face < K_wet
+    @test K_face > 100 * K_dry
+    # a face between two identical cells has the conductivity of the cells
+    @test hydraulic_conductivity(props, Terrarium.face_soil_composition(wet, wet)) ≈ K_wet
+    # frozen cells keep the ice impedance at the face
+    frozen = SoilComposition(porosity = 0.45, saturation = 0.9, liquid = 0.5)
+    @test hydraulic_conductivity(props, Terrarium.face_soil_composition(frozen, frozen)) ≈ hydraulic_conductivity(props, frozen)
+end
+
+@testset "SoilHydrology: face hydraulic conductivity schemes" begin
+    # Upwind: the conductivity of the cell from which the water flows; weighted average: the conductivity at the mean
+    # liquid water content over the mean porosity of the two cells
+    grid = ColumnGrid(UniformSpacing(Δz = 0.1, N = 10))
+    strat = HomogeneousSoilStratigraphy(Float64; porosity = ConstantSoilPorosity(Float64; mineral_porosity = 0.4))
+    bgc = ConstantSoilCarbonDensity(Float64; ρ_soc = 0.0) # zero SOC -> pure mineral porosity
+    @test RichardsEq().face_conductivity isa WeightedAverageConductivity
+    for face_conductivity in (UpwindConductivity(), WeightedAverageConductivity())
+        hydrology = SoilHydrology(Float64, RichardsEq(; face_conductivity))
+        state = StateVariables(merge(Variables(hydrology), Variables(strat)), grid)
+        # wet upper half over dry lower half; face 6 lies between the dry cell 5 and the wet cell 6
+        set!(state.saturation_water_ice, (x, z) -> z > -0.5 ? 0.9 : 0.2)
+        fields = get_fields(state, hydrology, strat, bgc)
+        K_cell(k) = hydraulic_conductivity(1, 1, k, grid, fields, hydrology, strat, bgc)
+        K_face(k) = Terrarium.compute_face_hydraulic_conductivity(1, 1, k, grid, fields, hydrology, strat, bgc)
+        for (head_above, head_below) in ((0.0, -10.0), (-10.0, 0.0))
+            # water flows downward from higher head above, or upward from higher head below
+            set!(state.pressure_head, (x, z) -> z > -0.5 ? head_above : head_below)
+            if face_conductivity isa UpwindConductivity
+                @test K_face(6) ≈ (head_above > head_below ? K_cell(6) : K_cell(5))
+            else
+                face = Terrarium.face_soil_composition(
+                    Terrarium.soil_composition(1, 1, 5, grid, fields, strat, hydrology, bgc),
+                    Terrarium.soil_composition(1, 1, 6, grid, fields, strat, hydrology, bgc)
+                )
+                @test K_face(6) ≈ hydraulic_conductivity(hydrology.hydraulic_properties, face)
+                @test K_cell(5) < K_face(6) < K_cell(6)
+            end
+            # the boundary faces take the conductivity of the adjacent cell
+            @test K_face(1) ≈ K_cell(1)
+            @test K_face(11) ≈ K_cell(10)
+        end
+    end
+end
+
+@testset "SoilHydrology: infiltration capacity" begin
+    # The infiltration capacity is the saturated conductivity of the top cell, reduced by the ice impedance in frozen
+    # soil. It is evaluated inline from the liquid water fraction, so it follows the state without any update.
+    grid = ColumnGrid(UniformSpacing(Δz = 0.1, N = 10))
+    K_sat = 1.0e-5
+    hydraulic_properties = SoilHydraulicsSURFEX(Float64; saturated_conductivity = K_sat)
+    hydrology = SoilHydrology(eltype(grid), RichardsEq(); hydraulic_properties)
+    state = StateVariables(hydrology, grid)
+    fields = (; liquid_water_fraction = state.liquid_water_fraction)
+    capacity() = Terrarium.infiltration_capacity(1, 1, grid, fields, hydrology)
+
+    # independent of the saturation of unfrozen soil
+    for sat in (0.1, 0.5, 1.0)
+        set!(state.saturation_water_ice, sat)
+        @test capacity() ≈ K_sat
+    end
+    # reduced by the ice impedance 10^(-Ω (1 - f)) of the Brooks–Corey conductivity, evaluated in the top cell only
+    Ω = hydraulic_properties.unsat_hydraulic_cond.impedance
+    set!(state.liquid_water_fraction, (x, z) -> z > -0.1 ? 0.5 : 1.0)
+    @test capacity() ≈ K_sat * 10^(-Ω * 0.5)
+    set!(state.liquid_water_fraction, (x, z) -> z > -0.1 ? 1.0 : 0.0)
+    @test capacity() ≈ K_sat
+    @test (@inferred capacity()) isa Float64
+
+    # the linear conductivity has no impedance parameter; its conductivity at full saturation is K_sat f
+    linear_properties = SoilHydraulicsSURFEX(Float64; saturated_conductivity = K_sat, unsat_hydraulic_cond = UnsatKLinear(Float64))
+    linear_hydrology = SoilHydrology(eltype(grid), RichardsEq(); hydraulic_properties = linear_properties)
+    linear_state = StateVariables(linear_hydrology, grid)
+    set!(linear_state.liquid_water_fraction, 0.25)
+    @test Terrarium.infiltration_capacity(1, 1, grid, (; liquid_water_fraction = linear_state.liquid_water_fraction), linear_hydrology) ≈ K_sat / 4
+
+    # immobile soil water takes up no water at the surface
+    noflow_hydrology = SoilHydrology(eltype(grid), NoFlow())
+    @test Terrarium.infiltration_capacity(1, 1, grid, (;), noflow_hydrology) == 0
+end
+
 @testset "Soil moisture forcing (source/sink)" begin
     mutable struct ForcingValue{NF}
         value::NF

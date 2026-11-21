@@ -106,7 +106,7 @@ end
 
 function ConstantSoilHydraulics(
         ::Type{NF};
-        swrc = BrooksCorey(),
+        swrc = BrooksCorey(:sandyloam),
         unsat_hydraulic_cond = default_unsat_hydraulic_cond(NF, swrc),
         kwargs...
     ) where {NF}
@@ -168,7 +168,7 @@ end
 
 function SoilHydraulicsSURFEX(
         ::Type{NF};
-        swrc = BrooksCorey(),
+        swrc = BrooksCorey(:sandyloam),
         unsat_hydraulic_cond = default_unsat_hydraulic_cond(NF, swrc),
         kwargs...
     ) where {NF}
@@ -238,10 +238,15 @@ end
 """
     $TYPEDEF
 
-Formulation of hydraulic conductivity as a function of saturated hydraulic conductivity `K_sat` and
-volumetric fractions, assumed to include those of water, ice, and air, following the van Genuchten 
-formulation [vangenuchtenHydraulicConductivity1980](@cite) extended with an ice impedance factor 
-[westermannCryoGridCommunityModel2023](@cite).
+Unsaturated hydraulic conductivity of [vangenuchtenHydraulicConductivity1980](@cite), extended with an ice impedance
+factor:
+
+    K = I_ice K_sat S^(1/2) (1 - (1 - S^(1/m))^m)²,    m = 1 - 1/n
+
+where `S = θw / θsat` is the liquid water saturation, `n` is the shape parameter of the `VanGenuchten` retention
+curve, and `I_ice` is the [`Terrarium.ice_impedance_factor`](@ref) [westermannCryoGridCommunityModel2023](@cite).
+Since `n` is taken from the retention curve, this formulation can only be combined with a `VanGenuchten` retention
+curve. A nonzero residual water content is not accounted for.
 
 # References
 
@@ -271,7 +276,7 @@ function hydraulic_conductivity(
         # evaluated at a non-negative base. Illegal state values (θw > θsat or θw < 0), which may occur
         # when using adaptive time steppers.
         S = clamp(θw / θsat, zero(θw), one(θw))
-        K = K_sat * I_ice * sqrt(S) * (one(S) - (one(S) - S^(n / (n + 1)))^((n - 1) / n))^2
+        K = K_sat * I_ice * sqrt(S) * (one(S) - (one(S) - S^(n / (n - 1)))^((n - 1) / n))^2
         return K
     end
 end
@@ -279,33 +284,23 @@ end
 """
     $TYPEDEF
 
-Unsaturated hydraulic conductivity of the Brooks–Corey model, extended with an ice impedance factor:
+Unsaturated hydraulic conductivity of [brooksHydraulicPropertiesPorous1964; Eq. (13)](@cite), extended with an ice
+impedance factor:
 
     K = I_ice K_sat S^(3 + 2/λ)
 
-where `S = θw / θsat` is the liquid water saturation, `λ` is the pore size distribution index of the
-`BrooksCorey` retention curve, and `I_ice` is the [`Terrarium.ice_impedance_factor`](@ref) of
-[westermannCryoGridCommunityModel2023](@cite).
-
-Brooks and Corey [brooksHydraulicPropertiesPorous1964](@cite) define the power law on the effective saturation `(θw − θres) / (θsat − θres)`. Terrarium
-evaluates the retention curve with the residual water content of the `BrooksCorey` curve itself, which is
-zero by default, and in that case the effective saturation reduces to `S`. A nonzero residual water content of
-the retention curve is not yet accounted for here; the `residual_saturation` of the hydraulic properties is
-only a numerical lower bound on the saturation.
-
-The power law and its exponent `3 + 2/λ` were derived by [brooksHydraulicPropertiesPorous1964](@cite) from
-their retention curve, using the pore size distribution model of Burdine.
-[campbellSimpleMethodDetermining1974](@cite) obtained the same law, written as `S^(2b + 3)` with `b = 1/λ`, and
-[clappEmpiricalEquationsSoil1978](@cite) tabulated `b` by soil texture; in this form, it is the conductivity
-of SURFEX/ISBA [booneInfluenceInclusionSoil2000](@cite). The exponent `λ` is taken from the retention curve so that the two cannot be configured
-inconsistently; this formulation can therefore only be combined with a `BrooksCorey` retention curve.
+where `S = θw / θsat` is the liquid water saturation, `λ` is the pore size distribution index of the `BrooksCorey`
+retention curve, and `I_ice` is the [`Terrarium.ice_impedance_factor`](@ref) [westermannCryoGridCommunityModel2023](@cite).
+Brooks and Corey give this law as a relative permeability, which equals `K / K_sat`; with `b = 1/λ`, it is the
+`S^(2b + 3)` of [campbellSimpleMethodDetermining1974, clappEmpiricalEquationsSoil1978](@cite). Since `λ` is taken from
+the retention curve, this formulation can only be combined with a `BrooksCorey` retention curve. A nonzero residual
+water content is not accounted for.
 
 # References
 
 * [brooksHydraulicPropertiesPorous1964](@cite) Brooks & Corey, Hydrology Papers, Colorado State University (1964)
 * [campbellSimpleMethodDetermining1974](@cite) Campbell, Soil Science (1974)
 * [clappEmpiricalEquationsSoil1978](@cite) Clapp & Hornberger, Water Resources Research (1978)
-* [booneInfluenceInclusionSoil2000](@cite) Boone et al., Journal of Applied Meteorology (2000)
 * [westermannCryoGridCommunityModel2023](@cite) Westermann et al., Geoscientific Model Development (2023)
 """
 @parameterized @kwdef struct UnsatKBrooksCorey{NF} <: AbstractUnsatK{NF}
@@ -333,6 +328,17 @@ function hydraulic_conductivity(
         return K
     end
 end
+
+"""
+    $TYPEDSIGNATURES
+
+Ice impedance factor of the unsaturated conductivity formulation `unsat_k` for the unfrozen fraction `f` of the
+pore water, i.e. the ratio of the hydraulic conductivity at full saturation to the saturated conductivity `K_sat`.
+For [`UnsatKBrooksCorey`](@ref) and [`UnsatKVanGenuchten`](@ref), this is `10^(-Ω (1 - f))` with the `impedance` `Ω`
+of `unsat_k`; for [`UnsatKLinear`](@ref), whose conductivity at full saturation is `K_sat f`, it is `f`.
+"""
+@inline ice_impedance_factor(unsat_k::Union{UnsatKBrooksCorey, UnsatKVanGenuchten}, f) = ice_impedance_factor(unsat_k.impedance, f)
+@inline ice_impedance_factor(::UnsatKLinear, f) = f
 
 """
     $TYPEDSIGNATURES

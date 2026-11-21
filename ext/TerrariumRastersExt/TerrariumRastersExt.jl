@@ -190,7 +190,7 @@ function interpolate_to_grid(grid::ColumnRingGrid, source_grid::RingGrids.Abstra
     arch = architecture(grid)
     data_device = on_architecture(arch, reshape(data.data, :)) # NOTE: only works if underlying data is an in-memory 2D array
     field = RingGrids.Field(data_device, on_architecture(arch, source_grid))
-    if grid.rings === source_grid
+    if grid.rings == source_grid
         return field
     else
         return RingGrids.interpolate(grid.rings, field)

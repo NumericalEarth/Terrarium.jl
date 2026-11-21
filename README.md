@@ -32,7 +32,7 @@ We want a land surface (and subsurface) model that is
 - **Open-source** and **community-driven** to foster interdisciplinary collaboration and development
 
 It is important to emphasize, however, what Terrarium is not:
-- Terrarium is **not a comprehensive land model**. While we are always open to suggestions and contributions to add new processes, we do not aim to build a state-of-the-art terrestrial ecosystem model rivaling that of, e.g. the [CTSM](https://github.com/ESCOMP/CTSM). Terrarium will always favor simplicity, efficiency, and interoperability over process-complexity.
+- Terrarium is **not a comprehensive land model**. While we are always open to suggestions and contributions to add new processes, we do not aim to build a state-of-the-art terrestrial ecosystem model rivaling that of, e.g. the [CTSM](https://github.com/ESCOMP/CTSM). Terrarium will always favor simplicity, efficiency, and interoperability over process complexity.
 - Terrarium is **not “just another model”**. We do not intend for users to simply download our model products and cite our papers. We want users to directly interact with our model, ideally running their own simulations and writing their own code.
 - Terrarium is **not a monolithic model**. Modularity and extensibility are core to our vision. Terrarium provides a library of models, process implementations, and numerical tools which users can use to build their own simulations. We will provide guidance and a set of well-tested and stable model configurations, but we encourage users to experiment and push the limits of what those models can do.
 
@@ -112,7 +112,8 @@ However, if you make changes or modification to the code, excluding those made p
 ## Acknowledgements
 
 Terrarium.jl is a community-oriented project lead by the [FutureLab on Artificial Intelligence](https://www.pik-potsdam.de/en/institute/departments/complexity-science/research/artificial-intelligence) at the Potsdam Institute for Climate Impact Research (PIK) and Earth System Modeling group at the Technical University of Munich (TUM). We acknowledge funding support from
-- Horizon Europe grant agreement number 101184070
+- Horizon Europe grant agreement number 101184070 (Past to Future)
+- Horizon Europe grant agreement number 101137601 (ClimTip)
 - Volkswagen Foundation
 - Munich Data Science Institute (MDSI) at Technical University of Munich (TUM) via the Linde/MDSI Doctoral Fellowship program
 

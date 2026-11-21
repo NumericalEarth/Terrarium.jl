@@ -57,7 +57,7 @@ include("soil/hydrology/soil_hydraulic_properties.jl")
 export SoilHydrology, NoFlow
 include("soil/hydrology/soil_hydrology.jl")
 
-export RichardsEq
+export RichardsEq, WeightedAverageConductivity, UpwindConductivity
 include("soil/hydrology/soil_hydrology_rre.jl")
 
 export SoilSaturationPressureClosure

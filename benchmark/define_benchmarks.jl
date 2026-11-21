@@ -62,6 +62,15 @@ benchmarks[:bench202] = BenchmarkSuite(
     nlat_half = copy(RESOLUTION_SWEEP),
 )
 
+## Stand-alone soil with implicit heat conduction and Richards flow, to isolate the cost of the implicit
+## soil solve from the surface and snow physics of the land configurations.
+benchmarks[:bench203] = BenchmarkSuite(
+    title = "Soil model with Richards flow, horizontal resolution",
+    nruns = length(RESOLUTION_SWEEP),
+    config = fill(:soil, length(RESOLUTION_SWEEP)),
+    nlat_half = copy(RESOLUTION_SWEEP),
+)
+
 ## Vertical resolution at fixed horizontal resolution.
 let nz = [10, 20, 30, 60, 100]
     benchmarks[:bench300] = BenchmarkSuite(
@@ -78,13 +87,16 @@ benchmarks[:bench400] = BenchmarkSuite(
     NF = [Float32, Float64],
 )
 
-## Time steppers. `IMEX` is not benchmarked: it needs an implicit sub-stepper and Terrarium does not
-## yet provide a concrete one (`timestepping(…) == Implicit()` has no implementation).
+## Explicit partner of the IMEX time stepper. A purely explicit land model is not benchmarked: the
+## explicit Richards equation is unstable on these grids at the land time step.
 benchmarks[:bench500] = BenchmarkSuite(
     title = "Time stepper",
     nruns = 2,
-    model_kwargs = [(timestepper = ForwardEuler,), (timestepper = Heun,)],
-    label = ["ForwardEuler", "Heun"],
+    model_kwargs = [
+        (timestepper = imex_timestepper,),
+        (timestepper = NF -> IMEX(Heun(NF), BackwardEuler(NF; solver = Picard(NF; iterations = 2))),),
+    ],
+    label = ["IMEX(ForwardEuler, BackwardEuler)", "IMEX(Heun, BackwardEuler)"],
 )
 
 ## Compile-order check, last suite of the run: the same models as `:bench000`, built anew at the end.

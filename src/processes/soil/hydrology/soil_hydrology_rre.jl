@@ -1,8 +1,48 @@
 """
-    RichardsEq{PS} <: AbstractVerticalFlow
+    $TYPEDEF
+
+Base type for schemes that determine the hydraulic conductivity at the faces between two soil cells, through which
+the Darcy flux of the Richards equation flows (see [`compute_face_hydraulic_conductivity`](@ref)).
+"""
+abstract type AbstractFaceConductivity end
+
+"""
+    $TYPEDEF
+
+Face conductivity at the mean liquid water content over the mean porosity of the two adjacent cells, i.e. a
+porosity-weighted average of their liquid water saturation, as in the interface conductivity of CLM5
+[lawrenceTechnicalDescriptionVersion2018; Eq. (7.47)](@cite). It lets water drain from a wet cell into a drier one at
+a rate set by both cells, while it remains negligible between two dry cells.
+
+# References
+
+* [lawrenceTechnicalDescriptionVersion2018](@cite) Lawrence et al., Technical Description of Version 5.0 of the Community Land Model (CLM), NCAR (2018)
+"""
+struct WeightedAverageConductivity <: AbstractFaceConductivity end
+
+"""
+    $TYPEDEF
+
+Upstream-weighted face conductivity: the conductivity of the cell from which the water flows, determined by the sign
+of the gradient of the total hydraulic head across the face. Upstream weighting is the standard choice for robust
+infiltration into dry soil, since a wetting front advances at the conductivity of the wet cell behind it
+[forsythRobustNumericalMethods1995](@cite).
+
+# References
+
+* [forsythRobustNumericalMethods1995](@cite) Forsyth et al., Advances in Water Resources (1995)
+"""
+struct UpwindConductivity <: AbstractFaceConductivity end
+
+"""
+    $TYPEDEF
 
 [`SoilHydrology`](@ref) flow operator implementing the mixed saturation-pressure form
 of the Richardson-Richards equation.
+
+The hydraulic conductivity at the cell faces is determined by the `face_conductivity` scheme
+([`AbstractFaceConductivity`](@ref)), either [`WeightedAverageConductivity`](@ref) (default) or
+[`UpwindConductivity`](@ref).
 
 State variables defined by the Richards' formulation of `SoilHydrology`:
 
@@ -20,9 +60,12 @@ For standalone soil hydrology with no surface runoff, surface excess water is di
 See also [`SoilSaturationPressureClosure`](@ref) and [`AbstractSoilHydraulics`](@ref) for details regarding the
 closure relating saturation and pressure head.
 """
-@kwdef struct RichardsEq <: AbstractVerticalFlow end
+@kwdef struct RichardsEq{FC <: AbstractFaceConductivity} <: AbstractVerticalFlow
+    "Scheme for the hydraulic conductivity at the cell faces"
+    face_conductivity::FC = WeightedAverageConductivity()
+end
 
-variables(hydrology::SoilHydrology{NF, RichardsEq}) where {NF} = (
+variables(hydrology::SoilHydrology{NF, <:RichardsEq}) where {NF} = (
     prognostic(:saturation_water_ice, Ground(XYZ()); closure = get_closure(hydrology), bounds = UnitInterval, desc = "Saturation level of water and ice in the pore space"),
     auxiliary(:hydraulic_conductivity, Ground(XYZ(z = Face())), units = u"m/s", desc = "Hydraulic conductivity of soil volumes in m/s"),
     auxiliary(:water_table, Ground(XY()), units = u"m", desc = "Elevation of the water table in meters"),
@@ -30,14 +73,14 @@ variables(hydrology::SoilHydrology{NF, RichardsEq}) where {NF} = (
     input(:liquid_water_fraction, Ground(XYZ()), default = NF(1), bounds = UnitInterval, desc = "Fraction of unfrozen water in the pore space"),
 )
 
-default_timestepping(::SoilHydrology{NF, RichardsEq}) where {NF} = Implicit()
+default_timestepping(::SoilHydrology{NF, <:RichardsEq}) where {NF} = Implicit()
 
 # Top-level interface methods
 
 """ $TYPEDSIGNATURES """
 function initialize!(
         state, grid,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         soil::AbstractSoil,
         constants::PhysicalConstants,
         args...
@@ -54,7 +97,7 @@ end
 """ $TYPEDSIGNATURES """
 function compute_auxiliary!(
         state, grid,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         soil::AbstractSoil,
         args...
     ) where {NF}
@@ -79,7 +122,7 @@ configurations may not declare it at all.
 """
 function compute_boundary_conditions!(
         state, grid,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry
     ) where {NF}
@@ -109,7 +152,7 @@ overwrites the interior fluxes with those of its conservative update (see [`impl
 """
 function compute_tendencies!(
         state, grid,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         soil::AbstractSoil,
         constants::PhysicalConstants,
         evtr::Optional{AbstractEvapotranspiration} = nothing,
@@ -144,7 +187,7 @@ the interior ones being integrated by the implicit sub-stepper.
 """
 @propagate_inbounds function compute_volumetric_water_content_tendency(
         i, j, k, grid, clock, fields,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         constants::PhysicalConstants,
         evapotranspiration::Optional{AbstractEvapotranspiration},
         timestepping::Timestepping = Explicit()
@@ -212,7 +255,7 @@ the total pressure head `ψ` and the face hydraulic conductivity `K` (see [`darc
     # Darcy's law: q = -K ∂ψ/∂z
     # TODO: also account for effect of temperature on matric potential
     ∇ψ = ∂zᵃᵃᶠ(i, j, k, grid, ψ)
-    Kₖ = darcy_conductivity(i, j, k, grid, ψ, K)
+    Kₖ = darcy_conductivity(i, j, k, grid, K)
     ## Note that elevation and hydrostatic pressure are assumed to be accounted
     ## for in the computation of ψ, so we don't need any additional terms.
     q = -Kₖ * ∇ψ
@@ -232,17 +275,10 @@ boundary conditions on `pressure_head` (zero for no-flux, see
 """
     $SIGNATURES
 
-Hydraulic conductivity (m/s) used by the [`darcy_flux`](@ref) at face `k`: the minimum of `K` (defined
-on faces) at face `k` and at the adjacent face in the direction of the gradient of the total pressure
-head `ψ` (face `k - 1` for `∂ψ/∂z < 0`, else `k + 1`).
+Hydraulic conductivity (m/s) used by the [`darcy_flux`](@ref) at face `k`, i.e. the face conductivity `K`
+computed by [`compute_face_hydraulic_conductivity`](@ref).
 """
-@propagate_inbounds function darcy_conductivity(i, j, k, grid, ψ, K)
-    ∇ψ = ∂zᵃᵃᶠ(i, j, k, grid, ψ)
-    ## Take minimum of hydraulic conductivities in the direction of flow
-    Kₖ = (∇ψ < 0) * min(K[i, j, k - 1], K[i, j, k]) +
-        (∇ψ >= 0) * min(K[i, j, k], K[i, j, k + 1])
-    return Kₖ
-end
+@propagate_inbounds darcy_conductivity(i, j, k, grid, K) = K[i, j, k]
 
 """
     $SIGNATURES
@@ -272,7 +308,7 @@ reconstructed from the total `pressure_head`. It vanishes in saturated cells.
 """
 @propagate_inbounds function compute_specific_moisture_capacity(
         i, j, k, grid, fields,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry
     ) where {NF}
@@ -319,27 +355,150 @@ end
 """
     $TYPEDSIGNATURES
 
-Computes the unsaturated hydraulic conductivity for `RichardsEq` configurations of `SoilHydrology`.
+Compute the infiltration capacity (m/s) of the soil surface in grid column `i, j` as
+
+    I_max = K_sat I_ice(f)
+
+where `K_sat` is the saturated hydraulic conductivity and `I_ice` is the ice impedance factor of the unsaturated
+conductivity formulation (see [`Terrarium.ice_impedance_factor`](@ref)) for the unfrozen water fraction `f` of
+the topmost soil layer, as in CLM5 [lawrenceTechnicalDescriptionVersion2018; Eq. (7.34)](@cite).
+
+The infiltration capacity of a soil is at least its saturated conductivity: the matric suction gradient at a
+wetting front raises it above `K_sat` in dry soil, and it decays toward `K_sat` as the soil wets
+[greenStudiesSoilPhysics1911, philipTheoryInfiltration1957](@cite).
+
+# References
+
+* [lawrenceTechnicalDescriptionVersion2018](@cite) Lawrence et al., Technical Description of Version 5.0 of the Community Land Model (CLM), NCAR (2018)
+* [greenStudiesSoilPhysics1911](@cite) Green and Ampt, The Journal of Agricultural Science (1911)
+* [philipTheoryInfiltration1957](@cite) Philip, Soil Science (1957)
 """
-@propagate_inbounds function compute_hydraulics!(
-        out, i, j, k, grid, fields,
-        hydrology::SoilHydrology{NF, RichardsEq},
+@propagate_inbounds function compute_infiltration_capacity(
+        i, j, grid, fields,
+        hydrology::SoilHydrology{NF, <:RichardsEq}
+    ) where {NF}
+    props = get_hydraulic_properties(hydrology)
+    f = liquid_water_fraction(i, j, grid.Nz, grid, fields, hydrology)
+    K_sat = saturated_hydraulic_conductivity(props)
+    I_ice = ice_impedance_factor(props.unsat_hydraulic_cond, f)
+    return K_sat * I_ice
+end
+
+# evaluated inline wherever it is needed, so that it needs neither storage nor an update in `compute_auxiliary!`
+@propagate_inbounds infiltration_capacity(i, j, grid, fields, hydrology::SoilHydrology{NF, <:RichardsEq}) where {NF} =
+    compute_infiltration_capacity(i, j, ground_domain(grid), fields, hydrology)
+
+"""
+    $TYPEDSIGNATURES
+
+Return the [`SoilComposition`](@ref) at the face between the soil volumes `soil_below` and `soil_above`, with the
+mean porosity, the mean water and ice content, and the mean liquid water content of the two volumes, and the solid
+matrix of `soil_above`. Its liquid water saturation `θw / θsat` is thus the mean liquid water content over the mean
+porosity, as in the interface conductivity of CLM5 [lawrenceTechnicalDescriptionVersion2018; Eq. (7.47)](@cite).
+
+# References
+
+* [lawrenceTechnicalDescriptionVersion2018](@cite) Lawrence et al., Technical Description of Version 5.0 of the Community Land Model (CLM), NCAR (2018)
+"""
+@inline function face_soil_composition(soil_below::SoilComposition{NF}, soil_above::SoilComposition{NF}) where {NF}
+    # porosity ϕ, water and ice content θwi, and liquid water content θw below (₁) and above (₂) the face
+    ϕ₁ = porosity(soil_below)
+    ϕ₂ = porosity(soil_above)
+    θwi₁ = water_ice(soil_below)
+    θwi₂ = water_ice(soil_above)
+    θw₁ = water(soil_below)
+    θw₂ = water(soil_above)
+    # means at the face
+    ϕ = (ϕ₁ + ϕ₂) / 2
+    θwi = (θwi₁ + θwi₂) / 2
+    θw = (θw₁ + θw₂) / 2
+    # saturation ξ and liquid fraction f at the face; the guard covers a column without any water or ice,
+    # where the liquid fraction is undefined
+    ξ = θwi / ϕ
+    f = θw / max(θwi, eps(NF))
+    return SoilComposition(ϕ, ξ, f, soil_above.solid)
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the hydraulic conductivity at face `k` of the soil column `i, j`, i.e. between the cells `k - 1` and `k`,
+according to the `face_conductivity` scheme of the Richards equation (see [`AbstractFaceConductivity`](@ref)).
+At the bottom (`k = 1`) and top (`k = Nz + 1`) boundary faces, it is the conductivity of the adjacent cell.
+"""
+@propagate_inbounds compute_face_hydraulic_conductivity(i, j, k, grid, fields, hydrology::SoilHydrology{NF, <:RichardsEq}, args...) where {NF} =
+    compute_face_hydraulic_conductivity(i, j, k, grid, fields, hydrology.vertical_flow.face_conductivity, hydrology, args...)
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the hydraulic conductivity at face `k` as the conductivity of the mean composition of the two adjacent cells
+(see [`face_soil_composition`](@ref)), following the interface conductivity of CLM5
+[lawrenceTechnicalDescriptionVersion2018; Eq. (7.47)](@cite).
+
+# References
+
+* [lawrenceTechnicalDescriptionVersion2018](@cite) Lawrence et al., Technical Description of Version 5.0 of the Community Land Model (CLM), NCAR (2018)
+"""
+@propagate_inbounds function compute_face_hydraulic_conductivity(
+        i, j, k, grid, fields,
+        ::WeightedAverageConductivity,
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry
     ) where {NF}
-    # Get underlying grid
-    ground_grid = ground_domain(grid)
-    # compute hydraulic conductivity
-    Nz = ground_grid.Nz
-    k_below = ifelse(k >= Nz, Nz, max(k - 1, one(k)))
+    Nz = ground_domain(grid).Nz
+    k_below = max(k - 1, one(k))
     k_above = min(k, Nz)
-    K_face = min(
-        hydraulic_conductivity(i, j, k_below, grid, fields, hydrology, strat, bgc),
-        hydraulic_conductivity(i, j, k_above, grid, fields, hydrology, strat, bgc)
-    )
-    @inbounds out.hydraulic_conductivity[i, j, k] = K_face
+    soil_below = soil_composition(i, j, k_below, grid, fields, strat, hydrology, bgc)
+    soil_above = soil_composition(i, j, k_above, grid, fields, strat, hydrology, bgc)
+    soil_face = face_soil_composition(soil_below, soil_above)
+    return hydraulic_conductivity(hydrology.hydraulic_properties, soil_face)
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the hydraulic conductivity at face `k` as the conductivity of the upstream cell: the water flows from the
+higher to the lower total hydraulic head `ψ` (`pressure_head`), so the upstream cell is `k` (above the face) if the
+head increases upward across the face, and `k - 1` otherwise [forsythRobustNumericalMethods1995](@cite).
+
+# References
+
+* [forsythRobustNumericalMethods1995](@cite) Forsyth et al., Advances in Water Resources (1995)
+"""
+@propagate_inbounds function compute_face_hydraulic_conductivity(
+        i, j, k, grid, fields,
+        ::UpwindConductivity,
+        hydrology::SoilHydrology{NF, <:RichardsEq},
+        strat::AbstractStratigraphy,
+        bgc::AbstractSoilBiogeochemistry
+    ) where {NF}
+    ground_grid = ground_domain(grid)
+    Nz = ground_grid.Nz
+    ∇ψ = ∂zᵃᵃᶠ(i, j, k, ground_grid, fields.pressure_head)
+    # select the index of the upstream cell, clamped to the column at the boundary faces
+    k_upstream = clamp(ifelse(∇ψ > 0, k, k - 1), one(k), Nz)
+    return hydraulic_conductivity(i, j, k_upstream, grid, fields, hydrology, strat, bgc)
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Computes the hydraulic conductivity at the cell faces for `RichardsEq` configurations of `SoilHydrology` (see
+[`compute_face_hydraulic_conductivity`](@ref)). Each cell writes its lower face; the top cell also writes the top
+face `Nz + 1`.
+"""
+@propagate_inbounds function compute_hydraulics!(
+        out, i, j, k, grid, fields,
+        hydrology::SoilHydrology{NF, <:RichardsEq},
+        strat::AbstractStratigraphy,
+        bgc::AbstractSoilBiogeochemistry
+    ) where {NF}
+    Nz = ground_domain(grid).Nz
+    @inbounds out.hydraulic_conductivity[i, j, k] = compute_face_hydraulic_conductivity(i, j, k, grid, fields, hydrology, strat, bgc)
     k_upper = ifelse(k >= Nz, Nz + one(Nz), k)
-    @inbounds out.hydraulic_conductivity[i, j, k_upper] = K_face
+    @inbounds out.hydraulic_conductivity[i, j, k_upper] = compute_face_hydraulic_conductivity(i, j, k_upper, grid, fields, hydrology, strat, bgc)
     return nothing
 end
 
@@ -356,7 +515,7 @@ end
 
 @kernel inbounds = true function compute_tendencies_kernel!(
         tend, grid, clock, fields,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry,
         constants::PhysicalConstants,

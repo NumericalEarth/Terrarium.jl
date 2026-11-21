@@ -42,7 +42,7 @@ The solver calls the hooks through the `SoilModel`/`LandModel` forwarding method
 
 * [CeliaEtAl1990](@cite) Celia, Bouloutas, and Zarba, Water Resources Research 26, 1483–1496 (1990)
 """
-function implicit_operator(hydrology::SoilHydrology{NF, RichardsEq}, state, grid) where {NF}
+function implicit_operator(hydrology::SoilHydrology{NF, <:RichardsEq}, state, grid) where {NF}
     get_closure(hydrology) isa SoilSaturationPressureClosure || throw(
         ArgumentError(
             "implicit soil water flow requires the `SoilSaturationPressureClosure`, got $(nameof(typeof(get_closure(hydrology))))"
@@ -73,7 +73,7 @@ right-hand side `C Ψᵐ - φ (ξᵐ - ξ⁺)` in `rhs` ([`compute_implicit_wate
 """
 function linearize!(
         operator::TridiagonalOperator, rhs, state, grid,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         soil::AbstractSoil,
         constants::PhysicalConstants,
         explicit_saturation, Δt
@@ -98,7 +98,7 @@ Update `saturation_water_ice` conservatively from the solved pressure head
 """
 function implicit_update!(
         state, grid,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         soil::AbstractSoil,
         operator::TridiagonalOperator,
         explicit_saturation, Δt
@@ -123,7 +123,7 @@ the hydraulic conductivity.
 """
 function implicit_closure!(
         state, grid,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         soil::AbstractSoil,
         constants::PhysicalConstants,
         runoff::Optional{AbstractSurfaceRunoff},
@@ -143,7 +143,7 @@ every iteration restarts from the explicit stage, then update the hydraulic cond
 """
 function implicit_closure!(
         state, grid,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         soil::AbstractSoil,
         constants::PhysicalConstants,
         runoff::Optional{AbstractSurfaceRunoff},
@@ -164,10 +164,10 @@ as in the explicit [`darcy_flux`](@ref) ([`darcy_conductivity`](@ref)).
 """
 @propagate_inbounds function compute_implicit_conductivity!(
         face_conductivity, i, j, k, grid, fields,
-        hydrology::SoilHydrology{NF, RichardsEq}
+        hydrology::SoilHydrology{NF, <:RichardsEq}
     ) where {NF}
     ground_grid = ground_domain(grid)
-    face_conductivity[i, j, k] = darcy_conductivity(i, j, k, ground_grid, fields.pressure_head, fields.hydraulic_conductivity)
+    face_conductivity[i, j, k] = darcy_conductivity(i, j, k, ground_grid, fields.hydraulic_conductivity)
     return nothing
 end
 
@@ -180,7 +180,7 @@ Store the specific moisture capacity `C = ∂θ/∂ψ` (1/m) of the current iter
 """
 @propagate_inbounds function compute_implicit_capacity!(
         diagonal_coefficient, i, j, k, grid, fields,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry
     ) where {NF}
@@ -198,7 +198,7 @@ Store the capacity ([`compute_implicit_capacity!`](@ref)) and face conductivity
 """
 @propagate_inbounds function compute_implicit_water_flow_coefficients!(
         out, i, j, k, grid, fields,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         strat::AbstractStratigraphy,
         bgc::AbstractSoilBiogeochemistry
     ) where {NF}
