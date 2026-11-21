@@ -1,6 +1,6 @@
 # Infiltration capacity and wetting-front conductivity for Richards soil hydrology
 
-> Status: **in progress**. Phases 1, 2, and 4 are implemented, the rerun of the JOSS simulation (Phase 3) is tracked separately on `joss-paper`, and Phase 5 (a lower bound on the matric potential) is being implemented.
+> Status: **completed**. Phases 1, 2, and 4 are implemented, the rerun of the JOSS simulation (Phase 3) is tracked separately on `joss-paper`, and pedotransfer functions and a spatially varying water table are left to future work.
 
 Date of initial draft: 2026-11-15
 
@@ -188,10 +188,11 @@ Phase 5 makes the Richards equation robust to such states by bounding the matric
   - `test/surface/hydrology/surface_runoff_tests.jl` and the snowmelt and surface pool tests in `test/coupled_models/land_model_tests.jl`.
 - Phase 4: the FreezeCurves.jl test suite covers the new presets (construction from strings and symbols, `0 < λ < 1`, saturation above the air-entry suction).
   The Terrarium full test suite and draft doc build were not rerun locally after Phase 4 and are left to CI on PR #257.
-- Phase 5:
-  - a column regression test that reproduces the failure: a cell at saturation 0.03 above saturated cells with the sandy loam default, `Δt = 450 s`, and the default `IMEX` time stepper, in Float32 and Float64; the column must stay finite, the surface pool must stay empty, and the water balance must close;
-  - a unit test of the closure: the pressure head equals `ψ_min` below the bound and is unchanged above it;
-  - the coupled JOSS simulation with the sandy loam default runs through its first day on the CPU.
+- Phase 5 (implemented in 3b6765e84):
+  - column regression test `Implicit Richards: dry vadose zone above a water table` (Float32 and Float64): the JOSS grid (`ExponentialSpacing`, 30 cells), the sandy loam default, a vadose zone at saturation 0.03 above a water table at 5 m, one day at `Δt = 450 s` with the default `IMEX` time stepper; the pressure head of the top cell is held at the bound, the saturation stays finite and within [0, 1], the column water balance closes (relative tolerance 10⁻⁵ in Float32 and 10⁻¹⁰ in Float64), and the temperatures stay within their initial range;
+  - the same test without the bound (`minimum_matric_potential = -Inf`) fails: the column loses about 208 m of water within three steps and the temperatures leave their initial range;
+  - the coupled JOSS simulation with the sandy loam default and the bound ran through its first day on the CPU (skin temperatures from −52 to 33 °C), where it previously failed in its fourth step.
+- All checks of PR #257 pass at 3b6765e84: the test suite on Julia 1.10, 1.12, and 1.13, the Reactant correctness tests, Runic, and the documentation build.
 - Full test suite, then a draft doc build.
 - Enzyme and Reactant: both new kernel functions are branch-free scalar functions without throw paths; the hydrology and land model differentiability tests run in CI in addition to the pilot checks above.
   Replacing the nested `min` by a smooth function of the mean saturation removes a nondifferentiable point.
@@ -221,7 +222,7 @@ Phase 5 makes the Richards equation robust to such states by bounding the matric
 - The new default air-entry suction (0.218 m instead of 0.01 m) changes the retention of every simulation with the default hydraulics: the soil holds considerably more water at a given suction.
 - The van Genuchten presets of FreezeCurves set a residual water content of 0.03 to 0.05, which the retention curve uses, while `UnsatKVanGenuchten` evaluates the conductivity at `θw / θsat` without it.
 - The retention parameters and `K_sat` are the same in every cell, regardless of texture (see pedotransfer functions under Future work).
-- Until Phase 5, the sandy loam default diverges from states with very dry cells next to wet ones, such as those initialized from the soil moisture climatology of the JOSS simulation; the JOSS script sets the previous retention parameters for now.
+- The JOSS script on `joss-paper` still sets the previous retention parameters (the stopgap of revision 15); with Phase 5, it can return to the sandy loam default.
 - With Phase 5, the matric potential of very dry cells is bounded, so the suction gradient into a dry cell, and with it the uptake of water from wetter neighbors, is underestimated below the bound.
 
 ## Future work
@@ -377,3 +378,5 @@ Clapp and Hornberger (1978), Cosby et al. (1984), Lawrence and Slater (2008), an
 > Set the previous retention parameters in the JOSS script on `joss-paper` as a stopgap, and proposed Phase 5, a lower bound on the matric potential, with the choice between a physical and a precision-based bound left to the reviewer.
 > Approved by the reviewer, who chose the physical bound of −10⁵ m.
 > Added a spatially varying initial water table depth to future work.
+
+> **Revision 16, 2026-11-22 (Claude Opus 5.5).** Recorded the implementation (3b6765e84) and verification of Phase 5, including the passing checks of PR #257, and marked the plan as completed.
