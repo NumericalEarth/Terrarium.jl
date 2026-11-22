@@ -323,7 +323,6 @@ compute_volumetric_water_content_tendency
 compute_darcy_flux_divergence
 compute_boundary_darcy_flux_divergence
 darcy_flux
-darcy_conductivity
 compute_water_flux
 redistribute_saturation_profile!
 compute_redistributed_heat!

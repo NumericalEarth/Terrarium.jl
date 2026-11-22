@@ -249,13 +249,14 @@ end
     $SIGNATURES
 
 Kernel function for computing the Darcy flux `q = -K ∂ψ/∂z` (m/s, positive upward) over layer faces from
-the total pressure head `ψ` and the face hydraulic conductivity `K` (see [`darcy_conductivity`](@ref)).
+the total pressure head `ψ` and the face hydraulic conductivity `K` computed by
+[`compute_face_hydraulic_conductivity`](@ref).
 """
 @propagate_inbounds function darcy_flux(i, j, k, grid, ψ, K)
     # Darcy's law: q = -K ∂ψ/∂z
     # TODO: also account for effect of temperature on matric potential
     ∇ψ = ∂zᵃᵃᶠ(i, j, k, grid, ψ)
-    Kₖ = darcy_conductivity(i, j, k, grid, K)
+    Kₖ = K[i, j, k]
     ## Note that elevation and hydrostatic pressure are assumed to be accounted
     ## for in the computation of ψ, so we don't need any additional terms.
     q = -Kₖ * ∇ψ
@@ -271,14 +272,6 @@ boundary conditions on `pressure_head` (zero for no-flux, see
 [`compute_boundary_darcy_flux_divergence`](@ref)).
 """
 @propagate_inbounds compute_water_flux(i, j, k, grid, ψ, K) = darcy_flux(i, j, k, ground_domain(grid), ψ, K)
-
-"""
-    $SIGNATURES
-
-Hydraulic conductivity (m/s) used by the [`darcy_flux`](@ref) at face `k`, i.e. the face conductivity `K`
-computed by [`compute_face_hydraulic_conductivity`](@ref).
-"""
-@propagate_inbounds darcy_conductivity(i, j, k, grid, K) = K[i, j, k]
 
 """
     $SIGNATURES

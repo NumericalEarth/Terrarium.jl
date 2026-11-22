@@ -380,3 +380,5 @@ Clapp and Hornberger (1978), Cosby et al. (1984), Lawrence and Slater (2008), an
 > Added a spatially varying initial water table depth to future work.
 
 > **Revision 16, 2026-11-22 (Claude Opus 5.5).** Recorded the implementation (3b6765e84) and verification of Phase 5, including the passing checks of PR #257, and marked the plan as completed.
+
+> **Revision 17, 2026-11-22 (Claude Opus 5.5).** Removed `darcy_conductivity` at the reviewer's request in PR #257, since it only read the stored face conductivity: `darcy_flux` and `compute_implicit_conductivity!` now read `hydraulic_conductivity` directly.
