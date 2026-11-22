@@ -1,5 +1,6 @@
 using Terrarium
 
+using ArgParse
 using CUDA
 using Dates
 using NumericalEarth
@@ -13,16 +14,66 @@ using Statistics
 import RingGrids
 import SpeedyWeather as Speedy
 
+# Command line options, e.g. `julia --project=docs/joss docs/joss/run_terrarium_speedy_simulation.jl --period 30d`
+settings = ArgParseSettings(description = "Coupled Terrarium–SpeedyWeather simulation for the JOSS paper")
+@add_arg_table! settings begin
+    "--period"
+    help = "length of the simulation: a number followed by y (years), d (days), or h (hours)"
+    default = "5y"
+    "--start-date"
+    help = "start date of the simulation (yyyy-mm-dd)"
+    default = "2024-10-01"
+    "--timestep"
+    help = "land time step (s); must evenly divide the atmospheric time step (default: the atmospheric time step)"
+    arg_type = Int
+    "--truncation"
+    help = "spectral truncation of the atmosphere, e.g. 31, 42, 64, or 85"
+    arg_type = Int
+    default = 64
+    "--architecture"
+    help = "auto (GPU if CUDA is functional, otherwise CPU), cpu, or gpu"
+    default = "auto"
+    range_tester = in(("auto", "cpu", "gpu"))
+end
+args = parse_args(settings)
+
+function parse_period(period::AbstractString)
+    m = match(r"^\s*(\d+)\s*([ydh])\s*$", period)
+    isnothing(m) && error("invalid period $period: expected a number followed by y, d, or h, e.g. 5y")
+    n = parse(Int, m.captures[1])
+    return m.captures[2] == "y" ? Year(n) : m.captures[2] == "d" ? Day(n) : Hour(n)
+end
+period = parse_period(args["period"])
+initial_date = DateTime(args["start-date"])
+
 # Make output directory for simulation results
 output_dir = joinpath(@__DIR__, "outputs")
 mkpath(output_dir)
 
-# Choose architecture based on available hardware
-arch = CUDA.functional() ? GPU() : CPU()
+# Choose the architecture
+arch = if args["architecture"] == "gpu"
+    CUDA.functional() || error("--architecture gpu requested, but CUDA is not functional")
+    GPU()
+elseif args["architecture"] == "cpu"
+    CPU()
+else
+    CUDA.functional() ? GPU() : CPU()
+end
 speedy_arch = RingGrids.Architectures.architecture(arch)
-spectral_grid = Speedy.SpectralGrid(truncation = 64, architecture = speedy_arch)
+spectral_grid = Speedy.SpectralGrid(truncation = args["truncation"], architecture = speedy_arch)
 ring_grid = spectral_grid.grid
 @info "Setting up simulation on grid $(ring_grid)"
+
+# The atmospheric time step scales with the resolution (15 min at T32) and is adjusted by SpeedyWeather to divide
+# the output interval; the land is advanced by a whole number of land steps per atmospheric step, so the land time
+# step must divide it evenly
+Δt_at_T32 = Minute(15)
+output_interval = Hour(4)
+atmosphere_Δt = Speedy.get_Δt_millisec(Δt_at_T32, args["truncation"], Speedy.DEFAULT_RADIUS, true, output_interval)
+land_Δt = isnothing(args["timestep"]) ? atmosphere_Δt : Millisecond(Second(args["timestep"]))
+Dates.value(atmosphere_Δt) % Dates.value(land_Δt) == 0 ||
+    error("the land time step of $(land_Δt) does not evenly divide the atmospheric time step of $atmosphere_Δt")
+@info "Time steps: atmosphere $(atmosphere_Δt), land $(land_Δt); simulating $period from $initial_date"
 
 # Interpolate a raster given on the `native_grid` of an asset onto the model ring grid; any dimensions after
 # the two horizontal ones (e.g. time) become layers of the field and are interpolated in a single batched call
@@ -114,9 +165,8 @@ hydrology_initializer = SaturationWaterTable(Float32; vadose_zone_saturation = V
 initializer = SoilInitializer(eltype(land_grid); energy = energy_initializer, hydrology = hydrology_initializer)
 terrarium_model = Terrarium.LandModel(land_grid; vegetation, soil, surface_energy_balance, surface_hydrology, initializer)
 
-# start before the Northern Hemisphere snow season (and towards the end of the Southern Hemisphere one) to limit
-# the spin-up of the seasonal snow cover, which starts from zero outside the ice sheets
-initial_date = DateTime(2024, 10, 1)
+# the default start date (October 1st) is before the Northern Hemisphere snow season (and towards the end of the
+# Southern Hemisphere one) to limit the spin-up of the seasonal snow cover, which starts from zero outside the ice sheets
 soilgrids_inputs = InputSources(SoilGrids2(grid_type = SoilGrids.Clenshaw10km), land_grid)
 # the LAI is a day-of-year climatology: repeat it cyclically, with times counted from January 1st of the start year
 lai_fts = FieldTimeSeries(lai_daily, land_grid, 0.0:1day:365day; time_indexing = Cyclical())
@@ -145,9 +195,7 @@ land = Speedy.LandModel(
     terrarium_model;
     inputs,
     initializers,
-    # must evenly divide the atmospheric time step (450 s at T64, see `time_stepping` below), since the
-    # land is advanced by a whole number of land steps per atmospheric step
-    Δt = Second(450)
+    Δt = land_Δt
 )
 
 # Build the coupled PrimitiveWetModel
@@ -159,8 +207,8 @@ albedo = Speedy.OceanLandAlbedo(land.spectral_grid, land = Speedy.PrescribedAlbe
 # pragmatic adjustment, not a calibration.
 longwave_transmissivity = Speedy.ByrneOGormanLongwaveTransmissivity(land.spectral_grid; dry_absorption = 1.885, water_vapor_absorption = 975)
 radiation = Speedy.Radiation(land.spectral_grid; longwave = Speedy.OneBandLongwave(land.spectral_grid; transmissivity = longwave_transmissivity))
-output = Speedy.NetCDFOutput(land.spectral_grid, Speedy.PrimitiveDryModel; interval = Hour(4), nlayers_soil = land.geometry.nlayers, path = output_dir)
-time_stepping = Speedy.Leapfrog(land.spectral_grid, Δt_at_T32 = Minute(15))
+output = Speedy.NetCDFOutput(land.spectral_grid, Speedy.PrimitiveDryModel; interval = output_interval, nlayers_soil = land.geometry.nlayers, path = output_dir)
+time_stepping = Speedy.Leapfrog(land.spectral_grid; Δt_at_T32)
 primitive_wet_coupled = Speedy.PrimitiveWetModel(
     land.spectral_grid;
     land,
@@ -200,6 +248,5 @@ sim_coupled = @time Speedy.initialize!(primitive_wet_coupled; time = initial_dat
 land_state = sim_coupled.variables.prognostic.land.terrarium.state
 Terrarium.checkfinite!(land_state.prognostic)
 
-period = Year(2)
 @info "Running simulation for $period"
 @time Speedy.run!(sim_coupled; period, output = true)
