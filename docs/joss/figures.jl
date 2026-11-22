@@ -179,8 +179,7 @@ end
 # `:land` configuration, see `benchmark/model_configurations.jl`) in the
 # benchmark JSON store, written by
 # `benchmark/manual_benchmarking.jl` (see `docs/joss/joss_benchmark.slurm` for a
-# single-node run of all four architectures). Architectures absent from the store
-# — or resolutions skipped/failed there — are simply not drawn.
+# single-node run of all four architectures).
 const BENCHMARK_RESULTS_JSON = normpath(joinpath(@__DIR__, "..", "..", "benchmark", "assets", "benchmark_results.json"))
 const BENCHMARK_SUITE = "bench200" # the :land LandModel resolution sweep
 
