@@ -68,7 +68,7 @@ Eliminating $A_n$ between the two gives the ratio of intercellular to atmospheri
 ## Process interface
 
 ```@docs; canonical = false
-compute_auxiliary!(state, grid, stomcond::MedlynStomatalConductance, traits::PlantTraits, constants::PhysicalConstants, atmos::AbstractAtmosphere, args...)
+compute_auxiliary!(state, grid, stomcond::MedlynStomatalConductance, traits::AbstractPlantTraits, constants::PhysicalConstants, atmos::AbstractAtmosphere, args...)
 ```
 
 ## Methods

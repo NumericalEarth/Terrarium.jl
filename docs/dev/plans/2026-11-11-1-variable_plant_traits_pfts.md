@@ -84,10 +84,11 @@ Phase 3 follows in a separate PR and needs its own approval before any code is c
 
 ### Phase 1: collect all PFT-dependent parameters into the traits type
 
-1. Move the parameters in the table above (after reviewer confirmation) from the process structs into the traits struct, with the current needleleaf tree values as defaults so that results are unchanged.
+1. Move the parameters in the table above that are marked PFT-specific in the code from the process structs into the traits struct, with the current defaults so that results are unchanged.
+   The borderline parameters (reviewer question 1) and the root distribution parameters stay where they are for now (see revision 1).
    Parameter names should be descriptive (`leaf_turnover_rate` rather than `γL`, etc.), with the symbol given in the docstring.
 2. Pass `traits` to every vegetation process that needs it.
-   Most already receive it; the phenology and root distribution coupling functions do not yet.
+   Most already receive it; the phenology coupling functions do not yet.
 3. Leave `PALADYNCanopyInterception` unchanged in this phase (see the open questions), apart from a comment pointing to this plan.
 4. Introduce a single pointwise resolution step: each kernel function calls
 
