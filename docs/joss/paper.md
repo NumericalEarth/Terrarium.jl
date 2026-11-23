@@ -64,15 +64,15 @@ bibliography: paper.bib
 
 The land surface is a crucial component of Earth's climate system.
 Terrestrial ecosystems exchange energy, momentum, water, and carbon with the atmosphere on timescales ranging from seconds to millenia, driving key feedbacks that significantly affect both local and global climate.
-Land surface and terrestrial ecosystem models simulate the physical processes governing the interactions between the land surface, terrestrial ecosystems, and the atmosphere.
+Land surface and terrestrial ecosystem models simulate the physical and biogeochemical processes governing the interactions between soil, snow, vegetation, and the atmosphere.
 They are therefore crucial components of global-scale *Earth System Models* (ESMs) which are widely used to study both past, present, and future climate change [@flatoEarthSystemModels2011].
 
-Terrarium.jl is a software package in the Julia programming language [@bezansonJuliaFreshApproach2017] that aims to enable fast, flexible, and user-friendly land surface and terrestrial ecosystem modeling, both as a standalone model or coupled within a larger Earth system model.
+Terrarium.jl is a software package in the Julia programming language [@bezansonJuliaFreshApproach2017] that aims to enable fast, flexible, and user-friendly simulations of terrestrial ecosystems and land-atmosphere interactions both as a standalone model or coupled within a larger Earth system model.
 It enables the user to quickly and flexibly configure and run simulations of terrestrial heat, water, and carbon dynamics at both global and regional scales.
 The numerical implementation is based on Oceananigans.jl [@ramadhanOceananigansjlFastFriendly2020; @wagnerHighlevelHighresolutionOcean2025], a widely used software package that provides a rich set of numerical primitives for highly efficient finite volume simulation of fluid dyanmics on orthogonal grids.
 Terrarium.jl builds upon these primitives to enable GPU-accelerated and AD-compatible simulations of the relevant governing equations for nonlinear fluid transport in porous media (i.e. soil and rock) as well as point-scale processes like the vegetation carbon cycle, surface hydrology, and the exchange of water and energy between the land surface and the atmosphere.
 
-Terrarium.jl is being developed as part of the NumericalEarth project, which is an international community of researchers and software developers dedicated to building modern and accessible tools to enable multi-scale, multi-architecture, and fully differentiable Earth system models with a focus on user-friendliness and accessibility.
+Terrarium.jl is being developed as part of the NumericalEarth project, which is an international community of researchers and software developers dedicated to building a new generation of multi-scale, multi-architecture, and fully differentiable Earth system models with a focus on user-friendliness and accessibility.
 
 # Statement of need
 
