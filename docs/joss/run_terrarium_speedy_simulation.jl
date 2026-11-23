@@ -27,7 +27,7 @@ settings = ArgParseSettings(description = "Coupled Terrarium–SpeedyWeather sim
     help = "land time step (s); must evenly divide the atmospheric time step (default: the atmospheric time step)"
     arg_type = Int
     "--truncation"
-    help = "spectral truncation of the atmosphere, e.g. 31, 42, 64, or 85"
+    help = "spectral truncation of the atmosphere"
     arg_type = Int
     default = 64
     "--architecture"
@@ -202,11 +202,17 @@ land = Speedy.LandModel(
 surface_heat_flux = Speedy.SurfaceHeatFlux(land.spectral_grid, land = Speedy.PrescribedLandHeatFlux())
 surface_humidity_flux = Speedy.SurfaceHumidityFlux(land.spectral_grid, land = Speedy.PrescribedLandHumidityFlux())
 albedo = Speedy.OceanLandAlbedo(land.spectral_grid, land = Speedy.PrescribedAlbedo(land.spectral_grid))
-# Longwave absorption coefficients 1.3 times the SpeedyWeather defaults (1.45 and 750): with the defaults, the
-# coupled simulation drifts too cold and the Northern Hemisphere midlatitudes stay snow-covered. This is a
-# pragmatic adjustment, not a calibration.
-longwave_transmissivity = Speedy.ByrneOGormanLongwaveTransmissivity(land.spectral_grid; dry_absorption = 1.885, water_vapor_absorption = 975)
-radiation = Speedy.Radiation(land.spectral_grid; longwave = Speedy.OneBandLongwave(land.spectral_grid; transmissivity = longwave_transmissivity))
+# Longwave absorption coefficients scaled up from the SpeedyWeather defaults: with the defaults, the coupled
+# simulation drifts too cold and the Northern Hemisphere midlatitudes stay snow-covered, while a factor of 1.3
+# drifts too warm. This is a pragmatic adjustment, not a calibration.
+longwave_absorption_factor = 1.2
+default_transmissivity = Speedy.ByrneOGormanLongwaveTransmissivity(land.spectral_grid)
+adjusted_transmissivity = Speedy.ByrneOGormanLongwaveTransmissivity(
+    land.spectral_grid;
+    dry_absorption = longwave_absorption_factor * default_transmissivity.dry_absorption,
+    water_vapor_absorption = longwave_absorption_factor * default_transmissivity.water_vapor_absorption,
+)
+radiation = Speedy.Radiation(land.spectral_grid; longwave = Speedy.OneBandLongwave(land.spectral_grid; transmissivity = adjusted_transmissivity))
 output = Speedy.NetCDFOutput(land.spectral_grid, Speedy.PrimitiveDryModel; interval = output_interval, nlayers_soil = land.geometry.nlayers, path = output_dir)
 time_stepping = Speedy.Leapfrog(land.spectral_grid; Δt_at_T32)
 primitive_wet_coupled = Speedy.PrimitiveWetModel(
