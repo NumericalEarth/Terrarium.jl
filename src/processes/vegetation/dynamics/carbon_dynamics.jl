@@ -20,7 +20,7 @@ $TYPEDFIELDS
 """
 struct PALADYNCarbonDynamics{NF} <: AbstractVegetationCarbonDynamics{NF} end
 
-PALADYNCarbonDynamics(::Type{NF} = Float64) where {NF} = PALADYNCarbonDynamics{NF}()
+PALADYNCarbonDynamics(::Type{NF}) where {NF} = PALADYNCarbonDynamics{NF}()
 
 variables(::PALADYNCarbonDynamics) = (
     prognostic(:carbon_vegetation, Canopy(XY()), units = u"kg/m^2"), # Vegetation carbon pool [kgC/m²]

@@ -17,7 +17,7 @@ $TYPEDFIELDS
 """
 @kwdef struct FieldCapacityLimitedPAW{NF} <: AbstractPlantAvailableWater{NF} end
 
-FieldCapacityLimitedPAW(::Type{NF} = Float32) where {NF} = FieldCapacityLimitedPAW{NF}()
+FieldCapacityLimitedPAW(::Type{NF}) where {NF} = FieldCapacityLimitedPAW{NF}()
 
 variables(paw::FieldCapacityLimitedPAW{NF}) where {NF} = (
     auxiliary(:plant_available_water, Ground(XYZ()), desc = "Fraction of soil water available for plant root water uptake"),

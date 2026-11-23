@@ -29,7 +29,7 @@ end
 
 @testset "compute_ν_tendency test" begin
     veg_dynamics = PALADYNVegetationDynamics()
-    vegcarbon_dynamics = PALADYNCarbonDynamics()
+    vegcarbon_dynamics = PALADYNCarbonDynamics(Float64)
     traits = PlantTraits()
     LAI_b = (traits.minimum_leaf_area_index + traits.maximum_leaf_area_index) / 2.0
     C_veg = 10.0 # kgC/m²
