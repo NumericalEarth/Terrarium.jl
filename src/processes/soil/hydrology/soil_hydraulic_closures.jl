@@ -40,7 +40,7 @@ this one in [`closure!`](@ref) of [`SoilEnergyWaterCarbon`](@ref), then recomput
 function closure!(
         state, grid,
         closure::SoilSaturationPressureClosure,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         soil::AbstractSoil,
         runoff::Optional{AbstractSurfaceRunoff} = nothing,
         args...
@@ -63,7 +63,7 @@ heat transfer.
 function compute_saturation_closure!(
         state, grid,
         closure::SoilSaturationPressureClosure,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         soil::AbstractSoil,
         runoff::Optional{AbstractSurfaceRunoff},
         energy::Optional{AbstractSoilThermodynamics}
@@ -82,7 +82,7 @@ end
 function compute_pressure_head!(
         state, grid,
         closure::SoilSaturationPressureClosure,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         soil::AbstractSoil
     ) where {NF}
     strat = get_stratigraphy(soil)
@@ -106,7 +106,7 @@ See [`closure!`](@ref) for the role of the optional `runoff` process.
 function invclosure!(
         state, grid,
         closure::SoilSaturationPressureClosure,
-        hydrology::SoilHydrology{NF, RichardsEq},
+        hydrology::SoilHydrology{NF, <:RichardsEq},
         soil::AbstractSoil,
         runoff::Optional{AbstractSurfaceRunoff} = nothing,
         args...
@@ -170,9 +170,11 @@ end
     # get inverse of SWRC
     inv_swrc = inv(get_swrc(hydrology))
     por = porosity(i, j, k, grid, fields, strat, bgc)
-    sat_res = residual_saturation(get_hydraulic_properties(hydrology))
-    # compute matric pressure head
-    ψm = inv_swrc(clamp(sat * por, sat_res * por, por); θsat = por)
+    hydraulics = get_hydraulic_properties(hydrology)
+    sat_res = residual_saturation(hydraulics)
+    ψm_min = minimum_matric_potential(hydraulics)
+    # compute matric pressure head, bounded from below near the residual saturation
+    ψm = max(inv_swrc(clamp(sat * por, sat_res * por, por); θsat = por), ψm_min)
     @assert_kernel isfinite(ψm) "NaN/infinite matric potential"
     # compute elevation pressure head
     ψz = z - z_ref

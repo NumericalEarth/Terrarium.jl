@@ -36,7 +36,15 @@ end
     $TYPEDSIGNATURES
 
 Compute infiltration from the given `influx` (water available for infiltration), saturation of the uppermost
-soil layer `sat_top`, and the maximum allowed infiltration `max_infil`.
+soil layer `sat_top`, and the maximum allowed infiltration `max_infil`: `min(influx, max_infil)` if the uppermost
+layer is unsaturated, and zero otherwise.
+
+The switch on `sat_top` treats the transition between the flux-limited and the saturated regime explicitly, i.e.
+with the saturation at the beginning of the time step, which is first order in the time step: infiltration into a
+saturated layer resumes once the layer has drained in the previous step. The switch does not prevent the layer from
+overfilling within a step; the soil hydrology closure returns any excess to the `surface_excess_water` pool (see
+[`adjust_saturation_profile!`](@ref)). It does ensure that a saturated column does not take up the drainage of that
+pool, which would otherwise cycle between the pool and the uppermost layer instead of leaving as runoff.
 """
 @inline function compute_infiltration(runoff::DirectSurfaceRunoff{NF}, influx, sat_top, max_infil) where {NF}
     let is_unsaturated = sat_top < one(NF)
@@ -134,21 +142,21 @@ end
     # (the snow-covered fraction of rain is intercepted by the snowpack); without snow it is the ground rainfall.
     influx = soil_surface_water_flux(i, j, grid, fields, canopy_interception, snow)
     excess_water = surface_excess_water(i, j, grid, fields, runoff)
-    k_unsat = hydraulic_conductivity(i, j, ground_grid.Nz, grid, fields, soil_hydrology)
+    infil_max = infiltration_capacity(i, j, grid, fields, soil_hydrology)
     sat_top = saturation_water_ice(i, j, ground_grid.Nz, grid, fields, soil_hydrology)
 
     # A decaying pool can stay positive at roundoff scale and block fresh rain indefinitely.
     if excess_water > eps(NF)
         # Case 1: Excess water present at the surface -> precipitation adds to excess water
-        # and we set the infiltration rate to the min of hydraulic conductivity and surface_excess_water
+        # and we set the infiltration rate to the min of the infiltration capacity and the surface drainage
         # First, compute rate of excess water removal (surface drainage)
         surface_drainage = compute_surface_drainage(runoff, excess_water)
         # Calculate infiltration
-        infil = out.infiltration[i, j, end] = compute_infiltration(runoff, surface_drainage, sat_top, k_unsat)
+        infil = out.infiltration[i, j, end] = compute_infiltration(runoff, surface_drainage, sat_top, infil_max)
     else
         # Case 2: No appreciable excess water -> rainfall is routed directly to infiltration
         surface_drainage = compute_surface_drainage(runoff, excess_water)
-        infil = out.infiltration[i, j, end] = compute_infiltration(runoff, influx, sat_top, k_unsat)
+        infil = out.infiltration[i, j, end] = compute_infiltration(runoff, influx, sat_top, infil_max)
     end
 
     # Compute surface runoff

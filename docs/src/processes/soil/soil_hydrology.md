@@ -46,7 +46,7 @@ Dispatches for `RichardsEq`:
 ```@docs; canonical = false
 initialize!(
     state, grid,
-    hydrology::SoilHydrology{NF, RichardsEq},
+    hydrology::SoilHydrology{NF, <:RichardsEq},
     soil::AbstractSoil,
     constants::PhysicalConstants,
     args...
@@ -54,14 +54,14 @@ initialize!(
 
 compute_auxiliary!(
     state, grid,
-    hydrology::SoilHydrology{NF, RichardsEq},
+    hydrology::SoilHydrology{NF, <:RichardsEq},
     soil::AbstractSoil,
     args...
 ) where {NF}
 
 compute_tendencies!(
     state, grid,
-    hydrology::SoilHydrology{NF, RichardsEq},
+    hydrology::SoilHydrology{NF, <:RichardsEq},
     soil::AbstractSoil,
     constants::PhysicalConstants,
     evtr::Optional{AbstractEvapotranspiration},
@@ -113,6 +113,23 @@ RichardsEq
 variables(SoilHydrology(Float32, RichardsEq()))
 ```
 
+#### Face conductivity
+
+The Darcy flux through the face between two cells needs a hydraulic conductivity at that face. Because the conductivity falls off steeply with the water content (with the default Brooks–Corey conductivity for sandy loam $\lambda = 1/4.9$, so roughly as the $2/\lambda +3 \approx 13$th power of the saturation), the choice of face conductivity determines how fast water moves between cells of different wetness, e.g. how fast rain drains out of a wet top cell into drier soil below. `RichardsEq` provides two schemes, selected by its `face_conductivity` property:
+
+- [`WeightedAverageConductivity`](@ref) (default): the conductivity at the mean liquid water content over the mean porosity of the two cells, as in CLM5 [lawrenceTechnicalDescriptionVersion2018; Eq. (7.47)](@cite). It remains negligible between two dry cells, while water drains from a wet cell into a drier one at a rate set by both.
+- [`UpwindConductivity`](@ref): the conductivity of the upstream cell, from which the water flows according to the gradient of the total hydraulic head. Wetting fronts advance at the conductivity of the wet soil behind them, which makes upstream weighting robust for infiltration into dry soil [forsythRobustNumericalMethods1995](@cite).
+
+```@example soilwater
+SoilHydrology(Float32, RichardsEq(face_conductivity = UpwindConductivity()))
+```
+
+```@docs; canonical = false
+AbstractFaceConductivity
+WeightedAverageConductivity
+UpwindConductivity
+```
+
 ### [Implicit Richards equation](@id soil-hydrology-implicit-richards)
 
 The `Timestepping` trait argument of [`compute_tendencies!`](@ref soilhydrology.interface) for `RichardsEq` is the resolved [`timestepping`](@ref) class of `saturation_water_ice` (see [Implicit-explicit time stepping](@ref)). It is [`Explicit`](@ref) unless the model is run with an [`IMEX`](@ref) timestepper, in which case [`SoilModel`](@ref) and [`LandModel`](@ref) route the saturation of a Richards-equation hydrology to the implicit sub-stepper:
@@ -151,11 +168,11 @@ The terms that stay explicit can remove more water from a cell in one step than 
 The implicit operator of `saturation_water_ice` is a [`TridiagonalOperator`](@ref) in the total hydraulic head `pressure_head`, the variable of the [`SoilSaturationPressureClosure`](@ref) (see its [`varname`](@ref) method below), returned by [`implicit_operator`](@ref) (which also validates the configuration), and each iteration of the implicit solver calls the process hooks of `SoilHydrology` with `RichardsEq` below:
 
 ```@docs; canonical = false
-implicit_operator(hydrology::SoilHydrology{NF, RichardsEq}, state, grid) where {NF}
-linearize!(operator::TridiagonalOperator, rhs, state, grid, hydrology::SoilHydrology{NF, RichardsEq}, soil::AbstractSoil, constants::PhysicalConstants, explicit_saturation, Δt) where {NF}
-implicit_update!(state, grid, hydrology::SoilHydrology{NF, RichardsEq}, soil::AbstractSoil, operator::TridiagonalOperator, explicit_saturation, Δt) where {NF}
-implicit_closure!(state, grid, hydrology::SoilHydrology{NF, RichardsEq}, soil::AbstractSoil, constants::PhysicalConstants, runoff::Optional{AbstractSurfaceRunoff}, ::Iteration{name, target, true}) where {NF, name, target}
-implicit_closure!(state, grid, hydrology::SoilHydrology{NF, RichardsEq}, soil::AbstractSoil, constants::PhysicalConstants, runoff::Optional{AbstractSurfaceRunoff}, ::Iteration{name, target, false}) where {NF, name, target}
+implicit_operator(hydrology::SoilHydrology{NF, <:RichardsEq}, state, grid) where {NF}
+linearize!(operator::TridiagonalOperator, rhs, state, grid, hydrology::SoilHydrology{NF, <:RichardsEq}, soil::AbstractSoil, constants::PhysicalConstants, explicit_saturation, Δt) where {NF}
+implicit_update!(state, grid, hydrology::SoilHydrology{NF, <:RichardsEq}, soil::AbstractSoil, operator::TridiagonalOperator, explicit_saturation, Δt) where {NF}
+implicit_closure!(state, grid, hydrology::SoilHydrology{NF, <:RichardsEq}, soil::AbstractSoil, constants::PhysicalConstants, runoff::Optional{AbstractSurfaceRunoff}, ::Iteration{name, target, true}) where {NF, name, target}
+implicit_closure!(state, grid, hydrology::SoilHydrology{NF, <:RichardsEq}, soil::AbstractSoil, constants::PhysicalConstants, runoff::Optional{AbstractSurfaceRunoff}, ::Iteration{name, target, false}) where {NF, name, target}
 compute_saturation_closure!
 ```
 
@@ -172,10 +189,10 @@ Besides the static soil characteristics mentioned in [Soil stratigraphy](@ref) s
 \kappa_{\text{w}} = \frac{\theta_{\text{liq}}}{\theta + \theta_{\text{air}}} \kappa_{\text{w,sat}}\,
 \end{equation}
 ```
-with $\kappa_{\text{w,sat}}$ the saturated hydraulic conductivity (m/s).  A more complex formulation taking ice into account, called [`UnsatKVanGenuchten`](@ref),follows [vangenuchtenHydraulicConductivity1980](@cite), here presented in the form of [westermannCryoGridCommunityModel2023; Eq. (26)](@cite):
+with $\kappa_{\text{w,sat}}$ the saturated hydraulic conductivity (m/s).  A more complex formulation taking ice into account, called [`UnsatKVanGenuchten`](@ref),follows [vangenuchtenHydraulicConductivity1980](@cite) with an ice impedance factor as in [westermannCryoGridCommunityModel2023](@cite):
 ```math
 \begin{equation}
-\kappa_{\text{w}} = I_\text{ice}\left(\frac{\theta_{\text{liq}}}{\phi}\right)^{0.5} \left[1 - \left(1 - \left(\frac{\theta_{\text{liq}}}{\phi}\right)^{n/(n+1)}\right)^{(n-1)/n}\right]^2 \kappa_{\text{w,sat}}\,,
+\kappa_{\text{w}} = I_\text{ice}\left(\frac{\theta_{\text{liq}}}{\phi}\right)^{0.5} \left[1 - \left(1 - \left(\frac{\theta_{\text{liq}}}{\phi}\right)^{1/m}\right)^{m}\right]^2 \kappa_{\text{w,sat}}\,, \qquad m = 1 - 1/n\,,
 \end{equation}
 ```
 which adds an ice impedance factor $I_\text{ice} = 10^{-\Omega\theta_{\text{ice}}/\theta}$ to the classic van Genuchten formulation to account for the blocking of water-filled pores by ice. 
@@ -226,6 +243,8 @@ Critical to the modelling of water transport in the soil, is the relationship be
 ```
 with $\Psi_z$ the elevation head and $\Psi_h$ the hydrostatic head contributed by free water above the water table. Currently, two implementations of the SWRC are available in Terrarium via [FreezeCurves.jl](https://github.com/CryoGrid/FreezeCurves.jl): the Brooks-Corey ([`BrooksCorey`](@extref FreezeCurves.BrooksCorey)) and van Genuchten ([`VanGenuchten`](@extref FreezeCurves.VanGenuchten)) formulations. 
 
+Near the residual saturation, the retention curve gives very large suctions (about ``-10^9`` m for the default Brooks–Corey curve of sandy loam), and the resulting head differences between very dry and wet neighboring cells make the implicit Richards step diverge. The closure therefore bounds the matric potential from below by the `minimum_matric_potential` of the hydraulic properties (default ``-10^5`` m, roughly the matric potential of oven-dry soil), as CLM5 does [lawrenceTechnicalDescriptionVersion2018; Eq. (7.53)](@cite) (see [`minimum_matric_potential`](@ref)). Below the bound, the specific moisture capacity is zero, so that the implicit solve falls back to the `minimum_moisture_capacity`.
+
 ```@docs; canonical = false
 SoilSaturationPressureClosure
 varname(::SoilSaturationPressureClosure)
@@ -262,6 +281,10 @@ minimum_moisture_capacity
 ```
 
 ```@docs; canonical = false
+minimum_matric_potential
+```
+
+```@docs; canonical = false
 water_outflow_timescale
 ```
 
@@ -292,11 +315,14 @@ surface_excess_water
 ```
 
 ```@docs; canonical = false
+infiltration_capacity
+```
+
+```@docs; canonical = false
 compute_volumetric_water_content_tendency
 compute_darcy_flux_divergence
 compute_boundary_darcy_flux_divergence
 darcy_flux
-darcy_conductivity
 compute_water_flux
 redistribute_saturation_profile!
 compute_redistributed_heat!
@@ -305,13 +331,17 @@ compute_specific_moisture_capacity
 specific_moisture_capacity
 compute_water_outflow_timescale
 compute_saturation_boundary_flux
+compute_infiltration_capacity
+compute_total_ground_water
+compute_face_hydraulic_conductivity
+face_soil_composition
 ```
 
 The following kernel functions implement the implicit Richards step (see [Implicit Richards equation](@ref soil-hydrology-implicit-richards)):
 
 ```@docs; canonical = false
-compute_implicit_conductivity!(face_conductivity, i, j, k, grid, fields, hydrology::SoilHydrology{NF, RichardsEq}) where {NF}
-compute_implicit_capacity!(diagonal_coefficient, i, j, k, grid, fields, hydrology::SoilHydrology{NF, RichardsEq}, strat::AbstractStratigraphy, bgc::AbstractSoilBiogeochemistry) where {NF}
+compute_implicit_conductivity!(face_conductivity, i, j, k, grid, fields, hydrology::SoilHydrology{NF, <:RichardsEq}) where {NF}
+compute_implicit_capacity!(diagonal_coefficient, i, j, k, grid, fields, hydrology::SoilHydrology{NF, <:RichardsEq}, strat::AbstractStratigraphy, bgc::AbstractSoilBiogeochemistry) where {NF}
 compute_implicit_water_flow_coefficients!
 compute_implicit_water_flow_rhs
 compute_implicit_saturation_update

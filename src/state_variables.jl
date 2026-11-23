@@ -109,6 +109,12 @@ end
 reset_field!(field::Field) = (fill!(parent(field), zero(eltype(field))); return nothing)
 reset_field!(field) = nothing
 
+# Auxiliary entries may also be lazily evaluated operations (see `kernel`), which hold no data and are skipped
+fill_field!(field::Field, value) = fill!(field, value)
+fill_field!(field, value) = nothing
+copyto_field!(dest::Field, src::Field) = copyto!(dest, src)
+copyto_field!(dest, src) = nothing
+
 """
 Reset all `Field`s in `state` to zero.
 """
@@ -595,7 +601,7 @@ function Base.fill!(state::StateVariables{NF}, value) where {NF}
         fill!(getproperty(state.tendencies, tendname), NF(value))
     end
     for auxname in keys(state.auxiliary)
-        fill!(getproperty(state.auxiliary, auxname), NF(value))
+        fill_field!(getproperty(state.auxiliary, auxname), NF(value))
     end
     return nothing
 end
@@ -608,7 +614,7 @@ function Base.copyto!(state::SV, other::SV) where {SV <: StateVariables}
         copyto!(getproperty(state.tendencies, tendname), getproperty(other.tendencies, tendname))
     end
     for auxname in auxiliary_names(state)
-        copyto!(getproperty(state.auxiliary, auxname), getproperty(other.auxiliary, auxname))
+        copyto_field!(getproperty(state.auxiliary, auxname), getproperty(other.auxiliary, auxname))
     end
     for inputname in input_names(state)
         copyto!(getproperty(state.inputs, inputname), getproperty(other.inputs, inputname))
