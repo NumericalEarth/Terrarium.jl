@@ -1,12 +1,12 @@
 # Spatially variable plant traits and plant functional types
 
-> Status: **planned**. Initial draft awaiting review; no code has been changed.
+> Status: **planned**. Phases 1 and 2 are approved for implementation in this PR; phase 3 will be reviewed and approved separately in a follow-up PR.
 
 Date of initial draft: 2026-11-11
 
 Author: Claude Opus 5.5 (`claude-opus-5-5`), Claude Code
 
-Reviewer:
+Reviewer: Brian Groenke (brian.groenke@pik-potsdam.de); phases 1 and 2 only
 
 Base revision: `f171fa2923fa3cecdf0673c0764ecb63d210ab59` (`main`, branch `bg/plant-traits`)
 
@@ -78,7 +78,9 @@ A quick experiment with `SpeedyWeatherInternals.ParameterEditing` showed:
 
 ## Summary of changes
 
-The work is split into three phases, each of which can be reviewed and merged as its own PR.
+The work is split into three phases.
+Phases 1 and 2 are implemented together in the first PR.
+Phase 3 follows in a separate PR and needs its own approval before any code is changed.
 
 ### Phase 1: collect all PFT-dependent parameters into the traits type
 
@@ -107,51 +109,90 @@ The work is split into three phases, each of which can be reviewed and merged as
 3. Widen the `traits` field types in `PrescribedVegetation` and `PrognosticVegetation` to a type parameter `Traits <: AbstractPlantTraits{NF}`.
 4. Add `variables(::AbstractPlantTraits)` (empty for `PlantTraits`) and include it in the vegetation `variables`, so that trait-specific inputs are allocated automatically.
 
-### Phase 3: `FunctionalPlantTraits` and the PALADYN scheme
+### Phase 3: `FunctionalPlantTraits` and plant functional types
 
-1. Add an abstract PFT scheme type and a first implementation:
+> Not yet approved; to be reviewed and implemented in a follow-up PR.
 
-   ```julia
-   abstract type AbstractPlantFunctionalTypes end
-   struct PALADYNPlantFunctionalTypes <: AbstractPlantFunctionalTypes end
-   pft_names(::PALADYNPlantFunctionalTypes) = (:broadleaf_tree, :needleleaf_tree, :c3_grass, :shrub)
-   ```
+PFTs are standalone types that can be mixed and matched, each holding a complete set of plant traits.
+A "scheme" such as PALADYN is only a preset: a fixed, ordered set of PFTs with default values from one source.
 
-   C4 grass is left out until C4 photosynthesis is available (see Known limitations).
-2. Add
+1. Add an abstract PFT type and one concrete type per PFT, each wrapping its traits:
 
    ```julia
-   struct FunctionalPlantTraits{NF, N, PFTs <: AbstractPlantFunctionalTypes} <: AbstractPlantTraits{NF}
-       pfts::PFTs
-       specific_leaf_area::NTuple{N, NF}
-       # ... one NTuple{N, NF} per trait in PlantTraits
+   abstract type AbstractPlantFunctionalType{NF} end
+
+   struct NeedleleafTree{NF, Traits <: AbstractPlantTraits{NF}} <: AbstractPlantFunctionalType{NF}
+       traits::Traits
    end
    ```
 
-   using `NTuple` rather than `SVector` to avoid adding `StaticArrays` to `[deps]`.
-   A constructor `FunctionalPlantTraits(NF, PALADYNPlantFunctionalTypes(); overrides...)` fills in the PALADYN table values, and a `FunctionalPlantTraits(NF, scheme, traits::PlantTraits...)` method builds it from one `PlantTraits` per PFT.
-3. `variables(::FunctionalPlantTraits)` declares one 2D input, `plant_functional_type` (`Canopy(XY())`), holding the 1-based PFT index of each grid cell, which can be set with the existing input and initializer machinery.
-4. `plant_traits(i, j, grid, fields, traits::FunctionalPlantTraits)` reads the index and builds a `PlantTraits{NF}` by selecting each trait.
-   Selection must satisfy the kernel and Reactant rules, so it uses an unrolled, branch-free reduction rather than dynamic tuple indexing or `round(Int, …)`:
+   The first set is `BroadleafTree`, `NeedleleafTree`, `C3Grass`, and `Shrub`.
+   C4 grass is left out until C4 photosynthesis is available (see Known limitations).
+   The `Traits` type parameter lets a PFT hold traits that themselves vary in space (e.g. field-valued parameters), which are localized as described in item 5.
+2. Keep the provenance of default values separate from PFT identity.
+   Each PFT's keyword constructor takes a defaults source, e.g. `NeedleleafTree(NF; defaults = PALADYNDefaults(), kwargs...)`, and looks up its values with `default_traits(::Type{<:NeedleleafTree}, ::PALADYNDefaults)`.
+   Keyword arguments override individual traits.
+   Other sources (JULES, CLM, user tables) can be added later as new defaults types without new PFT types.
+3. Provide the PALADYN preset as a function rather than a type, since it must construct values:
 
    ```julia
-   @inline select_pft(values::NTuple{N, NF}, pft::NF) where {N, NF} =
-       sum(ntuple(k -> ifelse(pft == NF(k), values[k], zero(NF)), Val(N)))
+   PALADYNPlantFunctionalTypes(NF; defaults = PALADYNDefaults()) =
+       (BroadleafTree(NF; defaults), NeedleleafTree(NF; defaults), C3Grass(NF; defaults), Shrub(NF; defaults))
    ```
 
-   The index field stays in the model's number format, so no integer conversion (and thus no `InexactError` path) is needed.
-5. Validate the PFT map on the host side, in `initialize!` for `FunctionalPlantTraits`: every value must be an integer in `1:N`, since an invalid value would silently select all-zero traits.
-6. Extend `ParameterEditing.parameters` (or `@parameterized` metadata) for `FunctionalPlantTraits` so each per-PFT entry is labeled with its PFT name (e.g. `specific_leaf_area.needleleaf_tree`) instead of `1`, `2`, …, and carries the bounds of the corresponding scalar trait.
-   If this turns out to be awkward, the fallback is a small `PFTParam <: AbstractParam` wrapper as suggested in the issue.
-7. Export `AbstractPlantTraits`, `PlantTraits`, `FunctionalPlantTraits`, `AbstractPlantFunctionalTypes`, and `PALADYNPlantFunctionalTypes`.
+   The tuple order defines the meaning of the indices in the PFT map.
+4. Add
 
-### Single type or two? (response to the issue discussion)
+   ```julia
+   struct FunctionalPlantTraits{NF, PFTs <: Tuple{Vararg{AbstractPlantFunctionalType{NF}}}} <: AbstractPlantTraits{NF}
+       pfts::PFTs
+   end
+   ```
 
-The issue thread suggests representing a single PFT as `FunctionalPlantTraits` with `N = 1` rather than keeping a separate constant type.
-This plan recommends keeping a separate constant `PlantTraits` type anyway, for two reasons.
-First, it is exactly the pointwise object that `plant_traits` returns, so the scalar physics helpers need it regardless.
-Second, a single-PFT `FunctionalPlantTraits` would require a `plant_functional_type` input field filled with ones, and would show parameters as `specific_leaf_area.needleleaf_tree` in calibration tables where a plain `specific_leaf_area` is clearer.
-If the reviewer prefers one public type, `PlantTraits` can become internal and the default can be `FunctionalPlantTraits` with one PFT and no input field; this changes phase 3 only.
+   and declare one 2D input in `variables(::FunctionalPlantTraits)`, `plant_functional_type` (`Canopy(XY())`), holding the 1-based PFT index of each grid cell.
+   The index field stays in the model's number format, so no integer conversion (and thus no `InexactError` path) is needed in kernels.
+5. Extend `plant_traits` (from phase 1) to PFTs, so that `plant_traits(i, j, grid, fields, pft)` returns the same PFT type with its traits localized at `(i, j)`.
+   For `PlantTraits` with scalar parameters this is the identity, as in phase 1.
+6. Evaluate trait-dependent kernel functions through a single helper that chooses the evaluation strategy by dispatch:
+
+   ```julia
+   value = map_plant_traits(i, j, grid, fields, traits) do local_traits
+       compute_gpp(photosynthesis, local_traits, ...)
+   end
+   ```
+
+   - For `PlantTraits`, the closure is called once with `plant_traits(i, j, grid, fields, traits)`.
+   - For `FunctionalPlantTraits` whose PFTs all localize to the same concrete type, the code path is identical for every PFT, so the helper selects the local traits of the cell's PFT and calls the closure once.
+   - Otherwise, the helper evaluates the closure for every PFT in the tuple (an unrolled loop over a tuple whose types are known at compile time, so it stays type-stable) and selects the result of the cell's PFT.
+     This is what allows process methods to dispatch on the PFT type, or on trait-level types inside it, within a kernel.
+
+   Selection uses an unrolled `ifelse` fold over the tuple, `ifelse(pft_index == NF(k), value_k, accumulated)`, rather than dynamic tuple indexing, so there is no reachable throw path under Reactant.
+   It works for numbers, tuples of numbers (for functions with several outputs), and isbits structs such as `PlantTraits`.
+   Kernel functions migrate from the phase 1 `local_traits = plant_traits(...)` call to this form; the scalar helpers are unchanged.
+   Closures passed to the helper must capture only isbits values, following the Reactant rule for closures in kernels.
+7. Prefer dispatching on trait-level types (e.g. a photosynthetic pathway or a life form stored as a type parameter of `PlantTraits`) over dispatching on PFT names.
+   A user-defined PFT then gets the correct physics from the composition of its traits, and PFTs that share trait types keep the single-evaluation path from item 6.
+   No such trait-level types are added in this phase; they come with the first structural difference that needs them (e.g. C4 photosynthesis).
+8. Validate the PFT map on the host side, in `initialize!` for `FunctionalPlantTraits`: every value must be an integer in `1:N`.
+9. Extend `ParameterEditing.parameters` for `FunctionalPlantTraits` so that entries are grouped and named by PFT (e.g. `needleleaf_tree.specific_leaf_area`) rather than by tuple position.
+   If the same PFT type appears more than once, names receive a numeric suffix.
+10. Export `AbstractPlantFunctionalType`, the four PFT types, `PALADYNDefaults`, `PALADYNPlantFunctionalTypes`, and `FunctionalPlantTraits`.
+
+### Design rationale
+
+**PFTs as standalone types rather than members of a scheme.**
+What a scheme such as PALADYN really provides is a set of parameter values calibrated together with its process formulations, a fixed ordering for land-cover crosswalks, and (later) competition rules between PFTs.
+The first is captured by the defaults source (item 2), the second by the preset tuple (item 3), and the third belongs on the collection of PFTs once tiling exists.
+None of these require PFT identity to be tied to a scheme, and mixing PFTs from different sources remains possible, though it is the user's responsibility to judge whether such a mix is meaningful.
+
+**Each PFT holds a full `PlantTraits`, rather than each parameter holding one value per PFT.**
+With one value per PFT per parameter there is no PFT object to dispatch on, only an index, so all PFTs would be restricted to the same code path.
+Holding the traits inside each PFT keeps dispatch possible, groups parameters by PFT for calibration, and subsumes spatial trait maps: a single "PFT" whose traits are field-valued is localized by the same `plant_traits` mechanism.
+It also extends naturally to sub-grid tiling, where the selection in item 6 is replaced by a cover-fraction-weighted sum over PFTs.
+
+**Keeping a separate constant `PlantTraits` type.**
+The issue thread suggests representing a single PFT as `FunctionalPlantTraits` with one PFT.
+`PlantTraits` is kept because it is the pointwise object that the scalar physics helpers need regardless, and because a single-PFT `FunctionalPlantTraits` would need a `plant_functional_type` input field filled with ones and would show parameters as `needleleaf_tree.specific_leaf_area` where a plain `specific_leaf_area` is clearer.
 
 ## Questions for the reviewers
 
@@ -167,18 +208,21 @@ If the reviewer prefers one public type, `PlantTraits` can become internal and t
 - **Regression**: with default `PlantTraits`, all existing vegetation and coupled-model tests must pass unchanged, which checks that the phase 1 move preserves the current defaults.
 - **Equivalence**: a `FunctionalPlantTraits` model whose PFT map is uniform must reproduce, to round-off, a `PlantTraits` model built from that PFT's values.
 - **Spatial variability**: on a small grid with a mixed PFT map, each column must match the corresponding single-PFT column run.
-- **Selection**: unit tests for `select_pft`, including that it is allocation-free and type-stable (`@inferred`, `@allocated`) for `Float32` and `Float64`.
+- **Selection**: unit tests for `map_plant_traits` covering all three paths (constant traits, PFTs with a shared trait type, and PFTs with different types), including that each is allocation-free and type-stable (`@inferred`, `@allocated`) for `Float32` and `Float64`.
+- **Path consistency**: for PFTs that differ only in parameter values, the single-evaluation path and the evaluate-all path must give identical results.
+- **Finite results**: every pointwise function must return finite values for every PFT in the PALADYN preset under each test forcing, since the evaluate-all path computes PFTs that do not apply to a cell.
 - **Validation**: `initialize!` rejects non-integer and out-of-range PFT indices.
-- **Parameters**: `parameters(FunctionalPlantTraits(...))` lists named per-PFT entries, and `reconstruct` round-trips.
+- **Parameters**: `parameters(FunctionalPlantTraits(...))` lists entries grouped and named by PFT, and `reconstruct` round-trips.
 - **Float32**: extend `test/vegetation/float32_tests.jl` to `FunctionalPlantTraits`.
 - **Differentiability**: extend `test/differentiability/vegetation_model_diff.jl` so that Enzyme gradients with respect to a per-PFT trait (e.g. `specific_leaf_area` of one PFT) match central differences.
 - **Reactant**: add a `FunctionalPlantTraits` configuration to the `test/reactant/` registry.
   Following the repository rules, this suite is run locally only because the change touches it; otherwise CI covers it.
+- **Performance**: benchmark a global configuration with the PALADYN preset on both paths to quantify the cost of evaluating every PFT, and check the effect on compile time.
 - Run the full suite and a draft doc build (`julia --project=docs docs/make.jl --local --draft`).
 
 ## Documentation changes
 
-- Add a "Plant traits and functional types" page under `docs/src/processes/vegetation/` with Overview, Implementations (`PlantTraits`, `FunctionalPlantTraits`, `PALADYNPlantFunctionalTypes`), Methods, and Kernel functions sections, following the doc page rules.
+- Add a "Plant traits and functional types" page under `docs/src/processes/vegetation/` with Overview, Implementations (`PlantTraits`, `FunctionalPlantTraits`, the PFT types, and `PALADYNPlantFunctionalTypes`), Methods, and Kernel functions sections, following the doc page rules.
   It should include a table of the PALADYN per-PFT values with citations.
 - Update the vegetation, carbon dynamics, photosynthesis, stomatal conductance, and autotrophic respiration pages where parameters moved, and update the `traits` description in `vegetation.md`.
 - Add an `@example` showing a global or multi-column run with a PFT map.
@@ -188,6 +232,8 @@ If the reviewer prefers one public type, `PlantTraits` can become internal and t
 
 - One PFT per grid cell; no sub-grid co-existence or competition between PFTs.
 - C4 grass is excluded until a C4 photosynthesis scheme is implemented.
+- When PFTs use different code paths, every PFT is evaluated in every cell, so vegetation kernels cost about N times as much and take longer to compile.
+- Pointwise functions must return finite values for any valid trait set, because results for PFTs that do not apply to a cell are still computed; a NaN there can contaminate reverse-mode gradients even though it never reaches the forward result.
 - The PFT map is a static input; gradients with respect to it are undefined (it is discrete), though gradients with respect to every per-PFT trait value are available.
 - Moving parameters out of the process structs renames some public keyword arguments (e.g. `PALADYNCarbonDynamics(NF; γL = …)`), which is a breaking change for user scripts.
 
@@ -195,8 +241,8 @@ If the reviewer prefers one public type, `PlantTraits` can become internal and t
 
 - Sub-grid PFT tiles with a PFT dimension on the vegetation state and PALADYN competition dynamics.
 - C4 photosynthesis and the C4 grass PFT.
-- Directly prescribed spatial trait maps (e.g. from the TRY database) as a third `AbstractPlantTraits` implementation, reading each trait from an input field.
-- Additional PFT schemes (e.g. JULES or CLM), each as a new `AbstractPlantFunctionalTypes` subtype.
+- Directly prescribed spatial trait maps (e.g. from the TRY database) as field-valued parameters inside `PlantTraits`, localized by `plant_traits`.
+- Additional default sources (e.g. JULES or CLM) as new defaults types, and trait-level types for structural differences such as photosynthetic pathway.
 - Moving canopy interception parameters into the traits (see question 3).
 
 ## Revision log
