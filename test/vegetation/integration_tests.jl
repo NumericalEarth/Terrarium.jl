@@ -52,7 +52,7 @@ end
     compute_auxiliary!(per_process, grid, vegetation.root_distribution, soil)
     compute_auxiliary!(per_process, grid, vegetation.plant_available_water, soil)
     compute_auxiliary!(per_process, grid, vegetation.carbon_dynamics, vegetation.traits)
-    compute_auxiliary!(per_process, grid, vegetation.phenology, vegetation.carbon_dynamics, atmos)
+    compute_auxiliary!(per_process, grid, vegetation.phenology, vegetation.carbon_dynamics, vegetation.traits, atmos)
     compute_auxiliary!(
         per_process, grid, vegetation.photosynthesis, vegetation.stomatal_conductance,
         vegetation.traits, constants, atmos
