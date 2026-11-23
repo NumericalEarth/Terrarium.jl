@@ -28,7 +28,7 @@ using Test
         compute_PAR => (photo, NF(400)),
         compute_APAR => (photo, traits, NF(400), NF(4)),
         compute_pres_i => (photo, NF(0.7), NF(40)),
-        compute_temperature_stress => (photo, T),
+        compute_temperature_stress => (photo, traits, T),
         compute_assimilation_factors => (photo, material, NF(4), NF(0.9), NF(30), NF(30000), NF(28), NF(20900)),
         compute_Vc_max => (photo, NF(6.0e-4), NF(5.0e-4), NF(30), NF(30000), NF(4), NF(28), NF(20900)),
         compute_JE_JC => (photo, NF(6.0e-4), NF(0.3), NF(5.0e-4), NF(1.0e-6)),
@@ -37,7 +37,7 @@ using Test
         compute_respiration_assimilation => (photo, traits, material, T, NF(400), NF(1.0e5), NF(400), NF(4), NF(0.7), NF(1)),
         compute_GPP => (photo, NF(1.0e-7), NF(1.0e-8)),
         compute_stomatal_conductance => (stomcond, traits, constants, NF(800), T, NF(101325), NF(415), NF(1.0e-7), NF(3), NF(1)),
-        compute_λc => (stomcond, NF(800)),
+        compute_λc => (stomcond, traits, NF(800)),
         compute_f_temp => (autoresp, T, NF(10)),
         compute_resp10 => (autoresp,),
         compute_Rm => (autoresp, vegcarbon_dynamics, traits, T, NF(10), NF(1.0e-8), NF(1), NF(5)),
@@ -54,9 +54,9 @@ using Test
         compute_γv => (veg_dynamics,),
         compute_ν_star => (veg_dynamics, NF(0.3)),
         compute_ν_tendency => (veg_dynamics, vegcarbon_dynamics, traits, NF(3), NF(5), NF(3.0e-8), NF(0.3)),
-        compute_phenology_factor => (phenol, NF(100), T),
+        compute_phenology_factor => (phenol, traits, NF(100), T),
         compute_leaf_area_index => (phenol, NF(0.5), NF(4)),
-        compute_gdd_tendency => (phenol, NF(100), T),
+        compute_gdd_tendency => (phenol, traits, NF(100), T),
     )
     @testset "$(nameof(f))" for (f, args) in calls
         result = @inferred f(args...)

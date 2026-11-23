@@ -23,6 +23,9 @@ Return the localized plant traits at the given grid cell indices.
 """
 function plant_traits end
 
+# Plant traits declare no state variables by default
+variables(::AbstractPlantTraits) = ()
+
 # Vegetation process types
 
 """

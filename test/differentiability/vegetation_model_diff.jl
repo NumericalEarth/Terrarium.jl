@@ -16,9 +16,9 @@ const VEG_DIFF_PRESSURE = 1.0e5 # Pa
 const VEG_DIFF_CO2 = 400.0 # ppm
 const VEG_DIFF_VPD = 1000.0 # Pa
 
-# GPP (kgC/m²/s) as a function of the photosynthesis and stomatal conductance parameters and the leaf area index
+# GPP (kgC/m²/s) as a function of the photosynthesis parameters, plant traits, and the leaf area index
 function midday_GPP(photo, stomcond, traits, material, LAI)
-    λc = compute_λc(stomcond, VEG_DIFF_VPD)
+    λc = compute_λc(stomcond, traits, VEG_DIFF_VPD)
     Rd, An = compute_respiration_assimilation(
         photo, traits, material, VEG_DIFF_T_AIR, VEG_DIFF_SWDOWN, VEG_DIFF_PRESSURE, VEG_DIFF_CO2, LAI, λc, 1.0
     )
@@ -38,14 +38,14 @@ end
     LAI = 3.0
     grads = Enzyme.autodiff(
         Reverse, midday_GPP, Active,
-        Active(photo), Active(stomcond), Const(traits), Const(material), Active(LAI)
+        Active(photo), Const(stomcond), Active(traits), Const(material), Active(LAI)
     )[1]
     ∂α_C3 = grads[1].α_C3
-    ∂g₁ = grads[2].g₁
+    ∂g₁ = grads[3].stomatal_slope
     ∂LAI = grads[5]
     # finite-difference references, reconstructing each process with a perturbed parameter
     @test ∂α_C3 ≈ central_difference(x -> midday_GPP(LUEPhotosynthesis(Float64; α_C3 = x), stomcond, traits, material, LAI), photo.α_C3) rtol = 1.0e-5
-    @test ∂g₁ ≈ central_difference(x -> midday_GPP(photo, MedlynStomatalConductance(Float64; g₁ = x), traits, material, LAI), stomcond.g₁) rtol = 1.0e-5
+    @test ∂g₁ ≈ central_difference(x -> midday_GPP(photo, stomcond, PlantTraits(Float64; stomatal_slope = x), material, LAI), traits.stomatal_slope) rtol = 1.0e-5
     @test ∂LAI ≈ central_difference(x -> midday_GPP(photo, stomcond, traits, material, x), LAI) rtol = 1.0e-5
     # more quantum efficiency, wider stomata (higher cᵢ), and more leaves all increase assimilation
     @test ∂α_C3 > 0

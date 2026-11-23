@@ -12,7 +12,7 @@ area index used to derive the vegetated area fraction) are supplied through the 
 Properties:
 $TYPEDFIELDS
 """
-@parameterized @kwdef struct PrescribedVegetation{NF, Photosynthesis, StomatalConductance, RootDistribution, PAW} <: AbstractVegetation{NF}
+@parameterized @kwdef struct PrescribedVegetation{NF, Photosynthesis, StomatalConductance, RootDistribution, PAW, Traits <: AbstractPlantTraits{NF}} <: AbstractVegetation{NF}
     "Photosynthesis scheme"
     @component photosynthesis::Photosynthesis
 
@@ -26,7 +26,7 @@ $TYPEDFIELDS
     @component plant_available_water::PAW
 
     "Plant physical traits"
-    @component traits::PlantTraits{NF}
+    @component traits::Traits
 end
 
 function PrescribedVegetation(
@@ -45,7 +45,8 @@ variables(vegetation::PrescribedVegetation) = tuplejoin(
     variables(vegetation.photosynthesis),
     variables(vegetation.stomatal_conductance),
     variables(vegetation.root_distribution),
-    variables(vegetation.plant_available_water)
+    variables(vegetation.plant_available_water),
+    variables(vegetation.traits)
 )
 
 function initialize!(state, grid, veg::PrescribedVegetation, args...)

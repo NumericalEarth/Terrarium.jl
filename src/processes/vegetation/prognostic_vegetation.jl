@@ -18,6 +18,7 @@ Formerly named `VegetationCarbonCycle`; that name remains available as a depreca
         VegetationDynamics <: Optional{AbstractVegetationDynamics},
         RootDistribution <: Optional{AbstractRootDistribution},
         PAW <: Optional{AbstractPlantAvailableWater},
+        Traits <: AbstractPlantTraits{NF},
     } <: AbstractVegetation{NF}
     "Photosynthesis scheme"
     photosynthesis::Photosynthesis # not prognostic
@@ -44,7 +45,7 @@ Formerly named `VegetationCarbonCycle`; that name remains available as a depreca
     plant_available_water::PAW
 
     "Plant-specific trait parameters"
-    traits::PlantTraits{NF}
+    traits::Traits
 end
 
 function PrognosticVegetation(
@@ -71,6 +72,8 @@ function PrognosticVegetation(
         traits
     )
 end
+
+variables(veg::PrognosticVegetation) = tuplejoin(fastmap(variables, processes(veg))..., variables(veg.traits))
 
 function initialize!(state, grid, veg::PrognosticVegetation)
     initialize!(state, grid, veg.plant_available_water)
@@ -107,7 +110,7 @@ function compute_auxiliary!(
     stomatal_conductance = veg.stomatal_conductance
     autotrophic_respiration = veg.autotrophic_respiration
     out = auxiliary_fields(state, carbon_dynamics, phenology, photosynthesis, stomatal_conductance, autotrophic_respiration)
-    fields = get_fields(state, carbon_dynamics, phenology, photosynthesis, stomatal_conductance, autotrophic_respiration, atmos)
+    fields = get_fields(state, carbon_dynamics, phenology, photosynthesis, stomatal_conductance, autotrophic_respiration, veg.traits, atmos)
     launch!(grid, XY, compute_auxiliary_kernel!, out, fields, veg, constants, atmos)
 
     # Note: vegetation_dynamics compute_auxiliary! does nothing for now
@@ -135,7 +138,7 @@ pool), then phenology (which reads it to set `leaf_area_index` and `phenology_fa
     ) where {N}
     i, j = @index(Global, NTuple)
     compute_veg_carbon_auxiliary!(out, i, j, grid, fields, veg.carbon_dynamics, veg.traits)
-    compute_phenology!(out, i, j, grid, fields, veg.phenology, atmos)
+    compute_phenology!(out, i, j, grid, fields, veg.phenology, veg.traits, atmos)
     # Photosynthesis reads stomatal conductance's parameters (λc) but not its auxiliary state
     compute_photosynthesis!(
         out, i, j, grid, fields, veg.photosynthesis, veg.stomatal_conductance,
@@ -161,7 +164,7 @@ function compute_tendencies!(state, grid, veg::PrognosticVegetation, constants::
     compute_tendencies!(state, grid, veg.vegetation_dynamics, veg.carbon_dynamics, veg.traits)
 
     # Needs air temperature(t) and computes tendency for growing degree days (prognostic phenology)
-    compute_tendencies!(state, grid, veg.phenology, atmos)
+    compute_tendencies!(state, grid, veg.phenology, veg.traits, atmos)
 
     return nothing
 end
@@ -170,9 +173,9 @@ end
     vegetation_area_fraction(i, j, grid, fields, veg.vegetation_dynamics, veg.traits)
 
 # With vegetation dynamics, the vegetated fraction is the prognostic coverage fraction
-@propagate_inbounds vegetation_area_fraction(i, j, grid, fields, dynamics::AbstractVegetationDynamics, ::PlantTraits) =
+@propagate_inbounds vegetation_area_fraction(i, j, grid, fields, dynamics::AbstractVegetationDynamics, ::AbstractPlantTraits) =
     vegetation_area_fraction(i, j, grid, fields, dynamics)
 
 # Without vegetation dynamics, the vegetated fraction is diagnosed from the relative leaf area
-@propagate_inbounds vegetation_area_fraction(i, j, grid, fields, ::Nothing, traits::PlantTraits) =
+@propagate_inbounds vegetation_area_fraction(i, j, grid, fields, ::Nothing, traits::AbstractPlantTraits) =
     compute_relative_leaf_area(i, j, grid, fields, traits)

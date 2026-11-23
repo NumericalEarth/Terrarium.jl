@@ -6,24 +6,26 @@ using Test
 
 @testset "λc sanity checks" begin
     stomcond = MedlynStomatalConductance()
+    traits = PlantTraits()
 
     # VPD = 0 → λc ≈ 1 (no drawdown)
     vpd = 0.0
-    λc = compute_λc(stomcond, vpd)
+    λc = compute_λc(stomcond, traits, vpd)
     @test λc ≈ 1.0
 
     # Realistic VPD: λc ∈ (0, 1)
     vpd = 1000.0 # Pa
-    λc = compute_λc(stomcond, vpd)
+    λc = compute_λc(stomcond, traits, vpd)
     @test 0.0 < λc < 1.0
 end
 
 @testset "λc monotonicity with VPD" begin
     stomcond = MedlynStomatalConductance()
+    traits = PlantTraits()
     vpds = [0.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0]
     prev_λc = Inf
     for vpd in vpds
-        λc = compute_λc(stomcond, vpd)
+        λc = compute_λc(stomcond, traits, vpd)
         @test λc ≤ prev_λc + eps(Float64) * 10 # non-increasing (allow tiny tolerance)
         prev_λc = λc
     end
@@ -31,10 +33,11 @@ end
 
 @testset "λc sensitivity to g₁" begin
     vpd = 500.0 # Pa
-    g₁_low = MedlynStomatalConductance(g₁ = 1.0)
-    g₁_high = MedlynStomatalConductance(g₁ = 4.0)
-    λc_low = compute_λc(g₁_low, vpd)
-    λc_high = compute_λc(g₁_high, vpd)
+    stomcond = MedlynStomatalConductance()
+    g₁_low = PlantTraits(stomatal_slope = 1.0)
+    g₁_high = PlantTraits(stomatal_slope = 4.0)
+    λc_low = compute_λc(stomcond, g₁_low, vpd)
+    λc_high = compute_λc(stomcond, g₁_high, vpd)
     # Larger g₁ → larger denominator in 1/(1+g₁/√vpd) → smaller subtraction → larger λc
     @test λc_high > λc_low
 end
@@ -194,7 +197,7 @@ end
     stomcond = MedlynStomatalConductance()
     traits = PlantTraits()
     constants = PhysicalConstants()
-    g₁ = stomcond.g₁
+    g₁ = traits.stomatal_slope
     D = stomcond.diffusivity_ratio_water_co2
 
     # VPD at which the humidity term g₁/√VPD equals one, i.e. VPD = g₁² kPa. Both
@@ -203,7 +206,7 @@ end
     vpd = g₁^2 * 1.0e3 # Pa
 
     # λc = 1 - 1/(1 + g₁/√VPD) = 1/2 at this VPD
-    @test compute_λc(stomcond, vpd) ≈ 1 // 2
+    @test compute_λc(stomcond, traits, vpd) ≈ 1 // 2
 
     # and the Medlyn factor b = D(1 + g₁/√VPD) = 2D, isolated by differencing out the
     # minimum-conductance term g₀ (which does not depend on An)
@@ -260,7 +263,7 @@ end
     for vpd in (200.0, 800.0, 2000.0, 5000.0)
         g_zero_A = compute_stomatal_conductance(stomcond, traits, constants, vpd, T_air, pres, co2, 0.0, LAI, β)
         g_with_A = compute_stomatal_conductance(stomcond, traits, constants, vpd, T_air, pres, co2, An, LAI, β)
-        λc = compute_λc(stomcond, vpd)
+        λc = compute_λc(stomcond, traits, vpd)
         # Fickian water vapor conductance (m/s) implied by the CO₂ flux and that cᵢ
         fickian = D * (An / M_C) / (cₐ * (1 - λc)) * F
         @test g_with_A - g_zero_A ≈ fickian

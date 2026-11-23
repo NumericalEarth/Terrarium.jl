@@ -1,6 +1,6 @@
 # Spatially variable plant traits and plant functional types
 
-> Status: **planned**. Phases 1 and 2 are approved for implementation in this PR; phase 3 will be reviewed and approved separately in a follow-up PR.
+> Status: **in progress**. Phases 1 and 2 are being implemented in this PR; phase 3 will be reviewed and approved separately in a follow-up PR.
 
 Date of initial draft: 2026-11-11
 
@@ -247,4 +247,11 @@ The issue thread suggests representing a single PFT as `FunctionalPlantTraits` w
 
 ## Revision log
 
-No revisions yet.
+**Revision 1** (2026-11-23, Claude Opus 5.5 `claude-opus-5-5`), approved before implementation:
+
+- Phase 1 defers the root distribution parameters `a` and `b`. The root fraction is a lazily evaluated `FunctionField` built from `StaticExponentialRootDistribution` alone, so moving them requires a separate redesign of that field.
+- Phase 1 moves all PALADYN Table 5 phenology placeholders (`f_deciduous`, `T_gdd_base`, `gdd_crit`, and `T_senescence_range`) into the traits; `gdd_relaxation_time` stays in `PALADYNPhenology`, since it has no PALADYN counterpart.
+- The other borderline parameters (reviewer question 1) stay in their process structs until the reviewers answer.
+
+> How should phase 1 handle the root distribution parameters `a` and `b`? Defer.
+> Which phenology parameters should move into PlantTraits in phase 1? All Table 5 placeholders.
