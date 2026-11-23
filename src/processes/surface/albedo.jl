@@ -113,8 +113,7 @@ Compute the liquid water content of the uppermost soil layer relative to the res
 the field capacity, `x = clamp((θ₁ − θ_res) / (θ_fc − θ_res), 0, 1)`, which is zero for dry and one for
 wet ground. Returns zero, i.e. dry ground, when there is no soil component.
 """
-@propagate_inbounds function compute_relative_ground_wetness(i, j, grid, fields, soil::AbstractSoil)
-    NF = eltype(grid)
+@propagate_inbounds function compute_relative_ground_wetness(i, j, grid, fields, soil::AbstractSoil{NF}) where {NF}
     ground_grid = ground_domain(grid)
     strat = get_stratigraphy(soil)
     hydrology = get_hydrology(soil)
