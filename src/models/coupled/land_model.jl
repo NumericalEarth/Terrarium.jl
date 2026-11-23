@@ -121,7 +121,7 @@ function compute_auxiliary!(state, model::LandModel)
     compute_auxiliary!(state, grid, model.snow, model.constants, model.timestepper)
     compute_auxiliary!(state, grid, model.vegetation, model.constants, model.atmosphere, model.soil)
     compute_auxiliary!(state, grid, model.surface_hydrology, model.constants, model.atmosphere, model.soil, model.vegetation, model.snow)
-    compute_auxiliary!(state, grid, model.surface_energy_balance, model.vegetation, model.snow)
+    compute_auxiliary!(state, grid, model.surface_energy_balance, model.vegetation, model.snow, model.soil)
     return nothing
 end
 

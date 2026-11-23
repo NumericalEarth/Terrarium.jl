@@ -10,8 +10,35 @@ using Test
     @testset "no snow component -> background values" begin
         state = StateVariables(Terrarium.Variables(Terrarium.variables(albedo)...), grid)
         compute_auxiliary!(state, grid, albedo, nothing)
-        @test all(state.albedo .≈ albedo.background_albedo)
+        @test all(state.albedo .≈ albedo.dry_ground_albedo)
         @test all(state.emissivity .≈ albedo.background_emissivity)
+    end
+
+    @testset "ground albedo varies with soil moisture between dry and wet values" begin
+        # loam texture; pure sand (the default) has a field capacity barely above the residual water content
+        strat = HomogeneousSoilStratigraphy(NF; texture = SoilTexture(NF; sand = 0.4, silt = 0.4, clay = 0.2))
+        soil = SoilEnergyWaterCarbon(NF; strat)
+        constants = PhysicalConstants(NF)
+        vars = Terrarium.Variables(Terrarium.variables(soil)..., Terrarium.variables(albedo)...)
+        state = StateVariables(vars, grid)
+        # unfrozen soil at the given saturation; initialize! sets the internal energy consistent with both
+        function ground_albedo_at(saturation)
+            set!(state.temperature, 5.0)
+            set!(state.saturation_water_ice, saturation)
+            Terrarium.initialize!(state, grid, soil, constants)
+            compute_auxiliary!(state, grid, soil, constants)
+            compute_auxiliary!(state, grid, albedo, nothing, nothing, soil)
+            return interior(state.albedo)[1, 1, 1]
+        end
+
+        # saturated soil is above field capacity and dry soil below the residual water content
+        @test ground_albedo_at(1.0) ≈ albedo.wet_ground_albedo
+        @test ground_albedo_at(0.0) ≈ albedo.dry_ground_albedo
+
+        # in between, the albedo decreases monotonically as the soil wets
+        αs = [ground_albedo_at(sat) for sat in 0.0:0.05:1.0]
+        @test all(diff(αs) .<= 0)
+        @test any(albedo.wet_ground_albedo .< αs .< albedo.dry_ground_albedo)
     end
 
     @testset "blends background and snow by snow cover fraction" begin
@@ -20,7 +47,7 @@ using Test
 
         set!(state.snow_cover_fraction, 0.5)
         compute_auxiliary!(state, grid, albedo, nothing, snow)
-        @test all(state.albedo .≈ 0.5 * albedo.background_albedo + 0.5 * snow.albedo.snow_albedo)
+        @test all(state.albedo .≈ 0.5 * albedo.dry_ground_albedo + 0.5 * snow.albedo.snow_albedo)
         @test all(state.emissivity .≈ 0.5 * albedo.background_emissivity + 0.5 * snow.albedo.snow_emissivity)
 
         # full snow cover recovers the snow endpoints; bare cover recovers the background
@@ -31,7 +58,7 @@ using Test
 
         set!(state.snow_cover_fraction, 0.0)
         compute_auxiliary!(state, grid, albedo, nothing, snow)
-        @test all(state.albedo .≈ albedo.background_albedo)
+        @test all(state.albedo .≈ albedo.dry_ground_albedo)
     end
 
     @testset "blends background and vegetation by vegetated area fraction" begin
@@ -43,7 +70,7 @@ using Test
         # half of the maximum leaf area index gives a vegetated fraction of one half
         set!(state.leaf_area_index, traits.maximum_leaf_area_index / 2)
         compute_auxiliary!(state, grid, albedo, vegetation)
-        @test all(state.albedo .≈ 0.5 * albedo.background_albedo + 0.5 * traits.albedo)
+        @test all(state.albedo .≈ 0.5 * albedo.dry_ground_albedo + 0.5 * traits.albedo)
         @test all(state.emissivity .≈ 0.5 * albedo.background_emissivity + 0.5 * traits.emissivity)
 
         # leaf area beyond the maximum saturates at full vegetation cover
@@ -55,7 +82,7 @@ using Test
         # no leaf area recovers the background
         set!(state.leaf_area_index, 0.0)
         compute_auxiliary!(state, grid, albedo, vegetation)
-        @test all(state.albedo .≈ albedo.background_albedo)
+        @test all(state.albedo .≈ albedo.dry_ground_albedo)
     end
 
     @testset "vegetated area fraction of PrognosticVegetation" begin
