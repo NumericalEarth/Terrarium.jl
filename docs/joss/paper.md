@@ -109,7 +109,7 @@ This design facilitates the implementation and comparison of new solvers and tim
 
 Terrarium.jl currently provides four primary model types that can be used to run simulations: `SoilModel`, `VegetationModel`, `SnowModel`, and `LandModel`. The first three represent standalone models of soil, snow, and vegetation processes while the `LandModel` couples together all three of these components to enable realistic, multi-physics simulations of the land surface.
 Each model type combines two or more `Process`es by defining the orchestration logic needed to wire together the various components.
-Users can implement their models by defining subtypes of `AbstractModel` that satisfy its documented *method interface* ("method" here refers to an instance of a Julia function defined for a particular set of input argument types).
+Users can implement their models by defining subtypes of the abstract type `AbstractModel` that satisfy its documented *method interface* ("method" here refers to an instance of a Julia function defined for a particular set of input argument types).
 
 Similar to models, users can define new processes by extending the `AbstractProcess` type.
 Each subtype of `AbstractProcess` is then required to implement a corresponding method interface for defining state variables and updating the model state within each timestep.
@@ -117,11 +117,13 @@ Processes may also consist of zero or more *parameterization* types that act as 
 
 While the modular design of Terrarium.jl provides a powerful framework for mixing and matching various process formulations, it also comes with some important trade-offs.
 Terrarium simultaneously prioritizes support for multi-architecture parallelization via KernelAbstractions.jl [@churavyKernelAbstractionsjl2026] and automatic differentiation via Enzyme.jl and Reactant.jl.
-Maximizing modularity would necessitate each `Process` launching its own GPU kernel, which can incur significant overhead in models that involve coupling together many interdependent physical processes.
+Maximizing modularity would necessitate each `Process` launching its own GPU *kernel*, i.e. a function executed in parallel over the spatial field, which can incur significant overhead in models that involve coupling together many interdependent physical processes.
 To balance modularity with efficient parallelization, Terrarium `Process`es are typically implemented at three different levels of abstraction: a top-level interface which can be used to evaluate and test each `Process` type standalone, a grid-aware kernel function interface called at the given grid indices within a device-agnostic compute kernel, and primitive functions that implement scalar equations independent of the underlying spatial discretization.
-This pattern allows for most of the actual physics code (defined at the kernel level) to be reused across different kernels.
+This pattern allows for most of the actual process code (defined at the kernel level) to be reused across different kernels.
 
-![CPU vs. GPU benchmark of the `SoilModel` in Terrarium.jl\label{fig:benchmark}](assets/figure2.png)
+\autoref{fig:benchmark} shows the performance of a full Terrarium.jl `LandModel` across multiple horizontal resolutions. On a single GPU, throughput stays constant at around 2000 simualted years per day (SYPD) until reaching nearly $10^5$ grid cells (~1° x 1° resolution). Beyond ths, the GPU remains roughly 3000 times faster than single-core CPU which translates to a 25-fold performance improvement over a single, 128-core compute node. Reactant also shows a considerable improvement in performance at lower resolutions where kernel launch overhead dominates the per-step cost.
+
+![Performance benchmarks of Terrarium.jl's `LandModel` in "simulated years per wallclock day" (SYPD) vs. the number of grid points on both CPU (single core, AMD EPYC 9554) and GPU (single NVIDIA H100) with and without Reactant \label{fig:benchmark}](assets/figure2.png)
 
 Terrarium.jl is expressly designed to accommodate multiple parallel formulations of physical processes and is thus not tied to any one set of governing equations.
 Currently, Terrarium.jl implements a soil energy-hydrology scheme that is largely based on the equations and parameterizations of CryoGrid [@westermannCryoGridCommunityModel2023; @langerEvolutionArcticPermafrost2024; @groenkeCryoGridJL2024] with pedotransfer functions taken from SURFEX/ISBA [@massonSURFEXv72LandOcean2013; @noilhanISBALandSurface1996].
@@ -149,7 +151,7 @@ These coupling interfaces will allow Terrarium.jl to directly contribute to ongo
 All text in this manuscript was drafted and reviewed by the authors.
 Generative AI was used to assist with developing the scripts that run the example simulation and produce the figures.
 Some parts of the software, including tests, benchmarks, and documentation, are developed with AI assistance under careful human oversight.
-AI-guided development is transparently documented in markdown-based implementation plans that are tracked in the `docs/dev/plans` directory of the repository.
+AI-assisted development is transparently documented in markdown-based implementation plans that are tracked in the `docs/dev/plans` directory of the repository.
 All pull requests are reviewed and signed off by human developers.
 
 # Acknowledgements
