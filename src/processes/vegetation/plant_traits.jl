@@ -86,16 +86,3 @@ Return the plant traits at grid cell `i, j`. Since `PlantTraits` is constant in 
 returns `traits` itself.
 """
 @inline plant_traits(i, j, grid, fields, traits::PlantTraits) = traits
-
-"""
-    $TYPEDSIGNATURES
-
-Return the leaf area index at grid point `i, j` relative to the maximum leaf area index of the given
-plant `traits`, `LAI / LAI_max`, clamped to the unit interval.
-"""
-@propagate_inbounds function compute_relative_leaf_area(i, j, grid, fields, traits::AbstractPlantTraits{NF}) where {NF}
-    local_traits = plant_traits(i, j, grid, fields, traits)
-    LAI = fields.leaf_area_index[i, j, end]
-    LAI_max = local_traits.maximum_leaf_area_index
-    return clamp(LAI / LAI_max, zero(NF), one(NF))
-end
