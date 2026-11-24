@@ -109,10 +109,11 @@ variables(seb::SurfaceEnergyBalance) = tuplejoin(
         seb::SurfaceEnergyBalance,
         vegetation::Optional{AbstractVegetation} = nothing,
         snow::Optional{AbstractSnow} = nothing,
+        soil::Optional{AbstractSoil} = nothing,
         args...
     )
-    # diagnose the (optionally snow-aware) albedo, then solve the surface energy balance
-    compute_auxiliary!(state, grid, seb.albedo, vegetation, snow)
+    # diagnose the (optionally snow-, vegetation-, and soil-moisture-aware) albedo
+    compute_auxiliary!(state, grid, seb.albedo, vegetation, snow, soil)
     return nothing
 end
 
