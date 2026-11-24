@@ -28,7 +28,7 @@ Terrarium = "80418d68-07fa-499d-ae2b-c12e531f5cd8"
 Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 
 [compat]
-KernelDensity = "0.6 - 0.6.10"
+KernelDensity = "0.6"
 SpeedyWeather = "0.23, 0.24"
 
 [sources.NumericalEarth]

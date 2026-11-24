@@ -1,0 +1,35 @@
+name: Draft PDF
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/joss/**
+      - .github/workflows/draft-pdf.yml
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  workflow_dispatch:
+
+jobs:
+  paper:
+    # On pull requests, only build when the PR carries the `joss` label; always build on pushes to
+    # main that touch the paper and on manual runs
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'joss')
+    runs-on: ubuntu-latest
+    name: Paper Draft
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build draft PDF
+        uses: openjournals/openjournals-draft-action@master
+        with:
+          journal: joss
+          # This should be the path to the paper within your repo.
+          paper-path: docs/joss/paper.md
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper
+          # This is the output path where Pandoc will write the compiled
+          # PDF. Note, this should be the same directory as the input
+          # paper.md
+          path: docs/joss/paper.pdf
