@@ -61,7 +61,7 @@ settings = ArgParseSettings(description = "Adjoint sensitivity of the land laten
     "--truncation"
     help = "spectral truncation of the atmosphere; the adjoint tape and the compile time grow with the resolution"
     arg_type = Int
-    default = 21
+    default = 32
 end
 args = parse_args(settings)
 
