@@ -21,10 +21,10 @@ $FIELDS
 """
 @parameterized @kwdef struct StaticExponentialRootDistribution{NF} <: AbstractRootDistribution{NF}
     "First empirical rate parameter for root distribution"
-    @param a::NF = 7.0 (units = u"m^-1", bounds = Positive) # TODO: PFT-specific (here needleleaf tree); see docs/dev/plans/2026-11-11-1-variable_plant_traits_pfts.md
+    @param a::NF = 7.0 (units = u"m^-1", bounds = Positive) # TODO: PFT-specific (here needleleaf tree)
 
     "Second empirical rate parameter for root distribution"
-    @param b::NF = 2.0 (units = u"m^-1", bounds = Positive) # TODO: PFT-specific (here needleleaf tree); see docs/dev/plans/2026-11-11-1-variable_plant_traits_pfts.md
+    @param b::NF = 2.0 (units = u"m^-1", bounds = Positive) # TODO: PFT-specific (here needleleaf tree)
 end
 
 StaticExponentialRootDistribution(::Type{NF}; kwargs...) where {NF} = StaticExponentialRootDistribution{NF}(; kwargs...)

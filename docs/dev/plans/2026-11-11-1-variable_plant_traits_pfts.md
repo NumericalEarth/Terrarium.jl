@@ -89,7 +89,7 @@ Phase 3 follows in a separate PR and needs its own approval before any code is c
    Parameter names should be descriptive (`leaf_turnover_rate` rather than `γL`, etc.), with the symbol given in the docstring.
 2. Pass `traits` to every vegetation process that needs it.
    Most already receive it; the phenology coupling functions do not yet.
-3. Leave `PALADYNCanopyInterception` unchanged in this phase (see the open questions), apart from a comment pointing to this plan.
+3. Leave `PALADYNCanopyInterception` unchanged in this phase (see the open questions).
 4. Introduce a single pointwise resolution step: each kernel function calls
 
    ```julia
