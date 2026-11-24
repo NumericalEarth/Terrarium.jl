@@ -66,7 +66,7 @@ $f_{\text{snow}}$ is the snow-covered area fraction of the snow component; snow-
 Without a vegetation or snow component, the corresponding fraction is zero.
 The bare-ground albedo varies linearly with the moisture of the uppermost soil layer between a dry and a wet value:
 $$\alpha_{\text{bg}} = \alpha_{\text{dry}} + (\alpha_{\text{wet}} - \alpha_{\text{dry}})\, w, \quad w = \text{clamp}\left(\frac{\theta_1 - \theta_{\text{res}}}{\theta_{\text{fc}} - \theta_{\text{res}}}, 0, 1\right)$$
-where $\theta_1$ is the liquid water content of the uppermost soil layer, $\theta_{\text{res}}$ the residual water content, and $\theta_{\text{fc}}$ the field capacity, so that wet soil is darker than dry soil.
+where $\theta_1$ is the liquid water content of the uppermost soil layer, $\theta_{\text{res}}$ the residual water content, and $\theta_{\text{fc}}$ the field capacity, so that wet soil is darker than dry soil. Note that $w$ is relative to the field capacity rather than to full saturation: any water content at or above field capacity counts as fully wet.
 Without a soil component, the dry value is used.
 The dry and wet albedos, `dry_ground_albedo` and `wet_ground_albedo`, and the ground emissivity, `ground_emissivity`, are spatially constant parameters; for now, the ground emissivity does not depend on soil moisture.
 
@@ -92,8 +92,4 @@ Terrarium.compute_albedo!
 
 ```@docs; canonical = false
 Terrarium.compute_ground_albedo
-```
-
-```@docs; canonical = false
-Terrarium.compute_relative_ground_wetness
 ```

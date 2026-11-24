@@ -109,42 +109,26 @@ end
 """
     $TYPEDSIGNATURES
 
-Compute the liquid water content of the uppermost soil layer relative to the residual water content and
-the field capacity, `w = clamp((θ₁ − θ_res) / (θ_fc − θ_res), 0, 1)`, which is zero for dry and one for
-wet ground. Returns zero, i.e. dry ground, when there is no soil component.
+Compute the albedo of bare ground, `α_bg = α_dry + (α_wet − α_dry)·w`, from the dry and wet ground albedos and
+the relative wetness `w = clamp((θ₁ − θ_res) / (θ_fc − θ_res), 0, 1)` of the uppermost layer of the `soil`
+component (see [`relative_saturation`](@ref)). `w` is zero for dry ground and one for ground at or above field
+capacity (not full saturation). Without a soil component, the ground is treated as dry.
 """
-@propagate_inbounds function compute_relative_ground_wetness(i, j, grid, fields, soil::AbstractSoil{NF}) where {NF}
+@propagate_inbounds function compute_ground_albedo(i, j, grid, fields, albedo::DiagnosticAlbedo, soil::AbstractSoil)
     ground_grid = ground_domain(grid)
     strat = get_stratigraphy(soil)
     hydrology = get_hydrology(soil)
     bgc = get_biogeochemistry(soil)
-    props = get_hydraulic_properties(hydrology)
-    comp = soil_composition(i, j, ground_grid.Nz, grid, fields, strat, hydrology, bgc)
-    texture = mineral_texture(comp)
-    fracs = volumetric_fractions(comp)
-    θ₁ = fracs.water
-    θfc = field_capacity(props, texture)
-    θres = props.residual_saturation * porosity(comp)
-    # the lower bound on the denominator guards against the edge case θfc ≤ θres
-    w = clamp((θ₁ - θres) / max(θfc - θres, eps(NF)), zero(NF), one(NF))
-    return w
-end
-
-@inline compute_relative_ground_wetness(i, j, grid, fields, ::Nothing) = zero(eltype(grid))
-
-"""
-    $TYPEDSIGNATURES
-
-Compute the albedo of bare ground, `α_bg = α_dry + (α_wet − α_dry)·w`, from the dry and wet ground albedos
-and the relative wetness `w` of the uppermost layer of the optional `soil` component.
-"""
-@propagate_inbounds function compute_ground_albedo(i, j, grid, fields, albedo::DiagnosticAlbedo, soil::Optional{AbstractSoil})
+    (; θw, θres, θfc) = soil_water_content(i, j, ground_grid.Nz, grid, fields, strat, hydrology, bgc)
+    w = relative_saturation(θw, θres, θfc)
     α_dry = albedo.dry_ground_albedo
     α_wet = albedo.wet_ground_albedo
-    w = compute_relative_ground_wetness(i, j, grid, fields, soil)
     α_bg = α_dry + (α_wet - α_dry) * w
     return α_bg
 end
+
+# without soil, the ground is treated as dry
+@inline compute_ground_albedo(i, j, grid, fields, albedo::DiagnosticAlbedo, ::Nothing) = albedo.dry_ground_albedo
 
 @propagate_inbounds function compute_albedo(
         i, j, grid, fields,

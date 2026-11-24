@@ -319,6 +319,14 @@ infiltration_capacity
 ```
 
 ```@docs; canonical = false
+Terrarium.soil_water_content
+```
+
+```@docs; canonical = false
+Terrarium.relative_saturation
+```
+
+```@docs; canonical = false
 compute_volumetric_water_content_tendency
 compute_darcy_flux_divergence
 compute_boundary_darcy_flux_divergence
