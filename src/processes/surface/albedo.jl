@@ -55,8 +55,8 @@ Snow-covered bare and vegetated areas are assumed to share the same snow albedo 
 a vegetation or snow component (`nothing`), the corresponding fraction is zero.
 
 The background albedo of bare ground varies linearly with the moisture of the uppermost soil layer
-between a dry and a wet value, `α_bg = α_dry + (α_wet − α_dry)·x`, where
-`x = clamp((θ₁ − θ_res) / (θ_fc − θ_res), 0, 1)` is the liquid water content `θ₁` of the uppermost soil
+between a dry and a wet value, `α_bg = α_dry + (α_wet − α_dry)·w`, where the relative ground wetness
+`w = clamp((θ₁ − θ_res) / (θ_fc − θ_res), 0, 1)` is the liquid water content `θ₁` of the uppermost soil
 layer relative to the residual water content `θ_res` and the field capacity `θ_fc`. Without a soil
 component (`nothing`), the dry value is used. The dry and wet albedos and the ground emissivity are
 spatially constant parameters; the ground emissivity does not (yet) depend on soil moisture.
@@ -110,7 +110,7 @@ end
     $TYPEDSIGNATURES
 
 Compute the liquid water content of the uppermost soil layer relative to the residual water content and
-the field capacity, `x = clamp((θ₁ − θ_res) / (θ_fc − θ_res), 0, 1)`, which is zero for dry and one for
+the field capacity, `w = clamp((θ₁ − θ_res) / (θ_fc − θ_res), 0, 1)`, which is zero for dry and one for
 wet ground. Returns zero, i.e. dry ground, when there is no soil component.
 """
 @propagate_inbounds function compute_relative_ground_wetness(i, j, grid, fields, soil::AbstractSoil{NF}) where {NF}
@@ -126,8 +126,8 @@ wet ground. Returns zero, i.e. dry ground, when there is no soil component.
     θfc = field_capacity(props, texture)
     θres = props.residual_saturation * porosity(comp)
     # the lower bound on the denominator guards against the edge case θfc ≤ θres
-    x = clamp((θ₁ - θres) / max(θfc - θres, eps(NF)), zero(NF), one(NF))
-    return x
+    w = clamp((θ₁ - θres) / max(θfc - θres, eps(NF)), zero(NF), one(NF))
+    return w
 end
 
 @inline compute_relative_ground_wetness(i, j, grid, fields, ::Nothing) = zero(eltype(grid))
@@ -135,14 +135,14 @@ end
 """
     $TYPEDSIGNATURES
 
-Compute the albedo of bare ground, `α_bg = α_dry + (α_wet − α_dry)·x`, from the dry and wet ground albedos
-and the relative wetness `x` of the uppermost layer of the optional `soil` component.
+Compute the albedo of bare ground, `α_bg = α_dry + (α_wet − α_dry)·w`, from the dry and wet ground albedos
+and the relative wetness `w` of the uppermost layer of the optional `soil` component.
 """
 @propagate_inbounds function compute_ground_albedo(i, j, grid, fields, albedo::DiagnosticAlbedo, soil::Optional{AbstractSoil})
     α_dry = albedo.dry_ground_albedo
     α_wet = albedo.wet_ground_albedo
-    x = compute_relative_ground_wetness(i, j, grid, fields, soil)
-    α_bg = α_dry + (α_wet - α_dry) * x
+    w = compute_relative_ground_wetness(i, j, grid, fields, soil)
+    α_bg = α_dry + (α_wet - α_dry) * w
     return α_bg
 end
 
