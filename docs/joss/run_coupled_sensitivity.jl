@@ -1,18 +1,18 @@
 # # Sensitivity of the land latent heat flux to the initial atmospheric humidity
 #
 # This script computes the adjoint (reverse-mode) sensitivity of the latent heat flux at a single
-# land grid cell, at the end of a 24 hour coupled SpeedyWeather–Terrarium integration, to the
+# land grid cell, at the end of a coupled SpeedyWeather–Terrarium integration (24 hours by default), to the
 # **full three-dimensional field** of the specific humidity at the start of that integration:
 #
 # ```math
-# g(j, k) = \frac{\partial \mathrm{LE}(i^*, t_0 + 24\,\mathrm{h})}{\partial q(j, k, t_0)},
+# g(j, k) = \frac{\partial \mathrm{LE}(i^*, t_0 + T)}{\partial q(j, k, t_0)},
 # ```
 #
-# where ``i^*`` is the target land cell, ``j`` runs over all atmospheric grid points, and ``k``
-# over the model levels. Reverse mode gives the whole field ``g`` in a single adjoint pass. The
+# where ``i^*`` is the target land cell, ``T`` is the length of the integration, ``j`` runs over
+# all atmospheric grid points, and ``k`` over the model levels. Reverse mode gives the whole field ``g`` in a single adjoint pass. The
 # sensitivity combines the local pathway (the humidity of the air above the target cell sets the
 # vapor pressure deficit that drives evaporation and transpiration) and the remote pathway (moisture
-# that the atmosphere advects towards the target cell during the day, and its effect on clouds,
+# that the atmosphere advects towards the target cell during the integration, and its effect on clouds,
 # radiation, and precipitation).
 #
 # SpeedyWeather's prognostic humidity is spectral. To obtain the sensitivity to the *gridded*
@@ -26,12 +26,13 @@
 # a batch job. Vanilla Enzyme requires Julia 1.10 or 1.11, so run it with the 1.10 environment
 # (`Manifest.toml`):
 #
-#     julia +lts --project=docs/joss docs/joss/run_coupled_sensitivity.jl
+#     julia +lts --project=docs/joss docs/joss/run_coupled_sensitivity.jl --spinup 3d --period 24h --truncation 21
 #
 # ## Setup
 
 using Terrarium
 
+using ArgParse
 using Checkpointing
 using Dates
 using Enzyme
@@ -48,8 +49,31 @@ Enzyme.Compiler.RunAttributor[] = false
 arch = CPU()
 NF = Float32
 
-# Deliberately coarse: the adjoint tape and the compile time grow with the resolution.
-truncation = 21
+# Command line options; the defaults reproduce Figure 4
+settings = ArgParseSettings(description = "Adjoint sensitivity of the land latent heat flux to the initial atmospheric humidity")
+@add_arg_table! settings begin
+    "--spinup"
+    help = "length of the forward spin-up before the differentiated window: a number followed by y (years), d (days), or h (hours)"
+    default = "10d"
+    "--period"
+    help = "length of the differentiated window: a number followed by y (years), d (days), or h (hours)"
+    default = "24h"
+    "--truncation"
+    help = "spectral truncation of the atmosphere; the adjoint tape and the compile time grow with the resolution"
+    arg_type = Int
+    default = 21
+end
+args = parse_args(settings)
+
+function parse_period(period::AbstractString)
+    m = match(r"^\s*(\d+)\s*([ydh])\s*$", period)
+    isnothing(m) && error("invalid period $period: expected a number followed by y, d, or h, e.g. 3d")
+    n = parse(Int, m.captures[1])
+    return m.captures[2] == "y" ? Year(n) : m.captures[2] == "d" ? Day(n) : Hour(n)
+end
+spinup = parse_period(args["spinup"])
+period = parse_period(args["period"])
+truncation = args["truncation"]
 nlayers_atmos = 5
 Nz = 10         # soil layers
 Δz_min = 0.05   # (m) thickness of the topmost soil layer
@@ -109,13 +133,14 @@ model = Speedy.PrimitiveWetModel(
 
 # ## Spin-up
 #
-# A 3 day forward run first, so that the adjoint is taken about an adjusted state rather than
-# SpeedyWeather's reference atmosphere and the idealized initial soil state. The start time is
-# chosen so that the 24 hour window after the spin-up ends at local midday in central Europe, when
-# the latent heat flux there is large.
+# A forward run first (3 days by default), so that the adjoint is taken about an adjusted state
+# rather than SpeedyWeather's reference atmosphere and the idealized initial soil state. The start
+# time is counted back from the end of the differentiated window, which is fixed at local midday in
+# central Europe in early July, when the latent heat flux there is large.
 
-spinup = Day(3)
-initial_date = DateTime(2024, 6, 28, 12)
+final_date = DateTime(2024, 7, 2, 12)
+initial_date = final_date - period - spinup
+@info "Spin-up from $initial_date, differentiated window of $period ending at $final_date"
 simulation = Speedy.initialize!(model; time = initial_date)
 @info "Spinning up the coupled model for $spinup"
 @time Speedy.run!(simulation; period = spinup)
@@ -205,18 +230,18 @@ end
 # Reset the clock for the differentiated window. `deepcopy` (rather than `materialize_views`)
 # preserves the aliasing between the fused variable buffers and their views that the time stepper
 # relies on.
-N_steps = Int(Hour(24) ÷ Δt)
+N_steps = Int(Millisecond(period) ÷ Millisecond(Δt))
 Speedy.initialize!(simulation; steps = N_steps)
 vars_initial = deepcopy(simulation.variables)
 
 # ## Checking the adjoint against finite differences
 #
-# Over the full 24 hours, finite differences in `Float32` measure the growth of the perturbation in
+# Over the full window, finite differences in `Float32` measure the growth of the perturbation in
 # the atmosphere rather than the derivative (see the lateral coupling example), so the adjoint is
 # checked over a short window first, for a perturbation of the lowest-level humidity directly above
 # the target cell. Changing `N_steps` does not recompile the adjoint.
 
-N_check = 4
+N_check = min(4, N_steps)
 @info "Computing the adjoint over $N_check steps (this compiles the adjoint and takes a while)"
 @time _, dδq_check = humidity_sensitivity(vars_initial, model, N_check, i_target)
 ε = NF(1.0e-4)   # (kg/kg) = 0.1 g/kg
@@ -226,11 +251,11 @@ fd = (latent_heat_flux_forward(vars_initial, model, N_check, i_target, δq_probe
 ad = dδq_check[ij_target, nlayers_atmos]
 @printf("∂LE/∂q, lowest level above the target, after %d steps\n  adjoint:           %12.6e W/m² per kg/kg\n  finite difference: %12.6e W/m² per kg/kg\n  relative error:    %8.3f %%\n", N_check, ad, fd, 100 * abs(fd - ad) / abs(fd))
 
-# ## The 24 hour sensitivity
+# ## The sensitivity over the full window
 
-@info "Computing the adjoint over $N_steps steps (24 h)"
+@info "Computing the adjoint over $N_steps steps ($period)"
 @time latent_heat_flux, dδq = humidity_sensitivity(vars_initial, model, N_steps, i_target)
-@info "Latent heat flux at the target after 24 h" latent_heat_flux
+@info "Latent heat flux at the target after $period" latent_heat_flux
 
 # Express the sensitivity per gram per kilogram of specific humidity, which is easier to read than
 # per kilogram per kilogram. Level `k = nlayers_atmos` is the lowest model level.
@@ -246,10 +271,10 @@ remote_fraction = 1 - local_sensitivity / sum(abs, sensitivity_column)
     sensitivity_column[ij_target], 100 * remote_fraction,
 )
 
-# ## Mean winds over the 24 hour window
+# ## Mean winds over the differentiated window
 #
 # For context in the figure, the winds that carry the humidity towards the target: the zonal and
-# meridional wind averaged over the 24 hour window, from a plain forward integration of the same
+# meridional wind averaged over the differentiated window, from a plain forward integration of the same
 # window (no differentiation). The σ levels are equally spaced, so the plain mean over the levels
 # is the mass-weighted column mean, matching the column-uniform perturbation shown in Figure 4.
 
