@@ -205,6 +205,12 @@ The issue thread suggests representing a single PFT as `FunctionalPlantTraits` w
    Should `α_int` and `k_ext` move into the traits (making interception depend on the vegetation's traits in `LandModel`), or stay in the interception process for now with only the duplicated `k_ext` resolved?
    The recommendation is to defer this to a follow-up.
 4. Is a dominant-PFT index map sufficient for the first version, or is a sub-grid PFT cover fraction needed from the start?
+5. Should phase 3 replace the flat `PlantTraits` with traits declared by the processes themselves?
+   Each process implementation would declare the PFT-dependent parameters it uses, with name, units, bounds, and docstring, analogous to `variables`.
+   The vegetation would collect these declarations from its configured components, merge traits shared by name (checking that units and bounds agree), and fill in values from a defaults source for each PFT.
+   The traits would then contain exactly the parameters the configuration uses, and kernel code would be unaffected, since traits are still read as fields after `plant_traits(i, j, ...)`.
+   The costs are the declaration and merging machinery, a custom `parameters` method, and a change to the construction API (`PlantTraits(NF; ...)` would be built by the vegetation from its components).
+   If adopted, this could be split into its own PR before the PFT types are added.
 
 ## Testing and verification
 
@@ -239,6 +245,8 @@ The issue thread suggests representing a single PFT as `FunctionalPlantTraits` w
 - Pointwise functions must return finite values for any valid trait set, because results for PFTs that do not apply to a cell are still computed; a NaN there can contaminate reverse-mode gradients even though it never reaches the forward result.
 - The PFT map is a static input; gradients with respect to it are undefined (it is discrete), though gradients with respect to every per-PFT trait value are available.
 - Moving parameters out of the process structs renames some public keyword arguments (e.g. `PALADYNCarbonDynamics(NF; γL = …)`), which is a breaking change for user scripts.
+- `PlantTraits` is a single flat struct holding the PFT-dependent parameters of every process implementation, so a configuration that uses an alternative implementation (e.g. another stomatal conductance scheme) still carries the parameters of the unused one.
+  These appear in parameter tables with zero gradients, and the struct grows with each new implementation; see reviewer question 5.
 
 ## Future work
 
