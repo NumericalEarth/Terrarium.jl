@@ -35,10 +35,12 @@ using Test
         @test ground_albedo_at(1.0) ≈ albedo.wet_ground_albedo
         @test ground_albedo_at(0.0) ≈ albedo.dry_ground_albedo
 
-        # in between, the albedo decreases monotonically as the soil wets
+        # in between, the albedo lies within the dry and wet values and decreases monotonically as the soil wets
         αs = [ground_albedo_at(sat) for sat in 0.0:0.05:1.0]
+        @test all(albedo.wet_ground_albedo .<= αs .<= albedo.dry_ground_albedo)
         @test all(diff(αs) .<= 0)
-        @test any(albedo.wet_ground_albedo .< αs .< albedo.dry_ground_albedo)
+        # below field capacity (about half saturation for this loam), the albedo is strictly between the two
+        @test albedo.wet_ground_albedo < ground_albedo_at(0.25) < albedo.dry_ground_albedo
     end
 
     @testset "blends background and snow by snow cover fraction" begin
