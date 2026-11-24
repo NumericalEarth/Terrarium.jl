@@ -83,15 +83,8 @@ state in `fields`.
         hydrology::AbstractSoilHydrology,
         bgc::AbstractSoilBiogeochemistry
     ) where {NF}
-    # Compute soil composition and hydraulic properties
-    vol = soil_composition(i, j, k, grid, fields, strat, hydrology, bgc)
-    θfc = field_capacity(hydrology.hydraulic_properties, vol.solid.texture)
-    θwp = wilting_point(hydrology.hydraulic_properties, vol.solid.texture)
-    # Compute liquid water content
-    fracs = volumetric_fractions(vol)
-    θw = fracs.water
-    # Compute PAW
-    PAW = max(min(NF(1), (θw - θwp) / (θfc - θwp)), NF(0))
+    (; θw, θwp, θfc) = soil_water_content(i, j, k, grid, fields, strat, hydrology, bgc)
+    PAW = relative_saturation(θw, θwp, θfc)
     return PAW
 end
 

@@ -383,3 +383,45 @@ UnsatKVanGenuchten{Float32}(7.0f0)
 default_unsat_hydraulic_cond(::Type{NF}, ::SWRC) where {NF} = UnsatKLinear(NF)
 default_unsat_hydraulic_cond(::Type{NF}, ::BrooksCorey) where {NF} = UnsatKBrooksCorey(NF)
 default_unsat_hydraulic_cond(::Type{NF}, ::VanGenuchten) where {NF} = UnsatKVanGenuchten(NF)
+
+# Characteristic soil water contents
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the volumetric liquid water content `θw` of soil layer `k` (at horizontal location `i, j`) together with its
+characteristic water contents: the residual water content `θres`, the wilting point `θwp`, and the field capacity `θfc`.
+Returns a `NamedTuple` `(; θw, θres, θwp, θfc)`.
+"""
+@propagate_inbounds function soil_water_content(
+        i, j, k, grid, fields,
+        strat::AbstractStratigraphy,
+        hydrology::AbstractSoilHydrology,
+        bgc::AbstractSoilBiogeochemistry
+    )
+    props = get_hydraulic_properties(hydrology)
+    comp = soil_composition(i, j, k, grid, fields, strat, hydrology, bgc)
+    texture = mineral_texture(comp)
+    fracs = volumetric_fractions(comp)
+    θw = fracs.water
+    θres = residual_saturation(props) * porosity(comp)
+    θwp = wilting_point(props, texture)
+    θfc = field_capacity(props, texture)
+    return (; θw, θres, θwp, θfc)
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the relative saturation of the water content `θ` between a lower bound `θmin` (e.g. the residual water
+content or the wilting point) and the field capacity `θfc`, `clamp((θ − θmin) / (θfc − θmin), 0, 1)`.
+
+Note that this is relative to the field capacity, not to the total available pore space: the relative saturation
+is zero at and below `θmin` and already reaches one at field capacity, so all water contents between field
+capacity and full saturation (porosity) map to one. The lower bound on the denominator guards against the edge
+case `θfc ≤ θmin`, in which the result switches from zero to one at `θmin`.
+"""
+@inline function relative_saturation(θ, θmin, θfc)
+    Δθ = max(θfc - θmin, eps(one(θfc)))
+    return clamp((θ - θmin) / Δθ, zero(θ), one(θ))
+end
