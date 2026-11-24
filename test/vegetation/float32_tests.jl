@@ -51,7 +51,7 @@ using Test
         compute_stem_carbon => (vegcarbon_dynamics, traits, NF(3)),
         compute_Λ_loc => (vegcarbon_dynamics, traits, NF(3)),
         compute_C_veg_tend => (vegcarbon_dynamics, traits, NF(3), NF(3.0e-8)),
-        compute_γv => (veg_dynamics,),
+        compute_γv => (veg_dynamics, traits),
         compute_ν_star => (veg_dynamics, NF(0.3)),
         compute_ν_tendency => (veg_dynamics, vegcarbon_dynamics, traits, NF(3), NF(5), NF(3.0e-8), NF(0.3)),
         compute_phenology_factor => (phenol, traits, NF(100), T),

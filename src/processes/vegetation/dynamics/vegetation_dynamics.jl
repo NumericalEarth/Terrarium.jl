@@ -2,7 +2,8 @@
     $TYPEDEF
 
 Vegetation dynamics implementation following [willeitPALADYNV10Comprehensive2016](@cite) for a single PFT
-based on the Lotka–Volterra approach.
+based on the Lotka–Volterra approach. The minimum disturbance rate `γv_min` is a plant trait,
+see [`PlantTraits`](@ref).
 
 Authors: Maha Badri 
 
@@ -16,9 +17,6 @@ $TYPEDFIELDS
 @parameterized @kwdef struct PALADYNVegetationDynamics{NF} <: AbstractVegetationDynamics{NF}
     "Vegetation seed fraction"
     @param ν_seed::NF = 0.001 (bounds = UnitInterval,)
-
-    "Minimum vegetation disturbance rate"
-    @param γv_min::NF = 0.002 (units = u"yr^-1", bounds = Positive)
 end
 
 PALADYNVegetationDynamics(::Type{NF}; kwargs...) where {NF} = PALADYNVegetationDynamics{NF}(; kwargs...)
@@ -40,11 +38,12 @@ Computes the disturbance rate`γv`,
 
 * [willeitPALADYNV10Comprehensive2016](@cite) Willeit & Ganopolski, Geoscientific Model Development (2016)
 """
-@inline function compute_γv(veg_dynamics::PALADYNVegetationDynamics{NF}) where {NF}
+@inline function compute_γv(veg_dynamics::PALADYNVegetationDynamics{NF}, traits::PlantTraits{NF}) where {NF}
     # TODO add PALADYN implemetation for the disturbance rate (depends on soil moisture)
     # Placeholder for now γv = min. disturbance rate
     # convert from per year to per second
-    return veg_dynamics.γv_min / seconds_per_year(NF)
+    γv_min = traits.minimum_disturbance_rate
+    return γv_min / seconds_per_year(NF)
 end
 
 """
@@ -81,7 +80,7 @@ Computes the vegetation fraction tendency for a single PFT,
     λ_NPP = compute_λ_NPP(vegcarbon_dynamics, traits, LAI_b)
 
     # Compute the disturbance rate
-    γv = compute_γv(veg_dynamics)
+    γv = compute_γv(veg_dynamics, traits)
 
     # Compute ν_star
     ν_star = compute_ν_star(veg_dynamics, ν)

@@ -198,6 +198,8 @@ The issue thread suggests representing a single PFT as `FunctionalPlantTraits` w
 ## Questions for the reviewers
 
 1. Which of the "possibly PFT-dependent" parameters (`cn_sapwood`, `cn_root`, `resp10`, `Kc25`, `Ko25`, `leaf_respiration_fraction`, the phenology parameters, `ν_seed`, `γv_min`, and `C_can`) should move into the traits? (@mahabadri, @matteo-willeit)
+   **Answered (@mahabadri, PR #262):** only `γv_min` is a PFT parameter in PALADYN.
+   `cn_sapwood`, `cn_root`, `Kc25`, `Ko25`, `ν_seed`, and `C_can` are the same for all PFTs, `leaf_respiration_fraction` is the same for all C3 PFTs, and `resp10` is constant for non-tree PFTs but computed for tree PFTs.
 2. Where should the PALADYN per-PFT values come from: the paper tables, the PALADYN code (and which version), or both?
 3. Canopy interception lives in `SurfaceHydrology`, which can run without a vegetation component (`SurfaceHydrologyModel`).
    Should `α_int` and `k_ext` move into the traits (making interception depend on the vegetation's traits in `LandModel`), or stay in the interception process for now with only the duplicated `k_ext` resolved?
@@ -256,3 +258,10 @@ The issue thread suggests representing a single PFT as `FunctionalPlantTraits` w
 
 > How should phase 1 handle the root distribution parameters `a` and `b`? Defer.
 > Which phenology parameters should move into PlantTraits in phase 1? All Table 5 placeholders.
+
+**Revision 2** (2026-11-23, Claude Opus 5.5 `claude-opus-5-5`):
+
+- Following the answer to reviewer question 1, phase 1 also moves `γv_min` from `PALADYNVegetationDynamics` into the traits (as `minimum_disturbance_rate`); all other borderline parameters stay in their process structs.
+- The tree-specific computation of `resp10` is left for later work.
+
+> your first question was answered in the PR discussion

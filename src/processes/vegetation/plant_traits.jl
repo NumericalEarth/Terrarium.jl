@@ -75,6 +75,9 @@ $TYPEDFIELDS
 
     "Air-temperature range `T_senescence_range` below the base temperature over which leaves fully senesce; placeholder for a temperate cold-deciduous PFT"
     @param senescence_temperature_range::NF = 5.0 (units = u"K", bounds = Positive)
+
+    "Minimum vegetation disturbance rate `γv_min`"
+    @param minimum_disturbance_rate::NF = 0.002 (units = u"yr^-1", bounds = Positive)
 end
 
 PlantTraits(::Type{NF}; kwargs...) where {NF} = PlantTraits{NF}(; kwargs...)

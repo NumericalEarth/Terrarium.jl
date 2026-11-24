@@ -4,9 +4,10 @@ using Test
 
 @testset "compute_γv test" begin
     veg_dynamics = PALADYNVegetationDynamics()
+    traits = PlantTraits()
     # For now, γv = γv_min, converted from 1/yr to 1/s
-    γv = compute_γv(veg_dynamics)
-    @test γv == veg_dynamics.γv_min / seconds_per_year(Float64)
+    γv = compute_γv(veg_dynamics, traits)
+    @test γv == traits.minimum_disturbance_rate / seconds_per_year(Float64)
 end
 
 @testset "compute_ν_star test" begin
@@ -38,7 +39,7 @@ end
     ν_tendency = compute_ν_tendency(veg_dynamics, vegcarbon_dynamics, traits, LAI_b, C_veg, NPP, ν)
     # Willeit & Ganopolski (2016), Eq. 73
     λ_NPP = compute_λ_NPP(vegcarbon_dynamics, traits, LAI_b)
-    @test ν_tendency ≈ λ_NPP * NPP / C_veg * ν * (1 - ν) - compute_γv(veg_dynamics) * ν
+    @test ν_tendency ≈ λ_NPP * NPP / C_veg * ν * (1 - ν) - compute_γv(veg_dynamics, traits) * ν
     # without productivity, the vegetated fraction decays at the disturbance rate
-    @test compute_ν_tendency(veg_dynamics, vegcarbon_dynamics, traits, LAI_b, C_veg, 0.0, ν) ≈ -compute_γv(veg_dynamics) * ν
+    @test compute_ν_tendency(veg_dynamics, vegcarbon_dynamics, traits, LAI_b, C_veg, 0.0, ν) ≈ -compute_γv(veg_dynamics, traits) * ν
 end
