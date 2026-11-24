@@ -54,7 +54,7 @@ settings = ArgParseSettings(description = "Adjoint sensitivity of the land laten
 @add_arg_table! settings begin
     "--spinup"
     help = "length of the forward spin-up before the differentiated window: a number followed by y (years), d (days), or h (hours)"
-    default = "10d"
+    default = "30d"
     "--period"
     help = "length of the differentiated window: a number followed by y (years), d (days), or h (hours)"
     default = "24h"
