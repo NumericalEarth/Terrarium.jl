@@ -68,7 +68,7 @@ The bare-ground albedo varies linearly with the moisture of the uppermost soil l
 $$\alpha_{\text{bg}} = \alpha_{\text{dry}} + (\alpha_{\text{wet}} - \alpha_{\text{dry}})\, x, \quad x = \text{clamp}\left(\frac{\theta_1 - \theta_{\text{res}}}{\theta_{\text{fc}} - \theta_{\text{res}}}, 0, 1\right)$$
 where $\theta_1$ is the liquid water content of the uppermost soil layer, $\theta_{\text{res}}$ the residual water content, and $\theta_{\text{fc}}$ the field capacity, so that wet soil is darker than dry soil.
 Without a soil component, the dry value is used.
-The dry and wet albedos, `dry_ground_albedo` and `wet_ground_albedo`, and the background emissivity are spatially constant parameters.
+The dry and wet albedos, `dry_ground_albedo` and `wet_ground_albedo`, and the ground emissivity, `ground_emissivity`, are spatially constant parameters; for now, the ground emissivity does not depend on soil moisture.
 
 ```@docs; canonical = false
 DiagnosticAlbedo

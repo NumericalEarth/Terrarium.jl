@@ -11,7 +11,7 @@ using Test
         state = StateVariables(Terrarium.Variables(Terrarium.variables(albedo)...), grid)
         compute_auxiliary!(state, grid, albedo, nothing)
         @test all(state.albedo .≈ albedo.dry_ground_albedo)
-        @test all(state.emissivity .≈ albedo.background_emissivity)
+        @test all(state.emissivity .≈ albedo.ground_emissivity)
     end
 
     @testset "ground albedo varies with soil moisture between dry and wet values" begin
@@ -48,7 +48,7 @@ using Test
         set!(state.snow_cover_fraction, 0.5)
         compute_auxiliary!(state, grid, albedo, nothing, snow)
         @test all(state.albedo .≈ 0.5 * albedo.dry_ground_albedo + 0.5 * snow.albedo.snow_albedo)
-        @test all(state.emissivity .≈ 0.5 * albedo.background_emissivity + 0.5 * snow.albedo.snow_emissivity)
+        @test all(state.emissivity .≈ 0.5 * albedo.ground_emissivity + 0.5 * snow.albedo.snow_emissivity)
 
         # full snow cover recovers the snow endpoints; bare cover recovers the background
         set!(state.snow_cover_fraction, 1.0)
@@ -71,7 +71,7 @@ using Test
         set!(state.leaf_area_index, traits.maximum_leaf_area_index / 2)
         compute_auxiliary!(state, grid, albedo, vegetation)
         @test all(state.albedo .≈ 0.5 * albedo.dry_ground_albedo + 0.5 * traits.albedo)
-        @test all(state.emissivity .≈ 0.5 * albedo.background_emissivity + 0.5 * traits.emissivity)
+        @test all(state.emissivity .≈ 0.5 * albedo.ground_emissivity + 0.5 * traits.emissivity)
 
         # leaf area beyond the maximum saturates at full vegetation cover
         set!(state.leaf_area_index, 2 * traits.maximum_leaf_area_index)

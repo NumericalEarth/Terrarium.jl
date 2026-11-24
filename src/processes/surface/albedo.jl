@@ -58,8 +58,8 @@ The background albedo of bare ground varies linearly with the moisture of the up
 between a dry and a wet value, `α_bg = α_dry + (α_wet − α_dry)·x`, where
 `x = clamp((θ₁ − θ_res) / (θ_fc − θ_res), 0, 1)` is the liquid water content `θ₁` of the uppermost soil
 layer relative to the residual water content `θ_res` and the field capacity `θ_fc`. Without a soil
-component (`nothing`), the dry value is used. The dry and wet albedos and the background emissivity are
-spatially constant parameters.
+component (`nothing`), the dry value is used. The dry and wet albedos and the ground emissivity are
+spatially constant parameters; the ground emissivity does not (yet) depend on soil moisture.
 
 Properties:
 $TYPEDFIELDS
@@ -71,8 +71,8 @@ $TYPEDFIELDS
     "Albedo of wet bare ground"
     @param wet_ground_albedo::NF = 0.15 (bounds = UnitInterval,)
 
-    "Snow- and vegetation-free (background) emissivity of bare ground"
-    @param background_emissivity::NF = 0.97 (bounds = UnitInterval,)
+    "Emissivity of bare ground"
+    @param ground_emissivity::NF = 0.97 (bounds = UnitInterval,)
 end
 
 DiagnosticAlbedo(::Type{NF}; kwargs...) where {NF} = DiagnosticAlbedo{NF}(; kwargs...)
@@ -155,7 +155,7 @@ end
         args...
     ) where {NF}
     α₀ = compute_ground_albedo(i, j, grid, fields, albedo, soil)
-    ϵ₀ = albedo.background_emissivity
+    ϵ₀ = albedo.ground_emissivity
     f_snow = snow_cover_fraction(i, j, grid, fields, snow)
     α_snow = compute_albedo(i, j, grid, fields, snow)
     ϵ_snow = compute_emissivity(i, j, grid, fields, snow)
