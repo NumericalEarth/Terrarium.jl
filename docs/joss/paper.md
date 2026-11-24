@@ -135,7 +135,7 @@ Example outputs from a prototype Terrarium-SpeedyWeather coupled simulation are 
 
 # Research impact statement
 
-![Sensitivities of the latent heat flux (evaporation) after 24 hours at the marked grid cell to the initial atmospheric humidity. Arrows show the average wind direction over 24 hour simulation period. Negative sensitivities show how evaporation decreases with higher upwind humidity. The faint ring patterns are numerical artifacts from SpeedyWeather.jl's spectral discretization.\label{fig:sensitivity}](assets/figure4.png)
+![Sensitivities of the integrated latent heat flux (from evaporation) after 24 hours at the marked grid cell to the initial atmospheric humidity field. Arrows show the average wind direction over 24 hour simulation period. Negative sensitivities show how evaporation decreases with higher upwind humidity. The faint ring patterns are numerical artifacts from SpeedyWeather.jl's spectral discretization.\label{fig:sensitivity}](assets/figure4.png)
 
 Terrarium.jl's modular design, device-agnostic parallelization architecture, and first-class support for AD make it an ideal testbed for cutting edge research on so-called "hybrid" land-atmosphere modeling, which aims to combine data-driven components, such as neural networks, with physics-based simulation [@shenDifferentiableModellingUnify2023; @gelbrechtDifferentiableProgrammingEarth2023].
 An example use-case of AD in physics-based modeling is local sensitivity analysis of the simulated outputs to the initial state; an example of this is shown in \autoref{fig:sensitivity}.
