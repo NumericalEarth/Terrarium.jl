@@ -134,39 +134,60 @@ end
 const MAP_LATITUDES = (-60, 90)
 
 """
-    map_panel!(fig, panel, cb, data; title, units, colormap, colorrange, width = 14, lon, lat, latitudes = MAP_LATITUDES, heatmap_kwargs...)
+    map_axis!(fig, panel; title, longitudes = (-180, 180), latitudes = MAP_LATITUDES)
 
-Draw one map with coastlines and its own colorbar. `panel` and `cb` are layout
-positions for the axis and colorbar respectively; `width` is the colorbar width
-in pixels. `lon` and `lat` are the coordinates of `data`, by default those of
-the simulation output, and `latitudes` is the latitude range shown. Further
-keyword arguments (e.g. `lowclip`) are passed to `heatmap!`.
+Create an undecorated longitude-latitude map axis at layout position `panel`, showing
+the given `longitudes` and `latitudes` ranges.
 """
-function map_panel!(
-        fig, panel, cb, data; title, units = "", colormap, colorrange, width = 14,
-        lon = Array(dims(outputs[:shf], X)), lat = Array(dims(outputs[:shf], Y)), latitudes = MAP_LATITUDES,
-        heatmap_kwargs...
-    )
-    lon, lat, data = to_map_order(lon, lat, data)
+function map_axis!(fig, panel; title, longitudes = (-180, 180), latitudes = MAP_LATITUDES)
     # `tellwidth/tellheight = false` keeps the aspect-driven size suggestion out of
     # the layout solver, which otherwise collapses the cells to wildly unequal
     # sizes; the aspect then just letterboxes the map inside its (even) cell.
     ax = GeoAxis(
         fig[panel...]; dest = "+proj=longlat +datum=WGS84", title,
-        aspect = 360 / (latitudes[2] - latitudes[1]), limits = ((-180, 180), latitudes),
+        aspect = (longitudes[2] - longitudes[1]) / (latitudes[2] - latitudes[1]), limits = (longitudes, latitudes),
         tellwidth = false, tellheight = false, titlesize = 14, titlegap = 2
     )
-    hm = heatmap!(ax, lon, lat, data; colormap, colorrange, heatmap_kwargs...)
-    lines!(ax, GeoMakie.coastlines(); color = :gray25, linewidth = 0.6)
     hidedecorations!(ax)
+    return ax
+end
+
+"""
+    map_colorbar!(fig, cb, ax, plot; units = "", width = 14)
+
+Add a colorbar for `plot` at layout position `cb`, as tall as the map in `ax`;
+`width` is the colorbar width in pixels.
+"""
+function map_colorbar!(fig, cb, ax, plot; units = "", width = 14)
     # With a fixed aspect the map only fills part of the axis box; the map itself
     # occupies `ax.scene.viewport`, so size the colorbar to that rectangle. The
     # colorbar tells its width (so its column shrinks to fit) but not its height.
     map_height = map(r -> r.widths[2], ax.scene.viewport)
-    Colorbar(
-        fig[cb...], hm; label = units, tellwidth = true, tellheight = false,
+    return Colorbar(
+        fig[cb...], plot; label = units, tellwidth = true, tellheight = false,
         width = width, height = map_height
     )
+end
+
+"""
+    map_panel!(fig, panel, cb, data; title, units, colormap, colorrange, width = 14, lon, lat, longitudes, latitudes, heatmap_kwargs...)
+
+Draw one map with coastlines and its own colorbar. `panel` and `cb` are layout
+positions for the axis and colorbar respectively; `width` is the colorbar width
+in pixels. `lon` and `lat` are the coordinates of `data`, by default those of
+the simulation output, and `longitudes` and `latitudes` are the ranges shown.
+Further keyword arguments (e.g. `lowclip`) are passed to `heatmap!`.
+"""
+function map_panel!(
+        fig, panel, cb, data; title, units = "", colormap, colorrange, width = 14,
+        lon = Array(dims(outputs[:shf], X)), lat = Array(dims(outputs[:shf], Y)), latitudes = MAP_LATITUDES,
+        longitudes = (-180, 180), heatmap_kwargs...
+    )
+    lon, lat, data = to_map_order(lon, lat, data)
+    ax = map_axis!(fig, panel; title, longitudes, latitudes)
+    hm = heatmap!(ax, lon, lat, data; colormap, colorrange, heatmap_kwargs...)
+    lines!(ax, GeoMakie.coastlines(); color = :gray25, linewidth = 0.6)
+    map_colorbar!(fig, cb, ax, hm; units, width)
     return ax, hm
 end
 
@@ -376,57 +397,92 @@ save(joinpath(assets_dir, "figure3.png"), fig3)
 
 # Written by `run_coupled_sensitivity.jl`: one row per atmospheric grid point of the
 # T32 octahedral Gaussian grid (in ring order), with the gradient of the latent heat
-# flux at the target land cell 24 h later with respect to the initial specific humidity
-# on each model level (W m⁻² per g kg⁻¹). Figure 4 shows the response to a
-# column-uniform perturbation, i.e. the sum over the levels.
+# flux at the target land cell, integrated over the 24 h window, with respect to the
+# initial specific humidity on each model level (MJ m⁻² per g kg⁻¹). Figure 4 shows the
+# response to a column-uniform perturbation, i.e. the sum over the levels.
 const SENSITIVITY_CSV = joinpath(outputs_dir, "run_coupled_sensitivity", "sensitivity.csv")
 const SENSITIVITY_GRID = RingGrids.OctahedralGaussianGrid(24)   # the T32 grid of the sensitivity run
+# Map window around the target (central Europe) and the upwind North Atlantic. Away from the
+# target, the global field is dominated by the ringing of the spectral truncation, so it is not shown.
+const SENSITIVITY_LONGITUDES = (-40, 50)
+const SENSITIVITY_LATITUDES = (30, 72)
 
 if isfile(SENSITIVITY_CSV)
     sensitivity_table = CSV.File(SENSITIVITY_CSV)
     londs, latds = RingGrids.get_londlatds(SENSITIVITY_GRID)
     @assert length(sensitivity_table) == length(londs) "the sensitivity output is not on the T32 octahedral Gaussian grid"
     @assert isapprox(sensitivity_table.lond, londs; atol = 1.0e-4) && isapprox(sensitivity_table.latd, latds; atol = 1.0e-4)
-    level_columns = filter(name -> startswith(String(name), "dLE_dq_level"), propertynames(sensitivity_table))
+    level_columns = filter(name -> startswith(String(name), "dLEint_dq_level"), propertynames(sensitivity_table))
     column_sensitivity = Float32.(sum(getproperty(sensitivity_table, name) for name in level_columns))
 
-    # Interpolate from the reduced (octahedral) grid onto the full Gaussian grid with the
-    # same latitudes, which is a regular longitude-latitude matrix for `heatmap!`.
-    column_sensitivity_full = RingGrids.interpolate(
-        RingGrids.FullGaussianGrid, RingGrids.Field(column_sensitivity, SENSITIVITY_GRID)
-    )
-    full_grid = column_sensitivity_full.grid
     i_target = argmin(sensitivity_table.distance_km)
+    # Longitudes on the map run from -180° to 180°
+    map_lond(lond) = lond > 180 ? lond - 360 : lond
+    in_window(lond, latd) = SENSITIVITY_LONGITUDES[1] < map_lond(lond) < SENSITIVITY_LONGITUDES[2] &&
+        SENSITIVITY_LATITUDES[1] < latd < SENSITIVITY_LATITUDES[2]
+
+    # Draw the native grid cells of the reduced (octahedral) grid rather than interpolating
+    # onto a regular grid: each cell spans halfway to the neighboring rings in latitude and
+    # halfway to the neighboring points on its ring in longitude, so every value is shown
+    # at its own grid point.
+    ring_latds = RingGrids.get_latd(SENSITIVITY_GRID)
+    ring_edges = [90; (ring_latds[1:(end - 1)] .+ ring_latds[2:end]) ./ 2; -90]
+    cells = Rect2f[]
+    cell_values = Float32[]
+    for (ring, points) in enumerate(RingGrids.eachring(SENSITIVITY_GRID))
+        Δλ = 360 / length(points)
+        for ij in points
+            # keep the cells that overlap the map window
+            lond = map_lond(londs[ij])
+            overlaps = SENSITIVITY_LONGITUDES[1] - Δλ < lond < SENSITIVITY_LONGITUDES[2] + Δλ &&
+                ring_edges[ring + 1] < SENSITIVITY_LATITUDES[2] && ring_edges[ring] > SENSITIVITY_LATITUDES[1]
+            overlaps || continue
+            push!(cells, Rect2f(lond - Δλ / 2, ring_edges[ring + 1], Δλ, ring_edges[ring] - ring_edges[ring + 1]))
+            push!(cell_values, column_sensitivity[ij])
+        end
+    end
 
     max_sensitivity = maximum(abs, column_sensitivity)
-    fig4 = Figure(size = (900, 460), padding = (5, 5, 5, 5))
-    ax4, _ = map_panel!(
-        fig4, (1, 1), (1, 2), Matrix(column_sensitivity_full);
-        title = "Sensitivity of the latent heat flux 24 h later to the initial specific humidity",
-        units = "W m⁻² per g kg⁻¹", colormap = Makie.Reverse(:RdBu),
-        colorrange = (-max_sensitivity, max_sensitivity),
-        lon = RingGrids.get_lond(full_grid), lat = RingGrids.get_latd(full_grid), latitudes = (-90, 90)
+    fig4 = Figure(size = (800, 420), padding = (5, 5, 5, 5))
+    ax4 = map_axis!(
+        fig4, (1, 1);
+        title = "Sensitivity of the 24 h integrated latent heat flux to the initial specific humidity field",
+        longitudes = SENSITIVITY_LONGITUDES, latitudes = SENSITIVITY_LATITUDES
     )
+    cell_plot = poly!(
+        ax4, cells; color = cell_values, colormap = Makie.Reverse(:RdBu),
+        colorrange = (-max_sensitivity, max_sensitivity), strokewidth = 0
+    )
+    lines!(ax4, GeoMakie.coastlines(); color = :gray25, linewidth = 0.6)
+    map_colorbar!(fig4, (1, 2), ax4, cell_plot; units = "MJ m⁻² per g kg⁻¹")
     # Overlay the 24 h mean column wind (also written by `run_coupled_sensitivity.jl`) as
-    # arrows on every other point of the full grid, with a 10 m/s reference arrow.
+    # arrows at the grid points inside the map window, with a 10 m/s reference arrow.
     if :u_mean in propertynames(sensitivity_table)
-        to_full(values) = Matrix(
-            RingGrids.interpolate(RingGrids.FullGaussianGrid, RingGrids.Field(Float32.(values), SENSITIVITY_GRID))
-        )
-        wind_lon, wind_lat, u_full = to_map_order(RingGrids.get_lond(full_grid), RingGrids.get_latd(full_grid), to_full(sensitivity_table.u_mean))
-        _, _, v_full = to_map_order(RingGrids.get_lond(full_grid), RingGrids.get_latd(full_grid), to_full(sensitivity_table.v_mean))
-        thinned = (1:2:length(wind_lon), 1:2:length(wind_lat))
-        wind_points = vec([Point2f(wind_lon[i], wind_lat[j]) for i in thinned[1], j in thinned[2]])
-        wind_vectors = vec([Vec2f(u_full[i, j], v_full[i, j]) for i in thinned[1], j in thinned[2]])
-        wind_lengthscale = 0.5   # degrees per (m/s)
-        wind_style = (color = (:black, 0.6), shaftwidth = 1, tipwidth = 5, tiplength = 5)
+        window = [ij for ij in eachindex(londs) if in_window(londs[ij], latds[ij])]
+        wind_points = [Point2f(map_lond(londs[ij]), latds[ij]) for ij in window]
+        wind_vectors = [Vec2f(sensitivity_table.u_mean[ij], sensitivity_table.v_mean[ij]) for ij in window]
+        wind_lengthscale = 0.25   # degrees per (m/s)
+        wind_style = (color = (:black, 0.6), shaftwidth = 1, tipwidth = 6, tiplength = 6)
         arrows2d!(ax4, wind_points, wind_vectors; lengthscale = wind_lengthscale, wind_style...)
-        arrows2d!(ax4, [Point2f(-176, -80)], [Vec2f(10, 0)]; lengthscale = wind_lengthscale, wind_style...)
-        text!(ax4, -176 + 10 * wind_lengthscale + 3, -80; text = "10 m s⁻¹", align = (:left, :center), fontsize = 10)
+        # The 10 m/s reference arrow goes in the bottom margin, on a strip as wide as the map
+        # and spanning the same longitudes, so that it has the same length scale as the map.
+        map_width = map(r -> r.widths[1], ax4.scene.viewport)
+        reference_ax = Axis(
+            fig4[2, 1]; width = map_width, height = 16, tellwidth = false,
+            limits = (SENSITIVITY_LONGITUDES, (-1, 1))
+        )
+        hidedecorations!(reference_ax)
+        hidespines!(reference_ax)
+        reference_position = Point2f(SENSITIVITY_LONGITUDES[1], 0)
+        arrows2d!(reference_ax, [reference_position], [Vec2f(10, 0)]; lengthscale = wind_lengthscale, wind_style...)
+        text!(
+            reference_ax, reference_position[1] + 10 * wind_lengthscale + 1.5, reference_position[2];
+            text = "10 m s⁻¹", align = (:left, :center), fontsize = 11
+        )
+        rowgap!(fig4.layout, 1, 4)
     end
-    target_lond = sensitivity_table.lond[i_target]
     scatter!(
-        ax4, [target_lond > 180 ? target_lond - 360 : target_lond], [sensitivity_table.latd[i_target]];
+        ax4, [map_lond(sensitivity_table.lond[i_target])], [sensitivity_table.latd[i_target]];
         marker = :xcross, markersize = 16, color = :black, strokecolor = :white, strokewidth = 1
     )
     save(joinpath(assets_dir, "figure4.png"), fig4)

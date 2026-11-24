@@ -1,15 +1,18 @@
 # # Sensitivity of the land latent heat flux to the initial atmospheric humidity
 #
-# This script computes the adjoint (reverse-mode) sensitivity of the latent heat flux at a single
-# land grid cell, at the end of a coupled SpeedyWeather–Terrarium integration (24 hours by default), to the
-# **full three-dimensional field** of the specific humidity at the start of that integration:
+# This script computes the adjoint (reverse-mode) sensitivity of the time-integrated latent heat
+# flux at a single land grid cell, over a coupled SpeedyWeather–Terrarium integration (24 hours by
+# default), to the **full three-dimensional field** of the specific humidity at the start of that
+# integration:
 #
 # ```math
-# g(j, k) = \frac{\partial \mathrm{LE}(i^*, t_0 + T)}{\partial q(j, k, t_0)},
+# g(j, k) = \frac{\partial}{\partial q(j, k, t_0)} \int_{t_0}^{t_0 + T} \mathrm{LE}(i^*, t) \, dt,
 # ```
 #
 # where ``i^*`` is the target land cell, ``T`` is the length of the integration, ``j`` runs over
-# all atmospheric grid points, and ``k`` over the model levels. Reverse mode gives the whole field ``g`` in a single adjoint pass. The
+# all atmospheric grid points, and ``k`` over the model levels. Integrating over the window, rather
+# than taking the latent heat flux at its end, collects the sensitivity along the whole trajectory
+# of the air arriving at the target. Reverse mode gives the whole field ``g`` in a single adjoint pass. The
 # sensitivity combines the local pathway (the humidity of the air above the target cell sets the
 # vapor pressure deficit that drives evaporation and transpiration) and the remote pathway (moisture
 # that the atmosphere advects towards the target cell during the integration, and its effect on clouds,
@@ -17,16 +20,8 @@
 #
 # SpeedyWeather's prognostic humidity is spectral. To obtain the sensitivity to the *gridded*
 # initial humidity, the differentiated function adds a grid-space perturbation ``δq`` (zero) to the
-# initial state, transforming it to spectral space within the function, and the gradient is taken
-# with respect to ``δq``.
-#
-# The script follows `examples/autodiff/speedy_terrarium_lateral_coupling.jl`, which documents
-# the Enzyme requirements and workarounds used below in more detail. It is a research script, not
-# a doc-built example; the adjoint takes a long time to compile (tens of minutes) and is best run as
-# a batch job. Vanilla Enzyme requires Julia 1.10 or 1.11, so run it with the 1.10 environment
-# (`Manifest.toml`):
-#
-#     julia +lts --project=docs/joss docs/joss/run_coupled_sensitivity.jl --spinup 30d --period 24h --truncation 32
+# initial state, transforming it to spectral space and truncating it within the function, and the
+# gradient is taken with respect to ``δq``.
 #
 # ## Setup
 
@@ -180,30 +175,50 @@ ij_target = ring_index_of_column[i_target]   # the same location on the atmosphe
 
 # ## The differentiated function
 #
-# `δq` (kg/kg) is a gridded perturbation of the specific humidity on all model levels. It is added
-# to both leapfrog time levels of the spectral prognostic humidity, and the grid-space variables are
+# `δq` (kg/kg) is a gridded perturbation of the specific humidity on all model levels. It is
+# transformed to spectral space and truncated before it is added. SpeedyWeather's spectral arrays
+# carry one extra degree `l = lmax + 1` beyond the triangular truncation, which is needed only for
+# the meridional derivatives of vector quantities. The transform of a gridded field fills that degree,
+# `set!` adds it to the prognostic humidity without truncating, and the time stepper does not zero
+# it either, so the model responds to it. It is not a resolved degree of freedom of the scalar
+# humidity, though, and perturbing it is not physically meaningful.
+#
+# The truncated perturbation is added to both leapfrog time levels of the spectral
+# prognostic humidity, and the grid-space variables are
 # then recomputed from the perturbed spectral state, so that the first time step sees it in both
 # the dynamics and the physics. The time loop is driven by hand rather than with `Speedy.run!`,
 # which also does output, callbacks, and feedback that Enzyme should not see; `@ad_checkpoint`
 # with `Revolve` bounds the memory of the adjoint tape.
+#
+# The integral is accumulated with the rectangle rule, from the latent heat flux at the end of each
+# atmospheric time step `Δt_seconds`, in a one-element array rather than a local variable: the loop
+# body is a closure that Checkpointing.jl deep-copies for each checkpoint and recomputes from, so
+# the running integral must be part of its captured, in-place-mutated state (a reassigned local
+# variable would not be restored, and Checkpointing.jl rejects it).
 
-"""Latent heat flux (W/m²) of land column `i_target` after `N_steps` coupled time steps, with the
-initial specific humidity perturbed by the gridded field `δq` (kg/kg)."""
-function latent_heat_flux_after!(vars, δq, model, N_steps, scheme, i_target)
+"""Latent heat flux (MJ/m²) of land column `i_target` integrated over `N_steps` coupled time steps
+of `Δt_seconds` (s), with the initial specific humidity perturbed by the gridded field `δq` (kg/kg)."""
+function integrated_latent_heat_flux!(vars, δq, model, N_steps, Δt_seconds, scheme, i_target)
     S = model.spectral_transform
+    δq_spectral = Speedy.transform(δq, S)
+    Speedy.SpeedyTransforms.spectral_truncation!(δq_spectral)   # zero the extra degree lmax + 1
     for step in 1:2
-        Speedy.set!(vars, model.geometry; humidity = δq, add = true, step, spectral_transform = S)
+        Speedy.set!(vars, model.geometry; humidity = δq_spectral, add = true, step, spectral_transform = S)
     end
     Speedy.transform!(vars, model)
+    integrated_lhf = zeros(NF, 1)
     @ad_checkpoint scheme for _ in 1:N_steps
         Speedy.time_step!(vars, model.time_stepping, model)
         Speedy.time_step!(vars.prognostic.clock, model.time_stepping)
+        latent_heat_flux = vars.prognostic.land.terrarium.state.latent_heat_flux
+        integrated_lhf[1] += interior(latent_heat_flux)[i_target, 1, 1] * Δt_seconds * NF(1.0e-6)
     end
-    return interior(vars.prognostic.land.terrarium.state.latent_heat_flux)[i_target, 1, 1]
+    return integrated_lhf[1]
 end
 
-"""Adjoint of [`latent_heat_flux_after!`](@ref) starting from a copy of `vars_initial`; returns the
-latent heat flux and its gradient with respect to the gridded initial humidity (W/m² per kg/kg)."""
+"""Adjoint of [`integrated_latent_heat_flux!`](@ref) starting from a copy of `vars_initial`; returns the
+integrated latent heat flux and its gradient with respect to the gridded initial humidity
+(MJ/m² per kg/kg)."""
 function humidity_sensitivity(vars_initial, model, N_steps, i_target)
     vars = deepcopy(vars_initial)
     δq = zeros(NF, ring_grid, nlayers_atmos)
@@ -214,23 +229,24 @@ function humidity_sensitivity(vars_initial, model, N_steps, i_target)
     # coupling example
     make_zero!(dvars.prognostic.land.terrarium.state)
     dmodel = make_zero(model)
-    _, latent_heat_flux = autodiff(
-        set_runtime_activity(ReverseWithPrimal), latent_heat_flux_after!, Active,
+    _, latent_heat_integral = autodiff(
+        set_runtime_activity(ReverseWithPrimal), integrated_latent_heat_flux!, Active,
         Duplicated(vars, dvars), Duplicated(δq, dδq), Duplicated(model, dmodel),
-        Const(N_steps), Const(Revolve(N_steps)), Const(i_target),
+        Const(N_steps), Const(Δt_seconds), Const(Revolve(N_steps)), Const(i_target),
     )
-    return latent_heat_flux, dδq
+    return latent_heat_integral, dδq
 end
 
 """The same integration without differentiation, for the finite-difference check."""
-function latent_heat_flux_forward(vars_initial, model, N_steps, i_target, δq)
-    return latent_heat_flux_after!(deepcopy(vars_initial), δq, model, N_steps, Revolve(N_steps), i_target)
+function integrated_latent_heat_flux_forward(vars_initial, model, N_steps, i_target, δq)
+    return integrated_latent_heat_flux!(deepcopy(vars_initial), δq, model, N_steps, Δt_seconds, Revolve(N_steps), i_target)
 end
 
 # Reset the clock for the differentiated window. `deepcopy` (rather than `materialize_views`)
 # preserves the aliasing between the fused variable buffers and their views that the time stepper
 # relies on.
 N_steps = Int(Millisecond(period) ÷ Millisecond(Δt))
+Δt_seconds = NF(Dates.value(Second(Δt)))
 Speedy.initialize!(simulation; steps = N_steps)
 vars_initial = deepcopy(simulation.variables)
 
@@ -247,19 +263,19 @@ N_check = min(4, N_steps)
 ε = NF(1.0e-4)   # (kg/kg) = 0.1 g/kg
 δq_probe = zeros(NF, ring_grid, nlayers_atmos)
 δq_probe[ij_target, nlayers_atmos] = ε
-fd = (latent_heat_flux_forward(vars_initial, model, N_check, i_target, δq_probe) - latent_heat_flux_forward(vars_initial, model, N_check, i_target, zero(δq_probe))) / ε
+fd = (integrated_latent_heat_flux_forward(vars_initial, model, N_check, i_target, δq_probe) - integrated_latent_heat_flux_forward(vars_initial, model, N_check, i_target, zero(δq_probe))) / ε
 ad = dδq_check[ij_target, nlayers_atmos]
-@printf("∂LE/∂q, lowest level above the target, after %d steps\n  adjoint:           %12.6e W/m² per kg/kg\n  finite difference: %12.6e W/m² per kg/kg\n  relative error:    %8.3f %%\n", N_check, ad, fd, 100 * abs(fd - ad) / abs(fd))
+@printf("∂(∫LE dt)/∂q, lowest level above the target, over %d steps\n  adjoint:           %12.6e MJ/m² per kg/kg\n  finite difference: %12.6e MJ/m² per kg/kg\n  relative error:    %8.3f %%\n", N_check, ad, fd, 100 * abs(fd - ad) / abs(fd))
 
 # ## The sensitivity over the full window
 
 @info "Computing the adjoint over $N_steps steps ($period)"
-@time latent_heat_flux, dδq = humidity_sensitivity(vars_initial, model, N_steps, i_target)
-@info "Latent heat flux at the target after $period" latent_heat_flux
+@time latent_heat_integral, dδq = humidity_sensitivity(vars_initial, model, N_steps, i_target)
+@info "Latent heat flux at the target integrated over $period (MJ/m²)" latent_heat_integral
 
 # Express the sensitivity per gram per kilogram of specific humidity, which is easier to read than
 # per kilogram per kilogram. Level `k = nlayers_atmos` is the lowest model level.
-sensitivity = Array(dδq.data) .* NF(1.0e-3)                  # (N_points, nlayers), W/m² per g/kg
+sensitivity = Array(dδq.data) .* NF(1.0e-3)                  # (N_points, nlayers), MJ/m² per g/kg
 sensitivity_lowest = sensitivity[:, nlayers_atmos]
 sensitivity_column = vec(sum(sensitivity; dims = 2))        # response to a column-uniform perturbation
 
@@ -267,7 +283,7 @@ distance_from_target = [great_circle_distance(londs_land[i_target], latds_land[i
 local_sensitivity = abs(sensitivity_column[ij_target])
 remote_fraction = 1 - local_sensitivity / sum(abs, sensitivity_column)
 @printf(
-    "column sensitivity above the target: %12.6e W/m² per g/kg\nremote fraction of Σ|column sensitivity|: %8.3f %%\n",
+    "column sensitivity above the target: %12.6e MJ/m² per g/kg\nremote fraction of Σ|column sensitivity|: %8.3f %%\n",
     sensitivity_column[ij_target], 100 * remote_fraction,
 )
 
@@ -303,7 +319,7 @@ u_mean, v_mean = mean_column_winds(vars_initial, model, N_steps)
 open(joinpath(output_dir, "sensitivity.csv"), "w") do io
     print(io, "point,lond,latd,distance_km")
     for k in 1:nlayers_atmos
-        print(io, ",dLE_dq_level$k")
+        print(io, ",dLEint_dq_level$k")
     end
     println(io, ",u_mean,v_mean")
     for j in eachindex(londs_all)
