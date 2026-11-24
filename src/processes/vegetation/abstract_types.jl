@@ -7,6 +7,25 @@ Base type for coupled vegetation (carbon) processes.
 """
 abstract type AbstractVegetation{NF} <: AbstractCoupledProcesses{NF} end
 
+# Plant traits
+
+"""
+    $TYPEDEF
+
+Base type for plant-dependent trait parameterizations.
+"""
+abstract type AbstractPlantTraits{NF} end
+
+"""
+    plant_traits(i, j, grid, fields, ::AbstractPlantTraits)
+
+Return the localized plant traits at the given grid cell indices.
+"""
+function plant_traits end
+
+# Plant traits declare no state variables by default
+variables(::AbstractPlantTraits) = ()
+
 # Vegetation process types
 
 """

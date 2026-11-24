@@ -81,6 +81,20 @@ compute_auxiliary!(
     )
 ```
 
+## Plant traits
+
+Both vegetation couplings hold their plant-dependent parameters in a single `traits` component, a subtype of [`AbstractPlantTraits`](@ref), rather than in the individual component processes. These include the leaf area index limits and allometry, the tissue turnover rates, the stomatal slope parameter, the temperature limits of photosynthesis, and the phenology parameters. [`PlantTraits`](@ref) represents a single plant functional type with traits that are constant in space; its default values are those of a needleleaf tree, except for the phenology parameters, which are placeholders for a temperate cold-deciduous plant functional type. Kernel functions obtain the traits of each grid cell with [`plant_traits`](@ref) and pass them on to the component processes.
+
+```@docs; canonical = false
+AbstractPlantTraits
+PlantTraits
+plant_traits
+```
+
+```@example vegetation
+PlantTraits(Float32)
+```
+
 ## Component processes
 
 Detailed implementations, parameterization options, and kernel functions for individual vegetation processes are documented on dedicated pages:

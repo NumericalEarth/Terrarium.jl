@@ -28,7 +28,7 @@ end
 
 @testset "Rm test" begin
     autoresp = PALADYNAutotrophicRespiration()
-    vegcarbon_dynamics = PALADYNCarbonDynamics()
+    vegcarbon_dynamics = PALADYNCarbonDynamics(Float64)
     traits = PlantTraits()
     T_air = 15.0 # °C
     T_soil = 10.0 # °C
@@ -65,7 +65,7 @@ end
 
 @testset "Ra test" begin
     autoresp = PALADYNAutotrophicRespiration()
-    vegcarbon_dynamics = PALADYNCarbonDynamics()
+    vegcarbon_dynamics = PALADYNCarbonDynamics(Float64)
     traits = PlantTraits()
     T_air = 20.0 # °C
     T_soil = 15.0 # °C

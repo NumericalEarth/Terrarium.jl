@@ -109,7 +109,7 @@ include("snow/snow_implicit.jl")
 
 include("vegetation/vegetation_base.jl")
 
-export PlantTraits
+export AbstractPlantTraits, PlantTraits
 include("vegetation/plant_traits.jl")
 
 export PALADYNCarbonDynamics

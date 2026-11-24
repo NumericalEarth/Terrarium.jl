@@ -4,7 +4,7 @@ using Test
 
 @testset "FieldCapacityLimitedPAW" begin
     # Check variables
-    paw = FieldCapacityLimitedPAW()
+    paw = FieldCapacityLimitedPAW(Float32)
     vars = Variables(paw)
     @test haskey(vars.auxiliary, :plant_available_water)
     @test haskey(vars.auxiliary, :soil_moisture_limiting_factor)
