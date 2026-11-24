@@ -26,7 +26,7 @@
 # a batch job. Vanilla Enzyme requires Julia 1.10 or 1.11, so run it with the 1.10 environment
 # (`Manifest.toml`):
 #
-#     julia +lts --project=docs/joss docs/joss/run_coupled_sensitivity.jl --spinup 3d --period 24h --truncation 21
+#     julia +lts --project=docs/joss docs/joss/run_coupled_sensitivity.jl --spinup 30d --period 24h --truncation 32
 #
 # ## Setup
 
@@ -133,7 +133,7 @@ model = Speedy.PrimitiveWetModel(
 
 # ## Spin-up
 #
-# A forward run first (3 days by default), so that the adjoint is taken about an adjusted state
+# A forward run first (30 days by default), so that the adjoint is taken about an adjusted state
 # rather than SpeedyWeather's reference atmosphere and the idealized initial soil state. The start
 # time is counted back from the end of the differentiated window, which is fixed at local midday in
 # central Europe in early July, when the latent heat flux there is large.

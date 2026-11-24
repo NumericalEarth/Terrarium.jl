@@ -375,17 +375,17 @@ save(joinpath(assets_dir, "figure3.png"), fig3)
 # ---------------------------------------------------------------------------
 
 # Written by `run_coupled_sensitivity.jl`: one row per atmospheric grid point of the
-# T21 octahedral Gaussian grid (in ring order), with the gradient of the latent heat
+# T32 octahedral Gaussian grid (in ring order), with the gradient of the latent heat
 # flux at the target land cell 24 h later with respect to the initial specific humidity
 # on each model level (W m⁻² per g kg⁻¹). Figure 4 shows the response to a
 # column-uniform perturbation, i.e. the sum over the levels.
 const SENSITIVITY_CSV = joinpath(outputs_dir, "run_coupled_sensitivity", "sensitivity.csv")
-const SENSITIVITY_GRID = RingGrids.OctahedralGaussianGrid(16)   # the T21 grid of the sensitivity run
+const SENSITIVITY_GRID = RingGrids.OctahedralGaussianGrid(24)   # the T32 grid of the sensitivity run
 
 if isfile(SENSITIVITY_CSV)
     sensitivity_table = CSV.File(SENSITIVITY_CSV)
     londs, latds = RingGrids.get_londlatds(SENSITIVITY_GRID)
-    @assert length(sensitivity_table) == length(londs) "the sensitivity output is not on the T21 octahedral Gaussian grid"
+    @assert length(sensitivity_table) == length(londs) "the sensitivity output is not on the T32 octahedral Gaussian grid"
     @assert isapprox(sensitivity_table.lond, londs; atol = 1.0e-4) && isapprox(sensitivity_table.latd, latds; atol = 1.0e-4)
     level_columns = filter(name -> startswith(String(name), "dLE_dq_level"), propertynames(sensitivity_table))
     column_sensitivity = Float32.(sum(getproperty(sensitivity_table, name) for name in level_columns))
