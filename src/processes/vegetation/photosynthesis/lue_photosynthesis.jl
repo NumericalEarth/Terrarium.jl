@@ -2,7 +2,8 @@
     $TYPEDEF
 Photosynthesis implementation from PALADYN [willeitPALADYNV10Comprehensive2016](@cite) for C3 PFTs following the mechanistic
 approach of [haxeltineBIOME3EquilibriumTerrestrial1996](@cite). Computes instantaneous photosynthetic rates as differential
-equations that are integrated over arbitrary timesteps by the timestepper.
+equations that are integrated over arbitrary timesteps by the timestepper. The temperature limits of
+photosynthesis are plant traits, see [`PlantTraits`](@ref).
 
 Authors: Maha Badri and Matteo Willeit
 
@@ -48,18 +49,6 @@ $TYPEDFIELDS
 
     "Conversion factor for solar radiation at 550 nm from J/m² to mol/m²"
     @param cq::NF = 4.6e-6 (units = u"mol/J", bounds = Positive, scale = 1.0e-6)
-
-    "Upper temperature threshold for CO₂/O₂ specificity factor. Above this, photosynthesis rapidly declines. PFT-specific, needleleaf tree value."
-    @param T_CO2_high::NF = 42.0 (units = u"°C",)
-
-    "Lower temperature threshold for CO₂/O₂ specificity factor. Below this, photosynthesis rapidly declines. PFT-specific, needleleaf tree value."
-    @param T_CO2_low::NF = -4.0 (units = u"°C",)
-
-    "Upper temperature threshold for light-limited photosynthesis rate. Peak photosynthesis capacity. PFT-specific, needleleaf tree value."
-    @param T_photos_high::NF = 30.0 (units = u"°C",)
-
-    "Lower temperature threshold for light-limited photosynthesis rate. Minimum for photosynthesis. PFT-specific, needleleaf tree value."
-    @param T_photos_low::NF = 15.0 (units = u"°C",)
 
     "Root of quadratic mean shape parameter. Controls smoothness of interpolation between light and RuBisCO limitations (0.7 for smooth, 0.5 for arithmetic mean)."
     @param θ_r::NF = 0.7 (bounds = UnitInterval,)
@@ -153,29 +142,35 @@ end
 """
     $TYPEDSIGNATURES
 
-Computes the temperature stress factor `T_stress` based on the air temperature.
+Computes the temperature stress factor `T_stress` based on the air temperature and the
+temperature limits of photosynthesis given by the plant `traits`.
 """
-@inline function compute_temperature_stress(photo::LUEPhotosynthesis{NF}, T_air::NF) where {NF}
+@inline function compute_temperature_stress(photo::LUEPhotosynthesis{NF}, traits::PlantTraits{NF}, T_air::NF) where {NF}
+    T_CO2_low = traits.photosynthesis_minimum_temperature
+    T_CO2_high = traits.photosynthesis_maximum_temperature
+    T_photos_low = traits.photosynthesis_optimum_temperature_low
+    T_photos_high = traits.photosynthesis_optimum_temperature_high
+
     # Temperature stress function implements a double-sigmoid response to temperature.
     # T_CO2_low/high: thresholds for Rubisco specificity (τ) optimal activity range
     # T_photos_low/high: thresholds for light-limited photosynthesis (JE) optimal activity range
     # k1: slope parameter for lower sigmoid (temperature rise from T_CO2_low to T_photos_low)
     # Derived from logistic function to transition from 0.01 to 0.99 over the temperature interval.
-    k1 = NF(2.0) * log(NF(1.0) / NF(0.99) - NF(1.0)) / (photo.T_CO2_low - photo.T_photos_low)
+    k1 = NF(2.0) * log(NF(1.0) / NF(0.99) - NF(1.0)) / (T_CO2_low - T_photos_low)
 
     # k2: inflection point (midpoint) of the lower sigmoid
     # Set to the average of the two lower thresholds for symmetric transition.
-    k2 = NF(0.5) * (photo.T_CO2_low + photo.T_photos_low)
+    k2 = NF(0.5) * (T_CO2_low + T_photos_low)
 
     # k3: slope parameter for upper sigmoid (temperature rise from T_photos_high to T_CO2_high)
     # Controls how rapidly photosynthesis declines above the optimal temperature range.
-    k3 = log(NF(0.99) / NF(0.01)) / (photo.T_CO2_high - photo.T_photos_high)
+    k3 = log(NF(0.99) / NF(0.01)) / (T_CO2_high - T_photos_high)
 
     # Compute T_stress as product of lower and upper sigmoid curves
     # T_stress varies from 0 (outside optimal range) to ~1 (within optimal range [T_photos_low, T_photos_high])
-    if photo.T_CO2_low < T_air < photo.T_CO2_high
+    if T_CO2_low < T_air < T_CO2_high
         low = NF(1.0) / (NF(1.0) + exp(k1 * (k2 - T_air)))
-        high = NF(1.0) - NF(0.01) * exp(k3 * (T_air - photo.T_photos_high))
+        high = NF(1.0) - NF(0.01) * exp(k3 * (T_air - T_photos_high))
         T_stress = low * high
     else
         T_stress = zero(NF)
@@ -312,7 +307,7 @@ function compute_respiration_assimilation(
             pres_i = compute_pres_i(photo, λc, pres_a)
 
             # Compute temperature stress
-            T_stress = compute_temperature_stress(photo, T_air)
+            T_stress = compute_temperature_stress(photo, traits, T_air)
 
             # Compute c1 and c2 parameters for C3 photosynthesis enzyme kinetics
             c_1, c_2 = compute_assimilation_factors(photo, constants, Γ_star, T_stress, Kc, Ko, pres_i, pres_O2)
@@ -363,14 +358,14 @@ function compute_auxiliary!(
         state, grid,
         photo::LUEPhotosynthesis,
         stomcond::AbstractStomatalConductance,
-        traits::PlantTraits,
+        traits::AbstractPlantTraits,
         constants::PhysicalConstants,
         atmos::AbstractAtmosphere,
         args...
     )
     out = auxiliary_fields(state, photo)
     # N.B. in this specific case, we do not need state fields from the stomatal condctuance dependency
-    fields = get_fields(state, photo, atmos; except = out)
+    fields = get_fields(state, photo, traits, atmos; except = out)
     launch!(grid, XY, compute_auxiliary_kernel!, out, fields, photo, stomcond, traits, constants, atmos, args...)
     return nothing
 end
@@ -387,10 +382,12 @@ Returns instantaneous rates in (kgC/m²/s) for integration by the timestepper.
         i, j, grid, fields,
         photo::LUEPhotosynthesis,
         stomcond::AbstractStomatalConductance,
-        traits::PlantTraits,
+        traits::AbstractPlantTraits,
         constants::PhysicalConstants,
         atmos::AbstractAtmosphere
     )
+    local_traits = plant_traits(i, j, grid, fields, traits)
+
     # Get inputs from atmosphere
     T_air = air_temperature(i, j, grid, fields, atmos)
     pres = air_pressure(i, j, grid, fields, atmos)
@@ -403,11 +400,11 @@ Returns instantaneous rates in (kgC/m²/s) for integration by the timestepper.
 
     # Compute VPD + leaf-to-air CO2 ratio λc
     vpd = compute_vapor_pressure_deficit(i, j, grid, fields, atmos, constants)
-    λc = compute_λc(stomcond, vpd)
+    λc = compute_λc(stomcond, local_traits, vpd)
 
     # Compute Rd, leaf respiration rate in [kgC/m²/s],
     # An, net photosynthesis rate in [kgC/m²/s]
-    Rd, An = compute_respiration_assimilation(photo, traits, constants.material, T_air, swdown, pres, co2, LAI, λc, β)
+    Rd, An = compute_respiration_assimilation(photo, local_traits, constants.material, T_air, swdown, pres, co2, LAI, λc, β)
 
     # Compute GPP, Gross Primary Production in [kgC/m²/s]
     GPP = compute_GPP(photo, An, Rd)
@@ -424,7 +421,7 @@ Calls [`compute_photosynthesis`](@ref) and stores the results in `out`.
         out, i, j, grid, fields,
         photo::LUEPhotosynthesis,
         stomcond::AbstractStomatalConductance,
-        traits::PlantTraits,
+        traits::AbstractPlantTraits,
         constants::PhysicalConstants,
         atmos::AbstractAtmosphere
     )

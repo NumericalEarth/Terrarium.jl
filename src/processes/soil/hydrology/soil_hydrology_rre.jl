@@ -249,13 +249,14 @@ end
     $SIGNATURES
 
 Kernel function for computing the Darcy flux `q = -K ∂ψ/∂z` (m/s, positive upward) over layer faces from
-the total pressure head `ψ` and the face hydraulic conductivity `K` (see [`darcy_conductivity`](@ref)).
+the total pressure head `ψ` and the face hydraulic conductivity `K` computed by
+[`compute_face_hydraulic_conductivity`](@ref).
 """
 @propagate_inbounds function darcy_flux(i, j, k, grid, ψ, K)
     # Darcy's law: q = -K ∂ψ/∂z
     # TODO: also account for effect of temperature on matric potential
     ∇ψ = ∂zᵃᵃᶠ(i, j, k, grid, ψ)
-    Kₖ = darcy_conductivity(i, j, k, grid, K)
+    Kₖ = K[i, j, k]
     ## Note that elevation and hydrostatic pressure are assumed to be accounted
     ## for in the computation of ψ, so we don't need any additional terms.
     q = -Kₖ * ∇ψ
@@ -271,14 +272,6 @@ boundary conditions on `pressure_head` (zero for no-flux, see
 [`compute_boundary_darcy_flux_divergence`](@ref)).
 """
 @propagate_inbounds compute_water_flux(i, j, k, grid, ψ, K) = darcy_flux(i, j, k, ground_domain(grid), ψ, K)
-
-"""
-    $SIGNATURES
-
-Hydraulic conductivity (m/s) used by the [`darcy_flux`](@ref) at face `k`, i.e. the face conductivity `K`
-computed by [`compute_face_hydraulic_conductivity`](@ref).
-"""
-@propagate_inbounds darcy_conductivity(i, j, k, grid, K) = K[i, j, k]
 
 """
     $SIGNATURES
@@ -304,7 +297,8 @@ end
 
 Specific moisture capacity `∂θ/∂ψ` (1/m) at cell `i, j, k`: the derivative of the soil water retention
 curve ([`specific_moisture_capacity`](@ref)) at the matric potential ([`compute_matric_potential`](@ref))
-reconstructed from the total `pressure_head`. It vanishes in saturated cells.
+reconstructed from the total `pressure_head`. It vanishes in saturated cells, and at the
+[`minimum_matric_potential`](@ref), below which the closure holds the matric potential constant.
 """
 @propagate_inbounds function compute_specific_moisture_capacity(
         i, j, k, grid, fields,
@@ -313,9 +307,11 @@ reconstructed from the total `pressure_head`. It vanishes in saturated cells.
         bgc::AbstractSoilBiogeochemistry
     ) where {NF}
     ψm = compute_matric_potential(i, j, k, grid, fields)
+    ψm_min = minimum_matric_potential(get_hydraulic_properties(hydrology))
     swrc = get_swrc(hydrology)
     por = porosity(i, j, k, grid, fields, strat, bgc)
-    return convert(NF, specific_moisture_capacity(swrc, ψm, por))
+    dθdψ = convert(NF, specific_moisture_capacity(swrc, ψm, por))
+    return ifelse(ψm > ψm_min, dθdψ, zero(dθdψ))
 end
 
 """

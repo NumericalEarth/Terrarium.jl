@@ -1,6 +1,6 @@
 # Infiltration capacity and wetting-front conductivity for Richards soil hydrology
 
-> Status: **completed**. Phases 1, 2, and 4 are implemented, the rerun of the JOSS simulation (Phase 3) is tracked separately on `joss-paper`, and pedotransfer functions are left to future work.
+> Status: **completed**. Phases 1, 2, and 4 are implemented, the rerun of the JOSS simulation (Phase 3) is tracked separately on `joss-paper`, and pedotransfer functions and a spatially varying water table are left to future work.
 
 Date of initial draft: 2026-11-15
 
@@ -144,6 +144,28 @@ Implemented during the review of PR #257 (see revision 14).
   - the bounded sandy column test runs steps of 30 and 45 minutes instead of 30 and 60 minutes, at which the maximum principle is violated for any number of iterations;
   - the implicit steady-flow test steps at half the advective timescale (20 times the diffusion timescale) instead of twice that timescale, beyond which the explicit drainage flux overdraws the bottom cell.
 
+### Phase 5: Lower bound on the matric potential
+
+With the sandy loam default of Phase 4, the coupled JOSS simulation (`docs/joss/run_terrarium_speedy_simulation.jl`, Slurm job 3391755) failed in its first steps with a CUDA kernel exception.
+A CPU run of the same script for one day reproduced it and gave the cause:
+
+- The soil moisture climatology initializes the vadose zone of a few desert columns (six columns in the Sahara and on the Arabian Peninsula with a water content below 0.03) at saturations down to about 0.03, directly above the saturated zone below the water table at 5 m.
+- With `ψₛ = 0.218 m` and `λ = 1/4.90`, a saturation of 0.03 corresponds to a matric potential of about −6 × 10⁶ m (−4 × 10⁵ m with the previous `ψₛ = 0.01 m`, `λ = 0.2`), and the residual saturation of 0.01 allows about −10⁹ m.
+- Across such a dry–wet interface, any non-negligible face conductivity moves meters of water within a 450 s step; the implicit step with two Picard iterations does not converge, cells overfill, and the closure moves the excess into the surface pool (181 m after the second step).
+  The surface energy balance then fails (skin temperatures of −354 °C, ground heat fluxes of 2 × 10⁴ W/m²), the atmosphere becomes non-finite after the fourth step, and the snow mass assertion `W > 0 || E_subl ≈ 0` is the first check to trip (it is the kernel exception on the GPU).
+- Rebuilding only the land model in the same session showed that the retention parameters are the trigger: the previous parameters with the weighted-average face conductivity ran stably for ten coupled steps, while the sandy loam parameters diverged with either face conductivity (sooner with `UpwindConductivity`, which uses the conductivity of the saturated cell for the upward flow into the dry cell).
+
+The JOSS script now sets the previous retention parameters explicitly (on `joss-paper`), and the initial saturation remains the user's choice.
+Phase 5 makes the Richards equation robust to such states by bounding the matric potential from below in the saturation–pressure closure:
+
+- Add a lower bound `ψ_min` to the hydraulic properties (`ConstantSoilHydraulics` and `SoilHydraulicsSURFEX`), and clamp the matric pressure head computed by the closure (`soil_hydraulic_closures.jl`) at it.
+  The saturation remains the prognostic variable, so mass conservation is unaffected; below the bound, the specific moisture capacity falls back to `minimum_moisture_capacity`.
+- Choice of the bound (the reviewer chose the physical bound of −10⁵ m, to keep things simple):
+  - a physical bound, for example −10⁵ m (roughly the matric potential of oven-dry soil, pF 7), the lower bound of the CLM5 retention curve (Lawrence et al. 2018, Eq. 7.53: `ψ ≥ −1 × 10⁸ mm`); or
+  - a bound derived from the number format `NF`: the largest magnitude at which the total head `Ψ = ψ + z` still resolves the elevation difference `Δz` of adjacent cells, `|ψ| ≲ Δz / eps(NF)`.
+    For Float32 and `Δz = 5 cm`, this is about 4 × 10⁵ m, close to the potentials of the previous parameters, which ran stably; for Float64, it is about 2 × 10¹⁴ m and would not bound the potential in practice.
+- The clamp is a branch-free `max`, without throw paths, so it is compatible with GPU kernels, Reactant, and Enzyme (with a zero derivative below the bound).
+
 ## Testing and verification
 
 - New `LandModel` column regression test `LandModel: rain infiltrates into unsaturated soil` (written first, and checked to fail on the base revision): SURFEX hydraulics, steady rain of 10 mm/day for one day, `Δt = 450 s`, default `IMEX` time stepper, from a dry (initial saturation 0.1) and a dryish (0.3) column.
@@ -166,6 +188,11 @@ Implemented during the review of PR #257 (see revision 14).
   - `test/surface/hydrology/surface_runoff_tests.jl` and the snowmelt and surface pool tests in `test/coupled_models/land_model_tests.jl`.
 - Phase 4: the FreezeCurves.jl test suite covers the new presets (construction from strings and symbols, `0 < λ < 1`, saturation above the air-entry suction).
   The Terrarium full test suite and draft doc build were not rerun locally after Phase 4 and are left to CI on PR #257.
+- Phase 5 (implemented in 3b6765e84):
+  - column regression test `Implicit Richards: dry vadose zone above a water table` (Float32 and Float64): the JOSS grid (`ExponentialSpacing`, 30 cells), the sandy loam default, a vadose zone at saturation 0.03 above a water table at 5 m, one day at `Δt = 450 s` with the default `IMEX` time stepper; the pressure head of the top cell is held at the bound, the saturation stays finite and within [0, 1], the column water balance closes (relative tolerance 10⁻⁵ in Float32 and 10⁻¹⁰ in Float64), and the temperatures stay within their initial range;
+  - the same test without the bound (`minimum_matric_potential = -Inf`) fails: the column loses about 208 m of water within three steps and the temperatures leave their initial range;
+  - the coupled JOSS simulation with the sandy loam default and the bound ran through its first day on the CPU (skin temperatures from −52 to 33 °C), where it previously failed in its fourth step.
+- All checks of PR #257 pass at 3b6765e84: the test suite on Julia 1.10, 1.12, and 1.13, the Reactant correctness tests, Runic, and the documentation build.
 - Full test suite, then a draft doc build.
 - Enzyme and Reactant: both new kernel functions are branch-free scalar functions without throw paths; the hydrology and land model differentiability tests run in CI in addition to the pilot checks above.
   Replacing the nested `min` by a smooth function of the mean saturation removes a nondifferentiable point.
@@ -179,6 +206,7 @@ Implemented during the review of PR #257 (see revision 14).
 - Docstrings for the new kernel function and the changed `darcy_conductivity` and `compute_hydraulics!`.
 - Add Green and Ampt (1911), Philip (1957), and Lawrence et al. (2018) to `docs/src/references.bib`.
 - Phase 4: docstrings of `UnsatKBrooksCorey` and `UnsatKVanGenuchten`, and the van Genuchten equation and the face conductivity paragraph on the soil hydrology doc page.
+- Phase 5: docstrings of the new parameter and of the closure, and a note on the bound in the section on the saturation–pressure closure of the soil hydrology doc page.
 
 ## Known limitations
 
@@ -194,6 +222,8 @@ Implemented during the review of PR #257 (see revision 14).
 - The new default air-entry suction (0.218 m instead of 0.01 m) changes the retention of every simulation with the default hydraulics: the soil holds considerably more water at a given suction.
 - The van Genuchten presets of FreezeCurves set a residual water content of 0.03 to 0.05, which the retention curve uses, while `UnsatKVanGenuchten` evaluates the conductivity at `θw / θsat` without it.
 - The retention parameters and `K_sat` are the same in every cell, regardless of texture (see pedotransfer functions under Future work).
+- The JOSS script on `joss-paper` still sets the previous retention parameters (the stopgap of revision 15); with Phase 5, it can return to the sandy loam default.
+- With Phase 5, the matric potential of very dry cells is bounded, so the suction gradient into a dry cell, and with it the uptake of water from wetter neighbors, is underestimated below the bound.
 
 ## Future work
 
@@ -204,6 +234,9 @@ Implemented during the review of PR #257 (see revision 14).
 - An explicit parameterization of soil water repellency and surface crusting, for example a factor that reduces the surface `K_sat` below a critical water content, or a crust layer with its own conductivity, grounded in the literature and kept separate from the unsaturated conductivity function.
   At coarse resolution, this would need a sub-grid distribution of rainfall intensity to have a meaningful effect.
 - A sub-grid saturated fraction for saturation-excess runoff.
+- A spatially varying initial water table depth, for example from the global map of Fan et al. (2013), instead of the constant 5 m of `SaturationWaterTable` in the JOSS simulation.
+  In deserts, the water table typically lies tens to hundreds of meters deep, so a saturated zone at 5 m directly below a vadose zone at the climatological water content creates an artificially sharp dry–wet contrast (the trigger of the divergence that Phase 5 addresses).
+  `SaturationWaterTable` already accepts the depth as a spatially varying input (`water_table_depth`), so this needs only an input source.
 - SURFEX pedotransfer functions for `SoilHydraulicsSURFEX`, so that the retention parameters and `K_sat` vary with the soil texture of each cell.
   `SoilHydraulicsSURFEX` already follows ISBA for the field capacity and wilting point (Noilhan and Mahfouf 1996, Eqs. 28–29), and `SoilPorositySURFEX` for the porosity (Eq. 27), but it holds the retention parameters of its SWRC and `K_sat` constant.
   ISBA derives its soil parameters from the sand and clay percentages `SAND` and `CLAY` (Noilhan and Lacarrère 1995, Fig. 1), listed in Appendix A of the SURFEX scientific documentation (Le Moigne 2012, Section 4.1.8):
@@ -250,6 +283,7 @@ The entries in this list were checked against the publisher or the official docu
 
 - Assouline, S. (2004). Rainfall-induced soil surface sealing: a critical review of observations, conceptual models, and solutions. *Vadose Zone Journal* 3, 570–591. https://doi.org/10.2136/vzj2004.0570
 - Doerr, S. H., Shakesby, R. A., and Walsh, R. P. D. (2000). Soil water repellency: its causes, characteristics and hydro-geomorphological significance. *Earth-Science Reviews* 51, 33–65. https://doi.org/10.1016/S0012-8252(00)00011-8
+- Fan, Y., Li, H., and Miguez-Macho, G. (2013). Global patterns of groundwater table depth. *Science* 339, 940–943. https://doi.org/10.1126/science.1229881 (not yet checked against the publisher).
 - Forsyth, P. A., Wu, Y. S., and Pruess, K. (1995). Robust numerical methods for saturated-unsaturated flow with dry initial conditions in heterogeneous media. *Advances in Water Resources* 18, 25–38.
 - Green, W. H., and Ampt, G. A. (1911). Studies on soil physics. *The Journal of Agricultural Science* 4, 1–24. https://doi.org/10.1017/S0021859600001441
 - Lawrence, D., Fisher, R., Koven, C., Oleson, K., Swenson, S., and Vertenstein, M. (2018). *Technical Description of Version 5.0 of the Community Land Model (CLM)*. NCAR. https://www2.cesm.ucar.edu/models/cesm2/land/CLM50_Tech_Note.pdf, Chapter 7, Hydrology; equation numbers as in the PDF, which the web version (https://escomp.github.io/CTSM/release-clm5.0/tech_note/Hydrology/CLM50_Tech_Note_Hydrology.html) numbers 2.7.x instead of 7.x (infiltration capacity: Section 7.2.3, Eq. 7.34; Hortonian runoff: Eq. 7.35; interface conductivity: Section 7.3.1, Eq. 7.47; ice impedance: Eq. 7.48).
@@ -339,3 +373,12 @@ Clapp and Hornberger (1978), Cosby et al. (1984), Lawrence and Slater (2008), an
 > Recorded the corrections to the hydraulic parameters made at the reviewer's direction during the review of PR #257 as Phase 4: the Brooks–Corey docstring and reference (Eq. 13), the corrected exponent of the van Genuchten–Mualem conductivity, the sandy loam preset of Clapp and Hornberger (1978) as the default retention curve, and the FreezeCurves 0.9.10 compat bound, and the tests retuned to the corrected van Genuchten conductivity.
 > Added pedotransfer functions for the retention parameters and `K_sat` to future work (SURFEX, after Noilhan and Lacarrère 1995, and CLM5), with suggested references.
 > Marked the plan as completed.
+
+> **Revision 15, 2026-11-21 (Claude Opus 5.5).** Reopened the plan after the coupled JOSS simulation diverged in its first steps with the sandy loam default of Phase 4 (see Phase 5 for the diagnosis).
+> Set the previous retention parameters in the JOSS script on `joss-paper` as a stopgap, and proposed Phase 5, a lower bound on the matric potential, with the choice between a physical and a precision-based bound left to the reviewer.
+> Approved by the reviewer, who chose the physical bound of −10⁵ m.
+> Added a spatially varying initial water table depth to future work.
+
+> **Revision 16, 2026-11-22 (Claude Opus 5.5).** Recorded the implementation (3b6765e84) and verification of Phase 5, including the passing checks of PR #257, and marked the plan as completed.
+
+> **Revision 17, 2026-11-22 (Claude Opus 5.5).** Removed `darcy_conductivity` at the reviewer's request in PR #257, since it only read the stored face conductivity: `darcy_flux` and `compute_implicit_conductivity!` now read `hydraulic_conductivity` directly.

@@ -2,7 +2,8 @@
     $TYPEDEF
 
 Vegetation dynamics implementation following [willeitPALADYNV10Comprehensive2016](@cite) for a single PFT
-based on the Lotka–Volterra approach.
+based on the Lotka–Volterra approach. The minimum disturbance rate `γv_min` is a plant trait,
+see [`PlantTraits`](@ref).
 
 Authors: Maha Badri 
 
@@ -16,9 +17,6 @@ $TYPEDFIELDS
 @parameterized @kwdef struct PALADYNVegetationDynamics{NF} <: AbstractVegetationDynamics{NF}
     "Vegetation seed fraction"
     @param ν_seed::NF = 0.001 (bounds = UnitInterval,)
-
-    "Minimum vegetation disturbance rate"
-    @param γv_min::NF = 0.002 (units = u"yr^-1", bounds = Positive)
 end
 
 PALADYNVegetationDynamics(::Type{NF}; kwargs...) where {NF} = PALADYNVegetationDynamics{NF}(; kwargs...)
@@ -40,11 +38,12 @@ Computes the disturbance rate`γv`,
 
 * [willeitPALADYNV10Comprehensive2016](@cite) Willeit & Ganopolski, Geoscientific Model Development (2016)
 """
-@inline function compute_γv(veg_dynamics::PALADYNVegetationDynamics{NF}) where {NF}
+@inline function compute_γv(veg_dynamics::PALADYNVegetationDynamics{NF}, traits::PlantTraits{NF}) where {NF}
     # TODO add PALADYN implemetation for the disturbance rate (depends on soil moisture)
     # Placeholder for now γv = min. disturbance rate
     # convert from per year to per second
-    return veg_dynamics.γv_min / seconds_per_year(NF)
+    γv_min = traits.minimum_disturbance_rate
+    return γv_min / seconds_per_year(NF)
 end
 
 """
@@ -81,7 +80,7 @@ Computes the vegetation fraction tendency for a single PFT,
     λ_NPP = compute_λ_NPP(vegcarbon_dynamics, traits, LAI_b)
 
     # Compute the disturbance rate
-    γv = compute_γv(veg_dynamics)
+    γv = compute_γv(veg_dynamics, traits)
 
     # Compute ν_star
     ν_star = compute_ν_star(veg_dynamics, ν)
@@ -104,11 +103,11 @@ function compute_tendencies!(
         state, grid,
         veg_dynamics::PALADYNVegetationDynamics,
         vegcarbon_dynamics::PALADYNCarbonDynamics,
-        traits::PlantTraits,
+        traits::AbstractPlantTraits,
         args...
     )
     tend = tendency_fields(state, veg_dynamics)
-    fields = get_fields(state, veg_dynamics, vegcarbon_dynamics)
+    fields = get_fields(state, veg_dynamics, vegcarbon_dynamics, traits)
     launch!(grid, XY, compute_tendencies_kernel!, tend, fields, veg_dynamics, vegcarbon_dynamics, traits)
     return nothing
 end
@@ -124,13 +123,14 @@ Compute vegetation area fraction tendency at a single grid point from NPP-produc
         i, j, grid, fields,
         veg_dynamics::PALADYNVegetationDynamics,
         vegcarbon_dynamics::PALADYNCarbonDynamics,
-        traits::PlantTraits
+        traits::AbstractPlantTraits
     )
+    local_traits = plant_traits(i, j, grid, fields, traits)
     LAI_b = fields.balanced_leaf_area_index[i, j]
     C_veg = fields.carbon_vegetation[i, j]
     NPP = fields.net_primary_production[i, j]
     ν = fields.vegetation_area_fraction[i, j]
-    ν_tendency = compute_ν_tendency(veg_dynamics, vegcarbon_dynamics, traits, LAI_b, C_veg, NPP, ν)
+    ν_tendency = compute_ν_tendency(veg_dynamics, vegcarbon_dynamics, local_traits, LAI_b, C_veg, NPP, ν)
     return ν_tendency
 end
 
@@ -144,7 +144,7 @@ Mutating wrapper for [`compute_ν_tendency`](@ref) that stores the result in `te
         tend, i, j, grid, fields,
         veg_dynamics::PALADYNVegetationDynamics,
         vegcarbon_dynamics::PALADYNCarbonDynamics,
-        traits::PlantTraits
+        traits::AbstractPlantTraits
     )
     tend.vegetation_area_fraction[i, j, end] = compute_ν_tendency(i, j, grid, fields, veg_dynamics, vegcarbon_dynamics, traits)
     return tend

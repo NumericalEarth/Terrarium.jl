@@ -69,6 +69,21 @@ singular row of the tridiagonal system.
 """
 function minimum_moisture_capacity end
 
+"""
+    minimum_matric_potential(hydraulics::AbstractSoilHydraulics)
+
+Lower bound (m) of the matric potential computed from the saturation by the saturation–pressure closure.
+Near the residual saturation, the retention curve produces matric potentials with very large magnitudes,
+and the resulting suction gradients between very dry and wet neighboring cells make the implicit Richards
+step diverge. The default of −10⁵ m, roughly the matric potential of oven-dry soil, is the lower bound
+used in the retention curve of CLM5 [lawrenceTechnicalDescriptionVersion2018; Eq. (7.53)](@cite).
+
+# References
+
+* [lawrenceTechnicalDescriptionVersion2018](@cite) Lawrence et al., Technical Description of version 5.0 of the Community Land Model (2018)
+"""
+function minimum_matric_potential end
+
 # Hydraulics parameterizations
 
 """
@@ -102,6 +117,9 @@ $TYPEDFIELDS
 
     "Lower bound (1/m) of the specific moisture capacity ∂θ/∂ψ on the diagonal of the implicit Richards solve (implicit time stepping only)"
     minimum_moisture_capacity::NF = 1.0e-5
+
+    "Lower bound (m) of the matric potential computed from the saturation (see [`minimum_matric_potential`](@ref))"
+    minimum_matric_potential::NF = -1.0e5
 end
 
 function ConstantSoilHydraulics(
@@ -123,6 +141,8 @@ end
 @inline residual_saturation(hydraulics::ConstantSoilHydraulics, args...) = hydraulics.residual_saturation
 
 @inline minimum_moisture_capacity(hydraulics::ConstantSoilHydraulics) = hydraulics.minimum_moisture_capacity
+
+@inline minimum_matric_potential(hydraulics::ConstantSoilHydraulics) = hydraulics.minimum_matric_potential
 
 """
     $TYPEDEF
@@ -164,6 +184,9 @@ $TYPEDFIELDS
 
     "Lower bound (1/m) of the specific moisture capacity ∂θ/∂ψ on the diagonal of the implicit Richards solve (implicit time stepping only)"
     minimum_moisture_capacity::NF = 1.0e-5
+
+    "Lower bound (m) of the matric potential computed from the saturation (see [`minimum_matric_potential`](@ref))"
+    minimum_matric_potential::NF = -1.0e5
 end
 
 function SoilHydraulicsSURFEX(
@@ -182,6 +205,8 @@ end
 @inline residual_saturation(hydraulics::SoilHydraulicsSURFEX, args...) = hydraulics.residual_saturation
 
 @inline minimum_moisture_capacity(hydraulics::SoilHydraulicsSURFEX) = hydraulics.minimum_moisture_capacity
+
+@inline minimum_matric_potential(hydraulics::SoilHydraulicsSURFEX) = hydraulics.minimum_matric_potential
 
 @inline function wilting_point(hydraulics::SoilHydraulicsSURFEX, texture::SoilTexture)
     β_w = hydraulics.wilting_point_effect
@@ -358,3 +383,45 @@ UnsatKVanGenuchten{Float32}(7.0f0)
 default_unsat_hydraulic_cond(::Type{NF}, ::SWRC) where {NF} = UnsatKLinear(NF)
 default_unsat_hydraulic_cond(::Type{NF}, ::BrooksCorey) where {NF} = UnsatKBrooksCorey(NF)
 default_unsat_hydraulic_cond(::Type{NF}, ::VanGenuchten) where {NF} = UnsatKVanGenuchten(NF)
+
+# Characteristic soil water contents
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the volumetric liquid water content `θw` of soil layer `k` (at horizontal location `i, j`) together with its
+characteristic water contents: the residual water content `θres`, the wilting point `θwp`, and the field capacity `θfc`.
+Returns a `NamedTuple` `(; θw, θres, θwp, θfc)`.
+"""
+@propagate_inbounds function soil_water_content(
+        i, j, k, grid, fields,
+        strat::AbstractStratigraphy,
+        hydrology::AbstractSoilHydrology,
+        bgc::AbstractSoilBiogeochemistry
+    )
+    props = get_hydraulic_properties(hydrology)
+    comp = soil_composition(i, j, k, grid, fields, strat, hydrology, bgc)
+    texture = mineral_texture(comp)
+    fracs = volumetric_fractions(comp)
+    θw = fracs.water
+    θres = residual_saturation(props) * porosity(comp)
+    θwp = wilting_point(props, texture)
+    θfc = field_capacity(props, texture)
+    return (; θw, θres, θwp, θfc)
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the relative saturation of the water content `θ` between a lower bound `θmin` (e.g. the residual water
+content or the wilting point) and the field capacity `θfc`, `clamp((θ − θmin) / (θfc − θmin), 0, 1)`.
+
+Note that this is relative to the field capacity, not to the total available pore space: the relative saturation
+is zero at and below `θmin` and already reaches one at field capacity, so all water contents between field
+capacity and full saturation (porosity) map to one. The lower bound on the denominator guards against the edge
+case `θfc ≤ θmin`, in which the result switches from zero to one at `θmin`.
+"""
+@inline function relative_saturation(θ, θmin, θfc)
+    Δθ = max(θfc - θmin, eps(one(θfc)))
+    return clamp((θ - θmin) / Δθ, zero(θ), one(θ))
+end

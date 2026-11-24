@@ -54,15 +54,25 @@ emissivity), where `f_veg` is the vegetated area fraction of the optional vegeta
 Snow-covered bare and vegetated areas are assumed to share the same snow albedo and emissivity. Without
 a vegetation or snow component (`nothing`), the corresponding fraction is zero.
 
+The background albedo of bare ground varies linearly with the moisture of the uppermost soil layer
+between a dry and a wet value, `α_bg = α_dry + (α_wet − α_dry)·w`, where the relative ground wetness
+`w = clamp((θ₁ − θ_res) / (θ_fc − θ_res), 0, 1)` is the liquid water content `θ₁` of the uppermost soil
+layer relative to the residual water content `θ_res` and the field capacity `θ_fc`. Without a soil
+component (`nothing`), the dry value is used. The dry and wet albedos and the ground emissivity are
+spatially constant parameters; the ground emissivity does not (yet) depend on soil moisture.
+
 Properties:
 $TYPEDFIELDS
 """
 @parameterized @kwdef struct DiagnosticAlbedo{NF} <: AbstractAlbedo{NF}
-    "Snow- and vegetation-free (background) albedo of bare ground"
-    @param background_albedo::NF = 0.25 (bounds = UnitInterval,)
+    "Albedo of dry bare ground"
+    @param dry_ground_albedo::NF = 0.3 (bounds = UnitInterval,)
 
-    "Snow- and vegetation-free (background) emissivity of bare ground"
-    @param background_emissivity::NF = 0.97 (bounds = UnitInterval,)
+    "Albedo of wet bare ground"
+    @param wet_ground_albedo::NF = 0.15 (bounds = UnitInterval,)
+
+    "Emissivity of bare ground"
+    @param ground_emissivity::NF = 0.97 (bounds = UnitInterval,)
 end
 
 DiagnosticAlbedo(::Type{NF}; kwargs...) where {NF} = DiagnosticAlbedo{NF}(; kwargs...)
@@ -77,32 +87,59 @@ variables(::DiagnosticAlbedo) = (
 
 Diagnose the blended surface albedo and emissivity, weighting the bare-ground, vegetation, and snow
 values by the vegetated area fraction of the optional `vegetation` component and the snow-covered area
-fraction of the optional `snow` component.
+fraction of the optional `snow` component. The bare-ground albedo depends on the moisture of the
+uppermost layer of the optional `soil` component.
 """
 function compute_auxiliary!(
         state, grid,
         albedo::DiagnosticAlbedo,
         vegetation::Optional{AbstractVegetation} = nothing,
         snow::Optional{AbstractSnow} = nothing,
+        soil::Optional{AbstractSoil} = nothing,
         args...
     )
     out = auxiliary_fields(state, albedo)
-    fields = get_fields(state, albedo, vegetation, snow; except = out)
-    launch!(grid, XY, compute_albedo_kernel!, out, fields, albedo, vegetation, snow)
+    fields = get_fields(state, albedo, vegetation, snow, soil; except = out)
+    launch!(grid, XY, compute_albedo_kernel!, out, fields, albedo, vegetation, snow, soil)
     return nothing
 end
 
 # Kernel functions
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the albedo of bare ground, `α_bg = α_dry + (α_wet − α_dry)·w`, from the dry and wet ground albedos and
+the relative wetness `w = clamp((θ₁ − θ_res) / (θ_fc − θ_res), 0, 1)` of the uppermost layer of the `soil`
+component (see [`relative_saturation`](@ref)). `w` is zero for dry ground and one for ground at or above field
+capacity (not full saturation). Without a soil component, the ground is treated as dry.
+"""
+@propagate_inbounds function compute_ground_albedo(i, j, grid, fields, albedo::DiagnosticAlbedo, soil::AbstractSoil)
+    ground_grid = ground_domain(grid)
+    strat = get_stratigraphy(soil)
+    hydrology = get_hydrology(soil)
+    bgc = get_biogeochemistry(soil)
+    (; θw, θres, θfc) = soil_water_content(i, j, ground_grid.Nz, grid, fields, strat, hydrology, bgc)
+    w = relative_saturation(θw, θres, θfc)
+    α_dry = albedo.dry_ground_albedo
+    α_wet = albedo.wet_ground_albedo
+    α_bg = α_dry + (α_wet - α_dry) * w
+    return α_bg
+end
+
+# without soil, the ground is treated as dry
+@inline compute_ground_albedo(i, j, grid, fields, albedo::DiagnosticAlbedo, ::Nothing) = albedo.dry_ground_albedo
 
 @propagate_inbounds function compute_albedo(
         i, j, grid, fields,
         albedo::DiagnosticAlbedo{NF},
         vegetation::Optional{AbstractVegetation},
         snow::Optional{AbstractSnow},
+        soil::Optional{AbstractSoil} = nothing,
         args...
     ) where {NF}
-    α₀ = albedo.background_albedo
-    ϵ₀ = albedo.background_emissivity
+    α₀ = compute_ground_albedo(i, j, grid, fields, albedo, soil)
+    ϵ₀ = albedo.ground_emissivity
     f_snow = snow_cover_fraction(i, j, grid, fields, snow)
     α_snow = compute_albedo(i, j, grid, fields, snow)
     ϵ_snow = compute_emissivity(i, j, grid, fields, snow)
@@ -126,9 +163,10 @@ end
         albedo::DiagnosticAlbedo,
         vegetation::Optional{AbstractVegetation},
         snow::Optional{AbstractSnow},
+        soil::Optional{AbstractSoil} = nothing,
         args...
     )
-    α, ϵ = compute_albedo(i, j, grid, fields, albedo, vegetation, snow)
+    α, ϵ = compute_albedo(i, j, grid, fields, albedo, vegetation, snow, soil)
     out.albedo[i, j, end] = α
     out.emissivity[i, j, end] = ϵ
     return nothing

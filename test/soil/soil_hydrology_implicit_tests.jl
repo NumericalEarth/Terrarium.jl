@@ -303,6 +303,38 @@ end
     @test all(isfinite, interior(integrator.state.pressure_head))
 end
 
+@testset "Implicit Richards: dry vadose zone above a water table ($NF)" for NF in (Float32, Float64)
+    # Regression test for the lower bound of the matric potential: with the sandy loam default, a saturation of
+    # 0.03 corresponds to a matric potential of about -6 × 10⁶ m, and without the bound the first implicit step
+    # moves meters of water into the dry cell above the water table, after which the column diverges
+    # (see Phase 5 of docs/dev/plans/2026-11-15-1-infiltration_capacity.md)
+    grid = ColumnGrid(CPU(), NF, ExponentialSpacing(; N = 30))
+    hydraulic_properties = SoilHydraulicsSURFEX(NF)
+    hydrology = SoilHydrology(NF, RichardsEq(); hydraulic_properties)
+    soil = SoilEnergyWaterCarbon(NF; hydrology)
+    vadose_zone_saturation = NF(0.03)
+    initializer = SoilInitializer(NF; hydrology = SaturationWaterTable(NF; vadose_zone_saturation, water_table_depth = NF(5)))
+    model = SoilModel(grid; soil, timestepper = implicit_timestepper(NF), initializer)
+    integrator = initialize(model)
+    (; state) = integrator
+    # the matric potential of the dry cells is held at the bound
+    ψm_min = Terrarium.minimum_matric_potential(hydraulic_properties)
+    z_top = znodes(ground_domain(grid), Center())[end]
+    @test interior(state.pressure_head)[1, 1, end] ≈ ψm_min + z_top
+    water(state) = Terrarium.diagnose_total_ground_water(state, model)[1, 1, 1]
+    W₀ = water(state)
+    T_min, T_max = extrema(interior(state.temperature))
+    for _ in 1:192
+        timestep!(integrator, NF(450))
+    end
+    s = saturation_profile(integrator)
+    T = interior(state.temperature)
+    @test all(isfinite, s)
+    @test all(0 .<= s .<= 1)
+    @test water(state) ≈ W₀ rtol = (NF == Float32 ? 1.0e-5 : 1.0e-10)
+    @test T_min - 1.0e-3 <= minimum(T) && maximum(T) <= T_max + 1.0e-3
+end
+
 @testset "Implicit Richards: frozen saturated column" begin
     NF = Float64
     grid = ColumnGrid(CPU(), NF, UniformSpacing(Δz = 0.05, N = 20))

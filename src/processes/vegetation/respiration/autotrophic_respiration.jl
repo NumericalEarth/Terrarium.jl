@@ -2,7 +2,8 @@
 """
     $TYPEDEF
 
-Autotrophic respiration implementation from [willeitPALADYNV10Comprehensive2016](@cite).
+Autotrophic respiration implementation from [willeitPALADYNV10Comprehensive2016](@cite). The ratio of total
+to respiring stem carbon (`aws` in [coxDescriptionTRIFFIDDynamic2001](@cite)) is a plant trait, see [`PlantTraits`](@ref).
 
 Authors: Maha Badri and Matteo Willeit
 
@@ -20,9 +21,6 @@ $TYPEDFIELDS
 
     "Carbon-to-nitrogen mass ratio of fine roots (kgC/kgN)"
     @param cn_root::NF = 29.0 (bounds = Positive,)
-
-    "Ratio of total to respiring stem carbon, [coxDescriptionTRIFFIDDynamic2001](@cite). PFT specific."
-    @param aws::NF = 10.0 (bounds = Positive,) # Value for Needleleaf tree PFT
 
     "Tissue respiration rate at 10 °C per unit tissue nitrogen (kgC/kgN/day), as in [willeitPALADYNV10Comprehensive2016](@cite)"
     @param resp10::NF = 0.066 (units = u"d^-1", bounds = Positive)
@@ -108,7 +106,8 @@ Computes maintenance respiration `Rm` in [kgC/m²/s].
     C_root = compute_root_carbon(vegcarbon_dynamics, traits, LAI_b)
 
     # Compute stem respiration of the respiring (sapwood) fraction 1/aws of the stem carbon
-    R_stem = resp10 * f_temp_air * C_stem / (autoresp.aws * autoresp.cn_sapwood)
+    aws = traits.total_to_respiring_stem_carbon_ratio
+    R_stem = resp10 * f_temp_air * C_stem / (aws * autoresp.cn_sapwood)
 
     # Compute root respiration
     R_root = resp10 * f_temp_soil * phen * C_root / autoresp.cn_root
@@ -160,11 +159,11 @@ function compute_auxiliary!(
         autoresp::PALADYNAutotrophicRespiration,
         vegcarbon::AbstractVegetationCarbonDynamics,
         phenology::AbstractPhenology,
-        traits::PlantTraits,
+        traits::AbstractPlantTraits,
         atmos::AbstractAtmosphere
     )
     out = auxiliary_fields(state, autoresp)
-    fields = get_fields(state, autoresp, vegcarbon, phenology, atmos; except = out)
+    fields = get_fields(state, autoresp, vegcarbon, phenology, traits, atmos; except = out)
     launch!(grid, XY, compute_auxiliary_kernel!, out, fields, autoresp, vegcarbon, phenology, traits, atmos)
     return nothing
 end
@@ -185,16 +184,17 @@ Compute autotrophic respiration following the scheme of [willeitPALADYNV10Compre
         autoresp::PALADYNAutotrophicRespiration,
         vegcarbon_dynamics::PALADYNCarbonDynamics,
         phenology::AbstractPhenology,
-        traits::PlantTraits,
+        traits::AbstractPlantTraits,
         atmos::AbstractAtmosphere
     )
+    local_traits = plant_traits(i, j, grid, fields, traits)
     T_air = air_temperature(i, j, grid, fields, atmos)
     T_soil = fields.ground_temperature[i, j]
     Rd = fields.leaf_respiration[i, j]
     phen = fields.phenology_factor[i, j]
     C_veg = fields.carbon_vegetation[i, j]
     GPP = fields.gross_primary_production[i, j]
-    Ra = compute_Ra(autoresp, vegcarbon_dynamics, traits, T_air, T_soil, Rd, phen, C_veg, GPP)
+    Ra = compute_Ra(autoresp, vegcarbon_dynamics, local_traits, T_air, T_soil, Rd, phen, C_veg, GPP)
     NPP = compute_NPP(autoresp, GPP, Ra)
     return Ra, NPP
 end

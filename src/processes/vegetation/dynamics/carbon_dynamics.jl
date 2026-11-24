@@ -3,6 +3,8 @@
 
 Vegetation carbon dynamics implementation following [willeitPALADYNV10Comprehensive2016](@cite) but considering only the sum of the vegetation
 carbon pools. The subsequent splitting into C_leaf, C_stem, C_root is not implemented for now.
+All plant-dependent parameters, including the leaf, root, and stem turnover rates, are taken from the
+[`PlantTraits`](@ref) of the vegetation.
 
 Authors: Maha Badri
 
@@ -16,18 +18,9 @@ $TYPEDFIELDS
 * [clarkJointUKLand2011](@cite) Clark et al., Geoscientific Model Development (2011)
 * [kattgeTRYGlobalDatabase2011](@cite) Kattge et al., Global Change Biology (2011)
 """
-@parameterized @kwdef struct PALADYNCarbonDynamics{NF} <: AbstractVegetationCarbonDynamics{NF}
-    "Leaf turnover rate ([kattgeTRYGlobalDatabase2011](@cite)). PFT specific."
-    @param γL::NF = 0.3 (units = u"yr^-1", bounds = Positive) # Value for Needleleaf tree PFT
+struct PALADYNCarbonDynamics{NF} <: AbstractVegetationCarbonDynamics{NF} end
 
-    "Root turnover rate. PFT specific."
-    @param γR::NF = 0.3 (units = u"yr^-1", bounds = Positive) # Value for Needleleaf tree PFT
-
-    "Stem turnover rate modified from [clarkJointUKLand2011](@cite). PFT specific."
-    @param γS::NF = 0.05 (units = u"yr^-1", bounds = Positive) # Value for Needleleaf tree PFT
-end
-
-PALADYNCarbonDynamics(::Type{NF}; kwargs...) where {NF} = PALADYNCarbonDynamics{NF}(; kwargs...)
+PALADYNCarbonDynamics(::Type{NF}) where {NF} = PALADYNCarbonDynamics{NF}()
 
 variables(::PALADYNCarbonDynamics) = (
     prognostic(:carbon_vegetation, Canopy(XY()), units = u"kg/m^2"), # Vegetation carbon pool [kgC/m²]
@@ -137,9 +130,9 @@ Computes the local litterfall rate `Λ_loc` based on the balanced Leaf Area Inde
 @inline function compute_Λ_loc(vegcarbon_dynamics::PALADYNCarbonDynamics{NF}, traits::PlantTraits{NF}, LAI_b) where {NF}
     # convert turnover rates from per year to per second
     seconds_per_year_NF = seconds_per_year(NF)
-    γL = vegcarbon_dynamics.γL / seconds_per_year_NF
-    γR = vegcarbon_dynamics.γR / seconds_per_year_NF
-    γS = vegcarbon_dynamics.γS / seconds_per_year_NF
+    γL = traits.leaf_turnover_rate / seconds_per_year_NF
+    γR = traits.root_turnover_rate / seconds_per_year_NF
+    γS = traits.stem_turnover_rate / seconds_per_year_NF
     # turnover of the leaf, root, and stem carbon implied by LAI_b
     C_leaf = compute_leaf_carbon(vegcarbon_dynamics, traits, LAI_b)
     C_root = compute_root_carbon(vegcarbon_dynamics, traits, LAI_b)
@@ -167,17 +160,17 @@ end
 # Top-level interface methods
 
 """ $TYPEDSIGNATURES """
-function compute_auxiliary!(state, grid, vegcarbon_dynamics::PALADYNCarbonDynamics, traits::PlantTraits, args...)
+function compute_auxiliary!(state, grid, vegcarbon_dynamics::PALADYNCarbonDynamics, traits::AbstractPlantTraits, args...)
     out = auxiliary_fields(state, vegcarbon_dynamics)
-    fields = get_fields(state, vegcarbon_dynamics; except = out)
+    fields = get_fields(state, vegcarbon_dynamics, traits; except = out)
     launch!(grid, XY, compute_auxiliary_kernel!, out, fields, vegcarbon_dynamics, traits)
     return nothing
 end
 
 """ $TYPEDSIGNATURES """
-function compute_tendencies!(state, grid, vegcarbon_dynamics::PALADYNCarbonDynamics, traits::PlantTraits, args...)
+function compute_tendencies!(state, grid, vegcarbon_dynamics::PALADYNCarbonDynamics, traits::AbstractPlantTraits, args...)
     out = tendency_fields(state, vegcarbon_dynamics)
-    fields = get_fields(state, vegcarbon_dynamics)
+    fields = get_fields(state, vegcarbon_dynamics, traits)
     launch!(grid, XY, compute_tendencies_kernel!, out, fields, vegcarbon_dynamics, traits)
     return nothing
 end
@@ -189,13 +182,15 @@ end
 
 Compute the tendency for the carbon vegetation pool given fields `LAI_b` and `NPP`.
 """
-@propagate_inbounds function compute_veg_carbon_tendency(i, j, grid, fields, vegcarbon_dynamics::PALADYNCarbonDynamics, traits::PlantTraits)
+@propagate_inbounds function compute_veg_carbon_tendency(i, j, grid, fields, vegcarbon_dynamics::PALADYNCarbonDynamics, traits::AbstractPlantTraits)
+    local_traits = plant_traits(i, j, grid, fields, traits)
+
     # Get inputs
     LAI_b = fields.balanced_leaf_area_index[i, j]
     NPP = fields.net_primary_production[i, j]
 
     # Compute the vegetation carbon pool tendency
-    C_veg_tendency = compute_C_veg_tend(vegcarbon_dynamics, traits, LAI_b, NPP)
+    C_veg_tendency = compute_C_veg_tend(vegcarbon_dynamics, local_traits, LAI_b, NPP)
     return C_veg_tendency
 end
 
@@ -207,10 +202,12 @@ Mutating wrapper for [`compute_balanced_leaf_area_index`](@ref) that stores the 
 @propagate_inbounds function compute_veg_carbon_auxiliary!(
         out, i, j, grid, fields,
         vegcarbon_dynamics::PALADYNCarbonDynamics,
-        traits::PlantTraits
+        traits::AbstractPlantTraits
     )
+    local_traits = plant_traits(i, j, grid, fields, traits)
+    C_veg = fields.carbon_vegetation[i, j]
     # Compute balanced Leaf Area Index
-    out.balanced_leaf_area_index[i, j, end] = compute_balanced_leaf_area_index(vegcarbon_dynamics, traits, fields.carbon_vegetation[i, j])
+    out.balanced_leaf_area_index[i, j, end] = compute_balanced_leaf_area_index(vegcarbon_dynamics, local_traits, C_veg)
     return nothing
 end
 
@@ -222,7 +219,7 @@ Calls [`compute_veg_carbon_tendency`](@ref) and stores the result in `out`.
 @propagate_inbounds function compute_veg_carbon_tendencies!(
         tend, i, j, grid, fields,
         vegcarbon_dynamics::PALADYNCarbonDynamics,
-        traits::PlantTraits
+        traits::AbstractPlantTraits
     )
     # Compute and store C_veg tendency
     tend.carbon_vegetation[i, j, end] = compute_veg_carbon_tendency(i, j, grid, fields, vegcarbon_dynamics, traits)

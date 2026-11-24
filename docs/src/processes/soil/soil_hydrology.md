@@ -115,7 +115,7 @@ variables(SoilHydrology(Float32, RichardsEq()))
 
 #### Face conductivity
 
-The Darcy flux through the face between two cells needs a hydraulic conductivity at that face. Because the conductivity falls off steeply with the water content (with the default Brooks–Corey conductivity for sandy loam, roughly as the 13th power of the saturation), the choice of face conductivity determines how fast water moves between cells of different wetness, e.g. how fast rain drains out of a wet top cell into drier soil below. `RichardsEq` provides two schemes, selected by its `face_conductivity` property:
+The Darcy flux through the face between two cells needs a hydraulic conductivity at that face. Because the conductivity falls off steeply with the water content (with the default Brooks–Corey conductivity for sandy loam $\lambda = 1/4.9$, so roughly as the $2/\lambda +3 \approx 13$th power of the saturation), the choice of face conductivity determines how fast water moves between cells of different wetness, e.g. how fast rain drains out of a wet top cell into drier soil below. `RichardsEq` provides two schemes, selected by its `face_conductivity` property:
 
 - [`WeightedAverageConductivity`](@ref) (default): the conductivity at the mean liquid water content over the mean porosity of the two cells, as in CLM5 [lawrenceTechnicalDescriptionVersion2018; Eq. (7.47)](@cite). It remains negligible between two dry cells, while water drains from a wet cell into a drier one at a rate set by both.
 - [`UpwindConductivity`](@ref): the conductivity of the upstream cell, from which the water flows according to the gradient of the total hydraulic head. Wetting fronts advance at the conductivity of the wet soil behind them, which makes upstream weighting robust for infiltration into dry soil [forsythRobustNumericalMethods1995](@cite).
@@ -243,6 +243,8 @@ Critical to the modelling of water transport in the soil, is the relationship be
 ```
 with $\Psi_z$ the elevation head and $\Psi_h$ the hydrostatic head contributed by free water above the water table. Currently, two implementations of the SWRC are available in Terrarium via [FreezeCurves.jl](https://github.com/CryoGrid/FreezeCurves.jl): the Brooks-Corey ([`BrooksCorey`](@extref FreezeCurves.BrooksCorey)) and van Genuchten ([`VanGenuchten`](@extref FreezeCurves.VanGenuchten)) formulations. 
 
+Near the residual saturation, the retention curve gives very large suctions (about ``-10^9`` m for the default Brooks–Corey curve of sandy loam), and the resulting head differences between very dry and wet neighboring cells make the implicit Richards step diverge. The closure therefore bounds the matric potential from below by the `minimum_matric_potential` of the hydraulic properties (default ``-10^5`` m, roughly the matric potential of oven-dry soil), as CLM5 does [lawrenceTechnicalDescriptionVersion2018; Eq. (7.53)](@cite) (see [`minimum_matric_potential`](@ref)). Below the bound, the specific moisture capacity is zero, so that the implicit solve falls back to the `minimum_moisture_capacity`.
+
 ```@docs; canonical = false
 SoilSaturationPressureClosure
 varname(::SoilSaturationPressureClosure)
@@ -276,6 +278,10 @@ compute_hydraulics!
 
 ```@docs; canonical = false
 minimum_moisture_capacity
+```
+
+```@docs; canonical = false
+minimum_matric_potential
 ```
 
 ```@docs; canonical = false
@@ -313,11 +319,18 @@ infiltration_capacity
 ```
 
 ```@docs; canonical = false
+Terrarium.soil_water_content
+```
+
+```@docs; canonical = false
+Terrarium.relative_saturation
+```
+
+```@docs; canonical = false
 compute_volumetric_water_content_tendency
 compute_darcy_flux_divergence
 compute_boundary_darcy_flux_divergence
 darcy_flux
-darcy_conductivity
 compute_water_flux
 redistribute_saturation_profile!
 compute_redistributed_heat!

@@ -135,7 +135,7 @@ compute_NPP
 ## Process interface
 
 ```@docs; canonical = false
-compute_auxiliary!(state, grid, autoresp::PALADYNAutotrophicRespiration, vegcarbon::AbstractVegetationCarbonDynamics, phenology::AbstractPhenology, traits::PlantTraits, atmos::AbstractAtmosphere)
+compute_auxiliary!(state, grid, autoresp::PALADYNAutotrophicRespiration, vegcarbon::AbstractVegetationCarbonDynamics, phenology::AbstractPhenology, traits::AbstractPlantTraits, atmos::AbstractAtmosphere)
 ```
 
 ## Kernel functions

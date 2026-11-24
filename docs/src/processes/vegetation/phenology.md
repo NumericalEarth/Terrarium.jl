@@ -54,7 +54,7 @@ The leaf area index (LAI) is computed from the balanced LAI $\text{LAI}_b$ as fo
 ## Process interface
 
 ```@docs; canonical = false
-compute_auxiliary!(state, grid, phenol::PALADYNPhenology, vegcarbon::PALADYNCarbonDynamics, atmos::AbstractAtmosphere)
+compute_auxiliary!(state, grid, phenol::PALADYNPhenology, vegcarbon::PALADYNCarbonDynamics, traits::AbstractPlantTraits, atmos::AbstractAtmosphere)
 ```
 
 ## Methods

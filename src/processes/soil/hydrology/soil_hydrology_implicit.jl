@@ -160,14 +160,13 @@ end
     $TYPEDSIGNATURES
 
 Store the hydraulic conductivity (m/s) of the current iterate at face `i, j, k` in `face_conductivity`,
-as in the explicit [`darcy_flux`](@ref) ([`darcy_conductivity`](@ref)).
+as in the explicit [`darcy_flux`](@ref).
 """
 @propagate_inbounds function compute_implicit_conductivity!(
         face_conductivity, i, j, k, grid, fields,
         hydrology::SoilHydrology{NF, <:RichardsEq}
     ) where {NF}
-    ground_grid = ground_domain(grid)
-    face_conductivity[i, j, k] = darcy_conductivity(i, j, k, ground_grid, fields.hydraulic_conductivity)
+    face_conductivity[i, j, k] = fields.hydraulic_conductivity[i, j, k]
     return nothing
 end
 

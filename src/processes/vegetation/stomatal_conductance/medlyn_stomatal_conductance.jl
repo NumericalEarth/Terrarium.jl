@@ -7,7 +7,8 @@ diffusivity ratio. The canopy scaling of the minimum conductance and the
 PFT-specific parameter values follow [willeitPALADYNV10Comprehensive2016](@cite), whose
 `g₁` are in turn those of [linOptimalStomatalBehaviour2015](@cite). Note that PALADYN
 keeps the diffusivity ratio in `λc` (its Eq. 71) rather than in the conductance (Eq. 68);
-this implementation uses the Medlyn convention for both.
+this implementation uses the Medlyn convention for both. The slope parameter `g₁` is a plant trait,
+see [`PlantTraits`](@ref).
 
 Authors: Maha Badri and Matteo Willeit
 
@@ -22,10 +23,6 @@ $TYPEDFIELDS
 * [willeitPALADYNV10Comprehensive2016](@cite) Willeit & Ganopolski, Geoscientific Model Development (2016)
 """
 @parameterized @kwdef struct MedlynStomatalConductance{NF} <: AbstractStomatalConductance{NF}
-    "Parameter in optimal stomatal conductance formulation representing the quasi-linear
-    relationship between conductance and net assimilation, [linOptimalStomatalBehaviour2015](@cite). PFT specific."
-    @param g₁::NF = 2.3 (units = u"kPa^(1/2)", bounds = Positive) # TODO: value for Needleleaf tree PFT
-
     "Minimum stomatal conductance parameter"
     @param g_min::NF = 0.5 (units = u"mm/s", bounds = Positive)
 
@@ -65,7 +62,7 @@ minimum conductance and light extinction effects based on LAI, scaled by soil mo
     ) where {NF}
     # Compute stomatal conductance g_stm
     let g_min = stomcond.g_min / NF(1.0e3) # convert mm/s to m/s
-        g₁ = stomcond.g₁
+        g₁ = traits.stomatal_slope
         D = stomcond.diffusivity_ratio_water_co2
         k_ext = traits.extinction_coefficient
         # We clamp VPD from below at 10 Pa (0.01 kPa) for numerical stability (division by zero risk)
@@ -107,9 +104,9 @@ corrected form of [medlynCorrigendumReconcilingOptimal2012](@cite).
 * [medlynReconcilingOptimalEmpirical2011](@cite) Medlyn et al., Global Change Biology (2011)
 * [medlynCorrigendumReconcilingOptimal2012](@cite) Medlyn et al., Global Change Biology (2012)
 """
-@inline function compute_λc(stomcond::MedlynStomatalConductance{NF}, vpd) where {NF}
+@inline function compute_λc(stomcond::MedlynStomatalConductance{NF}, traits::PlantTraits{NF}, vpd) where {NF}
     # here we allow zero VPD since lim x⁻¹ as x → ∞ ≈ 0
-    g₁ = stomcond.g₁
+    g₁ = traits.stomatal_slope
     λc = NF(1.0) - NF(1.0) / (NF(1.0) + g₁ / sqrt(pa_to_kpa(vpd)))
     return λc
 end
@@ -120,7 +117,7 @@ end
 function compute_auxiliary!(
         state, grid,
         stomcond::MedlynStomatalConductance,
-        traits::PlantTraits,
+        traits::AbstractPlantTraits,
         constants::PhysicalConstants,
         atmos::AbstractAtmosphere,
         args...
@@ -142,11 +139,13 @@ Returns tuple (g_stm, λc) for use in photosynthesis and transpiration calculati
 @propagate_inbounds function compute_stomatal_conductance(
         i, j, grid, fields,
         stomcond::MedlynStomatalConductance{NF},
-        traits::PlantTraits{NF},
+        traits::AbstractPlantTraits{NF},
         constants::PhysicalConstants,
         atmos::AbstractAtmosphere,
         args...
     ) where {NF}
+    local_traits = plant_traits(i, j, grid, fields, traits)
+
     # Get inputs
     An = fields.net_assimilation[i, j]
     CO2 = fields.CO2[i, j]
@@ -159,7 +158,7 @@ Returns tuple (g_stm, λc) for use in photosynthesis and transpiration calculati
     vpd = compute_vapor_pressure_deficit(i, j, grid, fields, atmos, constants)
 
     # Compute conductance g_stm and internal CO2 ratio λc
-    g_stm = compute_stomatal_conductance(stomcond, traits, constants, vpd, Tair, pres, CO2, An, LAI, β)
+    g_stm = compute_stomatal_conductance(stomcond, local_traits, constants, vpd, Tair, pres, CO2, An, LAI, β)
 
     return g_stm
 end
@@ -172,7 +171,7 @@ Calls [`compute_stomatal_conductance`](@ref) and stores the result in `out`.
 @propagate_inbounds function compute_stomatal_conductance!(
         out, i, j, grid, fields,
         stomcond::MedlynStomatalConductance{NF},
-        traits::PlantTraits{NF},
+        traits::AbstractPlantTraits{NF},
         constants::PhysicalConstants,
         atmos::AbstractAtmosphere,
         args...

@@ -98,34 +98,36 @@ end
 
 @testset "Temperature stress" begin
     photo = LUEPhotosynthesis()
+    traits = PlantTraits()
     # Test T_air < T_CO2_low (T_stress should be 0)
-    T_air = photo.T_CO2_low * 2 # since photo.T_CO2_low < 0
-    T_stress = compute_temperature_stress(photo, T_air)
+    T_air = traits.photosynthesis_minimum_temperature * 2 # since traits.photosynthesis_minimum_temperature < 0
+    T_stress = compute_temperature_stress(photo, traits, T_air)
     @test T_stress == 0.0
 
     # Test T_air = T_CO2_low (T_stress should be 0)
-    T_air = photo.T_CO2_low
-    T_stress = compute_temperature_stress(photo, T_air)
+    T_air = traits.photosynthesis_minimum_temperature
+    T_stress = compute_temperature_stress(photo, traits, T_air)
     @test T_stress == 0.0
 
     # Test T_air > T_CO2_high (T_stress should be 0)
-    T_air = photo.T_CO2_high * 2
-    T_stress = compute_temperature_stress(photo, T_air)
+    T_air = traits.photosynthesis_maximum_temperature * 2
+    T_stress = compute_temperature_stress(photo, traits, T_air)
     @test T_stress == 0.0
 
     # Test T_air = T_CO2_high (T_stress should be 0)
-    T_air = photo.T_CO2_high
-    T_stress = compute_temperature_stress(photo, T_air)
+    T_air = traits.photosynthesis_maximum_temperature
+    T_stress = compute_temperature_stress(photo, traits, T_air)
     @test T_stress == 0.0
 
     # Test T_CO2_low < T_air < T_CO2_high (T_stress should be between 0 and 1)
-    T_air = (photo.T_CO2_low + photo.T_CO2_high) / 2
-    T_stress = compute_temperature_stress(photo, T_air)
+    T_air = (traits.photosynthesis_minimum_temperature + traits.photosynthesis_maximum_temperature) / 2
+    T_stress = compute_temperature_stress(photo, traits, T_air)
     @test 0.0 < T_stress < 1.0
 end
 
 @testset "Assimilation factors c1 and c2" begin
     photo = LUEPhotosynthesis()
+    traits = PlantTraits()
     constants = MaterialConstants(Float64)
     T_air = 20.0 # °C
     Γ_star = 3.0 # Value for T_air = 20.0 °C and pres_O2 = 20.9e3 Pa
@@ -135,7 +137,7 @@ end
 
     # Test pi = Γ_star (c1 and c2 should be 0)
     pres_i = Γ_star
-    T_stress = compute_temperature_stress(photo, T_air)
+    T_stress = compute_temperature_stress(photo, traits, T_air)
     c_1, c_2 = compute_assimilation_factors(photo, constants, Γ_star, T_stress, Kc, Ko, pres_i, pres_O2)
     @test c_1 == 0
     @test c_2 == 0
@@ -291,13 +293,14 @@ end
 
 @testset "Coordination hypothesis: JE == JC" begin
     photo = LUEPhotosynthesis()
+    traits = PlantTraits()
     constants = MaterialConstants(Float64)
     T_air = 20.0 # °C
     τ, Kc, Ko = compute_kinetic_parameters(photo, T_air)
     pres_O2 = 0.209 * 1.0e5 # Pa
     Γ_star = compute_Γ_star(photo, τ, pres_O2)
     pres_i = 28.0 # Pa
-    T_stress = compute_temperature_stress(photo, T_air)
+    T_stress = compute_temperature_stress(photo, traits, T_air)
     APAR = 5.0e-4 # mol/m²/s
     c_1, c_2 = compute_assimilation_factors(photo, constants, Γ_star, T_stress, Kc, Ko, pres_i, pres_O2)
     # Vc_max is acclimated so that light- and Rubisco-limited rates coincide
@@ -317,7 +320,7 @@ end
     μmol_CO2 = 0.012 * 1.0e-6 # kgC/m²/s per μmol CO₂/m²/s
     # (air temperature °C, shortwave W/m², LAI, VPD Pa) for a cool cloudy to a warm clear midday
     for (T_air, swdown, LAI, vpd) in ((15.0, 200.0, 3.0, 500.0), (20.0, 400.0, 4.0, 1000.0), (25.0, 800.0, 5.0, 1500.0))
-        λc = compute_λc(stomcond, vpd)
+        λc = compute_λc(stomcond, traits, vpd)
         Rd, An = compute_respiration_assimilation(photo, traits, constants, T_air, swdown, 1.0e5, 400.0, LAI, λc, 1.0)
         GPP = compute_GPP(photo, An, Rd)
         # canopy GPP of a C3 forest at midday: roughly 5-30 μmol CO₂/m²/s
@@ -331,7 +334,7 @@ end
     photo = LUEPhotosynthesis()
     traits = PlantTraits()
     constants = MaterialConstants(Float64)
-    λc = compute_λc(MedlynStomatalConductance(), 1000.0)
+    λc = compute_λc(MedlynStomatalConductance(), traits, 1000.0)
     function GPP(LAI)
         # 20 °C, 400 W/m², 1000 hPa, 400 ppm, no soil moisture stress
         Rd, An = compute_respiration_assimilation(photo, traits, constants, 20.0, 400.0, 1.0e5, 400.0, LAI, λc, 1.0)

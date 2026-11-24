@@ -58,7 +58,7 @@ compute_auxiliary!(state, grid, veg_dynamics::PALADYNVegetationDynamics, args...
 ```
 
 ```@docs; canonical = false
-compute_tendencies!(state, grid, veg_dynamics::PALADYNVegetationDynamics, vegcarbon_dynamics::PALADYNCarbonDynamics, traits::PlantTraits, args...)
+compute_tendencies!(state, grid, veg_dynamics::PALADYNVegetationDynamics, vegcarbon_dynamics::PALADYNCarbonDynamics, traits::AbstractPlantTraits, args...)
 ```
 
 ## Methods
