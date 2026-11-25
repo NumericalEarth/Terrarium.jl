@@ -38,6 +38,7 @@ JuliaLocalPreferences.toml
 data/
 outputs/
 plots/
+logs/
 *.out
 *.log
 
