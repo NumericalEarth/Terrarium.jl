@@ -31,9 +31,11 @@ Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 KernelDensity = "0.6"
 SpeedyWeather = "0.24, 0.25, 0.26"
 
-[sources.NumericalEarth]
-rev = "main"
-url = "https://github.com/NumericalEarth/NumericalEarth.jl.git"
-
-[sources.Terrarium]
-path = ".."
+[sources]
+LowerTriangularArrays = {url = "https://github.com/bgroenks96/SpeedyWeather.jl", rev = "bg/terrarium-time-step", subdir = "LowerTriangularArrays"}
+RingGrids = {url = "https://github.com/bgroenks96/SpeedyWeather.jl", rev = "bg/terrarium-time-step", subdir = "RingGrids"}
+SpeedyTransforms = {url = "https://github.com/bgroenks96/SpeedyWeather.jl", rev = "bg/terrarium-time-step", subdir = "SpeedyTransforms"}
+SpeedyWeather = {url = "https://github.com/bgroenks96/SpeedyWeather.jl", rev = "bg/terrarium-time-step", subdir = "SpeedyWeather"}
+SpeedyWeatherInternals = {url = "https://github.com/bgroenks96/SpeedyWeather.jl", rev = "bg/terrarium-time-step", subdir = "SpeedyWeatherInternals"}
+NumericalEarth = {url = "https://github.com/NumericalEarth/NumericalEarth.jl.git", rev = "main"}
+Terrarium = {path = ".."}
