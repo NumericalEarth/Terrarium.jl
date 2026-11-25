@@ -48,13 +48,13 @@ affiliations:
  - name: Technical University of Munich, Germany
    index: 2
    ror: "02kkvpp62"
- - name: Ghent University, Belgium 
+ - name: Ghent University, Belgium
    index: 3
    ror: "00cv9y106"
  - name: Max Planck Institute for Biogeochemistry, Germany
    ror: "051yxp643"
    index: 4
- - name: National Centre for Atmospheric Science, Department of Meteorology, University of Reading
+ - name: National Centre for Atmospheric Science, Department of Meteorology, University of Reading, United Kingdom
    index: 5
    ror: "05v62cm79"
 date: 25 November 2026
@@ -150,7 +150,7 @@ These coupling interfaces will allow Terrarium.jl to directly contribute to ongo
 # AI usage disclosure
 
 All text in this manuscript was drafted and reviewed by the authors.
-Generative AI was used to assist with developing the scripts that run the example simulation and produce the figures.
+Generative AI (Claude Sonnet 5, Opus 5.5, and Fable 5.1) was used to assist with developing the scripts that run the example simulation and produce the figures.
 Some parts of the software, including tests, benchmarks, and documentation, are developed with AI assistance under careful human oversight.
 AI-assisted development is transparently documented in markdown-based implementation plans that are tracked in the `docs/dev/plans` directory of the repository.
 All pull requests are reviewed and signed off by human developers.
