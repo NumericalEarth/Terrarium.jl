@@ -553,17 +553,18 @@ end
 
 # Base overrides
 
-function Adapt.adapt_structure(to, state::StateVariables{NF}) where {NF}
-    return StateVariables(
-        NF,
-        closure_names(state),
-        Adapt.adapt_structure(to, state.prognostic),
-        Adapt.adapt_structure(to, state.tendencies),
-        Adapt.adapt_structure(to, state.auxiliary),
-        Adapt.adapt_structure(to, state.inputs),
-        Adapt.adapt_structure(to, state.namespaces),
-        Adapt.adapt_structure(to, state.timestepper_cache),
-        Adapt.adapt_structure(to, state.clock),
+# `StateVariables` is a `mutable struct` and therefore can never be passed as a GPU kernel argument
+# (it is not `isbits`). Adapting it yields a nested `NamedTuple` mirroring its fields instead.
+# `getfield` is used since `getproperty` is overridden for `StateVariables`.
+function Adapt.adapt_structure(to, state::StateVariables)
+    return (
+        prognostic = adapt(to, getfield(state, :prognostic)),
+        tendencies = adapt(to, getfield(state, :tendencies)),
+        auxiliary = adapt(to, getfield(state, :auxiliary)),
+        inputs = adapt(to, getfield(state, :inputs)),
+        namespaces = adapt(to, getfield(state, :namespaces)),
+        timestepper_cache = adapt(to, getfield(state, :timestepper_cache)),
+        clock = adapt(to, getfield(state, :clock)),
     )
 end
 
