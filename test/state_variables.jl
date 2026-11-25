@@ -1,5 +1,6 @@
 using Terrarium
 using Test
+using CUDA
 
 using Terrarium: AbstractGrid, VarDims, XY, XYZ, prognostic, auxiliary, input, namespace
 
@@ -115,4 +116,31 @@ end
     input_fields = @inferred Terrarium.input_fields(state, model)
     @test length(input_fields) == 1 # note that namespaces are NOT included
     @test hasproperty(input_fields, :forcing)
+end
+
+@testset "State variable adaptation" begin
+    grid = ColumnGrid(CPU(), DEFAULT_NF, ExponentialSpacing(N = 10))
+    model = StateVariablesTestTypes.TestModel(grid)
+    state = StateVariables(model)
+    fill!(state, 3)
+
+    # StateVariables is mutable and cannot be a kernel argument, so adapt returns a nested NamedTuple
+    adapted = adapt(Array, state)
+    @test adapted isa NamedTuple
+    @test keys(adapted) == (:prognostic, :tendencies, :auxiliary, :inputs, :namespaces, :timestepper_cache, :clock)
+    @test keys(adapted.prognostic) == keys(state.prognostic)
+    @test keys(adapted.tendencies) == keys(state.tendencies)
+    @test keys(adapted.auxiliary) == keys(state.auxiliary)
+    @test keys(adapted.inputs) == keys(state.inputs)
+    @test all(adapted.prognostic.progvar3D .== 3)
+    @test adapted.prognostic.progvar3D == parent(state.prognostic.progvar3D)
+    # namespaces are adapted recursively
+    @test adapted.namespaces.submodel isa NamedTuple
+    @test keys(adapted.namespaces.submodel.auxiliary) == keys(state.submodel.auxiliary)
+
+    # adapted state must be a valid GPU kernel argument (only checked if CUDA is functional)
+    if CUDA.functional()
+        gpu_state = StateVariables(StateVariablesTestTypes.TestModel(ColumnGrid(GPU(), DEFAULT_NF, ExponentialSpacing(N = 10))))
+        @test isbits(adapt(CUDA.KernelAdaptor(), gpu_state))
+    end
 end
