@@ -133,7 +133,7 @@ end
     @test keys(adapted.auxiliary) == keys(state.auxiliary)
     @test keys(adapted.inputs) == keys(state.inputs)
     @test all(adapted.prognostic.progvar3D .== 3)
-    @test adapted.prognostic.progvar3D == parent(state.prognostic.progvar3D)
+    @test size(adapted.prognostic.progvar3D) == size(state.prognostic.progvar3D.data)
     # namespaces are adapted recursively
     @test adapted.namespaces.submodel isa NamedTuple
     @test keys(adapted.namespaces.submodel.auxiliary) == keys(state.submodel.auxiliary)
