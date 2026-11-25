@@ -90,7 +90,6 @@ There have been numerous recent efforts to reformulate land models in modern pro
 However, Terrarium.jl distinguishes itself from both of these models in its support for efficient global simulations (unlike JAX-CanVeg) and its focus on providing only process-based components (unlike DifferLand) while enabling ML-based extensions via its GPU and AD capabilities.
 Recent work on the largely process-based ClimaLand.jl model [@deckClimaLandLandSurface2026] has also demonstrated the promise of GPU-accelerated land modeling in Julia.
 In contrast to ClimaLand.jl, Terrarium.jl enables not only GPU-accelerated land simulations but also full compatibility with both forward- and reverse-mode AD via Enzyme.jl and Reactant.jl [@mosesInsteadRewritingForeign2020; @mosesDJ4EarthDifferentiablePerformancePortable2026].
-Moreover, Terrarium.jl is designed to allow for efficient coupling with other global or regional, GPU-accelerated ESM components such as the SpeedyWeather.jl [@klowerSpeedyWeatherjlReinventingAtmospheric2024] and Breeze.jl [@wagnerBreezejl2026] atmospheric models via the NumericalEarth.jl Earth system modeling framework. 
 
 # Software design
 
@@ -132,6 +131,8 @@ Example outputs from a prototype (uncalibrated) Terrarium-SpeedyWeather coupled 
 
 Terrarium.jl's modular design, device-agnostic parallelization architecture, and first-class support for AD make it ideal for cutting-edge research on so-called "hybrid" land-atmosphere modeling, which aims to combine data-driven components, such as neural networks, with physics-based simulation [@shenDifferentiableModellingUnify2023; @gelbrechtDifferentiableProgrammingEarth2023].
 Terrarium is being actively used to develop and evaluate the capabilities of such methods to improve global land and climate simulations. An example use-case of AD in physics-based modeling is local sensitivity analysis of the simulated outputs to the initial state; an example of this is shown in \autoref{fig:sensitivity}. Another use case is enabling online downscaling of a coarse resolution atmosphere to a higher resolution land surface via machine learning, which is currently underway as part of the Past2Future (P2F) project.
+
+Terrarium.jl is designed to allow for efficient coupling with other global or regional, GPU-accelerated ESM components such as the SpeedyWeather.jl [@klowerSpeedyWeatherjlReinventingAtmospheric2024] and Breeze.jl [@wagnerBreezejl2026] atmospheric models via the NumericalEarth.jl [@wagnerNumericalEarthjl2026] framework. The NumericalEarth developer community maintains an extension module for Terrarium.jl that allows its models to be plugged in as the land component in `EarthSystemModel` simulations, thereby broadening the scope of Terrarium.jl's impact beyond its immediate developer and user community.
 
 # AI usage disclosure
 
