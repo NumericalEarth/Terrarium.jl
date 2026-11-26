@@ -1,19 +1,9 @@
 # Fused kernel launches for coupled soil, surface, and vegetation processes
 
-> Status: **in progress** (rev 7: **soil fusion abandoned** after benchmarking; scope narrowed to
-> **auxiliary-only** fusion). Phase 1 (relocate `surface_excess_water` to runoff) is merged (PR #188).
-> The original goal — fuse the per-process `compute_auxiliary!` **and** `compute_tendencies!` launches
-> inside the coupled process types (`SoilEnergyWaterCarbon`, `SurfaceHydrology`, `VegetationCarbonCycle`)
-> into one kernel each, following `SurfaceEnergyBalance` (commit `2fc7af72a`) — is now **restricted to
-> `compute_auxiliary!` only**. Benchmarking and register analysis (rev 6) established that fusing
-> *tendencies* bundles independent output fields and raises register pressure (an occupancy regression
-> on GPU), whereas fusing *auxiliaries* chains dependent stages and is a genuine win. The soil
-> auxiliary pass is a single launch (energy/bgc auxiliaries are no-ops), so **soil is dropped entirely**.
-> **Phase 3 (`SurfaceHydrology` auxiliary fusion) is implemented** (rev 7). **Phase 4
-> (`VegetationCarbonCycle` auxiliary fusion) is implemented** (rev 9): the five XY carbon-cycle stages
-> (carbon dynamics → phenology → photosynthesis → stomatal conductance → autotrophic respiration) collapse
-> to one launch, with `plant_available_water` kept as a preceding XYZ launch. Snow (rev 8) was considered
-> and left as-is — its auxiliary pass is already a single launch.
+> Status: **completed** (merged in PR #192). Phase 1 (relocate `surface_excess_water` to runoff) is
+> merged (PR #188), and Phases 3 and 4 fuse the `compute_auxiliary!` launches of `SurfaceHydrology`
+> and `VegetationCarbonCycle`; soil fusion (Phase 2) was abandoned after benchmarking (rev 6), and
+> tendency fusion was dropped because it raises register pressure on GPU.
 
 Date of initial draft: 2026-08-31
 

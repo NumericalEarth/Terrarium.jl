@@ -1,10 +1,9 @@
 # Benchmark suite for Terrarium
 
-> Status: **in progress**. Harness, model configuration registry, results store, README generator and
-> documentation page are implemented and verified end to end on `cpu-arm`; the Reactant path of the
-> harness is verified too (it compiles and times `:soil_heat`, and reports the land configurations'
-> compile failures rather than dying). The remaining architectures — `cpu-x86`, `gpu-nvidia`,
-> `reactant-cpu`, `reactant-gpu` — still need a full run on their respective machines.
+> Status: **completed**. Harness, model configuration registry, results store, README generator, and
+> documentation page are implemented, and `benchmark/assets/benchmark_results.json` holds full runs
+> for all six architectures (`cpu-arm`, `cpu-x86`, `gpu-nvidia`, `reactant-cpu-arm`,
+> `reactant-cpu-x86`, and `reactant-gpu`).
 
 Date of initial draft: 2026-08-03
 

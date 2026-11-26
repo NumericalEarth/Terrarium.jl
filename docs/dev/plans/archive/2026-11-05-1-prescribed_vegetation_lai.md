@@ -1,6 +1,6 @@
 # Prescribed leaf area index as an input of `PrescribedVegetation`
 
-> Status: **in progress**. Implemented as planned; the vegetation tests and the full test suite pass locally, awaiting CI.
+> Status: **completed**. Implemented as planned and merged in PR #235.
 
 Date of initial draft: 2026-11-05
 

@@ -1,6 +1,6 @@
 # Soil-moisture-dependent ground albedo in `DiagnosticAlbedo`
 
-> Status: **in progress**. The plan is approved and implemented; tests are running.
+> Status: **completed**. Implemented and merged from `bg/variable-ground-albedo` (PR #261).
 
 Date of initial draft: 2026-11-23
 

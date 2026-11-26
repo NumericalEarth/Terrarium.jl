@@ -307,7 +307,7 @@ end
     # Regression test for the lower bound of the matric potential: with the sandy loam default, a saturation of
     # 0.03 corresponds to a matric potential of about -6 × 10⁶ m, and without the bound the first implicit step
     # moves meters of water into the dry cell above the water table, after which the column diverges
-    # (see Phase 5 of docs/dev/plans/2026-11-15-1-infiltration_capacity.md)
+    # (see Phase 5 of docs/dev/plans/archive/2026-11-15-1-infiltration_capacity.md)
     grid = ColumnGrid(CPU(), NF, ExponentialSpacing(; N = 30))
     hydraulic_properties = SoilHydraulicsSURFEX(NF)
     hydrology = SoilHydrology(NF, RichardsEq(); hydraulic_properties)
