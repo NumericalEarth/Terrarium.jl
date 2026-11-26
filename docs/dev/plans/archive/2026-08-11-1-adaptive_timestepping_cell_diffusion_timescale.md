@@ -1,6 +1,6 @@
 # Adaptive timestepping via `cell_diffusion_timescale`
 
-> Status: **complete**. Implements a `cell_diffusion_timescale` diagnostic so Terrarium models can be driven adaptively by the Oceananigans `TimeStepWizard` callback, as a precursor to implicit timestepping.
+> Status: **completed**. Implements a `cell_diffusion_timescale` diagnostic so Terrarium models can be driven adaptively by the Oceananigans `TimeStepWizard` callback, as a precursor to implicit timestepping.
 
 Date of initial draft: 2026-08-11
 

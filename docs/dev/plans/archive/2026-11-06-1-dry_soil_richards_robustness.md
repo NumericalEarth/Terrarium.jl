@@ -1,6 +1,6 @@
 # Robust Richards flow in dry soil: consistent unsaturated conductivity and water conservation
 
-> Status: **in progress**. Fix for issue #240; Phases 1–3 are implemented and the dry-soil regression test passes, so Phase 4 is not expected to be needed; pending the full test suite.
+> Status: **completed**. Fix for issue #240; Phases 1–3 are implemented and merged from `bg/fix-soil-hydraulics` (PR #243), and Phase 4 was not needed.
 
 Date of initial draft: 2026-11-06
 
@@ -22,7 +22,7 @@ Base revision: 5b858a6909727b1b89cab09440c93f674d81f28d
 
 ## Problem description
 
-A `LandModel` column with `RichardsEq` hydrology (the default since revision 33 of the implicit time stepping plan, `docs/dev/plans/2026-09-20-1-implicit_explicit_timestepping.md`) breaks down within two time steps when it starts from dry soil under a realistic evaporation demand.
+A `LandModel` column with `RichardsEq` hydrology (the default since revision 33 of the implicit time stepping plan, `docs/dev/plans/completed/2026-09-20-1-implicit_explicit_timestepping.md`) breaks down within two time steps when it starts from dry soil under a realistic evaporation demand.
 The regression test `LandModel: dry soil under strong evaporation demand stays physical` in `test/coupled_models/land_model_tests.jl` reproduces it (its water balance and temperature checks are currently marked `@test_broken`): a column with the SoilGrids texture of a Somali-coast grid point (38.6% sand, 31.5% silt, 29.9% clay), dry-season forcing taken from a coupled SpeedyWeather run, an initial saturation of 0.05, no rain, and `Δt = 450 s` with the default `IMEX` time stepper.
 
 A per-step trace of the same column (default hydraulics, `SoilPorositySURFEX`) shows, for both `ConstantEvaporationResistanceFactor` and `SoilMoistureResistanceFactor`:

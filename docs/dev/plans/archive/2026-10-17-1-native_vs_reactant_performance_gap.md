@@ -1,6 +1,6 @@
 # Investigating the performance gap between native and Reactant execution
 
-> Status: **in progress**. Phases 0 and 1 are complete; Phase 2 items 1, 5, and 6 are implemented on `bg/performance-fixes`, item 7 remains (items 2 to 4 are deferred), and the native CPU baseline and the full benchmark runs are pending Slurm.
+> Status: **completed**. Phases 0 and 1 are complete, Phase 2 items 1, 5, and 6 were merged from `bg/performance-fixes` (PR #228), the Float64 literals targeted by item 7 no longer occur in `carbon_dynamics.jl`, items 2 to 4 are deferred, and the benchmarks have since been rerun on all architectures.
 
 Date of initial draft: 2026-10-17
 
@@ -55,7 +55,7 @@ XLA can additionally constant-fold anything that depends only on model parameter
 
 ### Prior work
 
-The fused-kernels plan (`docs/dev/plans/2026-08-31-1-fused_kernels.md`, merged) already reduced the number of auxiliary launches for `SurfaceHydrology` and `VegetationCarbonCycle`.
+The fused-kernels plan (`docs/dev/plans/completed/2026-08-31-1-fused_kernels.md`, merged) already reduced the number of auxiliary launches for `SurfaceHydrology` and `VegetationCarbonCycle`.
 Its revision 6 found that fusing *tendency* kernels raises register pressure and regresses GPU occupancy, so that route is closed.
 The benchmarks reviewed here postdate that work, so the remaining gap is not explained by the auxiliary launch count alone.
 

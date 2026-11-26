@@ -1,14 +1,8 @@
 # Reactant support for `VegetationModel` with `PrescribedVegetation` (static LAI)
 
-> Status: **in progress** (revision 6). Static LAI (`:vegetation_column`) is done and in the suite. The
-> time-varying `FieldTimeSeries` LAI path now traces too, against Oceananigans `mg/fts-reactant` including
-> the one-line follow-up fix found here (on the branch since commit `92919412`, 2026-09-22):
-> `:vegetation_column_lai_cycle` matches CPU after 100 steps and the global N72 ERA5-Land LAI climatology
-> runs through the compiled loop. Terrarium-side changes are small (a traced-time `convert_dt` in the
-> Reactant extension and two `FieldTimeSeries` constructor fixes) but no longer zero. Revision 7 adds the
-> **full default `LandModel`** (soil + snow + `VegetationCarbonCycle`) as `:land_default`, which also matches
-> CPU. Remaining: the branch has to be merged and released so the repo's Oceananigans pin can move back
-> to a release.
+> Status: **completed**. Static LAI (`:vegetation_column`), time-varying `FieldTimeSeries` LAI
+> (`:vegetation_column_lai_cycle`), and the full default `LandModel` (`:land_default`) all match CPU
+> in the Reactant suite, and the Oceananigans `[sources]` pin has since been removed.
 
 Date of initial draft: 2026-08-14
 

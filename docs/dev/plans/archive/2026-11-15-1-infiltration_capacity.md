@@ -45,7 +45,7 @@ I = min(P, K_face(Nz)) · (S_top < 1)
 where `P` is the water reaching the ground and `K_face(Nz)` is the `hydraulic_conductivity` field at face `Nz`, which `compute_hydraulics!` (`src/processes/soil/hydrology/soil_hydrology_rre.jl`) sets to the minimum of the unsaturated conductivities of the two topmost cells.
 
 With `UnsatKLinear` (`K = K_sat S`), this cap was close to `K_sat` and rarely binding.
-Since the dry-soil fix of `docs/dev/plans/2026-11-06-1-dry_soil_richards_robustness.md`, the default is the consistent Brooks–Corey conductivity `K = K_sat S^(3 + 2/λ) = K_sat S¹³` (for `λ = 0.2`).
+Since the dry-soil fix of `docs/dev/plans/completed/2026-11-06-1-dry_soil_richards_robustness.md`, the default is the consistent Brooks–Corey conductivity `K = K_sat S^(3 + 2/λ) = K_sat S¹³` (for `λ = 0.2`).
 With `K_sat = 10⁻⁵ m/s` (864 mm/day) and the initial saturation of about 0.55 in the JOSS run, the cap drops from about 475 mm/day to `864 · 0.55¹³ ≈ 0.36 mm/day`, which matches the infiltration diagnosed from the run.
 This produces a runaway feedback: drier soil has a lower conductivity, so it takes up less rain and dries further.
 

@@ -1,6 +1,6 @@
 # Rename `VegetationCarbonCycle` to `PrognosticVegetation`
 
-> Status: **in progress**. Approved by the reviewer in the originating prompt; implementation started on `bg/prognostic-vegetation`.
+> Status: **completed**. `VegetationCarbonCycle` is renamed to `PrognosticVegetation` (with a deprecation in `src/deprecated.jl`) and merged to `main` with the prescribed-LAI changes (PR #235).
 
 Date of initial draft: 2026-11-06
 

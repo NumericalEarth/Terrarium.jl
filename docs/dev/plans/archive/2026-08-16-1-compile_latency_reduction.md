@@ -1,6 +1,6 @@
 # Reduce compile-time latency in model initialization via OrderedDicts
 
-> Status: **complete**. OrderedDict-based initialization + explicit per-process boundary
+> Status: **completed**. OrderedDict-based initialization + explicit per-process boundary
 > condition calls implemented on `bg/compile-latency`. Combined changes reduced cold-start compile
 > time by ~70% for `initialize()` (158 s → 48 s) and ~32% for `timestep!()` (110 s → 75 s).
 > See [Results](#results) for full benchmark table.
