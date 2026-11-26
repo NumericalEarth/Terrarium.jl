@@ -295,6 +295,9 @@ the plan document itself):
   that are made on-the-fly during development.
 - Give each revision in the log a number and a date, and record the model name and version (if known)
  for that revision, since a plan may be revised by a different model than the one that drafted it. **A human must approve each revision before changing any code**.
+- The revision log need not include every user prompt in the transcript, only the final prompt initiating the revision
+- If the plan invovles phases, human review and feedback should be given after each phase unless otherwise instructed
+- If instructed to implement multiple phases, each phase should consist of at least one separate commit
 - Move completed or abandoned implementation plans to the `docs/dev/plans/archive`
 
 Write plan prose with a line break at the end of every sentence (one sentence per line) rather than wrapping at an arbitrary column width.
@@ -315,7 +318,7 @@ The remainder of the plan document may be adapted on a case-by-case basis but sh
 
 ## Revision log
 
-> User prompts here
+> Final user prompt instructing the revision here
 ```
 
 ## Further Reading
