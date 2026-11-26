@@ -135,8 +135,7 @@ function solve_surface_energy_balance!(
         snow::Optional{AbstractSnow} = nothing,
         args...
     ) where {NF}
-    # Construct outputs as auxiliaries + skin temperature (which is prognostic)
-    out = (skin_temperature = state.skin_temperature, auxiliary_fields(state, seb)...)
+    out = auxiliary_fields(state, seb)
     # Merge the snow thermal auxiliaries so the (optionally snow-aware) conduction target can be evaluated
     fields = get_fields(state, seb, atmos, hydrology, snow)
     launch!(grid, XY, solve_surface_energy_balance_kernel!, out, fields, seb, constants, atmos, hydrology, snow, args...)
@@ -156,8 +155,7 @@ function compute_surface_energy_fluxes!(
         hydrology::Optional{AbstractSurfaceHydrology} = nothing,
         args...
     )
-    # Construct outputs as auxiliaries + skin temperature (which is prognostic)
-    out = (skin_temperature = state.skin_temperature, auxiliary_fields(state, seb)...)
+    out = auxiliary_fields(state, seb)
     fields = get_fields(state, seb, atmos, hydrology)
     launch!(grid, XY, compute_surface_energy_fluxes_kernel!, out, fields, seb, constants, atmos, hydrology, args...)
     return nothing

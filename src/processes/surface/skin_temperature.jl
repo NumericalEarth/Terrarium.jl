@@ -110,15 +110,16 @@ end
 ## Top-level interface methods
 
 variables(::ImplicitSkinTemperature) = (
-    prognostic(:skin_temperature, Surface(XY()), units = u"°C", desc = "Longwave emission temperature of the land surface in °C"),
+    auxiliary(:skin_temperature, Surface(XY()), units = u"°C", desc = "Longwave emission temperature of the land surface in °C"),
     input(:ground_temperature, Ground(Top(z = Center())), units = u"°C", desc = "Temperature of the uppermost ground or soil grid cell in °C"),
 )
 
 """
     $TYPEDSIGNATURES
 
-Seed the prognostic `skin_temperature` with the current `ground_temperature` so the implicit
-nonlinear solve starts from a physically sensible guess close to the root.
+Seed the auxiliary `skin_temperature` with the current `ground_temperature` so the implicit
+nonlinear solve starts from a physically sensible guess close to the root. The field persists
+across time steps, so each subsequent solve starts from the previous solution.
 """
 function initialize!(state, grid, ::ImplicitSkinTemperature, args...)
     set!(state.skin_temperature, state.ground_temperature)

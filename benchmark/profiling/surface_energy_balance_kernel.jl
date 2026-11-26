@@ -45,7 +45,7 @@ hydrology, snow = model.surface_hydrology, model.snow
 solver_name = nameof(typeof(seb.skin_temperature.solver))
 
 ## the arguments of the launch in `solve_surface_energy_balance!`
-out = (skin_temperature = state.skin_temperature, Terrarium.auxiliary_fields(state, seb)...)
+out = Terrarium.auxiliary_fields(state, seb)
 fields = Terrarium.get_fields(state, seb, atmos, hydrology, snow)
 kernel! = Terrarium.solve_surface_energy_balance_kernel!
 args = (out, grid, fields, seb, constants, atmos, hydrology, snow)

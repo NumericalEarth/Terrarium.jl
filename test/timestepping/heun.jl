@@ -188,3 +188,28 @@ end
     errors = [maximum(abs, simulate(Δt) .- reference) for Δt in (60.0, 120.0)]
     @test log2(errors[2] / errors[1]) > 1.8
 end
+
+@testset "LandModel: Heun leaves skin temperature consistent with stored fluxes" begin
+    # The skin temperature is auxiliary, so the Heun corrector must not restore it to its start-of-step value:
+    # after a step, recomputing the fluxes from the stored skin temperature must reproduce the stored fluxes.
+    grid = ColumnGrid(CPU(), Float64, ExponentialSpacing(Δz_max = 1.0, N = 20))
+    land = LandModel(grid; snow = nothing, vegetation = nothing, timestepper = Heun())
+    initializers = (
+        temperature = (x, z) -> 5.0 - 0.5 * z,
+        saturation_water_ice = (x, z) -> 0.8,
+    )
+    integrator = initialize(land; initializers)
+    state = integrator.state
+    timestep!(integrator, 600.0)
+    @test haskey(state.auxiliary, :skin_temperature)
+    longwave_up = Array(interior(state.surface_longwave_up))
+    sensible_heat_flux = Array(interior(state.sensible_heat_flux))
+    seb = land.surface_energy_balance
+    land_grid = Terrarium.get_grid(land)
+    # recompute the radiative and turbulent fluxes in place from the stored skin temperature;
+    # only the sensible heat flux is compared since the latent heat flux also depends on the soil state
+    compute_auxiliary!(state, land_grid, seb.radiative_fluxes, seb, land.constants, land.atmosphere)
+    compute_auxiliary!(state, land_grid, seb.turbulent_fluxes, seb, land.constants, land.atmosphere)
+    @test Array(interior(state.surface_longwave_up)) ≈ longwave_up
+    @test Array(interior(state.sensible_heat_flux)) ≈ sensible_heat_flux
+end
