@@ -295,6 +295,7 @@ the plan document itself):
   that are made on-the-fly during development.
 - Give each revision in the log a number and a date, and record the model name and version (if known)
  for that revision, since a plan may be revised by a different model than the one that drafted it. **A human must approve each revision before changing any code**.
+- Move completed or abandoned implementation plans to the `docs/dev/plans/archive`
 
 Write plan prose with a line break at the end of every sentence (one sentence per line) rather than wrapping at an arbitrary column width.
 This keeps diffs readable when individual sentences are revised.
