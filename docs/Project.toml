@@ -21,5 +21,9 @@ Rasters = "a3a2b9e3-a471-40c9-b274-f788e487c689"
 RingGrids = "d1845624-ad4f-453b-8ff4-a8db365bf3a7"
 Terrarium = "80418d68-07fa-499d-ae2b-c12e531f5cd8"
 
-[sources]
-NumericalEarth = {url = "https://github.com/NumericalEarth/NumericalEarth.jl", rev = "main"}
+[sources.NumericalEarth]
+rev = "main"
+url = "https://github.com/NumericalEarth/NumericalEarth.jl"
+
+[compat]
+DisplayAs = "0.1"
