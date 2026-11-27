@@ -105,7 +105,16 @@ compute_sensible_heat_flux
 The latent heat flux is computed via a unified interface for both standalone flux calculations as well as coupling with [`evapotranpsiration`](@ref "Evapotranspiration"):
 
 ```@docs; canonical = false
-compute_latent_heat_flux
+compute_latent_heat_flux(i, j, grid, fields, tur::DiagnosedTurbulentFluxes{NF}, skinT::AbstractSkinTemperature, constants::PhysicalConstants, atmos::AbstractAtmosphere, surface_hydrology::Optional{AbstractSurfaceHydrology}, snow::AbstractSnow) where {NF}
+compute_latent_heat_flux(i, j, grid, fields, tur::DiagnosedTurbulentFluxes, skinT::AbstractSkinTemperature, constants::PhysicalConstants, atmos::AbstractAtmosphere, surface_hydrology::Optional{AbstractSurfaceHydrology}, ::Nothing)
+compute_latent_heat_flux(::DiagnosedTurbulentFluxes, Q_h, ρₐ, L)
+```
+
+The grid-cell latent heat flux above blends the latent heat fluxes of the snow-free and snow-covered tiles by the snow-covered area fraction:
+
+```@docs; canonical = false
+compute_latent_heat_flux(i, j, grid, fields, ::SnowFree, tur::DiagnosedTurbulentFluxes{NF}, skinT::AbstractSkinTemperature, constants::PhysicalConstants, atmos::AbstractAtmosphere, surface_hydrology::Optional{AbstractSurfaceHydrology}, snow::Optional{AbstractSnow}) where {NF}
+compute_latent_heat_flux(i, j, grid, fields, ::SnowCovered, tur::DiagnosedTurbulentFluxes{NF}, skinT::AbstractSkinTemperature, constants::PhysicalConstants, atmos::AbstractAtmosphere, surface_hydrology::Optional{AbstractSurfaceHydrology}, snow::AbstractSnow) where {NF}
 ```
 
 ```@docs; canonical = false

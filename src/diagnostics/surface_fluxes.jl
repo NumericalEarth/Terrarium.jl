@@ -11,6 +11,8 @@ function diagnose_skin_temperature_residual(
         snow::Optional{AbstractSnow} = nothing
     )
     return kernel_operation2D(state, model.grid, seb.skin_temperature, seb, model.constants, snow) do i, j, grid, fields, skinT::ImplicitSkinTemperature, args...
+        # Transitional (Phase 5 of the snow tiling plan reports the residual per tile): with snow, the
+        # single grid-cell skin temperature inverts the area-weighted blend of the conduction relations
         Ts_implicit = compute_skin_temperature(i, j, grid, fields, skinT, args...)
         Ts_prev = state.skin_temperature[i, j, end]
         return Ts_prev - Ts_implicit

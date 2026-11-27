@@ -163,16 +163,17 @@ end
 """
     $TYPEDSIGNATURES
 
-Compute the latent heat flux at `i, j` based on the current skin temperature and atmospheric conditions.
-When an evapotranspiration scheme is provided, uses the ET-aware humidity flux; otherwise uses bare ground evaporation.
+Compute the latent heat flux at `i, j` of the snow-free tile based on the current skin temperature and
+atmospheric conditions. When a surface hydrology scheme is provided, uses the humidity flux of its
+evapotranspiration scheme; otherwise uses bare ground evaporation from a saturated surface. In both
+cases the latent heat of vaporization `L_lv` applies: `LE = L_lv·ρₐ·Q_h`.
 
-With a snow component, the flux is partitioned by snow-covered area fraction `f_snow`: the snow-free
-fraction `(1 − f_snow)` evaporates from the ground/canopy (latent heat of vaporization), while the
-snow-covered fraction sublimates from the snowpack (latent heat of sublimation, see
-[`compute_snow_sublimation_flux`](@ref)). Without snow it reduces to the bare ground/canopy latent flux.
+This is the method for the snow-free tile ([`SnowFree`](@ref)), which is also the whole grid cell in
+configurations without snow; it is not weighted by a snow-covered area fraction, and `snow` is not used.
 """
 @propagate_inbounds function compute_latent_heat_flux(
         i, j, grid, fields,
+        ::SnowFree,
         tur::DiagnosedTurbulentFluxes{NF},
         skinT::AbstractSkinTemperature,
         constants::PhysicalConstants,
@@ -191,23 +192,85 @@ snow-covered fraction sublimates from the snowpack (latent heat of sublimation, 
         evtr = get_evapotranspiration(surface_hydrology)
         compute_surface_humidity_flux(i, j, grid, fields, evtr, constants, atmos)
     end
-
-    # Get atmospheric variables and snow cover fraction
     # TODO: density should be evaluated at surface temperature for better accuracy
     ρₐ = air_density(i, j, grid, fields, atmos, constants)
-    f = snow_cover_fraction(i, j, grid, fields, snow)
-    # Retrieve constants
     L_lv = constants.thermodynamics.latent_heat_vaporization
-    L_sg = constants.thermodynamics.latent_heat_sublimation
-    ρ_w = constants.material.density_water
-    # Compute latent heat flux for bare ground and snow sublimation flux
-    Hₗ_ground = compute_latent_heat_flux(tur, Q_h, ρₐ, L_lv)
-    E_subl = compute_snow_sublimation_flux(i, j, grid, fields, snow, atmos, constants, skinT)
-    Hₗ_snow = ρ_w * L_sg * E_subl
-    # Compute area-weighted total latent heat flux (bare ground + snow sublimation)
-    Hₗ = (NF(1) - f) * Hₗ_ground + f * Hₗ_snow
+    Hₗ = compute_latent_heat_flux(tur, Q_h, ρₐ, L_lv)
     return Hₗ
 end
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the latent heat flux at `i, j` of the snow-covered tile, i.e. the sublimation latent heat flux
+`LE = ρ_w·L_sg·E_subl` at the current skin temperature, where `E_subl` is the sublimation rate of the
+snowpack (see [`compute_snow_sublimation_flux`](@ref)), `ρ_w` the density of water, and `L_sg` the
+latent heat of sublimation.
+
+This is the method for the snow-covered tile ([`SnowCovered`](@ref)); it is not weighted by the snow-covered
+area fraction. The `surface_hydrology` argument is accepted for a uniform call signature and is not used.
+"""
+@propagate_inbounds function compute_latent_heat_flux(
+        i, j, grid, fields,
+        ::SnowCovered,
+        tur::DiagnosedTurbulentFluxes{NF},
+        skinT::AbstractSkinTemperature,
+        constants::PhysicalConstants,
+        atmos::AbstractAtmosphere,
+        surface_hydrology::Optional{AbstractSurfaceHydrology},
+        snow::AbstractSnow,
+    ) where {NF}
+    L_sg = constants.thermodynamics.latent_heat_sublimation
+    ρ_w = constants.material.density_water
+    E_subl = compute_snow_sublimation_flux(i, j, grid, fields, snow, atmos, constants, skinT)
+    Hₗ = ρ_w * L_sg * E_subl
+    return Hₗ
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Compute the grid-cell latent heat flux at `i, j` at a single grid-cell skin temperature. With a snow
+component, the latent heat fluxes of the snow-free and snow-covered tiles (the methods of this function for
+[`SnowFree`](@ref) and [`SnowCovered`](@ref)) are
+weighted by the snow-covered area fraction `f_snow`, `LE = (1 − f_snow)·LEˢᶠ + f_snow·LEˢⁿ`.
+
+With snow, this is a transitional kernel function used while the surface energy balance is solved for a single
+grid-cell skin temperature with snow; it is to be replaced by separate snow-free and snow-covered tile
+fluxes aggregated after the tile solves.
+"""
+@propagate_inbounds function compute_latent_heat_flux(
+        i, j, grid, fields,
+        tur::DiagnosedTurbulentFluxes{NF},
+        skinT::AbstractSkinTemperature,
+        constants::PhysicalConstants,
+        atmos::AbstractAtmosphere,
+        surface_hydrology::Optional{AbstractSurfaceHydrology},
+        snow::AbstractSnow,
+    ) where {NF}
+    f = snow_cover_fraction(i, j, grid, fields, snow)
+    Hₗ_snow_free = compute_latent_heat_flux(i, j, grid, fields, SnowFree(), tur, skinT, constants, atmos, surface_hydrology, snow)
+    Hₗ_snow = compute_latent_heat_flux(i, j, grid, fields, SnowCovered(), tur, skinT, constants, atmos, surface_hydrology, snow)
+    Hₗ = (one(NF) - f) * Hₗ_snow_free + f * Hₗ_snow
+    return Hₗ
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Grid-cell latent heat flux at `i, j` without snow, i.e. the latent heat flux of the snow-free tile
+([`SnowFree`](@ref)). When no surface hydrology scheme is given, this is bare ground
+evaporation from a saturated surface.
+"""
+@propagate_inbounds compute_latent_heat_flux(
+    i, j, grid, fields,
+    tur::DiagnosedTurbulentFluxes,
+    skinT::AbstractSkinTemperature,
+    constants::PhysicalConstants,
+    atmos::AbstractAtmosphere,
+    surface_hydrology::Optional{AbstractSurfaceHydrology} = nothing,
+    ::Nothing = nothing,
+) = compute_latent_heat_flux(i, j, grid, fields, SnowFree(), tur, skinT, constants, atmos, surface_hydrology, nothing)
 
 # Kernels
 
@@ -215,7 +278,9 @@ end
     i, j = @index(Global, NTuple)
     # compute sensible heat flux
     out.sensible_heat_flux[i, j, end] = compute_sensible_heat_flux(i, j, grid, fields, tur, args...)
-    # compute latent heat flux - pass all args to allow dispatch on evtr presence
+    # compute latent heat flux - pass all args to allow dispatch on evtr presence; transitional (Phase 3
+    # of the snow tiling plan restricts this launch to the snow-free case): with snow, the snow-free and
+    # snow-covered latent heat fluxes are blended by the snow-covered area fraction
     out.latent_heat_flux[i, j, end] = compute_latent_heat_flux(i, j, grid, fields, tur, args...)
 end
 
@@ -229,6 +294,9 @@ them into the auxiliary output fields `out`.
 """
 @propagate_inbounds function compute_turbulent_fluxes!(out, i, j, grid, fields, tur::DiagnosedTurbulentFluxes, skinT, constants, atmos, hydrology, snow)
     out.sensible_heat_flux[i, j, end] = compute_sensible_heat_flux(i, j, grid, fields, tur, skinT, constants, atmos)
+    # Transitional (Phase 3 of the snow tiling plan replaces this with per-tile fluxes and an aggregation):
+    # with snow, the snow-free and snow-covered latent heat fluxes at the single grid-cell skin temperature
+    # are blended by the snow-covered area fraction
     out.latent_heat_flux[i, j, end] = compute_latent_heat_flux(i, j, grid, fields, tur, skinT, constants, atmos, hydrology, snow)
     return nothing
 end

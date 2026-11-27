@@ -10,29 +10,24 @@ Iteratively solve for the implicit skin temperature until convergence by alterna
 computing surface energy fluxes and updating the skin temperature. All input values are set
 inside this function from keyword arguments.
 
-# Arguments
-- `state`: initialized model state
-- `grid`: column grid
-- `seb`: [`SurfaceEnergyBalance`](@ref) containing an [`ImplicitSkinTemperature`](@ref)
-- `model`: [`SurfaceEnergyModel`](@ref)
-
-# Keyword arguments (all required unless noted)
-- `surface_shortwave_down::Float64`: downward shortwave radiation (W/m²)
-- `surface_longwave_down::Float64`: downward longwave radiation (W/m²)
-- `air_pressure::Float64`: air pressure at the surface (Pa)
-- `air_temperature::Float64`: air temperature (°C)
-- `relative_humidity::Float64`: relative humidity (0–1)
-- `ground_temperature::Float64`: ground temperature (°C)
-- `windspeed::Float64`: wind speed at reference height (m/s)
-- `κₛ::Float64`: ground thermal conductivity (W/(m·K)) — default 0.5
-- `Cₕ::Float64`: aerodynamic heat transfer coefficient — default 2.0e-3
-- `max_iterations::Int`: maximum iterations — default 20
-- `tolerance::Float64`: convergence tolerance — default `sqrt(eps())`
-
-# Returns
+## Returns
 Named tuple with fields: `skin_temperature`, `residual`, `net_radiation`, `latent_heat_flux`,
 `sensible_heat_flux`, `ground_heat_flux`.
 """
+blended_skin_temperature_inverse(state, grid, skinT, seb, constants, ::Nothing) =
+    Terrarium.compute_skin_temperature(1, 1, grid, state, SnowFree(), skinT, seb, constants, nothing)
+
+function blended_skin_temperature_inverse(state, grid, skinT, seb, constants, snow::Terrarium.AbstractSnow)
+    Ts_sf = Terrarium.compute_skin_temperature(1, 1, grid, state, SnowFree(), skinT, seb, constants, snow)
+    Ts_sn = Terrarium.compute_skin_temperature(1, 1, grid, state, SnowCovered(), skinT, seb, constants, snow)
+    _, κg, Δzg = Terrarium.ground_thermal_interface(1, 1, grid, state, skinT)
+    _, κsnow, dsnow = Terrarium.snow_thermal_interface(1, 1, grid, state, snow, constants)
+    f = state.snow_cover_fraction[1, 1, 1]
+    w_sf = (1 - f) * 2 * κg / Δzg
+    w_sn = f * 2 * κsnow / dsnow
+    return (w_sf * Ts_sf + w_sn * Ts_sn) / (w_sf + w_sn)
+end
+
 function test_skin_temperature_solve!(
         state,
         grid::Terrarium.AbstractGrid{NF},
@@ -84,9 +79,10 @@ function test_skin_temperature_solve!(
     # Check that the skin temperature is finite and within plausible range
     @test all(isfinite.(state.skin_temperature)) && all(state.skin_temperature .> -100) && all(state.skin_temperature .< 100)
 
-    # Check convergence in temperature space, mirroring exactly what `compute_skin_temperature_residual!`
-    # computes: the atmosphere-side demand (R_net + H_s + H_l) inverted through the (unblended) ground and
-    # snow-top conduction targets should reproduce the current skin temperature. Also check that the
+    # Check convergence in temperature space, mirroring what `compute_skin_temperature_residual!`
+    # computes: the atmosphere-side demand (R_net + H_s + H_l) inverted through the snow-free (ground) and,
+    # with snow, snow-covered conduction relations, blended by their area-weighted conductances, should
+    # reproduce the current skin temperature. Also check that the
     # *stored* `ground_heat_flux` is the explicit bare-ground conductive flux at that Ts (see the
     # `ImplicitSkinTemperature`-specific `compute_ground_heat_flux` in ground_heat_flux.jl).
     seb = model.surface_energy_balance
@@ -99,7 +95,7 @@ function test_skin_temperature_solve!(
     R_net = state.surface_net_radiation[1, 1]
     H_s = state.sensible_heat_flux[1, 1]
     H_l = state.latent_heat_flux[1, 1]
-    Ts_implicit = Terrarium.compute_skin_temperature(1, 1, grid, state, skinT, seb, model.constants, snow)
+    Ts_implicit = blended_skin_temperature_inverse(state, grid, skinT, seb, model.constants, snow)
     Ts_residual = Ts - Ts_implicit
     G_residual = G - G_gradient
 

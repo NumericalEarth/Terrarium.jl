@@ -168,6 +168,49 @@ abstract type AbstractSurfaceHydrology{NF} <: AbstractCoupledProcesses{NF} end
 
 @inline get_surface_runoff(hydrology::AbstractSurfaceHydrology) = hydrology.surface_runoff
 
+# Surface tile markers
+
+"""
+Base type for surface tile markers. With a snow component, each grid cell is split into a snow-free and
+a snow-covered surface tile. A tile marker passed right after `fields` selects the per-tile method of a
+surface kernel function (e.g. [`compute_skin_temperature`](@ref), [`compute_latent_heat_flux`](@ref), or
+[`compute_albedo`](@ref)), whereas the method without a tile marker computes the grid-cell value. The
+marker also names the variable namespace that holds the tile's state (see [`tile_name`](@ref)).
+"""
+abstract type AbstractSurfaceTile end
+
+"""
+    $TYPEDEF
+
+Marker for the snow-free surface tile, i.e. the snow-free fraction `1 − f_snow` of a grid cell, or the
+whole grid cell without snow. Its variables live in the namespace `snow_free`.
+"""
+struct SnowFree <: AbstractSurfaceTile end
+
+"""
+    $TYPEDEF
+
+Marker for the snow-covered surface tile, i.e. the snow-covered fraction `f_snow` of a grid cell. Its
+variables live in the namespace `snow`.
+"""
+struct SnowCovered <: AbstractSurfaceTile end
+
+"""
+    $TYPEDSIGNATURES
+
+Return the name of the variable namespace that holds the state of the snow-free surface tile.
+"""
+tile_name(::SnowFree) = :snow_free
+
+"""
+    $TYPEDSIGNATURES
+
+Return the name of the variable namespace that holds the state of the snow-covered surface tile.
+"""
+tile_name(::SnowCovered) = :snow
+
 include("canopy_interception/abstract_types.jl")
+
 include("evapotranspiration/abstract_types.jl")
+
 include("runoff/abstract_types.jl")

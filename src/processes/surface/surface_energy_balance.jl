@@ -103,6 +103,81 @@ variables(seb::SurfaceEnergyBalance) = tuplejoin(
     variables(seb.ground_heat_flux)
 )
 
+# Without snow, the surface is not split into tiles.
+variables(seb::AbstractSurfaceEnergyBalance, ::Nothing) = variables(seb)
+
+"""
+    $TYPEDSIGNATURES
+
+Variables of the surface energy balance coupled to an optional `snow` component. Without snow
+(`nothing`), these are just the variables of `seb`. With snow, each grid cell is split into a snow-free
+and a snow-covered surface tile, and the variable namespaces `snow_free` and `snow` (one per tile)
+replicate the auxiliary variables declared by the surface energy balance (its skin temperature, fluxes,
+albedo, and emissivity). Its input variables (e.g. `ground_temperature` or the inputs of prescribed
+sub-processes) stay at the root and are shared by both tiles. The root
+variables keep their grid-cell meaning (area-weighted over the tiles), and the root auxiliary
+`snow_melt_energy_flux` is added for the surface-melt energy flux into the snowpack.
+"""
+function variables(seb::SurfaceEnergyBalance, ::AbstractSnow)
+    root_vars = variables(seb)
+    tile_vars = auxiliary_variables(root_vars)
+    snow_vars = (
+        auxiliary(
+            :snow_melt_energy_flux,
+            Surface(XY()),
+            units = u"W/m^2",
+            desc = "Grid-cell-mean surface-melt energy flux into the snowpack beyond snow-top conduction (positive upward)"
+        ),
+    )
+    tile_namespaces = (
+        namespace(:snow_free, tile_vars),
+        namespace(:snow, tile_vars),
+    )
+    return tuplejoin(root_vars, snow_vars, tile_namespaces)
+end
+
+"""
+    $TYPEDSIGNATURES
+
+With all surface fluxes prescribed, the coupler owns the surface energy balance, so the surface is not
+split into tiles and the variables are those of `seb` alone, with or without snow.
+"""
+variables(seb::PrescribedSurfaceEnergyBalance, ::AbstractSnow) = variables(seb)
+
+# Tile dispatches of the state field accessors (see `get_fields` and `auxiliary_fields` in state_variables.jl)
+
+"""
+    $TYPEDSIGNATURES
+
+Retrieves a single `NamedTuple` of `Field`s for evaluating kernel functions on the surface `tile`
+(see [`SnowFree`](@ref) and [`SnowCovered`](@ref)). Kernel functions read tile variables by name (e.g.
+`fields.skin_temperature` or `fields.albedo`), so a tile launch needs a single `fields` tuple in which
+those names resolve to the fields of the tile namespace [`tile_name`](@ref)`(tile)`, while shared
+quantities (the atmospheric forcing, `ground_temperature`, the snow state, or the evapotranspiration
+conductances) still resolve to the root. This lets the unchanged kernel functions be evaluated per tile.
+
+The returned tuple holds the non-tendency fields of `components` from the root of `state` (except those
+named in `except`), merged with the prognostic and auxiliary fields of the tile namespace. Tile fields
+shadow root fields of the same name (e.g. `albedo` or `skin_temperature`), so that kernel functions see the
+tile values of the tile variables and the shared root values of everything else.
+"""
+@inline function get_fields(state, tile::AbstractSurfaceTile, components...; except = (;))
+    root_fields = get_fields(state, components...; except)
+    tile_state = getproperty(state, tile_name(tile))
+    own_fields = merge(getfield(tile_state, :prognostic), getfield(tile_state, :auxiliary))
+    return merge(root_fields, own_fields)
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Retrieves all `Field`s corresponding to auxiliary variables defined on the given `components` from the
+namespace of the surface `tile` (see [`tile_name`](@ref)) in `state`, e.g. as the output fields of a
+kernel evaluated on that tile.
+"""
+@inline auxiliary_fields(state, tile::AbstractSurfaceTile, components...) =
+    auxiliary_fields(getproperty(state, tile_name(tile)), components...)
+
 """ $TYPEDSIGNATURES """
 @inline function compute_auxiliary!(
         state, grid,

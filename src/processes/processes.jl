@@ -2,28 +2,38 @@
 
 export PhysicalConstants, ThermodynamicConstants, MaterialConstants, UniversalConstants
 include("constants.jl")
+
 include("unit_conversions.jl")
 
 # Abstract types and methods
 
 include("thermodynamics/abstract_types.jl")
+
 include("atmosphere/abstract_types.jl")
+
 # snow abstract types precede surface so the surface energy balance can dispatch on `AbstractSnow`
 include("snow/abstract_types.jl")
+
+export SnowFree, SnowCovered
 include("surface/abstract_types.jl")
+
 include("soil/abstract_types.jl")
+
 include("vegetation/abstract_types.jl")
 
 # Thermodynamics
 
 include("thermodynamics/thermodynamics.jl")
+
 include("thermodynamics/enthalpy.jl")
+
 include("thermodynamics/heat_conduction.jl")
 
 # Atmosphere
 
 export ConstantAerodynamics
 include("atmosphere/aerodynamics.jl")
+
 export PrescribedAtmosphere, RainSnow, LongShortWaveRadiation, TracerGas, TracerGases, AmbientCO2
 export Windspeed, WindVelocity, SpecificHumidity
 include("atmosphere/prescribed_atmosphere.jl")
@@ -62,6 +72,7 @@ include("soil/hydrology/soil_hydrology_rre.jl")
 
 export SoilSaturationPressureClosure
 include("soil/hydrology/soil_hydraulic_closures.jl")
+
 include("soil/hydrology/soil_hydrology_implicit.jl")
 
 export SoilThermalConductivities, SoilHeatCapacities, SoilThermalProperties, InverseQuadratic
@@ -72,6 +83,7 @@ export SoilThermodynamics, SoilEnergyTemperatureClosure
 include("soil/energy/soil_energy.jl")
 
 include("soil/energy/soil_energy_closures.jl")
+
 include("soil/energy/soil_energy_implicit.jl")
 
 export SoilEnergyWaterCarbon
@@ -86,7 +98,9 @@ include("snow/snow_hydraulic_properties.jl")
 
 export SingleLayerSnow
 include("snow/snow_single_layer.jl")
+
 include("snow/snow_interfaces.jl")
+
 include("snow/snow_albedo.jl")
 
 export FractionalSnowCover
@@ -94,6 +108,7 @@ include("snow/mass/snow_cover.jl")
 
 export ConstantSnowDensity
 include("snow/mass/snow_density.jl")
+
 include("snow/mass/snow_mass.jl")
 
 export PowerLawSnowThermalConductivity, LogarithmicSnowThermalConductivity, QuadraticSnowThermalConductivity
@@ -101,8 +116,11 @@ include("snow/energy/snow_thermal_conductivity.jl")
 
 export SnowEnergyTemperatureClosure
 include("snow/energy/snow_energy_closures.jl")
+
 include("snow/energy/snow_energy.jl")
+
 include("snow/snow_diffusion_timescales.jl")
+
 include("snow/snow_implicit.jl")
 
 # Vegetation

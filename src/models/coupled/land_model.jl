@@ -96,6 +96,27 @@ function StateVariables(
     return StateVariables(vars, grid; clock, timestepper = get_timestepper(model), model, boundary_conditions = bcs, fields)
 end
 
+"""
+    $TYPEDSIGNATURES
+
+Collect the variables of all processes of the [`LandModel`](@ref), followed by those of its initializer.
+Unlike the default for `AbstractModel`s, the surface energy balance declares its variables together with
+the snow component (see the two-argument [`variables`](@ref) of the [`SurfaceEnergyBalance`](@ref)), which
+splits the surface into snow-free and snow-covered tiles when snow is present.
+"""
+function variables(model::LandModel)
+    # Same components and order as `processes(model)`; `variables(nothing)` is empty for absent components
+    return tuplejoin(
+        variables(model.vegetation),
+        variables(model.soil),
+        variables(model.snow),
+        variables(model.surface_energy_balance, model.snow),
+        variables(model.surface_hydrology),
+        variables(model.atmosphere),
+        variables(get_initializer(model)),
+    )
+end
+
 interface_variables(::LandModel) = (
     auxiliary(:soil_heat_flux, Ground(Top()); units = u"W/m^2", desc = "Blended heat flux (W/m^2 of grid cell) out of the soil top: snow-covered fraction times the snow-base flux plus bare fraction times the ground heat flux"),
 )

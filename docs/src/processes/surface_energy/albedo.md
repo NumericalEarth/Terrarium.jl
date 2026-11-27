@@ -87,6 +87,10 @@ emissivity
 ## Kernel functions
 
 ```@docs; canonical = false
+Terrarium.compute_albedo(i, j, grid, fields, albedo::DiagnosticAlbedo{NF}, vegetation::Optional{AbstractVegetation}, snow::AbstractSnow, soil::Optional{AbstractSoil}, args...) where {NF}
+Terrarium.compute_albedo(i, j, grid, fields, albedo::DiagnosticAlbedo, vegetation::Optional{AbstractVegetation}, snow::Nothing, soil::Optional{AbstractSoil}, args...)
+Terrarium.compute_albedo(i, j, grid, fields, ::SnowFree, albedo::DiagnosticAlbedo{NF}, vegetation::Optional{AbstractVegetation}, snow::Optional{AbstractSnow}, soil::Optional{AbstractSoil}, args...) where {NF}
+Terrarium.compute_albedo(i, j, grid, fields, ::SnowCovered, albedo::DiagnosticAlbedo{NF}, vegetation::Optional{AbstractVegetation}, snow::AbstractSnow, soil::Optional{AbstractSoil}, args...) where {NF}
 Terrarium.compute_albedo!
 ```
 

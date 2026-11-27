@@ -20,3 +20,7 @@ end
 @testset "SEB: Ground heat flux" begin
     include("ground_heat_flux.jl")
 end
+
+@testset "SEB: Surface tiles" begin
+    include("surface_tiles.jl")
+end

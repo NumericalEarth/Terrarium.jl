@@ -80,4 +80,27 @@ solve_surface_energy_balance!(state, grid, seb::SurfaceEnergyBalance{NF}, consta
 compute_surface_energy_fluxes!(state, grid, seb::SurfaceEnergyBalance, constants::PhysicalConstants, atmos::AbstractAtmosphere, hydrology::Optional{AbstractSurfaceHydrology}, args...)
 ```
 
+With a snow component, the variables of the surface energy balance are declared together with the snow, which adds variable namespaces for the snow-free and snow-covered surface tiles:
+
+```@docs; canonical = false
+variables(seb::SurfaceEnergyBalance, ::AbstractSnow)
+variables(seb::PrescribedSurfaceEnergyBalance, ::AbstractSnow)
+```
+
+The tiles are identified by marker types, which select the per-tile methods of the surface kernel functions and name the tile namespaces:
+
+```@docs; canonical = false
+AbstractSurfaceTile
+SnowFree
+SnowCovered
+tile_name
+```
+
+The fields for evaluating kernel functions on a tile are retrieved with the tile methods of `get_fields` and `auxiliary_fields`:
+
+```@docs; canonical = false
+get_fields(state, tile::AbstractSurfaceTile, components...)
+auxiliary_fields(state, tile::AbstractSurfaceTile, components...)
+```
+
 The fused kernel evaluates each flux group through a per-process *mutating* variant, so a diagnosed process computes and stores its fluxes while a prescribed one (whose fluxes are supplied as input fields) is a no-op: [`compute_radiative_fluxes!`](@ref), [`compute_turbulent_fluxes!`](@ref), and [`compute_ground_heat_flux!`](@ref). The ground heat flux is always evaluated last, since it depends on the other three flux terms.

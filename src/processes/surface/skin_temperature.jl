@@ -38,17 +38,27 @@ variables(::PrescribedSkinTemperature) = (
 """
     $TYPEDEF
 
-Scheme for an implicit skin temperature ``T_s`` satisfying:
-```math
-R_{\\text{net}}(T_s) + H_s(T_s) + H_l(T_s) - (1 - f_{\\text{snow}})\\, G(T_s, T_g) - f_{\\text{snow}}\\, S(T_s, T_{\\text{snow}}) = 0
-```
-where ``R_{\\text{net}}`` is the net radiation budget, ``H_s`` is the sensible heat flux, ``H_l`` is the latent
-heat flux from sublimation and evapotranspiration, ``G`` is the conductive flux from the skin into the
-snow-free ground (``T_g`` its temperature), ``S`` is the conductive flux from the skin into the top of the
-snowpack over the snow-covered fraction (``T_{\\text{snow}}`` its temperature), and ``f_{\\text{snow}}``
-is the snow-covered area fraction (``f_{\\text{snow}} = 0`` and ``S`` absent without snow). ``G`` and
-``S`` are each computed from their own *unblended* conduction target (see
-[`ground_thermal_interface`](@ref) and [`snow_thermal_interface`](@ref)).
+Scheme for an implicit skin temperature `Tₛ` satisfying the surface energy balance
+
+    R_net(Tₛ) + H(Tₛ) + LE(Tₛ) = G(Tₛ)
+
+where `R_net` is the net radiation budget, `H` is the sensible heat flux, `LE` is the latent heat flux,
+and `G` is the conductive heat flux from the skin into the medium below it (all positive upward). On the
+snow-free surface (superscript `sf`), `G = Gˢᶠ = 2κₛ(T_g − Tₛ)/Δz_g` conducts into the uppermost ground
+layer of temperature `T_g` and thickness `Δz_g` (see [`ground_thermal_interface`](@ref)), and `LE` is the
+evaporation and transpiration latent flux. On the snow-covered surface (superscript `sn`),
+`G = Gˢⁿ = 2κ_snow(T_snow − Tₛ)/d_snow` conducts through half the bulk snow depth `d_snow` into the
+snowpack of temperature `T_snow` (see [`snow_thermal_interface`](@ref)), and `LE` is the sublimation
+latent flux.
+
+The skin temperature is found as the root of `Tₛ − Tₛ*(Tₛ)`, where `Tₛ*` inverts the (linear)
+conduction relation for the demanded flux `G₀ = R_net + H + LE` (see [`compute_skin_temperature`](@ref)).
+
+!!! note
+    With a snow component, the solve currently uses a single grid-cell skin temperature, for which the
+    snow-free and snow-covered conduction relations are combined by area weighting with the snow-covered
+    fraction `f_snow`: `(1 − f_snow)·Gˢᶠ(Tₛ) + f_snow·Gˢⁿ(Tₛ) = G₀`. This is a transitional state; the
+    snow-free and snow-covered tiles are to be solved separately.
 
 Properties:
 $FIELDS
@@ -79,8 +89,8 @@ end
 
 Return the conduction target `(Tg, κ, Δz)` for the snow-free ground: the uppermost ground layer's
 `ground_temperature`, the assumed surface conductivity `κₛ`, and the top ground cell thickness. This is
-always the *unblended* ground-only target, used both when there is no snow and (weighted by
-`1 - f_snow`) for the bare-ground share of the skin-temperature solve when there is.
+the conduction target of the snow-free surface, used both when there is no snow and for the snow-free
+tile when there is.
 """
 @propagate_inbounds function ground_thermal_interface(i, j, grid, fields, skinT::ImplicitSkinTemperature)
     ground_grid = ground_domain(grid)
@@ -92,9 +102,9 @@ end
 """
     $TYPEDSIGNATURES
 
-Return the conduction target `(Tsnow, κsnow, dsnow)` for the snow-covered fraction: the snow's own
+Return the conduction target `(Tsnow, κsnow, dsnow)` for the snow-covered surface: the snow's own
 (bulk) temperature, its thermal conductivity recovered from the density scheme, and its depth floored at
-[`min_snow_conduction_thickness`](@ref). Without snow (`snow === nothing`), returns a placeholders with
+[`min_snow_conduction_thickness`](@ref). Without snow (`snow === nothing`), returns placeholders with
 `κsnow = 0` such that the snow conductive heat flux reduces to zero.
 """
 @propagate_inbounds function snow_thermal_interface(i, j, grid, fields, snow::AbstractSnow, constants::PhysicalConstants)
@@ -131,17 +141,22 @@ end
 """
     $TYPEDSIGNATURES
 
-Invert the (linear) ground-only conduction relation for the implicit skin temperature `Ts` given the
-atmosphere-side demanded flux `G*` (see [`compute_ground_heat_flux_demand`](@ref)): `Ts = Tg − G*/(2κg/Δzg)`.
-This is the no-snow special case (`f_snow = 0`) of the snow-aware method below; it is a separate method
-(rather than a default `snow = nothing`) purely so it can skip the unused
-`snow_thermal_interface`/`snow_cover_fraction` calls.
+Invert the (linear) ground conduction relation of the snow-free tile for the implicit skin temperature
+`Tₛˢᶠ` given the atmosphere-side demanded flux `G₀` (see [`compute_ground_heat_flux_demand`](@ref)),
+
+    Tₛˢᶠ = T_g − G₀·Δz_g/(2κₛ)
+
+where `T_g`, `κₛ`, and `Δz_g` are the ground conduction target (see [`ground_thermal_interface`](@ref)).
+This is the method for the snow-free tile ([`SnowFree`](@ref)), which is also the whole grid cell in
+configurations without snow; `constants` and `snow` are not used.
 """
 @propagate_inbounds function compute_skin_temperature(
         i, j, grid, fields,
+        ::SnowFree,
         skinT::ImplicitSkinTemperature{NF},
         seb::AbstractSurfaceEnergyBalance,
-        args...
+        constants::PhysicalConstants,
+        snow::Optional{AbstractSnow} = nothing
     ) where {NF}
     G₀ = compute_ground_heat_flux_demand(i, j, grid, fields, get_ground_heat_flux(seb), seb)
     Tg, κg, Δzg = ground_thermal_interface(i, j, grid, fields, skinT)
@@ -152,10 +167,46 @@ end
 """
     $TYPEDSIGNATURES
 
-Invert the (linear) area-weighted conduction relation for the implicit skin temperature `Ts` given the
-atmosphere-side demanded flux `G` (see [`compute_ground_heat_flux_demand`](@ref)), by equating `G` to the
-area-weighted sum of the *unblended* ground and snow-top conductive fluxes,
-`(1 − f_snow)·2κg(Tg − Ts)/Δzg + f_snow·2κsnow(Tsnow − Ts)/dsnow`.
+Invert the (linear) snow conduction relation of the snow-covered tile for the implicit skin temperature
+`Tₛˢⁿ` given the atmosphere-side demanded flux `G₀` (see [`compute_ground_heat_flux_demand`](@ref)),
+
+    Tₛˢⁿ = T_snow − G₀·d_snow/(2κ_snow)
+
+where `T_snow`, `κ_snow`, and `d_snow` are the snow conduction target (see
+[`snow_thermal_interface`](@ref)). This is the method for the snow-covered tile ([`SnowCovered`](@ref)); it does not depend on the
+snow-covered area fraction. It requires an actual snow component, since the `nothing` placeholder of
+[`snow_thermal_interface`](@ref) has zero conductivity.
+"""
+@propagate_inbounds function compute_skin_temperature(
+        i, j, grid, fields,
+        ::SnowCovered,
+        skinT::ImplicitSkinTemperature{NF},
+        seb::AbstractSurfaceEnergyBalance,
+        constants::PhysicalConstants,
+        snow::AbstractSnow
+    ) where {NF}
+    G₀ = compute_ground_heat_flux_demand(i, j, grid, fields, get_ground_heat_flux(seb), seb)
+    Tsnow, κsnow, dsnow = snow_thermal_interface(i, j, grid, fields, snow, constants)
+    Ts = Tsnow - G₀ * dsnow / (2 * κsnow)
+    return Ts
+end
+
+"""
+    $TYPEDSIGNATURES
+
+Grid-cell skin temperature that satisfies the area-weighted conduction relation
+`(1 − f_snow)·Gˢᶠ(Tₛ) + f_snow·Gˢⁿ(Tₛ) = G₀` for the demanded flux `G₀`. Since both conductive fluxes are
+linear in `Tₛ`, this is the conductance-weighted mean of the snow-free and snow-covered tile inverses
+`Tₛˢᶠ` and `Tₛˢⁿ` (the methods of [`compute_skin_temperature`](@ref) for [`SnowFree`](@ref) and
+[`SnowCovered`](@ref)),
+
+    Tₛ = ((1 − f_snow)·D_g·Tₛˢᶠ + f_snow·D_snow·Tₛˢⁿ) / ((1 − f_snow)·D_g + f_snow·D_snow)
+
+with the conductances `D_g = 2κₛ/Δz_g` and `D_snow = 2κ_snow/d_snow`.
+
+With snow, this is a transitional kernel function used while the surface energy balance is solved for a
+single grid-cell skin temperature; it is to be replaced by separate snow-free and snow-covered tile
+solves.
 """
 @propagate_inbounds function compute_skin_temperature(
         i, j, grid, fields,
@@ -164,18 +215,31 @@ area-weighted sum of the *unblended* ground and snow-top conductive fluxes,
         constants::PhysicalConstants,
         snow::AbstractSnow
     ) where {NF}
-    G₀ = compute_ground_heat_flux_demand(i, j, grid, fields, get_ground_heat_flux(seb), seb)
-    Tg, κg, Δzg = ground_thermal_interface(i, j, grid, fields, skinT)
-    Tsnow, κsnow, dsnow = snow_thermal_interface(i, j, grid, fields, snow, constants)
+    Ts_sf = compute_skin_temperature(i, j, grid, fields, SnowFree(), skinT, seb, constants, snow)
+    Ts_sn = compute_skin_temperature(i, j, grid, fields, SnowCovered(), skinT, seb, constants, snow)
+    _, κg, Δzg = ground_thermal_interface(i, j, grid, fields, skinT)
+    _, κsnow, dsnow = snow_thermal_interface(i, j, grid, fields, snow, constants)
     f_snow = snow_cover_fraction(i, j, grid, fields, snow)
-    # Solve for skin temperature
     Dg = 2 * κg / Δzg
     Ds = 2 * κsnow / dsnow
-    A = (NF(1) - f_snow) * Dg + f_snow * Ds
-    B = (NF(1) - f_snow) * Dg * Tg + f_snow * Ds * Tsnow
-    Ts = (B - G₀) / A
+    w_sf = (one(NF) - f_snow) * Dg
+    w_sn = f_snow * Ds
+    Ts = (w_sf * Ts_sf + w_sn * Ts_sn) / (w_sf + w_sn)
     return Ts
 end
+
+"""
+    $TYPEDSIGNATURES
+
+Grid-cell skin temperature without snow, i.e. the inverse of the snow-free tile ([`SnowFree`](@ref)).
+"""
+@propagate_inbounds compute_skin_temperature(
+    i, j, grid, fields,
+    skinT::ImplicitSkinTemperature,
+    seb::AbstractSurfaceEnergyBalance,
+    constants::PhysicalConstants,
+    ::Nothing = nothing
+) = compute_skin_temperature(i, j, grid, fields, SnowFree(), skinT, seb, constants, nothing)
 
 """
     $TYPEDSIGNATURES
@@ -199,6 +263,9 @@ atmosphere-side demanded flux supplied by the ground heat flux sub-process (see
     # explicit ground-conduction flux, stored into `ground_heat_flux`); `snow` partitions the latent
     # flux by snow-covered fraction
     compute_surface_energy_fluxes!(out, i, j, grid, fields, seb, constants, atmos, hydrology, snow)
+    # Transitional (Phase 3 of the snow tiling plan replaces this with separate tile solves): with snow,
+    # the single grid-cell skin temperature inverts the area-weighted blend of the snow-free and
+    # snow-covered conduction relations
     Ts_implicit = compute_skin_temperature(i, j, grid, fields, skinT, seb, constants, snow)
     Ts_prev = out.skin_temperature[i, j, end]
     return Ts_prev - Ts_implicit
