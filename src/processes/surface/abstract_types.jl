@@ -175,7 +175,7 @@ Base type for surface tile markers. With a snow component, each grid cell is spl
 a snow-covered surface tile. A tile marker passed right after `fields` selects the per-tile method of a
 surface kernel function (e.g. [`compute_skin_temperature`](@ref), [`compute_latent_heat_flux`](@ref), or
 [`compute_albedo`](@ref)), whereas the method without a tile marker computes the grid-cell value. The
-marker also names the variable namespace that holds the tile's state (see [`tile_name`](@ref)).
+marker also names the variable namespace that holds the tile's state, returned by `nameof(tile)`.
 """
 abstract type AbstractSurfaceTile end
 
@@ -200,14 +200,14 @@ struct SnowCovered <: AbstractSurfaceTile end
 
 Return the name of the variable namespace that holds the state of the snow-free surface tile.
 """
-tile_name(::SnowFree) = :snow_free
+Base.nameof(::SnowFree) = :snow_free
 
 """
     $TYPEDSIGNATURES
 
 Return the name of the variable namespace that holds the state of the snow-covered surface tile.
 """
-tile_name(::SnowCovered) = :snow
+Base.nameof(::SnowCovered) = :snow
 
 include("canopy_interception/abstract_types.jl")
 

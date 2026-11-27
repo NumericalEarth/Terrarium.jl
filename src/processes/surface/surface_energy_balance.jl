@@ -152,7 +152,7 @@ variables(seb::PrescribedSurfaceEnergyBalance, ::AbstractSnow) = variables(seb)
 Retrieves a single `NamedTuple` of `Field`s for evaluating kernel functions on the surface `tile`
 (see [`SnowFree`](@ref) and [`SnowCovered`](@ref)). Kernel functions read tile variables by name (e.g.
 `fields.skin_temperature` or `fields.albedo`), so a tile launch needs a single `fields` tuple in which
-those names resolve to the fields of the tile namespace [`tile_name`](@ref)`(tile)`, while shared
+those names resolve to the fields of the tile namespace `nameof(tile)`, while shared
 quantities (the atmospheric forcing, `ground_temperature`, the snow state, or the evapotranspiration
 conductances) still resolve to the root. This lets the unchanged kernel functions be evaluated per tile.
 
@@ -163,7 +163,7 @@ tile values of the tile variables and the shared root values of everything else.
 """
 @inline function get_fields(state, tile::AbstractSurfaceTile, components...; except = (;))
     root_fields = get_fields(state, components...; except)
-    tile_state = getproperty(state, tile_name(tile))
+    tile_state = getproperty(state, nameof(tile))
     own_fields = merge(getfield(tile_state, :prognostic), getfield(tile_state, :auxiliary))
     return merge(root_fields, own_fields)
 end
@@ -172,11 +172,11 @@ end
     $TYPEDSIGNATURES
 
 Retrieves all `Field`s corresponding to auxiliary variables defined on the given `components` from the
-namespace of the surface `tile` (see [`tile_name`](@ref)) in `state`, e.g. as the output fields of a
+namespace `nameof(tile)` of the surface `tile` in `state`, e.g. as the output fields of a
 kernel evaluated on that tile.
 """
 @inline auxiliary_fields(state, tile::AbstractSurfaceTile, components...) =
-    auxiliary_fields(getproperty(state, tile_name(tile)), components...)
+    auxiliary_fields(getproperty(state, nameof(tile)), components...)
 
 """ $TYPEDSIGNATURES """
 @inline function compute_auxiliary!(

@@ -93,7 +93,8 @@ The tiles are identified by marker types, which select the per-tile methods of t
 AbstractSurfaceTile
 SnowFree
 SnowCovered
-tile_name
+Base.nameof(::SnowFree)
+Base.nameof(::SnowCovered)
 ```
 
 The fields for evaluating kernel functions on a tile are retrieved with the tile methods of `get_fields` and `auxiliary_fields`:

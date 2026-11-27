@@ -71,8 +71,8 @@ end
         tile_aux = Terrarium.auxiliary_fields(state.snow, model.surface_energy_balance)
         @test tile_aux.albedo === state.snow.albedo
         # Tile fields shadow the root fields of the same name and share the root inputs
-        @test Terrarium.tile_name(SnowCovered()) == :snow
-        @test Terrarium.tile_name(SnowFree()) == :snow_free
+        @test nameof(SnowCovered()) == :snow
+        @test nameof(SnowFree()) == :snow_free
         tile_out = Terrarium.auxiliary_fields(state, SnowCovered(), model.surface_energy_balance)
         @test tile_out.skin_temperature === state.snow.skin_temperature
         @test tile_out.sensible_heat_flux === state.snow.sensible_heat_flux
